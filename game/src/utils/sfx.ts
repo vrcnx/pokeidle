@@ -19,18 +19,24 @@ interface Persisted {
 function loadPersisted(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { enabled: true, volume: 0.7 };
+    if (!raw) return { enabled: true, volume: 0.55 };
     const v = JSON.parse(raw);
     return {
       enabled: typeof v.enabled === "boolean" ? v.enabled : true,
-      volume: typeof v.volume === "number" ? clamp01(v.volume) : 0.7,
+      volume: typeof v.volume === "number" ? clamp01(v.volume) : 0.55,
     };
   } catch {
-    return { enabled: true, volume: 0.7 };
+    return { enabled: true, volume: 0.55 };
   }
 }
 
 function clamp01(n: number): number { return Math.max(0, Math.min(1, n)); }
+
+// Multiplier applied to the slider value when actually playing — keeps
+// SFX a touch quieter than music at the same nominal level so attack
+// hits don't drown out the soundtrack. The user still sees and
+// controls 0..100; we just scale down the output.
+const SFX_VOLUME_TRIM = 0.7;
 
 export type SfxCategory = "attack";
 export const sfxLibrary: Record<SfxCategory, string[]> = {
@@ -76,7 +82,7 @@ class SfxManager {
     this.state.volume = clamp01(v);
     this.persist();
     // Adjust any currently-playing clips so the slider responds live.
-    for (const a of this.active) a.volume = this.state.volume;
+    for (const a of this.active) a.volume = this.state.volume * SFX_VOLUME_TRIM;
     this.emit();
   }
 
@@ -96,7 +102,7 @@ class SfxManager {
       }
     }
     const audio = new Audio(trackUrl(category, file));
-    audio.volume = this.state.volume;
+    audio.volume = this.state.volume * SFX_VOLUME_TRIM;
     audio.preload = "auto";
     // Pitch variation: pick a playbackRate in [0.85, 1.20]. Setting
     // preservesPitch=false makes playbackRate also shift pitch (the
