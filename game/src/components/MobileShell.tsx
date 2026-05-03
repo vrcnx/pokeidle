@@ -66,7 +66,7 @@ export function MobileShell() {
   }, [state.phase]);
 
   return (
-    <div className="mobile-shell">
+    <div className={`mobile-shell tab-${tab}`}>
       <header className="mobile-header">
         <div className="mobile-stats">
           <span title={`$${state.money.toLocaleString()}`}>

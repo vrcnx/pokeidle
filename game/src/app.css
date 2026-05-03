@@ -4373,6 +4373,15 @@ body.is-dragging .pc-slot.empty {
   flex-direction: column;
   width: 100%;
 }
+/* On non-Here mobile tabs, hide the moves toolbar + panel so tabs
+   like Party/Bag/PC/Chat get ~193 px more breathing room. The battle
+   scene itself stays visible (HP cards + sprites) so players still
+   see live progress while organising their party / browsing the
+   bag. They tap "Here" to interact with moves or use the toolbar. */
+.mobile-shell:not(.tab-here) .moves-toolbar,
+.mobile-shell:not(.tab-here) .moves-panel {
+  display: none !important;
+}
 .mobile-arena .battle-scene {
   /* Always 16:9 — viewport width drives height. flex-shrink:0 stops the
      flex column from compressing the arena below the aspect-ratio. */
