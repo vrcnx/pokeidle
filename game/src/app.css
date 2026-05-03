@@ -4618,19 +4618,37 @@ body.is-dragging .pc-slot.empty {
     gap: 4px;
   }
   /* Icon-only square buttons — drop the label, shrink the padding,
-     so the header reads as a tight 28-30px control row. */
+     so the header reads as a tight 28px control row. `!important` is
+     load-bearing here: an un-namespaced `.dock-btn { padding: 12px 8px
+     !important; }` later in the cascade otherwise wins, leaving the
+     icon visually pinned to the top-left of the box. */
   .mobile-meta-buttons .dock-btn {
-    padding: 0;
+    padding: 0 !important;
     width: 28px;
     height: 28px;
     min-width: 0;
-    display: grid;
-    place-items: center;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row !important;
+    gap: 0 !important;
     border-radius: 7px;
+    line-height: 0;
   }
-  .mobile-meta-buttons .dock-btn svg { width: 15px; height: 15px; }
+  .mobile-meta-buttons .dock-btn svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+  }
   .mobile-meta-buttons .dock-btn-label { display: none; }
-  .mobile-meta-buttons .dock-btn-icon { display: grid; place-items: center; }
+  .mobile-meta-buttons .dock-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    line-height: 0;
+  }
 
   /* Toolbar: tighter padding + smaller buttons. Allowed to wrap to a
      second row on phones — that's fine now that the header no longer
