@@ -59,7 +59,7 @@ export const initialState: GameState = {
   activeEffects: [],
   awaitingSwitch: false,
   defeatedTrainers: [],
-  battleMode: "manual",
+  battleMode: "auto",
   catchAnim: null,
   whiteoutAnim: null,
 };
