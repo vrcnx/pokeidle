@@ -9239,23 +9239,83 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ───────────────────────────────────────────────────────────────────
-   Bag tab background — backpack illustration covers the whole tab,
-   with a dark scrim overlay so item rows stay readable on top.
+   Bag / PC / Mart / Dex tab backgrounds — built from CSS gradients +
+   patterns instead of bitmap PNGs. Each evokes the prop the original
+   illustration was riffing on (leather backpack, blue CRT screen,
+   shop tile floor, red Pokédex chassis) while staying lightweight,
+   themeable, and resolution-independent.
    ─────────────────────────────────────────────────────────────────── */
 .bottom-tab-body:has(> .bag-tab) {
-  background: url("/ui/backpack.png") center / 100% 100% no-repeat var(--panel);
+  /* Worn-leather feel: warm brown base, diagonal weave texture, dark
+     vignette pulled in at the edges so item cards still anchor. */
+  background:
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.55) 100%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(0,0,0,0.18) 0px,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255,255,255,0.04) 0px,
+      rgba(255,255,255,0.04) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    linear-gradient(180deg, #5a3a26 0%, #3e2718 100%);
   padding: 0 !important;
 }
 .bottom-tab-body:has(> .pc-tab) {
-  background: url("/ui/pc.png") center / 100% 100% no-repeat var(--panel);
+  /* CRT-monitor screen: deep blue radial glow + horizontal scan lines.
+     The faint vertical lines add a phosphor-mesh feel without going
+     full retro. */
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.18) 0px,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.025) 0px,
+      rgba(255,255,255,0.025) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    radial-gradient(ellipse at center, #1f3b8a 0%, #14245c 60%, #0a1338 100%);
   padding: 0 !important;
 }
 .bottom-tab-body:has(> .mart-tab) {
-  background: url("/ui/mart.png") center / 100% 100% no-repeat var(--panel);
+  /* Shop tile floor: light gray checker, subtle warm tint. */
+  background-color: #f3f4f6;
+  background-image:
+    radial-gradient(ellipse at top, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0) 60%),
+    linear-gradient(45deg, #d6d8dd 25%, transparent 25%),
+    linear-gradient(-45deg, #d6d8dd 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d6d8dd 75%),
+    linear-gradient(-45deg, transparent 75%, #d6d8dd 75%);
+  background-size: 100% 100%, 28px 28px, 28px 28px, 28px 28px, 28px 28px;
+  background-position: 0 0, 0 0, 0 14px, 14px -14px, -14px 0;
   padding: 0 !important;
 }
 .bottom-tab-body:has(> .dex-tab) {
-  background: url("/ui/dex.png") center / 100% 100% no-repeat var(--panel);
+  /* Pokédex shell: rich red gradient with a faint horizontal grid that
+     reads as the device's textured plastic, plus a corner highlight to
+     suggest a glossy bezel. */
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 18%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.10) 0px,
+      rgba(0,0,0,0.10) 1px,
+      transparent 1px,
+      transparent 5px
+    ),
+    linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
   padding: 0 !important;
 }
 .dex-tab {
@@ -9273,22 +9333,22 @@ input:focus, textarea:focus, select:focus {
 .dex-tab .tab-pane-head .dim,
 .dex-tab .dim,
 .dex-tab .small {
-  color: #0a0a0a !important;
-  text-shadow: none !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 .dex-tab .tab-pane-head { /* shares the frosted card styles via the multi-selector below */ }
 .dex-tab .dex-tab-grid,
 .dex-tab .dex-search-wrap input {
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   backdrop-filter: blur(3px);
 }
 .dex-tab .dex-search-wrap input {
-  color: #0a0a0a;
+  color: #ffffff;
   padding: 8px 12px;
 }
-.dex-tab .dex-search-wrap input::placeholder { color: rgba(0,0,0,0.5); }
+.dex-tab .dex-search-wrap input::placeholder { color: rgba(255,255,255,0.55); }
 
 .pc-tab,
 .mart-tab {
@@ -9301,16 +9361,19 @@ input:focus, textarea:focus, select:focus {
   color: #ffffff;
   gap: 10px;
 }
-/* Mart, PC, and Dex backgrounds are light — use black text so the
-   labels read against the bright underlay. The bag stays white because
-   its leather backpack is dark. */
+/* Bag, PC, and Dex backgrounds are dark CSS gradients now — keep their
+   text white. Mart's tile-floor background is light, so its text flips
+   to black. */
 .pc-tab,
 .pc-tab .tab-pane-head h3,
 .pc-tab .tab-pane-head .dim,
 .pc-tab .dim,
 .pc-tab .small,
 .pc-tab .pc-pager,
-.pc-tab .pc-pager .dim,
+.pc-tab .pc-pager .dim {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
 .mart-tab,
 .mart-tab .tab-pane-head h3,
 .mart-tab .tab-pane-head .dim,
