@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { username } from "better-auth/plugins";
 import { prisma } from "./db.js";
+import { sendEmail } from "./lib/mailer.js";
 
 // FRONTEND_ORIGIN may be a comma-separated list (game frontend +
 // admin dashboard). Trusted-origins also needs each value individually.
@@ -36,6 +37,40 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     autoSignIn: true,
     minPasswordLength: 8,
+    // Password reset: Better Auth issues a one-shot token + assembles a
+    // URL pointing at the frontend's reset page. We deliver the URL via
+    // email. Token TTL is 1 hour — long enough for a slow user, short
+    // enough that a leaked link from inbox spam-shared screenshots
+    // expires before it can be abused.
+    resetPasswordTokenExpiresIn: 60 * 60,
+    sendResetPassword: async ({ user, url }) => {
+      // user.username isn't on Better Auth's typed user (it comes from
+      // the `username` plugin and lives at the DB layer). Fall back to
+      // name → email-local-part → "trainer" so the greeting always
+      // resolves to something human.
+      const greeting =
+        user.name?.trim() ||
+        user.email.split("@")[0] ||
+        "trainer";
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Pokémon Idle password",
+        text:
+          `Hi ${greeting},\n\n` +
+          `We received a request to reset your password. Click the link below to choose a new one. ` +
+          `The link expires in 1 hour.\n\n` +
+          `${url}\n\n` +
+          `If you didn't request this, you can safely ignore this email — your password won't change.\n\n` +
+          `— Pokémon Idle`,
+        html:
+          `<p>Hi ${escapeHtml(greeting)},</p>` +
+          `<p>We received a request to reset your password. ` +
+          `<a href="${url}">Click here</a> to choose a new one. ` +
+          `The link expires in 1 hour.</p>` +
+          `<p>If you didn't request this, you can safely ignore this email — your password won't change.</p>` +
+          `<p>— Pokémon Idle</p>`,
+      });
+    },
   },
   socialProviders: googleConfigured
     ? {
@@ -70,3 +105,15 @@ export const auth = betterAuth({
 });
 
 export type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;
+
+// Minimal HTML escape — only used for transactional email bodies where
+// we splice user-controlled fields (display name) into HTML. Safer than
+// pulling in a dependency for two-three callsites.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

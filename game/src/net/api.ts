@@ -59,6 +59,23 @@ export const api = {
   googleSignInUrl: () => `${SERVER_URL}/api/auth/sign-in/social/google`,
   authProviders: () => request<{ google: boolean }>("GET", "/api/auth/providers"),
 
+  // Password reset — request sends an email, reset takes the token from
+  // that email + a new password. The server's `redirectTo` is checked
+  // against trustedOrigins so we always pass our own origin's reset
+  // page; the token is appended by Better Auth on its 302 to that URL.
+  requestPasswordReset: (input: { email: string; redirectTo: string }) =>
+    request<{ status: boolean; message?: string }>(
+      "POST",
+      "/api/auth/request-password-reset",
+      input,
+    ),
+  resetPassword: (input: { token: string; newPassword: string }) =>
+    request<{ status: boolean }>(
+      "POST",
+      "/api/auth/reset-password",
+      input,
+    ),
+
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),
   publicProfile: (username: string) =>

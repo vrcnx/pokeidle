@@ -9,7 +9,7 @@ import { LegalModal, openLegal } from "../components/LegalModal";
 // the game uses inside, so the auth screen feels like a continuation
 // rather than a separate page). One-form-toggle UI; each branch posts
 // to its own Better Auth endpoint.
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 // Map Better Auth error codes (and a few HTTP-status fallbacks) to
 // player-friendly copy. Better Auth returns { message, code } pairs;
@@ -85,6 +85,10 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Set after a successful "forgot password" submission so the form
+  // becomes a confirmation screen ("check your inbox") instead of
+  // letting the player resubmit and get rate-limited.
+  const [forgotSent, setForgotSent] = useState(false);
   const dialogRef = useModalEnter();
   // Show a banner if we were just kicked by a session-replaced event
   // (another device signed into the same account). The flag is set in
@@ -126,14 +130,30 @@ export function LoginScreen() {
           name: name.trim() || username.trim(),
           username: username.trim(),
         });
+        await refresh();
+      } else if (mode === "forgot") {
+        // Forgot password — send the reset email. We always show the
+        // same confirmation screen regardless of whether the email is
+        // actually registered, so an attacker can't enumerate valid
+        // addresses by trying random ones.
+        if (!email.trim()) {
+          setError("Enter the email on your account.");
+          setBusy(false);
+          return;
+        }
+        await api.requestPasswordReset({
+          email: email.trim().toLowerCase(),
+          redirectTo: window.location.origin + "/reset-password",
+        });
+        setForgotSent(true);
       } else {
         if (email.includes("@")) {
           await api.signInEmail({ email: email.trim().toLowerCase(), password });
         } else {
           await api.signInUsername({ username: email.trim(), password });
         }
+        await refresh();
       }
-      await refresh();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(friendlyAuthError(err, mode));
@@ -175,27 +195,45 @@ export function LoginScreen() {
           <p className="auth-tag">
             {mode === "signin"
               ? "Welcome back, trainer. Sign in to pick up where you left off."
-              : "New here? Pick a username — your save will sync to the cloud automatically."}
+              : mode === "signup"
+                ? "New here? Pick a username — your save will sync to the cloud automatically."
+                : forgotSent
+                  ? "Check your inbox — if that email is on file, we've sent a reset link."
+                  : "Enter your email and we'll send a reset link."}
           </p>
 
           <div className="auth-tabs">
             <button
               type="button"
               className={`auth-tab ${mode === "signin" ? "active" : ""}`}
-              onClick={() => { setMode("signin"); setError(null); }}
+              onClick={() => { setMode("signin"); setError(null); setForgotSent(false); }}
             >Sign in</button>
             <button
               type="button"
               className={`auth-tab ${mode === "signup" ? "active" : ""}`}
-              onClick={() => { setMode("signup"); setError(null); }}
+              onClick={() => { setMode("signup"); setError(null); setForgotSent(false); }}
             >Create account</button>
           </div>
 
+          {mode === "forgot" && forgotSent ? (
+            <div className="auth-form">
+              <div className="auth-success">
+                We sent a password-reset link to <strong>{email}</strong>. The
+                link expires in 1 hour. Check your spam folder if it doesn't
+                arrive within a few minutes.
+              </div>
+              <button
+                type="button"
+                className="g-btn-primary auth-submit"
+                onClick={() => { setMode("signin"); setForgotSent(false); setPassword(""); }}
+              >Back to sign in</button>
+            </div>
+          ) : (
           <form onSubmit={submit} className="auth-form">
             <label className="auth-label">
               <span>{mode === "signin" ? "Email or username" : "Email"}</span>
               <input
-                type={mode === "signup" ? "email" : "text"}
+                type={mode === "signup" ? "email" : mode === "forgot" ? "email" : "text"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -231,18 +269,29 @@ export function LoginScreen() {
                 </label>
               </>
             )}
-            <label className="auth-label">
-              <span>Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={mode === "signup" ? 8 : 1}
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                placeholder={mode === "signup" ? "8+ characters" : ""}
-              />
-            </label>
+            {mode !== "forgot" && (
+              <label className="auth-label">
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={mode === "signup" ? 8 : 1}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  placeholder={mode === "signup" ? "8+ characters" : ""}
+                />
+              </label>
+            )}
+            {mode === "signin" && (
+              <div className="auth-forgot-row">
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setMode("forgot"); setError(null); setPassword(""); }}
+                >Forgot password?</button>
+              </div>
+            )}
 
             {mode === "signup" && (
               <label className="auth-consent">
@@ -278,11 +327,25 @@ export function LoginScreen() {
             {error && <div className="auth-error">{error}</div>}
 
             <button type="submit" className="g-btn-primary auth-submit" disabled={busy}>
-              {busy ? "…" : mode === "signin" ? "Sign in" : "Create account"}
+              {busy
+                ? "…"
+                : mode === "signin"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create account"
+                    : "Send reset link"}
             </button>
+            {mode === "forgot" && (
+              <button
+                type="button"
+                className="auth-link auth-back-link"
+                onClick={() => { setMode("signin"); setError(null); }}
+              >← Back to sign in</button>
+            )}
           </form>
+          )}
 
-          {providers.google && (
+          {providers.google && mode !== "forgot" && (
             <>
               <div className="auth-divider"><span>or</span></div>
               <a className="auth-google" href={api.googleSignInUrl()}>

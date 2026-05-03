@@ -4,6 +4,7 @@ import { App } from "./App";
 import { GameProvider } from "./state/GameContext";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginScreen } from "./auth/LoginScreen";
+import { ResetPasswordScreen } from "./auth/ResetPasswordScreen";
 import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
 import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
@@ -30,6 +31,14 @@ api.mapPositions()
 // users and the moment of suspense feels intentional.
 function Root() {
   const { status } = useAuth();
+  // Reset-password landing — when Better Auth's email link redirects
+  // back here with `?token=...`, render the dedicated reset screen
+  // instead of the login form, regardless of auth status (the user is
+  // anonymous at this point but might still hit /reset-password while
+  // authenticated if they reuse a stale browser tab).
+  if (window.location.pathname.startsWith("/reset-password")) {
+    return <ResetPasswordScreen />;
+  }
   if (status === "loading") return <LoadingSplash />;
   if (status === "anonymous") return <LoginScreen />;
   return (
