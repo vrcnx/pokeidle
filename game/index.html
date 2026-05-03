@@ -2,9 +2,101 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- ── Primary metadata ─────────────────────────────────────────── -->
+    <title>Pokémon Idle — Free Pokémon Battle Simulator &amp; Idle Browser Game</title>
+    <meta name="description" content="Free fan-made Pokémon idle game. Catch and train Pokémon, beat Kanto's 8 gyms, the Elite Four, and legendary raids — all in your browser. No download required." />
+    <meta name="keywords" content="pokemon idle, pokemon idle game, pokemon battle simulator, free pokemon game, browser pokemon game, pokemon online, fan-made pokemon, pokemon RPG, idle RPG, kanto gym challenge, legendary raids, pokemon clicker" />
+    <meta name="author" content="Pokémon Idle" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://pokeidle.com/" />
+
+    <!-- ── Robots / discovery ───────────────────────────────────────── -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="googlebot" content="index, follow" />
+
+    <!-- ── Icons + PWA install hints ────────────────────────────────── -->
     <link rel="icon" type="image/svg+xml" href="/logos/pokeidle-icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pokémon Idle</title>
+    <link rel="apple-touch-icon" href="/logos/pokeidle-icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Pokémon Idle" />
+    <meta name="application-name" content="Pokémon Idle" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- ── Open Graph (Facebook / Discord / iMessage / etc.) ────────── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Pokémon Idle" />
+    <meta property="og:title" content="Pokémon Idle — Free Pokémon Battle Simulator &amp; Idle Game" />
+    <meta property="og:description" content="Catch and train Pokémon, beat the 8 Kanto gyms, the Elite Four, and legendary raids in your browser. Free fan-made idle game." />
+    <meta property="og:url" content="https://pokeidle.com/" />
+    <!-- Replace /og-card.png with a 1200×630 PNG for richest preview
+         cards (Discord/Slack/iMessage all prefer raster). Falling back
+         to the SVG logo for now so previews aren't broken. -->
+    <meta property="og:image" content="https://pokeidle.com/logos/Pokeidle.svg" />
+    <meta property="og:image:alt" content="Pokémon Idle — fan-made Pokémon battle simulator" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- ── Twitter Card ─────────────────────────────────────────────── -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Pokémon Idle — Free Pokémon Battle Simulator" />
+    <meta name="twitter:description" content="Catch, train, battle. Beat the Kanto gyms, the Elite Four, and legendary raids. Free fan-made idle game in your browser." />
+    <meta name="twitter:image" content="https://pokeidle.com/logos/Pokeidle.svg" />
+    <meta name="twitter:image:alt" content="Pokémon Idle — fan-made Pokémon battle simulator" />
+
+    <!-- ── JSON-LD: VideoGame schema ────────────────────────────────── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Pokémon Idle",
+      "alternateName": ["Pokemon Idle", "Pokémon Idle Game"],
+      "description": "Free fan-made Pokémon idle game and battle simulator. Catch Pokémon, build a team, and clear all 8 Kanto gyms, the Elite Four, and legendary raids — entirely in the browser.",
+      "url": "https://pokeidle.com/",
+      "image": "https://pokeidle.com/logos/Pokeidle.svg",
+      "applicationCategory": "Game",
+      "applicationSubCategory": "Idle Game",
+      "genre": ["Idle Game", "RPG", "Monster-collecting", "Battle Simulator"],
+      "operatingSystem": "Web Browser",
+      "browserRequirements": "Requires JavaScript and a modern browser.",
+      "playMode": "SinglePlayer",
+      "gamePlatform": "Web browser",
+      "inLanguage": "en",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "Pokémon Idle",
+        "url": "https://pokeidle.com/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Pokémon Idle",
+        "url": "https://pokeidle.com/"
+      }
+    }
+    </script>
+
+    <!-- ── JSON-LD: WebSite + SearchAction (sitelinks) ──────────────── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Pokémon Idle",
+      "url": "https://pokeidle.com/",
+      "inLanguage": "en"
+    }
+    </script>
+
+    <!-- ── Performance: preconnect to Google Fonts ──────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,7 +105,20 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Crawler-visible content rendered before React mounts. Search
+         engines that don't fully execute JS still see a page with H1
+         and meaningful copy. React replaces #root contents on hydrate. -->
+    <div id="root">
+      <noscript>
+        <div style="max-width:640px;margin:48px auto;padding:24px;font-family:system-ui,sans-serif;color:#fff;background:#0a0a0a;border-radius:8px;line-height:1.55">
+          <h1 style="margin:0 0 8px;font-size:24px">Pokémon Idle</h1>
+          <p>Pokémon Idle is a free fan-made Pokémon battle simulator and idle game that runs in your browser.</p>
+          <p>Catch and train Pokémon, beat the 8 Kanto gym leaders, take down the Elite Four, and challenge legendary raids — no download required.</p>
+          <p><strong>JavaScript is required to play.</strong> Please enable it and refresh the page.</p>
+          <p style="font-size:13px;color:#9c9c9c;margin-top:24px">This is an unofficial fan project. Not affiliated with Nintendo, Game Freak, or The Pokémon Company. Contact: contact@pokeidle.com</p>
+        </div>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

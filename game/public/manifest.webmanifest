@@ -1,0 +1,21 @@
+{
+  "name": "Pokémon Idle",
+  "short_name": "Pokémon Idle",
+  "description": "Free fan-made Pokémon idle game and battle simulator. Catch, train, and battle in your browser.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "categories": ["games", "entertainment"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/logos/pokeidle-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

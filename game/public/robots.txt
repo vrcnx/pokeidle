@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /reset-password
+
+# Block API host from indexing
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://pokeidle.com/sitemap.xml
