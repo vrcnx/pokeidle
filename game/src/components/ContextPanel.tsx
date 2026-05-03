@@ -16,7 +16,7 @@ import {
   type RaidTier,
   type RaidTierId,
 } from "../data/raidLegendaries";
-import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
+import { IconHome, IconMountain, IconLeaf, IconIsland, IconInfo } from "./Icon";
 import { eliteFour, champion } from "../data/eliteFour";
 import { gymLeaders } from "../data/gymLeaders";
 import { openRewardShop } from "./RewardShopPanel";
@@ -313,7 +313,7 @@ function IdleRaidPanel() {
 
   return (
     <>
-      <section className="ctx-section">
+      <section className="ctx-section ctx-section-with-info">
         <h4 className="ctx-section-h4-with-info">
           Legendary Raids
           <button
@@ -323,21 +323,20 @@ function IdleRaidPanel() {
             aria-label="About Legendary Raids"
             onClick={(e) => {
               // Mobile / tap-to-expand: surface the tooltip text inline
-              // because hover doesn't exist. Toggles a transient tooltip
-              // div sibling.
+              // because hover doesn't exist. Toggles the popover open
+              // class on a sibling at the section level.
               e.preventDefault();
-              const el = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement | null;
-              if (el && el.classList.contains("ctx-info-popover")) {
-                el.classList.toggle("open");
-              }
+              const section = (e.currentTarget as HTMLElement).closest(".ctx-section");
+              const el = section?.querySelector(".ctx-info-popover") as HTMLElement | null;
+              if (el) el.classList.toggle("open");
             }}
           >
-            ⓘ
+            <IconInfo size={15} strokeWidth={1.75} />
           </button>
-          <span className="ctx-info-popover" role="tooltip">
-            {tierInfo}
-          </span>
         </h4>
+        <span className="ctx-info-popover" role="tooltip">
+          {tierInfo}
+        </span>
         {onCooldown && (
           <div className="raid-cooldown-banner" role="status">
             <span className="raid-cooldown-icon" aria-hidden>⏱</span>

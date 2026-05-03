@@ -94,6 +94,19 @@ export function IconCrown({ size = 16, strokeWidth = 2, className }: IconProps) 
   );
 }
 
+// Lucide-style info icon: circle with an "i" formed by a dot above and
+// a vertical stroke below. Used for the inline tooltip-trigger glyph
+// next to section titles.
+export function IconInfo({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <line x1="12" y1="7.5" x2="12" y2="7.5" />
+    </svg>
+  );
+}
+
 export function IconClose({ size = 16, strokeWidth = 2, className }: IconProps) {
   return (
     <svg {...baseProps(size, strokeWidth, className)}>

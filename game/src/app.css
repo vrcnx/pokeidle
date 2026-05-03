@@ -2281,12 +2281,15 @@ body.is-dragging .pc-slot.empty {
 
 /* Info icon + popover next to a section title. The blurb that used
    to take two paragraphs of vertical space lives here — surfaced on
-   hover (desktop) or tap (mobile). */
+   hover (desktop) or tap (mobile). The popover is a sibling of the
+   h4 (not a child) so it can position relative to the section card,
+   not the inline title — otherwise its left/right would stretch only
+   to the width of the title text. */
+.ctx-section-with-info { position: relative; }
 .ctx-section-h4-with-info {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  position: relative;
 }
 .ctx-info-btn {
   background: transparent;
@@ -2305,11 +2308,16 @@ body.is-dragging .pc-slot.empty {
 }
 .ctx-info-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
 .ctx-info-popover {
+  /* Span the full width of the parent .ctx-section so the popover
+     can never overflow the card on a narrow phone. min(360px, ...)
+     caps the width on desktop so the popover doesn't stretch
+     comically wide on a 1200px column. */
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  width: max-content;
-  max-width: 280px;
+  right: 0;
+  width: auto;
+  max-width: min(360px, 100%);
   padding: 10px 12px;
   background: var(--panel-2, #1a1a1a);
   border: 1px solid var(--border);
@@ -2328,9 +2336,11 @@ body.is-dragging .pc-slot.empty {
   pointer-events: none;
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
-/* Desktop: show on hover of either the icon or the popover itself
-   (so it stays open while reading). */
-.ctx-section-h4-with-info:hover .ctx-info-popover {
+/* Desktop: show when the title row (which contains the icon) is
+   hovered. Also kept open while the user hovers the popover itself
+   so they can read it without it vanishing as the cursor moves down. */
+.ctx-section-h4-with-info:hover ~ .ctx-info-popover,
+.ctx-info-popover:hover {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
