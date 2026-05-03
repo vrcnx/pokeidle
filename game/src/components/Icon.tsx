@@ -247,3 +247,47 @@ export function IconBook({ size = 16, strokeWidth = 2, className }: IconProps) {
     </svg>
   );
 }
+
+export function IconPlus({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+export function IconEdit({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </svg>
+  );
+}
+
+export function IconTarget({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+export function IconSliders({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <line x1="4" y1="21" x2="4" y2="14" />
+      <line x1="4" y1="10" x2="4" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12" y2="3" />
+      <line x1="20" y1="21" x2="20" y2="16" />
+      <line x1="20" y1="12" x2="20" y2="3" />
+      <line x1="1" y1="14" x2="7" y2="14" />
+      <line x1="9" y1="8" x2="15" y2="8" />
+      <line x1="17" y1="16" x2="23" y2="16" />
+    </svg>
+  );
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
+import { IconSliders } from "./Icon";
 
 // Lightweight controls dropdown — replaces the old "More" popover.
 // Holds battle mode (manual/auto) + auto-proceed only. Catch settings
@@ -38,7 +39,8 @@ export function ControlsPopover() {
         aria-expanded={open}
         title="Battle and travel controls"
       >
-        Controls
+        <IconSliders size={13} />
+        <span>Controls</span>
       </button>
       {open && (
         <div className="more-actions-popover" role="dialog" aria-label="Controls">

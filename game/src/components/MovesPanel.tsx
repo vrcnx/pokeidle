@@ -4,7 +4,7 @@ import { moves as movesTable } from "../data/moves";
 import { openManageMoves } from "./ManageMovesModal";
 import { ControlsPopover } from "./ControlsPopover";
 import { openCatchSettings } from "./CatchSettingsModal";
-import { IconHospital } from "./Icon";
+import { IconPlus, IconEdit, IconTarget } from "./Icon";
 import { animatePop } from "../utils/animate";
 import type { PokemonType } from "../types";
 
@@ -148,7 +148,7 @@ export function MovesToolbar() {
           }}
           title={healDisabled ? "Cannot heal right now" : "Heal your party"}
         >
-          <IconHospital size={13} />
+          <IconPlus size={14} strokeWidth={2.5} />
           <span>Heal</span>
         </button>
         <button
@@ -157,14 +157,16 @@ export function MovesToolbar() {
           onClick={() => openManageMoves({ type: "party", index: activeIdx })}
           title="Manage moves"
         >
-          Manage
+          <IconEdit size={13} />
+          <span>Manage</span>
         </button>
         <button
           className="toolbar-btn"
           onClick={() => openCatchSettings(state.currentLocation)}
           title="Catch settings for the current area"
         >
-          Catch
+          <IconTarget size={13} />
+          <span>Catch</span>
         </button>
         <ControlsPopover />
       </div>

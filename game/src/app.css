@@ -4669,6 +4669,37 @@ body.is-dragging .pc-slot.empty {
   /* Mobile content: bottom tabs already render at full width. Drop any
      center-column wrappers that don't apply here. */
   .mobile-content .center-column { width: 100%; }
+
+  /* Mobile toolbar: stack into two equal-width rows. Speed picker
+     spans full width on row 1; the four action buttons (Heal /
+     Manage / Catch / Controls) split row 2 evenly. Avoids the awkward
+     half-empty rows we had when the toolbar relied on flex-wrap. */
+  .mobile-shell .moves-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+  .mobile-shell .moves-toolbar > .moves-toolbar-group,
+  .mobile-shell .moves-toolbar > .speed-segment {
+    width: 100%;
+    display: flex;
+    gap: 4px;
+  }
+  .mobile-shell .moves-toolbar .speed-segment .speed-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 !important;
+  }
+  .mobile-shell .moves-toolbar > .moves-toolbar-group:not(.speed-segment) > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .mobile-shell .moves-toolbar .more-actions-wrap {
+    display: flex;
+  }
+  .mobile-shell .moves-toolbar .more-actions-wrap .more-actions-trigger {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -8528,6 +8559,10 @@ input:focus, textarea:focus, select:focus {
 .moves-toolbar .speed-segment { height: 26px; }
 .moves-toolbar .speed-btn { height: 100%; padding: 0 10px; font-size: 11px; }
 .moves-toolbar .more-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   height: 26px;
   padding: 0 12px;
   font-size: 11px;
@@ -8538,7 +8573,11 @@ input:focus, textarea:focus, select:focus {
   background: var(--panel-2, #1a1a1a);
   color: var(--text);
   border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font-body);
+  line-height: 1;
 }
+.moves-toolbar .more-actions-trigger svg { width: 13px; height: 13px; }
 .moves-toolbar .more-actions-trigger:hover:not(:disabled) {
   background: var(--panel-3, #222);
   border-color: var(--border-strong, #2a2a2a);
@@ -8718,6 +8757,51 @@ input:focus, textarea:focus, select:focus {
 }
 @media (max-width: 600px) {
   .g-grid { grid-template-columns: 1fr; }
+}
+
+/* Settings / Trainer-card / Social modal mobile pass.
+   Default `.g-profile-hero` is a 3-col grid (avatar | name | stats)
+   which squashes the stat pills into 2 cramped digits on a phone.
+   On mobile we collapse to a 2-row layout: avatar+name on top, the
+   three stat pills span full width below as a 3-column subgrid so
+   each pill gets equal breathing room. */
+@media (max-width: 600px) {
+  .g-modal .g-profile-hero {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 10px 12px;
+    padding: 12px;
+  }
+  .g-modal .g-avatar {
+    width: 44px; height: 44px;
+    font-size: 18px;
+  }
+  .g-modal .g-profile-stats {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .g-modal .g-stat-pill {
+    min-width: 0;
+    padding: 8px 6px;
+  }
+  .g-modal .g-stat-pill strong { font-size: 13px; }
+  .g-modal .g-card { padding: 10px 12px; }
+  .g-modal .settings-legal-links {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  /* Footer: Sign out + Close should split the row evenly so neither
+     button is a thin afterthought next to the other. */
+  .g-modal-foot {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+  .g-modal-foot > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 .g-card {
   background: var(--panel-2, #1a1a1a);
