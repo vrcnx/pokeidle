@@ -18,10 +18,9 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@prisma/client": "^5.22.0",
-    "@types/nodemailer": "^8.0.0",
     "better-auth": "^1.1.18",
     "hono": "^4.6.14",
-    "nodemailer": "^8.0.7",
+    "resend": "^6.12.2",
     "socket.io": "^4.8.1",
     "zod": "^3.24.1"
   },
