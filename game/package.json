@@ -13,6 +13,8 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@pkmn/data": "^0.10.7",
+    "@pkmn/dex": "^0.10.7",
     "animejs": "^4.4.1",
     "better-auth": "^1.6.9",
     "react": "^18.3.1",

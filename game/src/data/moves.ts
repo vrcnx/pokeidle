@@ -806,3 +806,21 @@ export const moves: Record<string, MoveDef> = {
     hail:      { name: "Hail",       type: "Ice", category: "status", power: 0, accuracy: 100, pp: 10, priority: 0,
       effect: { type: "setWeather", weather: "hail", turns: 5 } },
   };
+
+// ── Canonical-data backfill (Pokémon Showdown / @pkmn/dex) ─────────
+// Any move id we DIDN'T hand-author above gets auto-populated from
+// Showdown's data layer using its authoritative power/accuracy/pp/
+// type/category/priority. Hand-authored moves are left exactly as
+// they are — manual `effect` blocks and balance tweaks survive
+// untouched. This means a Pokémon learning a move we forgot to type
+// (e.g. Bullet Punch on Hitmonchan) will at least have correct base
+// stats instead of crashing with `undefined`.
+import { Dex } from "@pkmn/dex";
+import { canonicalMove } from "../utils/canonicalMoves";
+
+for (const m of Dex.moves.all()) {
+  if (!m.exists) continue;
+  if (moves[m.id]) continue; // hand-authored — leave alone
+  const c = canonicalMove(m.id);
+  if (c) moves[m.id] = c;
+}
