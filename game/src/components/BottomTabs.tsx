@@ -103,7 +103,6 @@ export function MartTab() {
       <TabPaneHead
         title={`${route?.name ?? "Mart"} · Mart`}
         meta={<span className="mart-wallet">💰 ${state.money.toLocaleString()}</span>}
-        accent="#ef4444"
       />
       {!isTown ? (
         <p className="dim small">Marts are only open in towns. Travel to a city to shop.</p>
@@ -215,7 +214,6 @@ export function BagTab() {
       <TabPaneHead
         title="Bag"
         meta={`${items.length} item type${items.length === 1 ? "" : "s"}`}
-        accent="#a16207"
       />
 
       {/* Active effects — temporary buffs that aren't held items, like
@@ -373,7 +371,6 @@ export function PCTab() {
       <TabPaneHead
         title="Pokémon Storage"
         meta={`${state.box.length} stored`}
-        accent="#60a5fa"
         tools={
           <>
             <span className="dim small" style={{ marginRight: 4 }}>Sort</span>
@@ -512,7 +509,6 @@ export function DexTab() {
       <TabPaneHead
         title="Pokédex"
         meta={`${state.pokedexCaught.length}/${all.length} caught · ${state.pokedexSeen.length} seen`}
-        accent="#dc2626"
       />
       <div className="dex-search-wrap">
         <input
