@@ -407,4 +407,80 @@ function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return s; }
 }
 
+// ── Bug reports ────────────────────────────────────────────────────────
+// Paginated list of user-submitted reports. Filter by status so the
+// triage view ("open") doesn't drown in resolved noise.
+app.get("/bug-reports", async (c) => {
+  const status = (c.req.query("status") ?? "").trim();
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query("limit") ?? "50", 10)));
+  const offset = Math.max(0, parseInt(c.req.query("offset") ?? "0", 10));
+  // Compose WHERE without breaking parameterisation — use $queryRaw with
+  // a Prisma.sql conditional. Prisma's tagged template interpolates safely.
+  const rows = status
+    ? await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","createdAt","updatedAt"
+           FROM "BugReport"
+          WHERE "status" = $1
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit} OFFSET ${offset}`,
+        status
+      )
+    : await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","createdAt","updatedAt"
+           FROM "BugReport"
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit} OFFSET ${offset}`
+      );
+  return c.json({ reports: rows });
+});
+
+app.patch("/bug-reports/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { status?: string; adminNotes?: string };
+  const newStatus = body.status;
+  if (newStatus && !["open", "investigating", "resolved", "wontfix"].includes(newStatus)) {
+    return c.json({ error: "invalid status" }, 400);
+  }
+  await prisma.$executeRaw`
+    UPDATE "BugReport"
+       SET "status" = COALESCE(${newStatus ?? null}, "status"),
+           "adminNotes" = COALESCE(${body.adminNotes ?? null}, "adminNotes"),
+           "updatedAt" = NOW()
+     WHERE "id" = ${id}
+  `;
+  void audit(me.id, "bugReport.update", id, { status: newStatus, adminNotes: body.adminNotes });
+  return c.json({ ok: true });
+});
+
+// ── Error log ──────────────────────────────────────────────────────────
+// Server + client errors persist into ErrorLog. Filter by kind so the
+// triage view can show server-side stack traces separately from
+// client-reported ones.
+app.get("/errors", async (c) => {
+  const kind = (c.req.query("kind") ?? "").trim();
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query("limit") ?? "100", 10)));
+  const rows = kind === "server" || kind === "client"
+    ? await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt"
+           FROM "ErrorLog"
+          WHERE "kind" = $1
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit}`,
+        kind
+      )
+    : await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt"
+           FROM "ErrorLog"
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit}`
+      );
+  return c.json({
+    errors: rows.map((r) => ({
+      ...r,
+      meta: r.meta ? safeJson(r.meta) : null,
+    })),
+  });
+});
+
 export default app;

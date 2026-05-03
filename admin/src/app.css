@@ -258,6 +258,32 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .chat-table th { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted); background: var(--panel-2); }
 .chat-content { max-width: 600px; word-break: break-word; }
 
+/* Bug-report status pills (also reused for error-log kind tags). */
+.bug-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.bug-status-open          { background: rgba(248, 113, 113, 0.18); color: #fecaca; border: 1px solid rgba(248, 113, 113, 0.4); }
+.bug-status-investigating { background: rgba(245, 158, 11, 0.18); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.4); }
+.bug-status-resolved      { background: rgba(34, 197, 94, 0.18);  color: #bbf7d0; border: 1px solid rgba(34, 197, 94, 0.4); }
+.bug-status-wontfix       { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-ghost:hover { background: var(--panel-2); }
+.g-mono { font-family: ui-monospace, monospace; word-break: break-all; }
+
 /* Map editor */
 .map-editor-page { max-width: 1100px; }
 .map-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }

@@ -9,7 +9,10 @@ import friendsRoute from "./routes/friends.js";
 import chatRoute from "./routes/chat.js";
 import adminRoute from "./routes/admin.js";
 import mapRoute from "./routes/map.js";
+import bugReportsRoute from "./routes/bugReports.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
+import { recordError } from "./lib/errorReporting.js";
+import { logger } from "./lib/logger.js";
 
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173")
   .split(",")
@@ -74,6 +77,29 @@ app.route("/api/friends", friendsRoute);
 app.route("/api/chat", chatRoute);
 app.route("/api/admin", adminRoute);
 app.route("/api/map", mapRoute);
+app.route("/api/bug-reports", bugReportsRoute);
+
+// Global error handler — anything that throws inside a route handler
+// without being caught lands here. We persist a structured ErrorLog
+// row so it shows up in the admin dashboard, then return a generic
+// 500 to the client (no stack traces leaked over the wire).
+app.onError(async (err, c) => {
+  const path = new URL(c.req.url).pathname;
+  // The Hono context may or may not have user populated depending on
+  // where the throw happened. Try to read it best-effort.
+  let user: { id: string; username: string } | null = null;
+  try { const u = c.get("user"); if (u) user = { id: u.id, username: u.username }; } catch { /* */ }
+  await recordError({
+    kind: "server",
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack ?? null : null,
+    source: `${c.req.method} ${path}`,
+    userId: user?.id ?? null,
+    username: user?.username ?? null,
+    userAgent: c.req.header("user-agent") ?? null,
+  }).catch(() => undefined);
+  return c.json({ error: "internal_error" }, 500);
+});
 
 const server = serve(
   {
@@ -81,11 +107,37 @@ const server = serve(
     port: PORT,
   },
   (info) => {
-    console.log(`[server] listening on http://localhost:${info.port}`);
-    console.log(`[server] frontend origins: ${FRONTEND_ORIGINS.join(", ")}`);
-    console.log(`[server] Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? "enabled" : "disabled (set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET to enable)"}`);
+    logger.info("server listening", {
+      port: info.port,
+      frontendOrigins: FRONTEND_ORIGINS,
+      googleOAuth: !!process.env.GOOGLE_CLIENT_ID,
+      nodeEnv: process.env.NODE_ENV ?? "development",
+    });
   }
 );
 
 // Attach Socket.IO to the same HTTP server.
 attachSocketServer(server as any);
+
+// Catch truly fatal failures that would otherwise just exit the
+// process silently. Log + persist (best-effort) before letting the
+// process die — Railway's restart policy will bring it back.
+process.on("uncaughtException", (err) => {
+  recordError({
+    kind: "server",
+    level: "error",
+    message: `[uncaughtException] ${err.message}`,
+    stack: err.stack ?? null,
+    source: "process.uncaughtException",
+  }).catch(() => undefined);
+});
+process.on("unhandledRejection", (reason: unknown) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  recordError({
+    kind: "server",
+    level: "error",
+    message: `[unhandledRejection] ${err.message}`,
+    stack: err.stack ?? null,
+    source: "process.unhandledRejection",
+  }).catch(() => undefined);
+});

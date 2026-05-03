@@ -4,9 +4,11 @@ import { UsersPage } from "./pages/UsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { MapEditorPage } from "./pages/MapEditorPage";
 import { ChatModerationPage } from "./pages/ChatModerationPage";
+import { BugReportsPage } from "./pages/BugReportsPage";
+import { ErrorLogsPage } from "./pages/ErrorLogsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok";
-type Page = "analytics" | "users" | "map" | "chat";
+type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors";
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
@@ -65,6 +67,8 @@ export function App() {
           <NavItem active={page === "users"} onClick={() => setPage("users")} label="Users" />
           <NavItem active={page === "map"} onClick={() => setPage("map")} label="Map editor" />
           <NavItem active={page === "chat"} onClick={() => setPage("chat")} label="Chat moderation" />
+          <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" />
+          <NavItem active={page === "errors"} onClick={() => setPage("errors")} label="Error log" />
         </nav>
         <div className="admin-foot">
           <span className="admin-me">{me?.username}</span>
@@ -78,6 +82,8 @@ export function App() {
         {page === "users" && <UsersPage />}
         {page === "map" && <MapEditorPage />}
         {page === "chat" && <ChatModerationPage />}
+        {page === "bugs" && <BugReportsPage />}
+        {page === "errors" && <ErrorLogsPage />}
       </main>
     </div>
   );

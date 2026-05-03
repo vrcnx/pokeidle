@@ -18,6 +18,7 @@ import { BattleLogModal } from "./BattleLogModal";
 import { PublicTrainerCardMount } from "./TrainerCardModal";
 import { TradeInviteToast } from "./TradeInviteToast";
 import { TradeRoomModal } from "./TradeRoomModal";
+import { ReportBugModal } from "./ReportBugModal";
 
 // Three-column dashboard layout. A floating <GlobalDock> at the top-right
 // holds every "open a drawer" action (Settings, Mart, Bag, PC, Pokédex,
@@ -57,6 +58,7 @@ export function GameShell() {
       <PublicTrainerCardMount />
       <TradeRoomModal />
       <TradeInviteToast />
+      <ReportBugModal />
     </div>
   );
 }

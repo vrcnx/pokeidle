@@ -117,6 +117,51 @@ export const api = {
   recentChat: (limit = 50) =>
     req<{ messages: any[] }>("GET", `/api/admin/chat/recent?limit=${limit}`),
   deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/chat/${id}`),
+
+  // Bug reports — list + status update
+  listBugReports: (status = "", limit = 50, offset = 0) =>
+    req<{ reports: BugReport[] }>(
+      "GET",
+      `/api/admin/bug-reports?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`,
+    ),
+  updateBugReport: (id: string, body: { status?: string; adminNotes?: string }) =>
+    req<{ ok: true }>("PATCH", `/api/admin/bug-reports/${id}`, body),
+
+  // Error log — server + client errors
+  listErrors: (kind = "", limit = 100) =>
+    req<{ errors: ErrorEntry[] }>(
+      "GET",
+      `/api/admin/errors?kind=${encodeURIComponent(kind)}&limit=${limit}`,
+    ),
 };
+
+export interface BugReport {
+  id: string;
+  reporterId: string | null;
+  reporterName: string;
+  title: string;
+  description: string;
+  page: string | null;
+  userAgent: string | null;
+  context: string | null;
+  status: "open" | "investigating" | "resolved" | "wontfix";
+  adminNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ErrorEntry {
+  id: string;
+  kind: "server" | "client";
+  level: "error" | "warn";
+  message: string;
+  stack: string | null;
+  source: string | null;
+  userId: string | null;
+  username: string | null;
+  userAgent: string | null;
+  meta: unknown;
+  createdAt: string;
+}
 
 export { ApiError };

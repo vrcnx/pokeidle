@@ -389,13 +389,24 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
 }
-/* Town map (now hosted in a tab) takes the full body. */
+/* Town map (now hosted in a tab) takes the full body. The map's
+   canvas is locked to a 16:9 aspect ratio, so flex-growing the wrapper
+   would just leave dead black space below it on tall containers. Use
+   intrinsic sizing instead — the card hugs the map's natural height
+   on desktop, and the parent's `:has(.town-map)` rule below stops the
+   bottom-tabs container from forcing extra height around it. */
 .bottom-tab-body > .town-map {
   border: none;
   border-radius: 0;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
+  align-self: stretch;
 }
+/* When the map tab is active, the bottom-tabs region (bottom card on
+   desktop) sizes to its content — header strip + 16:9 map — instead
+   of flex-growing into empty space. Other tab contents (Mart / Bag /
+   PC / Dex) still flex-grow as before. */
+.center-column > .bottom-tabs:has(.town-map) { flex: 0 0 auto; }
 
 /* Tab pane wrapper for non-map tabs. */
 .tab-pane {
@@ -9769,6 +9780,49 @@ input:focus, textarea:focus, select:focus {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+}
+
+/* Top-level fallback rendered by GlobalErrorBoundary when the React
+   tree throws. Centered card so the player has somewhere to land
+   (Reload / Try to recover) instead of a blank page. */
+.error-boundary-fallback {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 24, 0.92);
+  z-index: 99999;
+}
+.error-boundary-card {
+  max-width: 420px;
+  padding: 24px 28px;
+  background: var(--panel, #1a1d24);
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  color: var(--text, #f0f0f0);
+}
+.error-boundary-card h2 { margin: 0 0 8px; font-size: 18px; }
+.error-boundary-card p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+.error-boundary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* Report-bug modal layout. */
+.report-bug-modal { max-width: 560px; width: min(560px, 96vw); }
+.report-bug-form textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: var(--panel-2, #14171c);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  color: var(--text, #f0f0f0);
 }
 
 /* Chat usernames are now buttons (click → public trainer card). The

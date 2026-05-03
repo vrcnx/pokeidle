@@ -7,6 +7,7 @@ import { eliteFour } from "../data/eliteFour";
 import { useAuth } from "../auth/AuthContext";
 import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
+import { openReportBug } from "./ReportBugModal";
 import { IconSettings, IconChat, IconHeart } from "./Icon";
 import { useModalEnter, CountUp } from "../utils/animate";
 import type { ReactNode } from "react";
@@ -188,6 +189,23 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                 <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
               </section>
             )}
+
+            <section className="g-card">
+              <h3>Help & Feedback</h3>
+              <p className="g-help" style={{ marginTop: 0 }}>
+                Found a bug or have feedback? Send a quick report and the
+                team will look at it. Includes a snapshot of your party
+                and last few battle log lines so we can reproduce.
+              </p>
+              <div className="settings-legal-links">
+                <button
+                  className="g-btn-primary g-btn-small"
+                  onClick={() => { onClose(); openReportBug(); }}
+                >
+                  Report a bug
+                </button>
+              </div>
+            </section>
 
             <section className="g-card">
               <h3>Legal</h3>

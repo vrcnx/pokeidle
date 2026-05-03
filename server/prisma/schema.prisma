@@ -145,6 +145,58 @@ model MapCrop {
   updatedBy String?
 }
 
+// ── Bug reports ──────────────────────────────────────────────────────────
+// User-submitted bug reports from the in-game "Report a bug" button.
+// Stored alongside who reported, what page they were on, the user
+// agent string, and an optional structured game-state snapshot the
+// admin can use to reproduce.
+model BugReport {
+  id           String   @id @default(cuid())
+  reporterId   String?  // nullable so a deleted user's reports survive for triage
+  reporterName String   // denormalized so admin doesn't need a join just to see who reported
+  title        String
+  description  String
+  page         String?  // window.location.href at submission
+  userAgent    String?
+  // JSON-encoded condensed game state snapshot (party species/levels,
+  // currentLocation, last few battle-log lines). Optional — heavy
+  // saves aren't worth shipping over the wire.
+  context      String?
+  status       String   @default("open") // "open" | "investigating" | "resolved" | "wontfix"
+  adminNotes   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([reporterId])
+}
+
+// ── Error log ────────────────────────────────────────────────────────────
+// Append-only stream of unhandled errors. Two sources:
+//   - kind="server"  Hono onError caught a thrown error in a route
+//   - kind="client"  Browser ErrorBoundary / window.onerror reported one
+// Useful for admin triage when something blows up in production.
+model ErrorLog {
+  id         String   @id @default(cuid())
+  kind       String   // "server" | "client"
+  level      String   @default("error") // "error" | "warn"
+  message    String
+  stack      String?
+  // Where it happened — server route path or client URL
+  source     String?
+  // Caller identity if known (server: from middleware; client: from cookie session)
+  userId     String?
+  username   String?
+  // Useful auxiliary context
+  userAgent  String?
+  // JSON-encoded extra data (request body excerpt, component stack, etc.)
+  meta       String?
+  createdAt  DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([userId, createdAt])
+}
+
 // ── Admin audit log ──────────────────────────────────────────────────────
 // Append-only record of every action an admin takes that touches another
 // user (raw save read, ban, demote, hard-delete, reset-save, chat-mod

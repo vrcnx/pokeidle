@@ -6,7 +6,15 @@ import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginScreen } from "./auth/LoginScreen";
 import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
+import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
+import { installGlobalErrorReporters } from "./net/errorReporter";
 import "./app.css";
+
+// Wire window.onerror + unhandledrejection capture before the React
+// tree mounts so anything that blows up during initial render is
+// caught. The reporter dedups + rate-limits client-side and the server
+// has its own limiter as the second wall.
+installGlobalErrorReporters();
 
 // Pull admin-edited map positions before the first render. We don't
 // block on this — if the network fails (offline, server down) the
@@ -51,8 +59,10 @@ if (!root) throw new Error("missing #root");
 
 createRoot(root).render(
   <StrictMode>
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    <GlobalErrorBoundary>
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </GlobalErrorBoundary>
   </StrictMode>
 );

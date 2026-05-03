@@ -131,7 +131,7 @@ export function TradeAnimation() {
           <div className="trade-sprite-wrap" key={`${leftSpecies}-${leftShiny}-${step}`}>
             <img
               className={`trade-sprite ${step >= 1 && step <= 3 ? "absorbed" : ""}`}
-              src={pokemonSpriteUrl(leftSpecies, true, leftShiny)}
+              src={pokemonSpriteUrl(leftSpecies, false, leftShiny)}
               alt={leftLabel ?? leftSpecies}
               style={{ imageRendering: "pixelated" }}
               onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
@@ -156,7 +156,7 @@ export function TradeAnimation() {
           <div className="trade-sprite-wrap" key={`${rightSpecies}-${rightShiny}-${step}`}>
             <img
               className={`trade-sprite ${step >= 1 && step <= 3 ? "absorbed" : ""}`}
-              src={pokemonSpriteUrl(rightSpecies, true, rightShiny)}
+              src={pokemonSpriteUrl(rightSpecies, false, rightShiny)}
               alt={rightLabel ?? rightSpecies}
               style={{ imageRendering: "pixelated" }}
               onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}

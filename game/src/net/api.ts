@@ -103,6 +103,24 @@ export const api = {
       "GET",
       "/api/map/crop"
     ),
+
+  // Bug reports + auto client-error capture. Both go through the same
+  // server route file but get their own rate limits.
+  submitBugReport: (input: {
+    title: string;
+    description: string;
+    page?: string;
+    userAgent?: string;
+    context?: string;
+  }) => request<{ ok: true; id: string }>("POST", "/api/bug-reports", input),
+
+  reportClientError: (input: {
+    message: string;
+    stack?: string;
+    source?: string;
+    userAgent?: string;
+    meta?: Record<string, unknown>;
+  }) => request<{ ok: true }>("POST", "/api/bug-reports/client-error", input),
 };
 
 export interface ProfileUser {
