@@ -4421,23 +4421,24 @@ body.is-dragging .pc-slot.empty {
   justify-content: space-between;
   align-items: center;
   background: #0f0f0f;
-  padding: 6px 10px;
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border);
-  min-height: 40px;
+  min-height: 30px;
 }
 .mobile-stats {
   display: flex;
-  gap: 10px;
-  /* Bumped from 10px → 12px so 6+ digit money + badge counts are
-     legible at arm's length on a phone. Also tightened the icons so
-     the row reads as a single status strip. */
-  font-size: 12px;
+  gap: 8px;
+  /* Compact status strip — just enough to scan money + badges + tokens
+     at a glance without dominating screen height. The icon glyphs are
+     the visual anchor; the numbers only need to be barely legible. */
+  font-size: 11px;
   font-weight: 600;
   color: var(--gold);
   flex-wrap: nowrap;
   align-items: center;
+  line-height: 1;
 }
-.mobile-stat-icon { font-size: 13px; line-height: 1; margin-right: 2px; }
+.mobile-stat-icon { font-size: 12px; line-height: 1; margin-right: 2px; }
 .reset-button.mini {
   padding: 4px 8px;
   font-size: 10px;
@@ -4607,26 +4608,27 @@ body.is-dragging .pc-slot.empty {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 6px 10px;
+    gap: 10px;
+    padding: 3px 8px;
   }
-  .mobile-meta-buttons { display: flex; align-items: center; gap: 6px; }
+  .mobile-meta-buttons { display: flex; align-items: center; gap: 4px; }
   .mobile-meta-buttons .dock-meta {
     display: flex;
     grid-template-columns: none;
-    gap: 6px;
+    gap: 4px;
   }
   /* Icon-only square buttons — drop the label, shrink the padding,
-     so the header reads as a tight 32px control row. */
+     so the header reads as a tight 28-30px control row. */
   .mobile-meta-buttons .dock-btn {
     padding: 0;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     min-width: 0;
     display: grid;
     place-items: center;
-    border-radius: 8px;
+    border-radius: 7px;
   }
+  .mobile-meta-buttons .dock-btn svg { width: 15px; height: 15px; }
   .mobile-meta-buttons .dock-btn-label { display: none; }
   .mobile-meta-buttons .dock-btn-icon { display: grid; place-items: center; }
 
@@ -4659,12 +4661,13 @@ body.is-dragging .pc-slot.empty {
     min-width: 44px;
   }
   .moves-toolbar .toolbar-btn svg { width: 14px; height: 14px; }
-  /* Settings / Social meta buttons in the mobile header — bumped from
-     32 px to 36 px so they sit comfortably between forefinger and
-     thumb without misfires onto the stats strip. */
+  /* Settings / Social meta buttons stay at 28px on mobile — tight
+     enough that the header is a thin status strip, big enough to be
+     a reliable tap target since they sit at the edge of the viewport
+     where the thumb naturally lands. */
   .mobile-meta-buttons .dock-btn {
-    width: 36px !important;
-    height: 36px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
   /* Mobile content: bottom tabs already render at full width. Drop any
      center-column wrappers that don't apply here. */
