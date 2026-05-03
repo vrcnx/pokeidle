@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { musicManager } from "../utils/music";
@@ -28,10 +28,33 @@ function pickCategory(state: ReturnType<typeof useGame>["state"]): MusicCategory
 export function MusicPlayer() {
   const { state } = useGame();
   const cat = pickCategory(state);
+  // Track the last category we told the manager about so we can tell
+  // whether a location change should trigger setCategory (which picks
+  // a fresh track from the new playlist) or just next() (which rolls
+  // to a different track inside the SAME playlist).
+  const lastCat = useRef<MusicCategory | null>(cat);
+  const lastLoc = useRef<string>(state.currentLocation);
+  const lastBossId = useRef<string | null>(state.bossBattle?.bossId ?? null);
 
   useEffect(() => {
-    musicManager.setCategory(cat);
-  }, [cat]);
+    const bossId = state.bossBattle?.bossId ?? null;
+    const categoryChanged = lastCat.current !== cat;
+    const locationChanged = lastLoc.current !== state.currentLocation;
+    const bossChanged = lastBossId.current !== bossId;
+
+    if (categoryChanged) {
+      musicManager.setCategory(cat);
+    } else if (cat && (locationChanged || bossChanged)) {
+      // Same playlist category, but the player moved (route → route,
+      // town → town, gym → gym). Skip to a fresh track so each new
+      // location feels distinct instead of dragging the same loop on.
+      musicManager.next();
+    }
+
+    lastCat.current = cat;
+    lastLoc.current = state.currentLocation;
+    lastBossId.current = bossId;
+  }, [cat, state.currentLocation, state.bossBattle?.bossId]);
 
   return null;
 }
