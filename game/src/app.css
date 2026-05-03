@@ -3747,6 +3747,23 @@ body.is-dragging .pc-slot.empty {
   z-index: 100;
   padding: 16px;
 }
+/* Phones: tighten the overlay padding so modals can use the full
+   width (and most of the height) of the viewport. The 16px gutter
+   waste was costing cropped content like EXP percentages and
+   horizontally-scrolling stat tables. */
+@media (max-width: 480px) {
+  .modal-overlay { padding: 6px; }
+  .g-modal {
+    width: 100%;
+    max-height: calc(100vh - 12px);
+    border-radius: 8px;
+  }
+  /* Modal heads/foots still take the same vertical space; tighten
+     padding so more of the screen goes to body content. */
+  .g-modal-head { padding: 10px 12px; }
+  .g-modal-foot { padding: 10px 12px; gap: 6px; flex-wrap: wrap; }
+  .g-modal-body { padding: 10px 12px !important; }
+}
 .modal {
   background: var(--parchment);
   color: var(--ink);
@@ -5867,6 +5884,22 @@ body.is-dragging .pc-slot.empty {
   padding: var(--sp-4);
   animation: modalFade var(--t-base) var(--ease);
 }
+/* On phones the overlay's padding eats real estate that big modals
+   (Pokemon detail, settings, trade room) need to render content
+   without horizontal cropping. Tighten the gutter and let modals
+   span the full width / nearly-full height. */
+@media (max-width: 480px) {
+  .modal-overlay { padding: 6px; }
+  .g-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 12px);
+    border-radius: 8px;
+  }
+  .g-modal-head { padding: 10px 12px; }
+  .g-modal-foot { padding: 10px 12px; gap: 6px; flex-wrap: wrap; }
+  .g-modal-body { padding: 10px 12px !important; }
+}
 @keyframes modalFade {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -7252,6 +7285,13 @@ input, textarea, select {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   padding: 24px;
+}
+@media (max-width: 480px) {
+  /* The third modal-overlay declaration (the "v2" / std-structure one
+     a few hundred lines later) sets padding:24px and ends up beating
+     the earlier mobile overrides because it comes later. Re-tighten
+     here so big modals can use the full phone width. */
+  .modal-overlay { padding: 6px !important; }
 }
 .modal {
   width: var(--modal-width-md);
@@ -9155,8 +9195,42 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   min-height: 38px;
   line-height: 1;
+}
+/* On phones the title + sort tools compete for the same row and the
+   buttons end up squeezed into half-readable boxes. Stack the tools
+   onto a second row instead — title up top, sort buttons across the
+   full width below. */
+@media (max-width: 480px) {
+  .bag-tab .tab-pane-head,
+  .pc-tab .tab-pane-head,
+  .mart-tab .tab-pane-head,
+  .dex-tab .tab-pane-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bag-tab .tab-pane-head .tab-pane-tools,
+  .pc-tab .tab-pane-head .tab-pane-tools,
+  .mart-tab .tab-pane-head .tab-pane-tools,
+  .dex-tab .tab-pane-head .tab-pane-tools {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  /* Bump the tap targets on phones — the desktop default of 10px /
+     padding 3px 8px gives a ~18px tall hit area, way under the 44px
+     iOS / 48dp Android guideline. */
+  .bag-tab .tab-pane-tools button,
+  .pc-tab .tab-pane-tools button,
+  .mart-tab .tab-pane-tools button,
+  .dex-tab .tab-pane-tools button {
+    font-size: 12px !important;
+    padding: 8px 14px !important;
+    min-height: 36px;
+  }
 }
 /* Bag (dark leather) → light card; others (light illustrations) → dark card. */
 .bag-tab .tab-pane-head {
