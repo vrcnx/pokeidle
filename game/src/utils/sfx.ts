@@ -43,12 +43,15 @@ const SFX_VOLUME_TRIM = 0.7;
 // roughly in line with the attack hits.
 const CRY_VOLUME_TRIM = 0.45;
 
-export type SfxCategory = "attack";
+export type SfxCategory = "attack" | "heal";
 export const sfxLibrary: Record<SfxCategory, string[]> = {
   attack: [
     "hit.mp3",
     // Drop more attack files into public/music/sound-effects/attack/
     // and append filenames here to extend the rotation pool.
+  ],
+  heal: [
+    "heal.mp3",
   ],
 };
 
@@ -72,7 +75,7 @@ class SfxManager {
   private listeners = new Set<(s: Persisted) => void>();
   // Per-category shuffle queue so we cycle through every clip before
   // any one repeats — feels more varied than independent random picks.
-  private queues: Record<SfxCategory, string[]> = { attack: [] };
+  private queues: Record<SfxCategory, string[]> = { attack: [], heal: [] };
 
   constructor() {
     this.state = loadPersisted();
@@ -117,10 +120,13 @@ class SfxManager {
     this.emit();
   }
 
-  /** Play a random clip from the given category, with a small random
-   *  pitch shift so consecutive hits don't sound identical. No-op if
-   *  muted / category empty / browser-blocked. */
-  play(category: SfxCategory): void {
+  /** Play a random clip from the given category. By default applies
+   *  a small random pitch shift so consecutive hits don't sound
+   *  identical; pass `{ rate }` to set an explicit playback rate
+   *  (e.g. for the heal SFX which should match the heal-video pace
+   *  at 1×, 2×, 5× game speeds). No-op if muted / category empty /
+   *  browser-blocked. */
+  play(category: SfxCategory, opts?: { rate?: number }): void {
     if (!this.state.enabled) return;
     const file = this.dequeue(category);
     if (!file) return;
@@ -135,23 +141,30 @@ class SfxManager {
     const audio = new Audio(trackUrl(category, file));
     audio.volume = this.state.volume * SFX_VOLUME_TRIM;
     audio.preload = "auto";
-    // Pitch variation: pick a playbackRate in [0.85, 1.20]. Setting
-    // preservesPitch=false makes playbackRate also shift pitch (the
-    // default keeps pitch fixed and only changes tempo). Result: each
-    // attack sounds slightly different even when the same source clip
-    // is played repeatedly. Cross-browser quirks on the property name
-    // — Safari uses webkitPreservesPitch — so set both.
-    const rate = 0.85 + Math.random() * 0.35;
-    audio.playbackRate = rate;
+    // Pitch variation when no explicit rate is supplied — pick a
+    // playbackRate in [0.85, 1.20] and shift pitch with it (set
+    // preservesPitch=false; the default keeps pitch and only
+    // changes tempo). Result: each attack sounds slightly
+    // different. With an explicit rate (e.g. heal needs to match
+    // the video pace exactly), no random variation and pitch IS
+    // preserved so the clip just plays faster/slower.
     type WithPitch = HTMLAudioElement & {
       preservesPitch?: boolean;
       mozPreservesPitch?: boolean;
       webkitPreservesPitch?: boolean;
     };
     const a = audio as WithPitch;
-    a.preservesPitch = false;
-    a.mozPreservesPitch = false;
-    a.webkitPreservesPitch = false;
+    if (opts?.rate !== undefined) {
+      audio.playbackRate = opts.rate;
+      a.preservesPitch = true;
+      a.mozPreservesPitch = true;
+      a.webkitPreservesPitch = true;
+    } else {
+      audio.playbackRate = 0.85 + Math.random() * 0.35;
+      a.preservesPitch = false;
+      a.mozPreservesPitch = false;
+      a.webkitPreservesPitch = false;
+    }
     this.active.add(audio);
     audio.addEventListener("ended", () => { this.active.delete(audio); });
     audio.addEventListener("error", () => { this.active.delete(audio); });

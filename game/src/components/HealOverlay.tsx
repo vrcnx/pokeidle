@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { sfxManager } from "../utils/sfx";
 
 // In-scene heal animation. The heal video is the source of truth for
 // timing — we play it through completely and fire COMPLETE_HEALING on
@@ -38,6 +39,12 @@ export function HealOverlay() {
     // a 5× game has a 5× heal too. Capped so super-fast doesn't choke
     // the decoder.
     const playRate = Math.min(MAX_PLAYBACK_RATE, BASE_PLAYBACK_RATE * (state.speed || 1));
+
+    // Heal SFX — match the video's playback rate so the audio finishes
+    // alongside the visual instead of dragging on after the heal video
+    // is done. Pitch is preserved so the chime still sounds itself
+    // even at 5× speed.
+    sfxManager.play("heal", { rate: playRate });
 
     const start = () => {
       const dur = (isFinite(v?.duration ?? NaN) && (v?.duration ?? 0) > 0)
