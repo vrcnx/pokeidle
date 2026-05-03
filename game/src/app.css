@@ -448,6 +448,144 @@ a:focus-visible {
 .tab-pane-tools { display: flex; gap: 4px; align-items: center; }
 .tab-pane-tools button { font-size: 10px; padding: 3px 8px; }
 
+/* ── Unified Tab Pane Header (v2) ────────────────────────────────────
+   Used by Mart, Bag, PC, Dex (and any future tab) via the shared
+   <TabPaneHead> component. The container is a single horizontal card
+   with a 3px left accent stripe set per-tab via the --tab-head-accent
+   custom property. Title is upper-cased and letterspaced; meta text
+   is right-aligned and dim. Optional tools row sits below with its
+   own padding and small pill-buttons. The whole thing reads against
+   any tab background (parchment, CRT-blue, red Dex, leather Bag) and
+   doesn't need per-tab overrides. */
+header.tab-pane-head.v2 {
+  --tab-head-accent: var(--gold, #facc15);
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 12px;
+  padding: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.32) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid var(--tab-head-accent);
+  border-radius: 6px;
+  overflow: hidden;
+  backdrop-filter: blur(2px);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+header.tab-pane-head.v2 .tab-pane-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  min-height: 38px;
+}
+/* Reset the h3 baseline since we're inside .v2 */
+header.tab-pane-head.v2 h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  /* Use the accent color for the leading character of the title via
+     a left text-shadow stack — purely cosmetic, gives the title a
+     subtle glow that matches the stripe on the left. */
+}
+header.tab-pane-head.v2 h3 small {
+  display: inline;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.55);
+}
+header.tab-pane-head.v2 .tab-pane-head-meta {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+header.tab-pane-head.v2 .tab-pane-head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+}
+header.tab-pane-head.v2 .tab-pane-head-tools button {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  text-transform: none;
+}
+header.tab-pane-head.v2 .tab-pane-head-tools button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+header.tab-pane-head.v2 .tab-pane-head-tools button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+header.tab-pane-head.v2 .tab-pane-head-tools .pc-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+header.tab-pane-head.v2 .tab-pane-head-tools .dim,
+header.tab-pane-head.v2 .tab-pane-head-tools .small {
+  color: rgba(255, 255, 255, 0.55) !important;
+  text-shadow: none !important;
+  font-size: 11px;
+}
+
+/* The Mart wallet badge gets a subtle pill chip treatment against
+   the new dark header instead of the old bright gold-on-light. */
+header.tab-pane-head.v2 .mart-wallet {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+/* Mobile: stack title + meta when tight, give tools more breathing room. */
+@media (max-width: 480px) {
+  header.tab-pane-head.v2 .tab-pane-head-row {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+  header.tab-pane-head.v2 .tab-pane-head-tools {
+    padding: 8px 10px;
+  }
+  header.tab-pane-head.v2 .tab-pane-head-tools button {
+    min-height: 30px;
+    padding: 6px 12px;
+  }
+}
+
 /* PC tab: re-use the box grid but stretch to fill the tab body. */
 .tab-box-grid {
   flex: 1;

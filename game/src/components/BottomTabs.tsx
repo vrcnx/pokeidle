@@ -18,6 +18,7 @@ import {
   type ItemCategory,
 } from "../data/itemsCatalog";
 import { IconMap, IconCart, IconBackpack, IconMonitor, IconBook } from "./Icon";
+import { TabPaneHead } from "./TabPaneHead";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import type { ReactNode } from "react";
@@ -99,10 +100,11 @@ export function MartTab() {
 
   return (
     <div className="tab-pane mart-tab">
-      <header className="tab-pane-head">
-        <h3>{route?.name ?? "Mart"} · Mart</h3>
-        <span className="mart-wallet">💰 ${state.money.toLocaleString()}</span>
-      </header>
+      <TabPaneHead
+        title={`${route?.name ?? "Mart"} · Mart`}
+        meta={<span className="mart-wallet">💰 ${state.money.toLocaleString()}</span>}
+        accent="#ef4444"
+      />
       {!isTown ? (
         <p className="dim small">Marts are only open in towns. Travel to a city to shop.</p>
       ) : !shop ? (
@@ -210,12 +212,11 @@ export function BagTab() {
 
   return (
     <div className="tab-pane bag-tab">
-      <header className="tab-pane-head">
-        <h3>Bag</h3>
-        <span className="dim small">
-          {items.length} item type{items.length === 1 ? "" : "s"}
-        </span>
-      </header>
+      <TabPaneHead
+        title="Bag"
+        meta={`${items.length} item type${items.length === 1 ? "" : "s"}`}
+        accent="#a16207"
+      />
 
       {/* Active effects — temporary buffs that aren't held items, like
           Exp Share. Toggleable so the player can pause the countdown
@@ -369,28 +370,32 @@ export function PCTab() {
 
   return (
     <div className="tab-pane pc-tab">
-      <header className="tab-pane-head">
-        <h3>Pokémon Storage <small className="dim">{state.box.length} stored</small></h3>
-        <div className="tab-pane-tools">
-          <span className="dim small" style={{ marginRight: 4 }}>Sort:</span>
-          <button title="Sort by Pokédex number" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "id" } })}>
-            Dex#
-          </button>
-          <button title="Sort by level (highest first)" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "level" } })}>
-            Lv
-          </button>
-          <button title="Sort alphabetically" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "name" } })}>
-            A–Z
-          </button>
-          {pageCount > 1 && (
-            <span className="pc-pager" style={{ marginLeft: 8 }}>
-              <button onClick={() => setPage((i) => Math.max(0, i - 1))} disabled={page === 0}>‹</button>
-              <span className="dim small">Box {page + 1}/{pageCount}</span>
-              <button onClick={() => setPage((i) => Math.min(pageCount - 1, i + 1))} disabled={page >= pageCount - 1}>›</button>
-            </span>
-          )}
-        </div>
-      </header>
+      <TabPaneHead
+        title="Pokémon Storage"
+        meta={`${state.box.length} stored`}
+        accent="#60a5fa"
+        tools={
+          <>
+            <span className="dim small" style={{ marginRight: 4 }}>Sort</span>
+            <button title="Sort by Pokédex number" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "id" } })}>
+              Dex#
+            </button>
+            <button title="Sort by level (highest first)" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "level" } })}>
+              Lv
+            </button>
+            <button title="Sort alphabetically" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "name" } })}>
+              A–Z
+            </button>
+            {pageCount > 1 && (
+              <span className="pc-pager" style={{ marginLeft: "auto" }}>
+                <button onClick={() => setPage((i) => Math.max(0, i - 1))} disabled={page === 0}>‹</button>
+                <span className="dim small">Box {page + 1}/{pageCount}</span>
+                <button onClick={() => setPage((i) => Math.min(pageCount - 1, i + 1))} disabled={page >= pageCount - 1}>›</button>
+              </span>
+            )}
+          </>
+        }
+      />
       <div
         className="pc-box-grid box-mode tab-box-grid"
         onDragOver={(e) => { e.preventDefault(); }}
@@ -504,12 +509,11 @@ export function DexTab() {
 
   return (
     <div className="tab-pane dex-tab">
-      <header className="tab-pane-head">
-        <h3>Pokédex</h3>
-        <span className="dim small">
-          {state.pokedexCaught.length}/{all.length} caught · {state.pokedexSeen.length} seen
-        </span>
-      </header>
+      <TabPaneHead
+        title="Pokédex"
+        meta={`${state.pokedexCaught.length}/${all.length} caught · ${state.pokedexSeen.length} seen`}
+        accent="#dc2626"
+      />
       <div className="dex-search-wrap">
         <input
           type="search"
