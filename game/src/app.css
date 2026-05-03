@@ -4325,16 +4325,23 @@ body.is-dragging .pc-slot.empty {
   justify-content: space-between;
   align-items: center;
   background: #0f0f0f;
-  padding: 4px 8px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
+  min-height: 40px;
 }
 .mobile-stats {
   display: flex;
-  gap: 8px;
-  font-size: 10px;
+  gap: 10px;
+  /* Bumped from 10px → 12px so 6+ digit money + badge counts are
+     legible at arm's length on a phone. Also tightened the icons so
+     the row reads as a single status strip. */
+  font-size: 12px;
+  font-weight: 600;
   color: var(--gold);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
 }
+.mobile-stat-icon { font-size: 13px; line-height: 1; margin-right: 2px; }
 .reset-button.mini {
   padding: 4px 8px;
   font-size: 10px;
@@ -7011,33 +7018,34 @@ input, textarea, select {
   background: rgba(125, 211, 252, 0.12);
   border: 1px solid rgba(125, 211, 252, 0.30);
 }
-.mini-chat-msg.mine .mini-chat-lv { color: #7dd3fc; }
-
 /* Account-level tiers (every 50 levels, capped at champion).
    Each tier swaps the chip's colour palette so high-level players
-   are visually distinct in chat. */
-.mini-chat-lv.lv-tier-rookie {
+   are visually distinct in chat. Selectors are deliberately scoped
+   to .mini-chat-msg .mini-chat-lv.<tier> so they win against the
+   `.mini-chat-msg.mine .mini-chat-lv` mine-side override (which
+   would otherwise leave own-row chips stuck on rookie blue). */
+.mini-chat-msg .mini-chat-lv.lv-tier-rookie {
   color: #7dd3fc;
   background: rgba(125, 211, 252, 0.12);
   border-color: rgba(125, 211, 252, 0.30);
 }
-.mini-chat-lv.lv-tier-veteran {
+.mini-chat-msg .mini-chat-lv.lv-tier-veteran {
   color: #86efac;
   background: rgba(134, 239, 172, 0.12);
   border-color: rgba(134, 239, 172, 0.32);
 }
-.mini-chat-lv.lv-tier-elite {
+.mini-chat-msg .mini-chat-lv.lv-tier-elite {
   color: #fcd34d;
   background: rgba(252, 211, 77, 0.12);
   border-color: rgba(252, 211, 77, 0.36);
 }
-.mini-chat-lv.lv-tier-master {
+.mini-chat-msg .mini-chat-lv.lv-tier-master {
   color: #c4b5fd;
   background: rgba(196, 181, 253, 0.14);
   border-color: rgba(196, 181, 253, 0.38);
 }
 /* Champion tier — gradient + glow. Reserved for level 200+. */
-.mini-chat-lv.lv-tier-champion {
+.mini-chat-msg .mini-chat-lv.lv-tier-champion {
   color: #fff;
   background: linear-gradient(90deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%);
   border-color: rgba(255, 255, 255, 0.45);

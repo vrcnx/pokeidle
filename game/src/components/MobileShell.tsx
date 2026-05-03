@@ -28,6 +28,17 @@ const TABS: { id: MobileTab; label: string }[] = [
   { id: "chat",  label: "Chat" },
 ];
 
+// Compact money formatter for the mobile header strip — keeps the
+// stats row readable on narrow screens. The full amount is in the
+// title attribute for anyone who wants the exact number.
+function compactMoney(n: number): string {
+  if (n < 1_000) return `$${n}`;
+  if (n < 10_000) return `$${(n / 1_000).toFixed(1)}K`;
+  if (n < 1_000_000) return `$${Math.round(n / 1_000)}K`;
+  if (n < 10_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  return `$${Math.round(n / 1_000_000)}M`;
+}
+
 function tabIcon(id: MobileTab) {
   switch (id) {
     case "here":  return <IconPin size={18} />;
@@ -58,10 +69,16 @@ export function MobileShell() {
     <div className="mobile-shell">
       <header className="mobile-header">
         <div className="mobile-stats">
-          <span><span className="mobile-stat-icon">💰</span> ${state.money.toLocaleString()}</span>
-          <span><span className="mobile-stat-icon">🏅</span> {state.defeatedGyms.length}/{gymLeaders.length}</span>
+          <span title={`$${state.money.toLocaleString()}`}>
+            <span className="mobile-stat-icon">💰</span>{compactMoney(state.money)}
+          </span>
+          <span title={`${state.defeatedGyms.length} of ${gymLeaders.length} badges`}>
+            <span className="mobile-stat-icon">🏅</span>{state.defeatedGyms.length}/{gymLeaders.length}
+          </span>
           {state.victoryTokens > 0 && (
-            <span><span className="mobile-stat-icon">🎟</span> {state.victoryTokens}</span>
+            <span title={`${state.victoryTokens} Victory Tokens`}>
+              <span className="mobile-stat-icon">🎟</span>{state.victoryTokens}
+            </span>
           )}
           {state.championDefeated && <span title="Champion">👑</span>}
         </div>
