@@ -4558,21 +4558,35 @@ body.is-dragging .pc-slot.empty {
     padding: 5px 6px !important;
     gap: 6px 4px !important;
   }
-  .moves-toolbar .speed-segment { height: 26px; flex-shrink: 0; }
-  .moves-toolbar-group { flex-shrink: 0; gap: 4px; }
+  /* Touch targets bumped to ≥36 px height on phones — was 24-26 px
+     before, way under the 44 px iOS / 48 dp Android guideline.
+     `!important` on the height/padding because un-namespaced rules
+     further down in the file (set the 26 px desktop default) win
+     against this @media block under normal cascade order. */
+  .moves-toolbar .speed-segment { height: 36px !important; flex-shrink: 0; }
+  .moves-toolbar-group { flex-shrink: 0; gap: 6px; }
   .moves-toolbar .speed-btn {
-    padding: 0 8px;
-    font-size: 10px;
-    height: 100%;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    height: 100% !important;
+    min-width: 40px;
   }
   .moves-toolbar .toolbar-btn,
   .moves-toolbar .more-actions-trigger {
-    height: 26px;
-    padding: 0 10px;
-    font-size: 11px;
-    gap: 4px;
+    height: 36px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+    gap: 6px;
+    min-width: 44px;
   }
-  .moves-toolbar .toolbar-btn svg { width: 12px; height: 12px; }
+  .moves-toolbar .toolbar-btn svg { width: 14px; height: 14px; }
+  /* Settings / Social meta buttons in the mobile header — bumped from
+     32 px to 36 px so they sit comfortably between forefinger and
+     thumb without misfires onto the stats strip. */
+  .mobile-meta-buttons .dock-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
   /* Mobile content: bottom tabs already render at full width. Drop any
      center-column wrappers that don't apply here. */
   .mobile-content .center-column { width: 100%; }
