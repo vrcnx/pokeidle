@@ -4416,7 +4416,7 @@ body.is-dragging .pc-slot.empty {
 
 .mobile-tabbar {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: #0a0a0a;
   border-top: 1px solid var(--border);
   height: 56px;
@@ -4456,9 +4456,20 @@ body.is-dragging .pc-slot.empty {
 
 /* ---------- Mobile-specific overrides for shared components ---------- */
 
+/* Floating battle-log button removed everywhere — the typewriter at
+   the bottom of the battle scene is always visible and that's the
+   primary battle-log surface. The floating button was overlapping
+   useful UI on phones and looked bolted-on on desktop. */
+.floating-log-btn { display: none; }
+
 @media (max-width: 900px) {
   body { font-size: 10px; margin: 0; }
   .game-window { padding: 0; margin: 0; }
+  /* On mobile we use the full viewport — the parchment-frame
+     backdrop is a desktop-only flourish that just eats space and
+     blurs sprite contrast on phones. The mobile-shell paints its own
+     solid background. */
+  .app-background { display: none; }
   /* Aspect-ratio + slot positions are already in % so they scale with viewport.
      Don't override sprite sizes — they fill the slot via object-fit. */
   .moves-panel { grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px; }

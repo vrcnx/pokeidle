@@ -71,7 +71,7 @@ export function BottomTabs() {
 // ---------------------------------------------------------------------------
 // Mart — town-only stub for now.
 // ---------------------------------------------------------------------------
-function MartTab() {
+export function MartTab() {
   const { state, dispatch } = useGame();
   const here = state.currentLocation;
   const route = routes[here];
@@ -197,7 +197,7 @@ function MartTab() {
 // ---------------------------------------------------------------------------
 // Bag — flat inventory list.
 // ---------------------------------------------------------------------------
-function BagTab() {
+export function BagTab() {
   const { state, dispatch } = useGame();
   const items = Object.entries(state.inventory).filter(([, n]) => n > 0);
   // Group by catalog category. Items the catalog doesn't know about land in
@@ -312,7 +312,7 @@ function parseSource(raw: string): DragSource | null {
   return null;
 }
 
-function PCTab() {
+export function PCTab() {
   const { state, dispatch } = useGame();
   const PER_PAGE = 30;
   const [page, setPage] = useState(0);
@@ -482,7 +482,7 @@ function PCTab() {
 // ---------------------------------------------------------------------------
 // Pokédex — tri-state grid (unseen black / seen gray / caught color).
 // ---------------------------------------------------------------------------
-function DexTab() {
+export function DexTab() {
   const { state } = useGame();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
