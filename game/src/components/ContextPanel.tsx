@@ -365,9 +365,10 @@ function IdleRaidPanel() {
             <span className="raid-cooldown-icon" aria-hidden>⏱</span>
             <div className="raid-cooldown-text">
               <strong>On cooldown</strong>
-              <span className="raid-cooldown-time">{formatCooldown(cdLeft)}</span>
+              <span className="raid-cooldown-time">
+                {formatCooldown(cdLeft)} <span className="dim">until next raid</span>
+              </span>
             </div>
-            <span className="raid-cooldown-help">until next raid</span>
           </div>
         )}
 

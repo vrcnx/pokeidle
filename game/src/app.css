@@ -2905,7 +2905,15 @@ body.is-dragging .pc-slot.empty {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Cap height + auto-scroll so a long spawn list doesn't blow out
+     the raid card's height; hide the scrollbar so the panel reads
+     clean (Firefox via scrollbar-width, WebKit via pseudo-element). */
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.raid-lineup::-webkit-scrollbar { display: none; width: 0; }
 .raid-lineup-row {
   display: grid;
   grid-template-columns: 32px 1fr auto auto;
@@ -2936,10 +2944,9 @@ body.is-dragging .pc-slot.empty {
 }
 .raid-caught-tag { color: var(--good); font-weight: 700; }
 .raid-cooldown-banner {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 10px;
+  display: flex;
   align-items: center;
+  gap: 12px;
   padding: 10px 14px;
   margin-bottom: 8px;
   background: rgba(239, 68, 68, 0.10);
@@ -2947,24 +2954,38 @@ body.is-dragging .pc-slot.empty {
   border-radius: 6px;
   color: #fff;
 }
-.raid-cooldown-icon { font-size: 20px; line-height: 1; color: #ef4444; }
-.raid-cooldown-text { display: flex; flex-direction: column; gap: 2px; }
+.raid-cooldown-icon {
+  font-size: 20px;
+  line-height: 1;
+  color: #ef4444;
+  flex-shrink: 0;
+}
+.raid-cooldown-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .raid-cooldown-text strong {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: #ef4444;
+  line-height: 1;
 }
 .raid-cooldown-time {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
 }
-.raid-cooldown-help {
-  font-size: 10px;
+.raid-cooldown-time .dim {
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-dim);
-  text-align: right;
+  margin-left: 2px;
 }
 
 /* ---------- Bag / Mart popups ---------- */
