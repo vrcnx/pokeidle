@@ -83,9 +83,18 @@ export function MusicPlayer() {
   // appears (wild encounter, trainer's next mon, gym leader's lead,
   // etc). Keyed by enemy id + speciesKey so consecutive wilds of the
   // same species each play a cry.
+  //
+  // For trainer/boss battles the enemyPokemon state is set as soon as
+  // the battle starts, but the pokemon isn't visible yet — the
+  // trainer sprite slides in first and only after the "sent out"
+  // beat does the pokeball pop. We defer the cry by ~1.4s so it
+  // lands with the visible appearance, not while the trainer is
+  // still on screen. Wild battles pop the pokemon immediately so
+  // they play without delay.
   const lastEnemyId = useRef<string | null>(null);
   const enemyKey = state.enemyPokemon?.speciesKey ?? null;
   const enemyId = state.enemyPokemon?.id ?? null;
+  const phase = state.phase;
   useEffect(() => {
     if (!enemyKey || !enemyId) {
       lastEnemyId.current = null;
@@ -94,8 +103,12 @@ export function MusicPlayer() {
     if (lastEnemyId.current === enemyId) return;
     lastEnemyId.current = enemyId;
     const dexId = pokemonTable[enemyKey]?.id;
-    if (dexId) sfxManager.playCry(dexId);
-  }, [enemyKey, enemyId]);
+    if (!dexId) return;
+    const isTrainerLike = phase === "trainerBattle" || phase === "bossBattle";
+    const delay = isTrainerLike ? 1400 : 0;
+    const t = window.setTimeout(() => sfxManager.playCry(dexId), delay);
+    return () => window.clearTimeout(t);
+  }, [enemyKey, enemyId, phase]);
 
   return null;
 }

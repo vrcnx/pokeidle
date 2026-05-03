@@ -74,6 +74,26 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-label="Trainer Card"
       >
+        {/* SVG filter referenced by .g-badge-disc img — adds a 1px
+            black stroke INSIDE the image silhouette to clean up the
+            transparent-edge bleed on the PokeAPI badge PNGs. The
+            filter erodes the alpha channel by 1px, takes the
+            difference (a 1px ring along the inside edge), floods it
+            black, and composites back over the original. Inlined
+            here so it's available whenever the trainer card is
+            mounted; SVG filter ids are global so any element using
+            url(#badge-inner-stroke) can reach it. */}
+        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+          <defs>
+            <filter id="badge-inner-stroke">
+              <feMorphology operator="erode" radius="1" in="SourceAlpha" result="inner" />
+              <feComposite in="SourceAlpha" in2="inner" operator="out" result="ring" />
+              <feFlood floodColor="#000" />
+              <feComposite in2="ring" operator="in" result="stroke" />
+              <feComposite in="stroke" in2="SourceGraphic" operator="over" />
+            </filter>
+          </defs>
+        </svg>
         <header className="g-modal-head">
           <h2>Trainer Card</h2>
           <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>

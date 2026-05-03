@@ -11441,14 +11441,14 @@ body { background: transparent !important; }
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* Locked badges: desaturate + dim. Earned: full color. The .earned
-     state is on the parent .g-badge container. */
-  filter: grayscale(1) brightness(0.55);
+  /* Locked badges: desaturate + dim, then the inset 1px black stroke
+     defined in TrainerCardModal as <filter id="badge-inner-stroke">.
+     Earned badges use the same inset stroke without the desaturate. */
+  filter: grayscale(1) brightness(0.55) url(#badge-inner-stroke);
   transition: filter 160ms ease;
 }
 .g-badge.earned .g-badge-disc img {
-  filter: none;
-  drop-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
+  filter: url(#badge-inner-stroke) drop-shadow(0 0 4px rgba(255, 255, 255, 0.18));
 }
 .g-badge-name {
   font-size: 10px;
