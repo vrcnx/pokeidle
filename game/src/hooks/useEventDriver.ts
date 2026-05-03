@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { sfxManager } from "../utils/sfx";
 
 // Drains state.pendingEvents one at a time, with timing that matches the
 // typewriter status bar. Speed multiplier scales the delay.
@@ -19,6 +20,12 @@ export function useEventDriver(): void {
     if (state.pendingEvents.length === 0) return;
 
     const event = state.pendingEvents[0];
+    // Fire the attack-hit SFX on the DAMAGE event so it lands in
+    // sync with the defender's sprite flash (the same moment HP
+    // ticks down and the damage shake plays). Firing on the "attack"
+    // event would play the sound at the START of the swing, ahead of
+    // the visible impact.
+    if (event && event.type === "damage") sfxManager.play("attack");
     const speed = state.speed;
     const charMs = speed >= 5 ? 7 : speed >= 2 ? 16 : 30;
     const tailMs = speed >= 5 ? 60 : speed >= 2 ? 120 : 200;

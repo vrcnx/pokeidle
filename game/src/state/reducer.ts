@@ -1523,12 +1523,14 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
       return next;
     }
 
-    const wildMoney = wildMoneyReward(enemy.level);
+    // Wild battles award no money — only trainer / gym / E4 / champion
+    // fights pay out. Wild fights still grant XP, items (catches), and
+    // location-progress counters; cash flow comes from intentional
+    // human-vs-human battles only.
     next = {
       ...next,
       phase: "idle",
       enemyPokemon: null,
-      money: next.money + wildMoney,
       wildBattlesWon: next.wildBattlesWon + 1,
       battlesWonByLocation: {
         ...next.battlesWonByLocation,
@@ -1536,7 +1538,6 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
       },
       activeEffects: decrementEffects(next.activeEffects),
     };
-    next = pushLog(next, `Got $${wildMoney}!`);
     return appendUnlocks(next);
   }
 

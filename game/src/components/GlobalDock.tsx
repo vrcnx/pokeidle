@@ -12,6 +12,7 @@ import { IconSettings, IconChat, IconHeart } from "./Icon";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
+import { sfxManager } from "../utils/sfx";
 import type { ReactNode } from "react";
 
 // Action dock split across columns:
@@ -146,7 +147,64 @@ function AudioPrefsCard() {
           </button>
         )}
       </div>
+
+      {/* Sound effects — separate volume + toggle so the player can
+          mute the music background but keep the punchy attack SFX,
+          or vice versa. */}
+      <div className="audio-section-divider" />
+      <div className="g-row">
+        <span>Sound effects</span>
+        <SfxToggle />
+      </div>
+      <SfxVolume />
     </section>
+  );
+}
+
+function SfxToggle() {
+  const [s, setS] = useState(() => sfxManager.snapshot());
+  useEffect(() => sfxManager.subscribe(setS), []);
+  return (
+    <strong className={s.enabled ? "g-tag on" : "g-tag off"}>
+      {s.enabled ? "On" : "Muted"}
+    </strong>
+  );
+}
+
+function SfxVolume() {
+  const [s, setS] = useState(() => sfxManager.snapshot());
+  useEffect(() => sfxManager.subscribe(setS), []);
+  return (
+    <>
+      <div className="audio-volume-row">
+        <span className="dim small">Volume</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={Math.round(s.volume * 100)}
+          onChange={(e) => sfxManager.setVolume(parseFloat(e.target.value) / 100)}
+          aria-label="Sound effects volume"
+          disabled={!s.enabled}
+        />
+        <span className="audio-volume-pct">{Math.round(s.volume * 100)}</span>
+      </div>
+      <div className="settings-legal-links">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() => sfxManager.setEnabled(!s.enabled)}
+        >
+          {s.enabled ? "Mute SFX" : "Unmute SFX"}
+        </button>
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() => sfxManager.play("attack")}
+        >
+          Test attack
+        </button>
+      </div>
+    </>
   );
 }
 
