@@ -2509,7 +2509,9 @@ body.is-dragging .pc-slot.empty {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 6px 8px;
+  /* Match the inner ContextPanel sections' 12px side gutter so the
+     Here/Map buttons align with the cards below them. */
+  padding: 6px 12px;
   background: var(--panel-2, #1a1a1a);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -2564,7 +2566,10 @@ body.is-dragging .pc-slot.empty {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 6px 8px;
+  /* Match the inner .pc-tab / .dex-tab padding (18px 22px) so the
+     sub-toggle buttons align with the TabPaneHead and box grid below
+     them, instead of extending wider on the sides. */
+  padding: 8px 22px;
   background: rgba(0, 0, 0, 0.4);
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
