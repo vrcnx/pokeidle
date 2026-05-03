@@ -2279,6 +2279,75 @@ body.is-dragging .pc-slot.empty {
 .trainer-card-elite-list small { font-size: 10px; }
 .trainer-card-elite-list .check { color: var(--good); font-weight: 700; }
 
+/* Info icon + popover next to a section title. The blurb that used
+   to take two paragraphs of vertical space lives here — surfaced on
+   hover (desktop) or tap (mobile). */
+.ctx-section-h4-with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.ctx-info-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted, #999);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.ctx-info-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.ctx-info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: 280px;
+  padding: 10px 12px;
+  background: var(--panel-2, #1a1a1a);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-line;
+  text-transform: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+/* Desktop: show on hover of either the icon or the popover itself
+   (so it stays open while reading). */
+.ctx-section-h4-with-info:hover .ctx-info-popover {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* Mobile: open class via tap, since hover doesn't exist on touch. */
+.ctx-info-popover.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* On mobile, the Party tab content panel renders just the party —
+   any nested ContextPanel that would normally show below the list
+   on desktop is hidden so the player isn't seeing duplicated raid /
+   location info that already lives on the Here tab. */
+.mobile-shell.tab-party .context-panel { display: none !important; }
+
 /* ---------- Raid panel (idle on Raid Island) ---------- */
 /* Tier picker — six clickable cards across the top of the raid panel.
    Active card uses the accent border; locked tiers show a 🔒 chip and

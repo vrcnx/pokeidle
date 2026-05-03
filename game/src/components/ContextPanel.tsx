@@ -302,13 +302,42 @@ function IdleRaidPanel() {
     .sort(([, a], [, b]) => b - a)
     .map(([speciesKey, weight]) => ({ speciesKey, weight }));
 
+  // The descriptive raid blurb + cooldown rules live behind an info
+   // icon in the title row instead of taking up two paragraphs of
+   // vertical space — the player only needs the tier blurb when
+   // deciding which tier to pick, and the +5-levels / cooldown rules
+   // are static reference info.
+  const tierInfo =
+    `${tier.blurb}\n\nEach defeat summons the next at +5 levels. ` +
+    `${RAID_COOLDOWN_MS / 60000}-minute cooldown after a wipe.`;
+
   return (
     <>
-      {route?.description && (
-        <p className="dim ctx-description">{route.description}</p>
-      )}
       <section className="ctx-section">
-        <h4>Legendary Raids</h4>
+        <h4 className="ctx-section-h4-with-info">
+          Legendary Raids
+          <button
+            type="button"
+            className="ctx-info-btn"
+            title={tierInfo}
+            aria-label="About Legendary Raids"
+            onClick={(e) => {
+              // Mobile / tap-to-expand: surface the tooltip text inline
+              // because hover doesn't exist. Toggles a transient tooltip
+              // div sibling.
+              e.preventDefault();
+              const el = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement | null;
+              if (el && el.classList.contains("ctx-info-popover")) {
+                el.classList.toggle("open");
+              }
+            }}
+          >
+            ⓘ
+          </button>
+          <span className="ctx-info-popover" role="tooltip">
+            {tierInfo}
+          </span>
+        </h4>
         {onCooldown && (
           <div className="raid-cooldown-banner" role="status">
             <span className="raid-cooldown-icon" aria-hidden>⏱</span>
@@ -345,14 +374,6 @@ function IdleRaidPanel() {
             );
           })}
         </div>
-
-        <p className="dim small" style={{ margin: 0 }}>
-          {tier.blurb}
-        </p>
-        <p className="dim small" style={{ margin: "4px 0 0" }}>
-          Each defeat summons the next at +5 levels. {RAID_COOLDOWN_MS / 60000}-minute
-          cooldown after a wipe.
-        </p>
 
         <button
           type="button"
