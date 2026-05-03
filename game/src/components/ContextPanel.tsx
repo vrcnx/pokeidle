@@ -441,7 +441,7 @@ function IdleRaidPanel() {
                 : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
           }
         >
-          ⚡ Begin {tier.name} raid
+          ⚡ Begin raid
         </button>
 
         <div className="raid-lineup-label dim small">

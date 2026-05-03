@@ -37,6 +37,11 @@ function clamp01(n: number): number { return Math.max(0, Math.min(1, n)); }
 // hits don't drown out the soundtrack. The user still sees and
 // controls 0..100; we just scale down the output.
 const SFX_VOLUME_TRIM = 0.7;
+// Cries get an extra trim on top of the SFX trim. PokeAPI's recorded
+// cries are mastered noticeably hotter than our short hit clip and
+// were drowning out the music; ~0.45 of the SFX bus brings them
+// roughly in line with the attack hits.
+const CRY_VOLUME_TRIM = 0.45;
 
 export type SfxCategory = "attack";
 export const sfxLibrary: Record<SfxCategory, string[]> = {
@@ -168,7 +173,7 @@ class SfxManager {
       if (oldest) { oldest.pause(); this.active.delete(oldest); }
     }
     const audio = new Audio(CRY_LATEST(dexId));
-    audio.volume = this.state.volume * SFX_VOLUME_TRIM;
+    audio.volume = this.state.volume * SFX_VOLUME_TRIM * CRY_VOLUME_TRIM;
     audio.preload = "auto";
     this.active.add(audio);
     let triedLegacy = false;

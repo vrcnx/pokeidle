@@ -2677,18 +2677,18 @@ body.is-dragging .pc-slot.empty {
    styling matches the raid card aesthetic (gold accent on focus,
    panel-2 background, subtle border) so the dropdown reads as part
    of the raid panel rather than a generic system widget. */
-.raid-tier-select { display: none; }
-.mobile-shell .raid-tier-picker { display: none; }
-.mobile-shell .raid-tier-select {
+/* Dropdown is the default tier picker on every viewport now — the
+   six-card grid was a lot of visual weight for a single click. */
+.raid-tier-picker { display: none; }
+.raid-tier-select {
   display: block;
   width: 100%;
   margin: 8px 0 10px;
   position: relative;
 }
-.mobile-shell .raid-tier-select::after {
+.raid-tier-select::after {
   /* Custom chevron in gold so it matches the raid-section accent
-     instead of the browser's grey default. Uses currentColor so any
-     future theme tweaks stay coherent. */
+     instead of the browser's grey default. */
   content: "";
   position: absolute;
   top: 50%;
@@ -2699,7 +2699,7 @@ body.is-dragging .pc-slot.empty {
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23facc15' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat center / contain;
   pointer-events: none;
 }
-.mobile-shell .raid-tier-select select {
+.raid-tier-select select {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -2717,35 +2717,29 @@ body.is-dragging .pc-slot.empty {
   letter-spacing: 0.2px;
   line-height: 1.2;
   cursor: pointer;
-  /* Truncate the closed-state text rather than wrap or overflow.
-     Long locked-tier labels stay on one line. */
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  /* iOS Safari: prevent zoom on focus by keeping ≥16px effective. */
   -webkit-text-size-adjust: 100%;
-  /* Tap-target depth — pressing feels like the raid cards. */
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
-.mobile-shell .raid-tier-select select:hover:not(:disabled),
-.mobile-shell .raid-tier-select:focus-within select {
+.raid-tier-select select:hover:not(:disabled),
+.raid-tier-select:focus-within select {
   border-color: var(--gold, #facc15);
   background: linear-gradient(180deg, rgba(250, 204, 21, 0.10) 0%, rgba(250, 204, 21, 0.02) 100%) var(--panel-2, #1a1a1a);
 }
-.mobile-shell .raid-tier-select select:focus { outline: none; }
-/* Native option styling — Chromium and Firefox respect background +
-   color on <option>; iOS/Android use the system picker so this is a
-   no-op there but keeps the popup readable on Android Chrome / desktop. */
-.mobile-shell .raid-tier-select option {
+.raid-tier-select select:focus { outline: none; }
+.raid-tier-select option {
   background: var(--panel-2, #1a1a1a);
   color: var(--text);
   font-weight: 600;
 }
-.mobile-shell .raid-tier-select option:disabled {
+.raid-tier-select option:disabled {
   color: var(--text-dim, #6f6f6f);
 }
-/* Hide the spawn sprites + label on mobile — the user picks a tier
-   from the dropdown and sees the begin button immediately, no scroll. */
+/* Hide the spawn sprites + label on mobile — the dropdown picker
+   already conveys the tier choice, no scroll needed before the begin
+   button. Desktop keeps the spawn list since there's room. */
 .mobile-shell .raid-lineup,
 .mobile-shell .raid-lineup-label { display: none; }
 
