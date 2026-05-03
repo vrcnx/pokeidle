@@ -14,16 +14,28 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   };
   const res = await fetch(`${SERVER_URL}${path}`, init);
   if (!res.ok) {
-    let err: any = null;
-    try { err = await res.json(); } catch { /* */ }
-    throw new ApiError(res.status, err?.error ?? res.statusText, err);
+    // Servers in this stack return errors in two shapes:
+    //   - Custom routes (saves, friends, admin):  { error: "..." }
+    //   - Better Auth:                            { message: "...", code: "..." }
+    // Capture both so callers can map by code where available, and fall
+    // back to the human-readable message otherwise.
+    let body: any = null;
+    try { body = await res.json(); } catch { /* */ }
+    const message = body?.message ?? body?.error ?? res.statusText;
+    const code = typeof body?.code === "string" ? body.code : null;
+    throw new ApiError(res.status, message, code, body);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public details?: any) {
+  constructor(
+    public status: number,
+    message: string,
+    public code: string | null = null,
+    public details?: any,
+  ) {
     super(message);
     this.name = "ApiError";
   }

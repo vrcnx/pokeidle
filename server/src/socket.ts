@@ -15,7 +15,16 @@ const chatLimiter = makeRateLimiter({ tokens: 20, windowMs: 30_000 });
 const tradeInviteLimiter = makeRateLimiter({ tokens: 5, windowMs: 60_000 });
 const tradeActionLimiter = makeRateLimiter({ tokens: 60, windowMs: 60_000 });
 
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
+// Parse FRONTEND_ORIGIN as a comma-separated allowlist (mirrors what
+// the Hono CORS in index.ts does). Socket.IO's `cors.origin` accepts
+// an array; a raw comma-joined string would be matched literally and
+// fail every browser's actual `Origin` header — which is the bug that
+// caused live chat to silently fall back to polling-only and not
+// receive broadcasts.
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 interface SocketUser {
   id: string;
@@ -160,7 +169,7 @@ export function isOnline(userId: string): boolean {
 export function attachSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
-      origin: FRONTEND_ORIGIN,
+      origin: FRONTEND_ORIGINS,
       credentials: true,
     },
   });

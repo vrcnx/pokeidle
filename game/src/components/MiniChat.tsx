@@ -18,6 +18,17 @@ type Tab = "global" | "local";
 const GLOBAL = "global";
 const areaChannel = (locId: string) => `area:${locId}`;
 
+// Account-level tiers for the Lv chip in chat. Bands of 50 levels
+// each, capped at "champion" for anything past 200. Each tier maps to
+// a CSS modifier class that swaps the chip's colour (see app.css).
+function levelTierClass(level: number): string {
+  if (level >= 200) return "lv-tier-champion";
+  if (level >= 150) return "lv-tier-master";
+  if (level >= 100) return "lv-tier-elite";
+  if (level >= 50)  return "lv-tier-veteran";
+  return "lv-tier-rookie";
+}
+
 export function MiniChat() {
   const { me } = useAuth();
   const { state } = useGame();
@@ -136,7 +147,9 @@ export function MiniChat() {
                 }}
               >
                 {m.user.name ?? m.user.username}
-                <span className="mini-chat-lv">Lv {m.user.accountLevel}</span>
+                <span className={`mini-chat-lv ${levelTierClass(m.user.accountLevel)}`}>
+                  Lv {m.user.accountLevel}
+                </span>
               </button>
               <span className="mini-chat-body">{m.content}</span>
             </div>

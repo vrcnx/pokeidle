@@ -20,12 +20,14 @@ export function getSocket(): Socket {
   // Server-pushed kick: another browser/device signed into this
   // account. Drop the cached socket so reconnect doesn't loop on
   // the same dead session, then full-reload the page so AuthContext
-  // re-runs and the auth modal appears.
+  // re-runs and the auth modal appears. Stash a flag in sessionStorage
+  // so the login screen can show a banner explaining why the user
+  // was bumped, instead of an anonymous-looking re-login.
   socket.on("session:replaced", () => {
     socket?.disconnect();
     socket = null;
     if (typeof window !== "undefined") {
-      // A small delay so any pending UI updates flush before reload.
+      try { sessionStorage.setItem("pkmn-kicked", "1"); } catch { /* */ }
       setTimeout(() => window.location.reload(), 50);
     }
   });

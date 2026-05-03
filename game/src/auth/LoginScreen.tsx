@@ -11,6 +11,70 @@ import { LegalModal, openLegal } from "../components/LegalModal";
 // to its own Better Auth endpoint.
 type Mode = "signin" | "signup";
 
+// Map Better Auth error codes (and a few HTTP-status fallbacks) to
+// player-friendly copy. Better Auth returns { message, code } pairs;
+// the message is correct but a bit terse, so we override the most
+// common ones for clarity. Anything we don't know how to map falls
+// through to the server's own message.
+function friendlyAuthError(err: ApiError, mode: Mode): string {
+  // Banned account — server middleware returns 403 with banReason.
+  if (err.status === 403 && err.details?.error === "banned") {
+    const until = err.details?.bannedUntil
+      ? new Date(err.details.bannedUntil).toLocaleString()
+      : null;
+    return until
+      ? `Your account is suspended until ${until}.`
+      : "Your account is suspended.";
+  }
+  // Rate limit — server returns 429 from auth limiter.
+  if (err.status === 429) {
+    return "Too many attempts. Try again in a few minutes.";
+  }
+
+  switch (err.code) {
+    // ── Sign-up rejections ────────────────────────────────────────────
+    case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
+    case "USER_ALREADY_EXISTS":
+      return "An account with that email already exists. Try signing in instead.";
+    case "USERNAME_IS_ALREADY_TAKEN":
+      return "That username is already taken. Pick another.";
+    case "USERNAME_TOO_SHORT":
+      return "Username must be at least 3 characters.";
+    case "USERNAME_TOO_LONG":
+      return "Username must be 20 characters or fewer.";
+    case "INVALID_USERNAME":
+    case "INVALID_DISPLAY_USERNAME":
+      return "Username can only contain letters, digits, and underscores (3–20 chars).";
+    case "PASSWORD_TOO_SHORT":
+      return "Password must be at least 8 characters.";
+    case "PASSWORD_TOO_LONG":
+      return "Password is too long.";
+    case "INVALID_EMAIL":
+      return "That email isn't valid.";
+
+    // ── Sign-in rejections ────────────────────────────────────────────
+    case "INVALID_EMAIL_OR_PASSWORD":
+    case "INVALID_USERNAME_OR_PASSWORD":
+      return mode === "signin"
+        ? "Wrong email/username or password."
+        : "Wrong credentials.";
+    case "USER_NOT_FOUND":
+      return "No account found with that email or username.";
+    case "EMAIL_NOT_VERIFIED":
+      return "Please verify your email before signing in.";
+
+    default:
+      // Some validators return a 400 with no `code` but a useful
+      // `message` — surface that. If the message looks like a raw
+      // validator dump, replace with a generic line.
+      if (err.message && /^[a-z0-9 _-]+$/i.test(err.message) && err.message.length < 120) {
+        return err.message;
+      }
+      if (mode === "signup") return "Couldn't create your account. Please check your inputs and try again.";
+      return "Couldn't sign you in. Please check your inputs and try again.";
+  }
+}
+
 export function LoginScreen() {
   const { refresh } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
@@ -22,6 +86,18 @@ export function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const dialogRef = useModalEnter();
+  // Show a banner if we were just kicked by a session-replaced event
+  // (another device signed into the same account). The flag is set in
+  // net/socket.ts and consumed once.
+  const [kickedNotice, setKickedNotice] = useState<string | null>(() => {
+    try {
+      if (sessionStorage.getItem("pkmn-kicked") === "1") {
+        sessionStorage.removeItem("pkmn-kicked");
+        return "You were signed out because your account signed in on another device.";
+      }
+    } catch { /* */ }
+    return null;
+  });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,9 +136,9 @@ export function LoginScreen() {
       await refresh();
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || `Request failed (${err.status})`);
+        setError(friendlyAuthError(err, mode));
       } else {
-        setError("Network error. Is the server running?");
+        setError("Couldn't reach the server. Check your connection and try again.");
       }
     } finally {
       setBusy(false);
@@ -85,6 +161,17 @@ export function LoginScreen() {
         </header>
 
         <div className="g-modal-body">
+          {kickedNotice && (
+            <div className="auth-kicked-banner" role="status">
+              {kickedNotice}
+              <button
+                type="button"
+                className="auth-kicked-dismiss"
+                onClick={() => setKickedNotice(null)}
+                aria-label="Dismiss"
+              >×</button>
+            </div>
+          )}
           <p className="auth-tag">
             {mode === "signin"
               ? "Welcome back, trainer. Sign in to pick up where you left off."

@@ -151,6 +151,8 @@ function SelfCard({ onClose }: { onClose: () => void }) {
 
 // --- Public card -----------------------------------------------------------
 
+type FriendRel = "none" | "outgoing" | "incoming" | "accepted";
+
 function PublicCard({ username, onClose }: { username: string; onClose?: () => void }) {
   const { me } = useAuth();
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
@@ -158,15 +160,33 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
+  const [friendRel, setFriendRel] = useState<FriendRel>("none");
+  const [friendBusy, setFriendBusy] = useState(false);
   const tradeState = useTradeState();
 
   useEffect(() => {
     let cancelled = false;
     setProfile(null);
     setError(null);
-    api.publicProfile(username)
-      .then((p) => { if (!cancelled) setProfile(p); })
-      .catch((e) => { if (!cancelled) setError(e?.message ?? "Could not load profile."); });
+    setFriendRel("none");
+    Promise.all([
+      api.publicProfile(username),
+      api.listFriends().catch(() => null),
+    ]).then(([p, friends]) => {
+      if (cancelled) return;
+      setProfile(p);
+      // Determine the current relationship by looking up `p` in each
+      // bucket. The friends API returns id-keyed entries we can match
+      // against the loaded profile's id.
+      if (friends) {
+        if (friends.accepted.some((f) => f.id === p.id)) setFriendRel("accepted");
+        else if (friends.outgoing.some((f) => f.id === p.id)) setFriendRel("outgoing");
+        else if (friends.incoming.some((f) => f.id === p.id)) setFriendRel("incoming");
+        else setFriendRel("none");
+      }
+    }).catch((e) => {
+      if (!cancelled) setError(e?.message ?? "Could not load profile.");
+    });
     return () => { cancelled = true; };
   }, [username]);
 
@@ -186,6 +206,32 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         setError(res.error ?? "Could not send invite.");
       }
     });
+  };
+
+  const friendAction = async () => {
+    if (!profile || isSelf || friendBusy) return;
+    setFriendBusy(true);
+    setError(null);
+    try {
+      if (friendRel === "incoming") {
+        // The other side already requested us — accept theirs.
+        const list = await api.listFriends();
+        const entry = list.incoming.find((f) => f.id === profile.id);
+        if (entry) {
+          await api.acceptFriend(entry.friendshipId);
+          setFriendRel("accepted");
+        }
+      } else if (friendRel === "none") {
+        // Send a fresh request. The server will auto-accept if they
+        // already requested us (the request endpoint handles both).
+        const res = await api.requestFriend(profile.username);
+        setFriendRel(res.status === "accepted" ? "accepted" : "outgoing");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Could not send friend request.");
+    } finally {
+      setFriendBusy(false);
+    }
   };
 
   const initial = (profile?.name ?? profile?.username ?? username)[0]?.toUpperCase() ?? "?";
@@ -237,18 +283,42 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
 
         <footer className="g-modal-foot">
           {!isSelf && profile && (
-            <button
-              className="g-btn-primary"
-              onClick={requestTrade}
-              disabled={busy || inviteSent || inActiveTrade}
-              title={
-                inActiveTrade ? "You're already in a trade"
-                : inviteSent ? "Invite sent — waiting for response"
-                : undefined
-              }
-            >
-              {inviteSent ? "Invite sent ✓" : busy ? "…" : "Request trade"}
-            </button>
+            <>
+              <button
+                className={friendRel === "accepted" ? "g-btn-ghost" : "g-btn-ghost"}
+                onClick={friendAction}
+                disabled={
+                  friendBusy ||
+                  friendRel === "accepted" ||
+                  friendRel === "outgoing"
+                }
+                title={
+                  friendRel === "accepted" ? "Already friends"
+                  : friendRel === "outgoing" ? "Friend request sent — waiting for response"
+                  : friendRel === "incoming" ? "Accept their pending friend request"
+                  : "Send a friend request"
+                }
+              >
+                {friendBusy ? "…"
+                  : friendRel === "accepted" ? "✓ Friends"
+                  : friendRel === "outgoing" ? "Request sent"
+                  : friendRel === "incoming" ? "Accept friend"
+                  : "Add friend"}
+              </button>
+              <button
+                className="g-btn-primary"
+                onClick={requestTrade}
+                disabled={busy || inviteSent || inActiveTrade || friendRel !== "accepted"}
+                title={
+                  friendRel !== "accepted" ? "Add as friend before trading"
+                  : inActiveTrade ? "You're already in a trade"
+                  : inviteSent ? "Invite sent — waiting for response"
+                  : undefined
+                }
+              >
+                {inviteSent ? "Invite sent ✓" : busy ? "…" : "Request trade"}
+              </button>
+            </>
           )}
           <span style={{ flex: 1 }} />
           <button className="g-btn-ghost" onClick={close}>Close</button>
