@@ -60,31 +60,6 @@ export function TownMap() {
     []
   );
 
-  const edges = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { ax: number; ay: number; bx: number; by: number; key: string; lit: boolean }[] = [];
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const unlocked = new Set(state.unlockedLocations);
-    for (const n of nodes) {
-      for (const c of n.connections) {
-        const m = byId.get(c);
-        if (!m) continue;
-        const k = [n.id, c].sort().join("--");
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push({
-          ax: n.x,
-          ay: n.y,
-          bx: m.x,
-          by: m.y,
-          key: k,
-          lit: unlocked.has(n.id) && unlocked.has(c),
-        });
-      }
-    }
-    return out;
-  }, [nodes, state.unlockedLocations]);
-
   const wins = state.battlesWonByLocation[state.currentLocation] ?? 0;
   const trainerCount = state.trainerBattlesWon;
 
@@ -127,61 +102,6 @@ export function TownMap() {
           backgroundPosition: `${(crop.x * 100) / (100 - crop.w)}% ${(crop.y * 100) / (100 - crop.h)}%`,
         } : undefined}
       >
-        {/* Two SVG layers: dim base for all edges, lit overlay for unlocked-to-unlocked.
-            When a crop is active, remap the SVG viewBox so x/y stay in
-            the same source-image coordinates the markers use. */}
-        <svg
-          className="town-map-edges"
-          viewBox={crop ? `${crop.x} ${crop.y} ${crop.w} ${crop.h}` : "0 0 100 100"}
-          preserveAspectRatio="none"
-          aria-hidden
-        >
-          {/* base (locked / unknown) — faint white tracing line */}
-          {edges.map((e) => (
-            <line
-              key={`b-${e.key}`}
-              x1={e.ax}
-              y1={e.ay}
-              x2={e.bx}
-              y2={e.by}
-              stroke="rgba(255,255,255,0.10)"
-              strokeWidth="0.55"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {/* lit (unlocked path) — soft gold ribbon, brighter on top */}
-          {edges
-            .filter((e) => e.lit)
-            .map((e) => (
-              <line
-                key={`l-${e.key}`}
-                x1={e.ax}
-                y1={e.ay}
-                x2={e.bx}
-                y2={e.by}
-                stroke="rgba(251, 191, 36, 0.45)"
-                strokeWidth="3.2"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-          {edges
-            .filter((e) => e.lit)
-            .map((e) => (
-              <line
-                key={`l2-${e.key}`}
-                x1={e.ax}
-                y1={e.ay}
-                x2={e.bx}
-                y2={e.by}
-                stroke="#fbbf24"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-        </svg>
         {nodes.map((n) => {
           const unlocked = state.unlockedLocations.includes(n.id);
           const current = state.currentLocation === n.id;
