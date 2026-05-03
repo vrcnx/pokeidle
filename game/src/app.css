@@ -10428,6 +10428,89 @@ input:focus, textarea:focus, select:focus {
 /* Legal modal — three-tab dialog used on signup AND from the footer. */
 .legal-modal { max-width: 720px; width: min(720px, 96vw); }
 
+/* Swap picker — inline overlay inside the Pokémon Detail dialog, used
+   to pick which party member to swap a box mon with. Sits above the
+   modal body but inside the dialog so closing the modal also closes
+   the picker. */
+.swap-picker-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  border-radius: inherit;
+  padding: 16px;
+}
+.swap-picker {
+  width: min(360px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+}
+.swap-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.swap-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+.swap-picker-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  background: var(--panel-2, #1a1a1a);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.swap-picker-row:hover {
+  background: var(--panel-3, #222);
+  border-color: var(--text-muted);
+}
+.swap-picker-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.swap-picker-meta strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swap-picker-meta small { font-size: 11px; }
+.swap-picker-arrow {
+  font-size: 18px;
+  color: var(--text-muted);
+}
+/* Anchor swap-picker-overlay to the dialog rather than the page so
+   the picker centers within the modal. .pokemon-detail-v2 is the
+   dialog root; ensure it positions relatively. */
+.pokemon-detail-v2 { position: relative; }
+
 /* First-visit fan-game disclaimer — non-dismissable overlay shown once
    per browser before anything else loads. Sits above auth screen and
    game; the only way out is the "I understand" button. */

@@ -224,6 +224,7 @@ export function PokemonDetailModal() {
         evolveTo={evolveTo}
         selected={selected}
         partySize={state.party.length}
+        party={state.party}
         expIntoLevel={expIntoLevel}
         expSpan={expSpan}
         expPct={expPct}
@@ -240,6 +241,13 @@ export function PokemonDetailModal() {
         }}
         onBoxToParty={() => {
           dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: selected.index } });
+          closePokemonDetail();
+        }}
+        onSwapWithParty={(partyIndex: number) => {
+          dispatch({
+            type: "SWAP_PARTY_BOX",
+            payload: { partyIndex, boxIndex: selected.index },
+          });
           closePokemonDetail();
         }}
         onRelease={() => {
@@ -268,15 +276,22 @@ function PokemonDetailDialog({
   evolveTo,
   selected,
   partySize,
+  party,
   expIntoLevel,
   expSpan,
   expPct,
   onSwitch,
   onPartyToBox,
   onBoxToParty,
+  onSwapWithParty,
   onRelease,
 }: any) {
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+  // Box → Party swap picker. Opens an inline list of party slots so the
+  // player can pick which mon to swap out without leaving the detail
+  // sheet. Especially useful on mobile where drag-and-drop swaps are
+  // awkward and PARTY-IS-FULL would otherwise block "→ Party" outright.
+  const [swapPicking, setSwapPicking] = useState(false);
   return (
     <div
       ref={dialogRef}
@@ -440,6 +455,41 @@ function PokemonDetailDialog({
         )}
       </div>
 
+      {swapPicking && (
+        <div className="swap-picker-overlay">
+          <div className="swap-picker">
+            <header className="swap-picker-head">
+              <strong>Swap {p.name} with…</strong>
+              <button className="g-modal-close" onClick={() => setSwapPicking(false)} aria-label="Cancel">×</button>
+            </header>
+            <ul className="swap-picker-list">
+              {(party as Pokemon[]).map((m, i) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    className="swap-picker-row"
+                    onClick={() => { setSwapPicking(false); onSwapWithParty(i); }}
+                  >
+                    <img
+                      src={pokemonSpriteUrl(m.speciesKey, false, m.isShiny)}
+                      alt=""
+                      width={32}
+                      height={32}
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                    <div className="swap-picker-meta">
+                      <strong>{m.nickname || m.name}</strong>
+                      <small className="dim">Lv {m.level} · {m.currentHp}/{m.maxHp} HP</small>
+                    </div>
+                    <span className="swap-picker-arrow">⇄</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       <footer className="g-modal-foot">
         <button className="g-btn-danger-ghost" onClick={onRelease}>Release</button>
         <span style={{ flex: 1 }} />
@@ -451,6 +501,11 @@ function PokemonDetailDialog({
         )}
         {selected.type === "box" && partySize < 6 && !inBattle && (
           <button className="g-btn-ghost g-btn-small" onClick={onBoxToParty}>→ Party</button>
+        )}
+        {selected.type === "box" && partySize > 0 && !inBattle && (
+          <button className="g-btn-ghost g-btn-small" onClick={() => setSwapPicking(true)}>
+            Swap with party
+          </button>
         )}
         <button className="g-btn-primary" onClick={closePokemonDetail}>Close</button>
       </footer>

@@ -6,11 +6,11 @@ import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { TownMap } from "./TownMap";
 import { PartyColumn } from "./PartyColumn";
 import { ContextPanel } from "./ContextPanel";
-import { BagTab, PCTab } from "./BottomTabs";
+import { BagTab, PCTab, MartTab } from "./BottomTabs";
 import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
 import {
-  IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor,
+  IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor, IconCart,
 } from "./Icon";
 
 // Mobile single-column layout. Battle scene + moves are always pinned
@@ -18,11 +18,12 @@ import {
 // match how the desktop dashboard organises content — without nested
 // tab strips that confused the navigation before. Mart is accessed
 // from the Map tab's location panel; Dex is in Settings → Trainer Card.
-type MobileTab = "here" | "party" | "map" | "bag" | "pc" | "chat";
+type MobileTab = "here" | "party" | "map" | "mart" | "bag" | "pc" | "chat";
 const TABS: { id: MobileTab; label: string }[] = [
   { id: "here",  label: "Here" },
   { id: "party", label: "Party" },
   { id: "map",   label: "Map" },
+  { id: "mart",  label: "Mart" },
   { id: "bag",   label: "Bag" },
   { id: "pc",    label: "PC" },
   { id: "chat",  label: "Chat" },
@@ -44,6 +45,7 @@ function tabIcon(id: MobileTab) {
     case "here":  return <IconPin size={18} />;
     case "party": return <IconBag size={18} />;
     case "map":   return <IconMap size={18} />;
+    case "mart":  return <IconCart size={18} />;
     case "bag":   return <IconBackpack size={18} />;
     case "pc":    return <IconMonitor size={18} />;
     case "chat":  return <IconChat size={18} />;
@@ -97,8 +99,12 @@ export function MobileShell() {
         {tab === "here"  && <ContextPanel />}
         {tab === "party" && <PartyColumn />}
         {tab === "map"   && <TownMap />}
-        {tab === "bag"   && <BagTab />}
-        {tab === "pc"    && <PCTab />}
+        {/* Bag / Mart / PC reuse the desktop tab-body chrome (the
+            parchment / tile / CRT-monitor backgrounds + frosted card
+            styles defined under .bottom-tab-body:has(> .X-tab)). */}
+        {tab === "mart"  && <div className="bottom-tab-body"><MartTab /></div>}
+        {tab === "bag"   && <div className="bottom-tab-body"><BagTab /></div>}
+        {tab === "pc"    && <div className="bottom-tab-body"><PCTab /></div>}
         {tab === "chat"  && <MiniChat />}
       </div>
 
