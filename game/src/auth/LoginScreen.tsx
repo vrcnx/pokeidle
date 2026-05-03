@@ -107,6 +107,10 @@ export function LoginScreen() {
         sessionStorage.removeItem("pkmn-kicked");
         return "You were signed out because your account signed in on another device.";
       }
+      if (sessionStorage.getItem("pkmn-pw-reset") === "1") {
+        sessionStorage.removeItem("pkmn-pw-reset");
+        return "Password reset complete. Sign in with your new password.";
+      }
     } catch { /* */ }
     return null;
   });

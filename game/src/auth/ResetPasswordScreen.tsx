@@ -28,12 +28,16 @@ export function ResetPasswordScreen() {
   const [done, setDone] = useState(false);
 
   // Auto-redirect to /  on successful reset after a short pause so the
-  // user sees the confirmation copy before the page replaces.
+  // user sees the confirmation copy before the page replaces. Better
+  // Auth's reset-password endpoint does NOT auto-sign-in the user
+  // (no session cookie set), so we drop a flag for the login screen to
+  // show a "your password was reset, sign in below" banner.
   useEffect(() => {
     if (!done) return;
+    try { sessionStorage.setItem("pkmn-pw-reset", "1"); } catch { /* */ }
     const t = window.setTimeout(() => {
       window.location.replace("/");
-    }, 1400);
+    }, 1600);
     return () => window.clearTimeout(t);
   }, [done]);
 
@@ -112,12 +116,12 @@ export function ResetPasswordScreen() {
         <div className="g-modal-body">
           <p className="auth-tag">
             {done
-              ? "Your password's been reset. Signing you in…"
-              : "Choose a new password. You'll be signed in automatically."}
+              ? "Your password's been reset. Sending you back to sign in…"
+              : "Choose a new password. You'll need to sign in with it once it's saved."}
           </p>
           {done ? (
             <div className="auth-success">
-              All set. Redirecting you back to the game.
+              All set. Redirecting you to the sign-in screen.
             </div>
           ) : (
             <form onSubmit={submit} className="auth-form">
