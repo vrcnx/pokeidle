@@ -37,8 +37,14 @@ export const musicPlaylists: Record<MusicCategory, string[]> = {
     "routes (3).mp3",
   ],
   special: [
-    "Pastel Hollow Loop.mp3",
-    "Pastel Hollow Loop (1).mp3",
+    "secret (1).mp3",
+    "secret (2).mp3",
+    "secret (3).mp3",
+    "secret (4).mp3",
+    "secret (5).mp3",
+    "secret (6).mp3",
+    "secret (7).mp3",
+    "secret (8).mp3",
   ],
 };
 

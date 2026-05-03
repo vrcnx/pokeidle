@@ -61,6 +61,22 @@ class SfxManager {
 
   constructor() {
     this.state = loadPersisted();
+    if (typeof document !== "undefined") {
+      // Pause anything mid-play when the tab loses focus and resume
+      // it when it comes back — keeps SFX consistent with the music
+      // bus, which already handles visibility. Otherwise short hits
+      // queued just before the tab hid would keep firing in the
+      // background.
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          for (const a of this.active) a.pause();
+        } else if (this.state.enabled) {
+          for (const a of this.active) {
+            void a.play().catch(() => undefined);
+          }
+        }
+      });
+    }
   }
 
   subscribe(fn: (s: Persisted) => void): () => void {
