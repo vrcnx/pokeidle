@@ -9509,12 +9509,13 @@ input:focus, textarea:focus, select:focus {
   border: 0;
   color: var(--text-muted);
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 7px 0;
+  padding: 10px 0;
   border-radius: 6px;
   cursor: pointer;
   letter-spacing: 0.2px;
+  min-height: 36px;
 }
 .auth-tab.active {
   background: var(--panel-3, #2a2a2a);
@@ -9540,13 +9541,17 @@ input:focus, textarea:focus, select:focus {
   background: var(--panel-2, #1a1a1a);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 9px 12px;
+  padding: 11px 12px;
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 13px;
+  /* 16px+ font-size on iOS prevents the auto-zoom-on-focus that
+     crops the auth modal off-screen. The visual size on desktop
+     barely changes — the input was already 13 px before. */
+  font-size: 16px;
   font-weight: 400;
   letter-spacing: normal;
   text-transform: none;
+  min-height: 40px;
 }
 .auth-label input:focus {
   outline: none;
