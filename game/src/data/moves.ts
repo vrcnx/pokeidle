@@ -168,7 +168,9 @@ export const moves: Record<string, MoveDef> = {
       pp: 10,
       priority: 0,
     },
-    stringShot: { name: "String Shot", type: "Bug", category: "status", power: 0, accuracy: 95, pp: 40, priority: 0 },
+    stringShot: { name: "String Shot", type: "Bug", category: "status", power: 0, accuracy: 95, pp: 40, priority: 0,
+      effect: { type: "statChange", target: "opponent", changes: { speed: -1 } },
+    },
     bugBite: { name: "Bug Bite", type: "Bug", category: "physical", power: 60, accuracy: 100, pp: 20, priority: 0 },
     poisonSting: {
       name: "Poison Sting",
@@ -431,7 +433,9 @@ export const moves: Record<string, MoveDef> = {
       priority: 0,
       effect: { type: "selfDestruct" },
     },
-    glare: { name: "Glare", type: "Normal", category: "status", power: 0, accuracy: 100, pp: 30, priority: 0 },
+    glare: { name: "Glare", type: "Normal", category: "status", power: 0, accuracy: 100, pp: 30, priority: 0,
+      effect: { type: "inflictStatus", status: "paralyzed", chance: 1.0 },
+    },
     sonicBoom: {
       name: "Sonic Boom",
       type: "Normal",

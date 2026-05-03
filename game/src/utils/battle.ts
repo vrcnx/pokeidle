@@ -314,7 +314,12 @@ export function executeTurn(
   enemy: BattleSide,
   smartEnemy = false,
   playerMoveOverride?: string,
-  weatherCtx: WeatherCtx = { current: null }
+  weatherCtx: WeatherCtx = { current: null },
+  // When true, the player chose a non-attacking action this turn
+  // (e.g. threw a Poké Ball that failed). Skip the player's attack
+  // pick + execution so only the enemy gets to act, plus the usual
+  // end-of-turn weather/status ticks.
+  playerSkipped = false,
 ): BattleEvent[] {
   const events: BattleEvent[] = [];
   player.statStages ||= {};
@@ -348,30 +353,32 @@ export function executeTurn(
   //   3. Manual override from the UI (only if it's actually one of this
   //      Pokémon's moves and has PP — otherwise fall through to AI/random)
   //   4. Smart AI pick
-  let pMoveId: string;
+  let pMoveId: string = "";
   let pMove: MoveDef | undefined;
-  if (playerRecharge) {
-    pMoveId = player.moves[0].id;
-    pMove = movesTable[pMoveId];
-  } else if (player.lockedMove) {
-    pMoveId = player.lockedMove;
-    pMove = movesTable[pMoveId];
-  } else if (
-    playerMoveOverride &&
-    player.moves.some((m) => m.id === playerMoveOverride && m.pp > 0)
-  ) {
-    pMoveId = playerMoveOverride;
-    pMove = movesTable[pMoveId];
-  } else {
-    const pick = pickSmartMove(
-      player.moves.map((m) => m.id),
-      player,
-      enemy,
-      player.types ?? [],
-      enemy.types ?? []
-    );
-    pMoveId = pick.moveId;
-    pMove = pick.move;
+  if (!playerSkipped) {
+    if (playerRecharge) {
+      pMoveId = player.moves[0].id;
+      pMove = movesTable[pMoveId];
+    } else if (player.lockedMove) {
+      pMoveId = player.lockedMove;
+      pMove = movesTable[pMoveId];
+    } else if (
+      playerMoveOverride &&
+      player.moves.some((m) => m.id === playerMoveOverride && m.pp > 0)
+    ) {
+      pMoveId = playerMoveOverride;
+      pMove = movesTable[pMoveId];
+    } else {
+      const pick = pickSmartMove(
+        player.moves.map((m) => m.id),
+        player,
+        enemy,
+        player.types ?? [],
+        enemy.types ?? []
+      );
+      pMoveId = pick.moveId;
+      pMove = pick.move;
+    }
   }
 
   // Pick enemy's move
@@ -402,7 +409,11 @@ export function executeTurn(
   const ePriority = enemyRecharge ? -10 : eMove?.priority ?? 0;
   type Step = { attacker: BattleSide; defender: BattleSide; moveId: string; isPlayer: boolean };
   const steps: Step[] = [];
-  if (pPriority > ePriority) {
+  if (playerSkipped) {
+    // Player committed to a non-move action this turn (e.g. failed
+    // ball throw). Only the enemy gets a step.
+    steps.push({ attacker: enemy, defender: player, moveId: eMoveId, isPlayer: false });
+  } else if (pPriority > ePriority) {
     steps.push(
       { attacker: player, defender: enemy, moveId: pMoveId, isPlayer: true },
       { attacker: enemy, defender: player, moveId: eMoveId, isPlayer: false }

@@ -521,8 +521,43 @@ export function reducer(state: GameState, action: Action): GameState {
         return { ...state, catchAnim: null };
       }
       if (!anim.success) {
+        // Failed catch costs a turn — the enemy gets a free attack
+        // before the player can act again. Run executeTurn with the
+        // playerSkipped flag so only the enemy step + end-of-turn
+        // ticks (weather / status) fire. The events drain through
+        // the normal pendingEvents pipeline so HP changes animate.
+        // If for some reason the player has no active mon (shouldn't
+        // happen mid-battle), fall back to the no-turn path.
+        if (!state.playerPokemon) {
+          return pushLog(
+            { ...state, catchAnim: null },
+            `Oh no! The ${state.enemyPokemon.name} broke free!`
+          );
+        }
+        const player: BattleSide = withTypes({ ...state.playerPokemon });
+        const enemy: BattleSide = withTypes({ ...state.enemyPokemon });
+        Object.assign(player, state.playerVolatile ?? {});
+        const weatherCtx = { current: state.battleWeather ?? null };
+        const events = executeTurn(player, enemy, !!state.trainerBattle || !!state.bossBattle, undefined, weatherCtx, true);
         return pushLog(
-          { ...state, catchAnim: null },
+          {
+            ...state,
+            catchAnim: null,
+            pendingEvents: events,
+            battleWeather: weatherCtx.current,
+            playerVolatile: {
+              statStages: {
+                attack: player.statStages?.attack ?? 0,
+                defense: player.statStages?.defense ?? 0,
+                spAttack: player.statStages?.spAttack ?? 0,
+                spDefense: player.statStages?.spDefense ?? 0,
+                speed: player.statStages?.speed ?? 0,
+              },
+              mustRecharge: !!player.mustRecharge,
+              lockedMove: player.lockedMove ?? null,
+              lockTurnsRemaining: player.lockTurnsRemaining ?? 0,
+            },
+          },
           `Oh no! The ${state.enemyPokemon.name} broke free!`
         );
       }

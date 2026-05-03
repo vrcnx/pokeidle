@@ -271,10 +271,18 @@ function CatchAnimation() {
           <span className="catch-spark s4" />
           <span className="catch-spark s5" />
           <span className="catch-spark s6" />
+          <span className="catch-spark s7" />
+          <span className="catch-spark s8" />
           <span className="catch-success-flash" />
+          <span className="catch-success-ring2" />
+          <span className="catch-success-caption">Gotcha!</span>
         </>
       ) : (
-        <span className="catch-crack" />
+        <>
+          <span className="catch-crack" />
+          <span className="catch-escape-burst" />
+          <span className="catch-escape-pulse" />
+        </>
       )}
     </div>
   );
