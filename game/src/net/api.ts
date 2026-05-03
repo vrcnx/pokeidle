@@ -50,8 +50,14 @@ export const api = {
   signInUsername: (input: { username: string; password: string }) =>
     request<{ user: ProfileUser }>("POST", "/api/auth/sign-in/username", input),
   signOut: () => request<void>("POST", "/api/auth/sign-out"),
+  // Sledgehammer fallback — also deletes every session row server-side
+  // and clears all auth cookies. Belt-and-braces alongside Better
+  // Auth's signOut for cases where the cross-origin Set-Cookie clear
+  // gets dropped by the browser.
+  signOutAll: () => request<{ ok: true }>("POST", "/api/auth/sign-out-all"),
   getSession: () => request<{ user: ProfileUser } | null>("GET", "/api/auth/get-session"),
   googleSignInUrl: () => `${SERVER_URL}/api/auth/sign-in/social/google`,
+  authProviders: () => request<{ google: boolean }>("GET", "/api/auth/providers"),
 
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),

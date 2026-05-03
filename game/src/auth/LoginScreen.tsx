@@ -76,7 +76,7 @@ function friendlyAuthError(err: ApiError, mode: Mode): string {
 }
 
 export function LoginScreen() {
-  const { refresh } = useAuth();
+  const { refresh, providers } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -282,10 +282,14 @@ export function LoginScreen() {
             </button>
           </form>
 
-          <div className="auth-divider"><span>or</span></div>
-          <a className="auth-google" href={api.googleSignInUrl()}>
-            Continue with Google
-          </a>
+          {providers.google && (
+            <>
+              <div className="auth-divider"><span>or</span></div>
+              <a className="auth-google" href={api.googleSignInUrl()}>
+                Continue with Google
+              </a>
+            </>
+          )}
 
           <div className="auth-legal-row">
             <button type="button" className="auth-link" onClick={() => openLegal("terms")}>Terms</button>

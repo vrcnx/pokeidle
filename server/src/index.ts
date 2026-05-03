@@ -48,6 +48,54 @@ app.use(
 // Health check.
 app.get("/healthz", (c) => c.json({ ok: true, t: Date.now() }));
 
+// Public probe for which auth providers are configured. The frontend
+// uses this to show or hide the "Continue with Google" button — when
+// Google OAuth env vars aren't set, Better Auth doesn't register the
+// social-sign-in route, so showing the button would just 404 the user.
+app.get("/api/auth/providers", (c) => {
+  return c.json({
+    google: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
+  });
+});
+
+// Sledgehammer sign-out. Better Auth's POST /api/auth/sign-out is the
+// primary path (deletes the current session row + clears the cookie),
+// but reports of users staying signed-in after clicking sign-out
+// suggest its cookie-clear is sometimes lost (cross-site Set-Cookie
+// drop, or the session cookie token wasn't received and so its
+// session lookup returns nothing to delete). This endpoint takes a
+// belt-and-braces approach:
+//   1. Identify the user via the existing session (uses Better Auth's
+//      getSession off the cookie).
+//   2. Delete EVERY session row that user owns — kicks every device.
+//   3. Clear the auth cookie ourselves on the response.
+// The frontend hits this AFTER calling Better Auth's sign-out, so a
+// stale cookie can't keep authenticating against a still-alive DB
+// session anywhere.
+import { auth as authForSignOut } from "./auth.js";
+app.post("/api/auth/sign-out-all", async (c) => {
+  try {
+    const session = await authForSignOut.api.getSession({ headers: c.req.raw.headers });
+    if (session?.user?.id) {
+      await import("./db.js").then(({ prisma }) =>
+        prisma.session.deleteMany({ where: { userId: session.user.id } }),
+      );
+    }
+  } catch { /* best effort — even if lookup fails, still clear cookies below */ }
+  // Clear every cookie this app is known to set. We can't enumerate
+  // dynamically, so we hit the well-known names from auth config.
+  // These match the `cookiePrefix: "pkmn"` setting in auth.ts.
+  const expired = "Thu, 01 Jan 1970 00:00:00 GMT";
+  for (const name of ["pkmn.session_token", "pkmn.session_data", "pkmn.dont_remember"]) {
+    c.header(
+      "Set-Cookie",
+      `${name}=; Path=/; Expires=${expired}; HttpOnly; ${process.env.NODE_ENV === "production" ? "Secure;" : ""} SameSite=Lax`,
+      { append: true },
+    );
+  }
+  return c.json({ ok: true });
+});
+
 // Better Auth — handles /api/auth/* (signup, signin, OAuth callbacks, etc).
 // Rate-limit credential / signup endpoints by client IP so a single
 // attacker can't credential-stuff or pile up account-creation requests.
