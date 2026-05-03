@@ -348,6 +348,8 @@ function IdleRaidPanel() {
           </div>
         )}
 
+        {/* Card-grid picker — desktop / tablet. Hidden via CSS at
+            phone breakpoints in favour of the dropdown below. */}
         <div className="raid-tier-picker">
           {raidTiersOrdered.map((t) => {
             const unlocked = isTierUnlocked(t, state);
@@ -373,6 +375,30 @@ function IdleRaidPanel() {
             );
           })}
         </div>
+
+        {/* Native-select picker — phones. Hidden on desktop via CSS.
+            Locked tiers are still rendered (with a 🔒) so the player
+            can see what's coming, but disabled so they can't pick. */}
+        <label className="raid-tier-select">
+          <span className="dim small">Tier</span>
+          <select
+            value={selectedTier}
+            onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
+          >
+            {raidTiersOrdered.map((t) => {
+              const unlocked = isTierUnlocked(t, state);
+              return (
+                <option
+                  key={t.id}
+                  value={t.id}
+                  disabled={!unlocked}
+                >
+                  {unlocked ? `${t.name} — Lv. ${t.startLevel}` : `🔒 ${t.name} (${tierUnlockHint(t)})`}
+                </option>
+              );
+            })}
+          </select>
+        </label>
 
         <button
           type="button"

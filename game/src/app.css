@@ -2404,6 +2404,19 @@ body.is-dragging .pc-slot.empty {
 }
 .mobile-world-body > * { flex: 1; min-height: 0; width: 100%; }
 
+/* TownMap inside the World tab — the canvas's container-query sizing
+   (`width: min(100cqw, 100cqh*16/9)`) collapses to 0 because the
+   ancestor flex chain doesn't give the container a height to contain
+   from. Override with simple percent-based + aspect-ratio sizing on
+   mobile so the map renders at full width with a 16:9 height. */
+.mobile-world-body .town-map { container-type: normal !important; }
+.mobile-world-body .town-map-canvas {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9 !important;
+  max-height: none !important;
+}
+
 /* Profanity-filter "show / hide" toggle next to censored chat lines.
    Tiny inline link styled like a footnote so it doesn't crowd the
    message body. */
@@ -2433,6 +2446,40 @@ body.is-dragging .pc-slot.empty {
   gap: 6px;
   margin: 8px 0 10px;
 }
+
+/* Native-select fallback for phones — replaces the card grid on
+   .mobile-shell where six cards + spawn sprites bloat the panel. */
+.raid-tier-select { display: none; }
+.mobile-shell .raid-tier-picker { display: none; }
+.mobile-shell .raid-tier-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 10px;
+}
+.mobile-shell .raid-tier-select select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--panel-2, #1a1a1a) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 10px center;
+  background-size: 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 36px 10px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mobile-shell .raid-tier-select select:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}
+/* Hide the spawn sprites + label on mobile — the user picks a tier
+   from the dropdown and sees the begin button immediately, no scroll. */
+.mobile-shell .raid-lineup,
+.mobile-shell .raid-lineup-label { display: none; }
 .raid-tier-card {
   display: flex;
   flex-direction: column;
