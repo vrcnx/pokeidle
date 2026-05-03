@@ -380,20 +380,23 @@ function IdleRaidPanel() {
             Locked tiers are still rendered (with a 🔒) so the player
             can see what's coming, but disabled so they can't pick. */}
         <label className="raid-tier-select">
-          <span className="dim small">Tier</span>
           <select
             value={selectedTier}
             onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
+            aria-label="Raid tier"
           >
             {raidTiersOrdered.map((t) => {
               const unlocked = isTierUnlocked(t, state);
+              const hint = tierUnlockHintShort(t);
               return (
                 <option
                   key={t.id}
                   value={t.id}
                   disabled={!unlocked}
                 >
-                  {unlocked ? `${t.name} — Lv. ${t.startLevel}` : `🔒 ${t.name} (${tierUnlockHint(t)})`}
+                  {unlocked
+                    ? `${t.name} · Lv. ${t.startLevel}`
+                    : `🔒 ${t.name}${hint ? ` · ${hint}` : ""}`}
                 </option>
               );
             })}
@@ -461,6 +464,16 @@ function tierUnlockHint(t: RaidTier): string {
   if (t.unlockBadges > 0) parts.push(`Earn ${t.unlockBadges} badge${t.unlockBadges === 1 ? "" : "s"}`);
   if (t.unlockChampionDefeated) parts.push("Defeat the Champion");
   return parts.length === 0 ? "Locked" : `Locked — ${parts.join(" + ")}`;
+}
+
+// Compact unlock hint for the mobile <select> options where the long
+// "Locked — Earn 8 badges + Defeat the Champion" string overflows the
+// dropdown row on small viewports. e.g. "8 badges + champion".
+function tierUnlockHintShort(t: RaidTier): string {
+  const parts: string[] = [];
+  if (t.unlockBadges > 0) parts.push(`${t.unlockBadges} badge${t.unlockBadges === 1 ? "" : "s"}`);
+  if (t.unlockChampionDefeated) parts.push("champion");
+  return parts.length === 0 ? "" : parts.join(" + ");
 }
 
 // Convert a camelCase species key into a display label. Special-cases
