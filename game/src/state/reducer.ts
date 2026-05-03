@@ -498,7 +498,7 @@ export function reducer(state: GameState, action: Action): GameState {
       if ((inv[ballId] ?? 0) <= 0) return pushLog(state, "You don't have any!");
       inv[ballId] = inv[ballId] - 1;
       const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId);
-      const ballName = state.enemyPokemon ? `${ballId}` : ballId;
+      const ballName = pokeballs[ballId]?.name ?? itemsCatalog[ballId]?.name ?? ballId;
       return pushLog(
         {
           ...state,

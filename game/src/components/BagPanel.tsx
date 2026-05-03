@@ -7,6 +7,7 @@ import { pokemonTable } from "../data/pokemon";
 import { encounters } from "../data/encounters";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { getItemInfo } from "../utils/items";
+import { pushToast } from "./Toast";
 
 // Bag — use stones on party members, apply repels/honey to encounter species
 // on the current route.
@@ -28,10 +29,12 @@ export function BagPanel() {
 
   function applyEffect(speciesKey: string) {
     if (!pickEffect) return;
+    const itemName = consumables[pickEffect]?.name ?? pickEffect;
     dispatch({
       type: "USE_EFFECT_ITEM",
       payload: { itemId: pickEffect, speciesKey, routeKey: state.currentRoute },
     });
+    pushToast({ kind: "success", icon: "✓", text: `Used ${itemName}` });
     setPickEffect(null);
   }
 

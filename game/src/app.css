@@ -2789,6 +2789,80 @@ body.is-dragging .pc-slot.empty {
   margin: 10px -2px;
 }
 
+/* Party row evolution-ready glow — soft cyan halo around the row to
+   nudge the player toward evolving without being noisy. Pulses
+   gently so a glance is enough to spot it but it doesn't compete
+   with the active-mon highlight. */
+.party-row.evo-ready {
+  position: relative;
+}
+.party-row.evo-ready::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.55),
+    0 0 14px rgba(125, 211, 252, 0.35);
+  animation: evo-ready-pulse 2.2s ease-in-out infinite;
+}
+@keyframes evo-ready-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Pokemon Detail modal — Manage moves shortcut sits inline next to
+   the Moves heading. */
+.detail-moves-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.detail-moves-header h3 { margin: 0; }
+
+/* Toast notifications — bottom-center stack, auto-dismiss 2.5s. */
+.toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 9000;
+}
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--panel-2, #1a1a1a);
+  border: 1px solid var(--border, #1f1f1f);
+  border-radius: 999px;
+  color: var(--text, #f5f5f5);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: toast-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.toast-icon { font-size: 13px; line-height: 1; }
+.toast-success { border-color: rgba(74, 222, 128, 0.45); color: #bbf7d0; }
+.toast-success .toast-icon { color: #4ade80; }
+.toast-warn { border-color: rgba(251, 191, 36, 0.45); color: #fde68a; }
+@keyframes toast-in {
+  0%   { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@media (max-width: 480px) {
+  .toast-host { bottom: 80px; }
+}
+
 /* Mobile chat — pin the input bar to the bottom of the chat tab so
    the player can always see where they're typing, regardless of how
    long the message list is. The list itself becomes the scroll

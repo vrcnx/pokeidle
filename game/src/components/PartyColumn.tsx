@@ -9,6 +9,22 @@ import { openPokemonDetail } from "./PokemonDetailModal";
 import { ContextPanel } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
+import { evolutions } from "../data/evolutions";
+import type { Pokemon, GameState } from "../types";
+
+// Returns true when this party member can evolve right now — either
+// it has reached the level threshold, or it has a stone-evolution
+// trigger and the player owns the stone in inventory. Trade-only
+// evolutions are excluded (those fire from the trade flow). Used to
+// paint a glow on ready party rows so the player knows to act.
+function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
+  const triggers = evolutions[p.speciesKey] ?? [];
+  for (const t of triggers) {
+    if ("level" in t && p.level >= t.level) return true;
+    if ("item" in t && (inventory[t.item] ?? 0) > 0) return true;
+  }
+  return false;
+}
 
 // Left column: Party list on top, footer with Settings + Heal at the bottom.
 // Party rows are draggable — drop one row onto another to swap slots, which
@@ -51,6 +67,7 @@ export function PartyColumn() {
           const active = idx === state.activePlayerPokemonIndex;
           const isDragging = dragIdx === idx;
           const isDropTarget = overIdx === idx && dragIdx !== null && dragIdx !== idx;
+          const evoReady = canEvolveNow(p, state.inventory);
           return (
             <li
               key={p.id}
@@ -60,6 +77,7 @@ export function PartyColumn() {
                 p.currentHp <= 0 ? "fainted" : "",
                 isDragging ? "dragging" : "",
                 isDropTarget ? "drop-target" : "",
+                evoReady ? "evo-ready" : "",
               ].filter(Boolean).join(" ")}
               draggable
               onDragStart={(e) => {

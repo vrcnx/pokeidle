@@ -12,6 +12,7 @@ import { itemSpriteUrl } from "../utils/sprites";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { expForLevel } from "../utils/stats";
 import { useModalEnter } from "../utils/animate";
+import { openManageMoves } from "./ManageMovesModal";
 
 // Held item row + assignment popover. Lets the player give/take a held
 // item from the open Pokémon. The picker filters the player's inventory
@@ -390,7 +391,21 @@ function PokemonDetailDialog({
         </div>
 
         <section className="g-card g-card-full">
-          <h3>Moves</h3>
+          <div className="detail-moves-header">
+            <h3>Moves</h3>
+            {selected.type === "party" && !inBattle && (
+              <button
+                className="g-btn-ghost g-btn-small"
+                onClick={() => {
+                  closePokemonDetail();
+                  openManageMoves({ type: "party", index: selected.index });
+                }}
+                title="Open the move manager for this Pokémon"
+              >
+                Manage moves
+              </button>
+            )}
+          </div>
           <ul className="detail-moves">
             {p.moves.map((m: any) => {
               const def = movesTable[m.id];

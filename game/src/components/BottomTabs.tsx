@@ -19,6 +19,7 @@ import {
 } from "../data/itemsCatalog";
 import { IconMap, IconCart, IconBackpack, IconMonitor, IconBook } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
+import { pushToast } from "./Toast";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import type { ReactNode } from "react";
@@ -171,10 +172,21 @@ export function MartTab() {
                     className="mart-buy-btn"
                     disabled={cantBuy}
                     onClick={() => {
+                      const can = state.money >= total;
                       dispatch({
                         type: "BUY_ITEM",
                         payload: { itemId: entry.itemId, quantity: qty },
                       });
+                      if (can) {
+                        const itemName = info?.name ?? entry.itemId;
+                        pushToast({
+                          kind: "success",
+                          icon: "🛒",
+                          text: qty > 1
+                            ? `Bought ${qty}× ${itemName}`
+                            : `Bought ${itemName}`,
+                        });
+                      }
                       // Reset stepper back to 1 after a purchase so the
                       // next buy starts fresh — no surprise multi-buys.
                       setPending(null);

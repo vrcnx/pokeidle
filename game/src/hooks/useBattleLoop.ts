@@ -152,7 +152,11 @@ export function useBattleLoop(): void {
           }
         }
       } else if (cur.phase === "battle" && cur.enemyPokemon && cur.playerPokemon) {
-        // Wild battle — auto-catch first if rules say so
+        // Wild battle — auto-catch first if rules say so. Route auto
+        // catches through TRY_CATCH so they share the same animation,
+        // log line, and 3-shake sequence as manual ball throws (the
+        // earlier silent CATCH_POKEMON shortcut just teleported the
+        // mon into the party).
         const enemy = cur.enemyPokemon;
         if (
           cur.autoCatch &&
@@ -160,7 +164,7 @@ export function useBattleLoop(): void {
         ) {
           const ball = ballForAutoCatch(cur, cur.currentRoute, enemy.speciesKey);
           if (ball) {
-            dispatch({ type: "CATCH_POKEMON", payload: { ballId: ball } });
+            dispatch({ type: "TRY_CATCH", payload: { ballId: ball } });
             schedule();
             return;
           }

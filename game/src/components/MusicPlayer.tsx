@@ -110,5 +110,32 @@ export function MusicPlayer() {
     return () => window.clearTimeout(t);
   }, [enemyKey, enemyId, phase]);
 
+  // Player Pokemon cry on send-out — fires whenever the active mon
+  // changes (initial party load, manual switch, faint-and-replace).
+  // Same trainer-battle delay so the cry lands with the visible
+  // sprite on screen instead of mid-trainer-intro.
+  const lastPlayerId = useRef<string | null>(null);
+  const playerKey = state.playerPokemon?.speciesKey ?? null;
+  const playerId = state.playerPokemon?.id ?? null;
+  useEffect(() => {
+    if (!playerKey || !playerId) {
+      lastPlayerId.current = null;
+      return;
+    }
+    if (lastPlayerId.current === playerId) return;
+    const isFirstAssignment = lastPlayerId.current === null;
+    lastPlayerId.current = playerId;
+    const dexId = pokemonTable[playerKey]?.id;
+    if (!dexId) return;
+    // Don't fire on the very first run after mount — the player
+    // pokemon was already on screen when we arrived. Cry only on
+    // subsequent swaps (switch, faint replace, new battle).
+    if (isFirstAssignment) return;
+    const isTrainerLike = state.phase === "trainerBattle" || state.phase === "bossBattle";
+    const delay = isTrainerLike ? 1400 : 0;
+    const t = window.setTimeout(() => sfxManager.playCry(dexId), delay);
+    return () => window.clearTimeout(t);
+  }, [playerKey, playerId, state.phase]);
+
   return null;
 }

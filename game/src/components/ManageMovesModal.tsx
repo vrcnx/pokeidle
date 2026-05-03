@@ -4,6 +4,7 @@ import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { learnableMovesUpToLevel, type LearnedMove } from "../utils/moves";
 import { useModalEnter } from "../utils/animate";
+import { pokemonTable } from "../data/pokemon";
 
 // Imperative open/close — same pattern as PokemonDetailModal.
 type Target = { type: "party"; index: number };
@@ -89,6 +90,43 @@ export function ManageMovesModal() {
     setDraft(pokemon!.moves.map((m) => m.id));
   }
 
+  // Pick the 4 highest-scoring learnable moves, using a simple
+  // heuristic: power × accuracy × STAB (1.5×) + a small bonus for
+  // type variety so the kit isn't four copies of the same type when
+  // alternatives exist. Status moves count too at a flat ~40 score.
+  function optimize() {
+    if (!pokemon) return;
+    const ownerTypes = new Set(pokemonTable[pokemon.speciesKey]?.types ?? []);
+    const scored = learnable
+      .map((lm) => {
+        const d = movesTable[lm.moveId];
+        if (!d) return null;
+        const stab = ownerTypes.has(d.type) ? 1.5 : 1;
+        const acc = (d.accuracy ?? 100) / 100;
+        const power = d.power || 40; // status moves: floor instead of 0
+        return { id: lm.moveId, type: d.type, score: power * acc * stab };
+      })
+      .filter((m): m is { id: string; type: PokemonType; score: number } => !!m)
+      .sort((a, b) => b.score - a.score);
+
+    const picked: string[] = [];
+    const usedTypes = new Set<PokemonType>();
+    // First pass: top scorer per type for coverage diversity
+    for (const m of scored) {
+      if (picked.length >= 4) break;
+      if (usedTypes.has(m.type)) continue;
+      picked.push(m.id);
+      usedTypes.add(m.type);
+    }
+    // Second pass: fill remaining slots with next best regardless of type
+    for (const m of scored) {
+      if (picked.length >= 4) break;
+      if (picked.includes(m.id)) continue;
+      picked.push(m.id);
+    }
+    setDraft(picked);
+  }
+
   const hasChanges =
     draft.length !== pokemon.moves.length ||
     draft.some((id, i) => pokemon.moves[i]?.id !== id);
@@ -103,6 +141,7 @@ export function ManageMovesModal() {
         reorderInDraft={reorderInDraft}
         confirm={confirm}
         reset={reset}
+        optimize={optimize}
         hasChanges={hasChanges}
       />
     </div>
@@ -110,7 +149,7 @@ export function ManageMovesModal() {
 }
 
 function ManageMovesDialog({
-  pokemon, draft, learnable, toggleMove, reorderInDraft, confirm, reset, hasChanges,
+  pokemon, draft, learnable, toggleMove, reorderInDraft, confirm, reset, optimize, hasChanges,
 }: {
   pokemon: Pokemon;
   draft: string[];
@@ -119,6 +158,7 @@ function ManageMovesDialog({
   reorderInDraft: (slot: number, dir: -1 | 1) => void;
   confirm: () => void;
   reset: () => void;
+  optimize: () => void;
   hasChanges: boolean;
 }) {
   const dialogRef = useModalEnter();
@@ -195,6 +235,14 @@ function ManageMovesDialog({
       </div>
 
       <footer className="g-modal-foot">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={optimize}
+          disabled={learnable.length === 0}
+          title="Auto-pick the four highest-impact moves (STAB + power + type diversity)"
+        >
+          ⚡ Optimize
+        </button>
         <button className="g-btn-ghost g-btn-small" onClick={reset} disabled={!hasChanges}>Reset</button>
         <span style={{ flex: 1 }} />
         <button className="g-btn-ghost g-btn-small" onClick={closeManageMoves}>Cancel</button>
