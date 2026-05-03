@@ -74,10 +74,10 @@ export function BattlePanel() {
 
 function backgroundFor(type?: string): string {
   switch (type) {
-    case "town":         return "/backgrounds/town.png";
-    case "cave":         return "/backgrounds/cave.png";
-    case "victoryRoad":  return "/backgrounds/mountain.png";
-    case "raid":         return "/backgrounds/town_port.png";
-    default:             return "/backgrounds/grassland.png";
+    case "town":         return "/backgrounds/town.webp";
+    case "cave":         return "/backgrounds/cave.webp";
+    case "victoryRoad":  return "/backgrounds/mountain.webp";
+    case "raid":         return "/backgrounds/town_port.webp";
+    default:             return "/backgrounds/grassland.webp";
   }
 }

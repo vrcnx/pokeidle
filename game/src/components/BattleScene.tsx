@@ -14,14 +14,14 @@ import type { Pokemon, RouteType } from "../types";
 // the bottom of the arena.
 
 // Per-biome fallbacks. Each location id can also override these by having
-// its own /backgrounds/<id>.png file. The bg <img> uses onError to swap
+// its own /backgrounds/<id>.webp file. The bg <img> uses onError to swap
 // to the type-level fallback if the per-location asset 404s.
 const BG_BY_TYPE: Record<string, string> = {
-  town: "/backgrounds/town.png",
-  cave: "/backgrounds/cave.png",
-  victoryRoad: "/backgrounds/mountain.png",
-  raid: "/backgrounds/town_port.png",
-  route: "/backgrounds/grassland.png",
+  town: "/backgrounds/town.webp",
+  cave: "/backgrounds/cave.webp",
+  victoryRoad: "/backgrounds/mountain.webp",
+  raid: "/backgrounds/town_port.webp",
+  route: "/backgrounds/grassland.webp",
 };
 
 function fallbackBgFor(type: RouteType | undefined): string {
@@ -29,20 +29,20 @@ function fallbackBgFor(type: RouteType | undefined): string {
 }
 
 // Boss-specific background filename. Files live alongside the
-// per-location ones: `/backgrounds/gym_brock.png`, `e4_lorelei.png`,
-// `champion_blue.png`. Returns null when the player isn't in a boss
+// per-location ones: `/backgrounds/gym_brock.webp`, `e4_lorelei.webp`,
+// `champion_blue.webp`. Returns null when the player isn't in a boss
 // battle so the regular per-location fallback chain runs.
 function bossBg(state: ReturnType<typeof useGame>["state"]): string | null {
   const b = state.bossBattle;
   if (!b) return null;
   const prefix = b.bossType === "champion" ? "champion" : b.bossType === "e4" ? "e4" : "gym";
-  return `/backgrounds/${prefix}_${b.bossId}.png`;
+  return `/backgrounds/${prefix}_${b.bossId}.webp`;
 }
 
 export function BattleScene() {
   const { state } = useGame();
   const route = routes[state.currentLocation];
-  const locationBg = `/backgrounds/${state.currentLocation}.png`;
+  const locationBg = `/backgrounds/${state.currentLocation}.webp`;
   const fallbackBg = fallbackBgFor(route?.type);
   // Three-tier fallback during boss battles: boss-specific →
   // location-specific → biome default. The onError handler walks

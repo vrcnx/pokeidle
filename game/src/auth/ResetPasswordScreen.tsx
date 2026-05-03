@@ -78,7 +78,7 @@ export function ResetPasswordScreen() {
     return (
       <div className="auth-shell">
         <div className="auth-backdrop">
-          <img src="/backgrounds/grassland.png" alt="" aria-hidden />
+          <img src="/backgrounds/grassland.webp" alt="" aria-hidden />
           <div className="auth-backdrop-scrim" />
         </div>
         <div ref={dialogRef} className="g-modal auth-modal" role="dialog" aria-label="Reset password">
@@ -106,7 +106,7 @@ export function ResetPasswordScreen() {
   return (
     <div className="auth-shell">
       <div className="auth-backdrop">
-        <img src="/backgrounds/grassland.png" alt="" aria-hidden />
+        <img src="/backgrounds/grassland.webp" alt="" aria-hidden />
         <div className="auth-backdrop-scrim" />
       </div>
       <div ref={dialogRef} className="g-modal auth-modal" role="dialog" aria-label="Reset password">

@@ -9308,16 +9308,28 @@ input:focus, textarea:focus, select:focus {
   padding: 0 !important;
 }
 .bottom-tab-body:has(> .mart-tab) {
-  /* Shop tile floor: light gray checker, subtle warm tint. */
-  background-color: #f3f4f6;
-  background-image:
-    radial-gradient(ellipse at top, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0) 60%),
-    linear-gradient(45deg, #d6d8dd 25%, transparent 25%),
-    linear-gradient(-45deg, #d6d8dd 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #d6d8dd 75%),
-    linear-gradient(-45deg, transparent 75%, #d6d8dd 75%);
-  background-size: 100% 100%, 28px 28px, 28px 28px, 28px 28px, 28px 28px;
-  background-position: 0 0, 0 0, 0 14px, 14px -14px, -14px 0;
+  /* Mart: warm-cream parchment with a hand-drawn shop awning at the
+     top edge. Diagonal red+cream stripes evoke a candy-stripe canopy
+     hanging over the counter; the parchment-toned body has a soft
+     paper grain (faint noise + warm radial highlight) so item rows
+     feel like they're laid on a counter, not floor tiles. */
+  background:
+    /* Awning shadow gradient — softens the join between stripe band
+       and counter so the stripes don't end abruptly. */
+    linear-gradient(180deg, rgba(0,0,0,0.0) 28px, rgba(0,0,0,0.12) 32px, rgba(0,0,0,0.0) 56px) 0 0 / 100% 100% no-repeat,
+    /* Diagonal candy-stripe awning, fixed band 32px tall at the top. */
+    repeating-linear-gradient(
+      135deg,
+      #d44545 0 14px,
+      #fff5e6 14px 28px
+    ) 0 0 / 100% 32px no-repeat,
+    /* Subtle paper-grain noise dots — adds texture without busy pattern. */
+    radial-gradient(circle at 20% 30%, rgba(0,0,0,0.04) 1px, transparent 1.5px) 0 0 / 7px 7px,
+    radial-gradient(circle at 65% 80%, rgba(0,0,0,0.03) 1px, transparent 1.5px) 3px 4px / 11px 11px,
+    /* Warm overhead spotlight pulling attention toward center. */
+    radial-gradient(ellipse 80% 60% at 50% 35%, rgba(255, 240, 210, 0.7) 0%, rgba(255, 240, 210, 0) 70%),
+    /* Parchment base. */
+    linear-gradient(180deg, #f6ecd8 0%, #ead9b8 100%);
   padding: 0 !important;
 }
 .bottom-tab-body:has(> .dex-tab) {

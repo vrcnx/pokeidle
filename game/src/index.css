@@ -281,7 +281,7 @@ img {
   width: 560px;
   height: 480px;
   overflow: hidden;
-  background-image: url(/backgrounds/grassland.png);
+  background-image: url(/backgrounds/grassland.webp);
   background-size: cover;
   background-position: center bottom;
 }

@@ -63,7 +63,7 @@ function LoadingSplash() {
   return (
     <div className="loading-splash" aria-busy aria-label="Loading">
       <div className="loading-backdrop">
-        <img src="/backgrounds/grassland.png" alt="" aria-hidden />
+        <img src="/backgrounds/grassland.webp" alt="" aria-hidden />
         <div className="loading-scrim" />
       </div>
       <img className="loading-logo" src="/logos/Pokeidle.svg" alt="Pokémon Idle" />

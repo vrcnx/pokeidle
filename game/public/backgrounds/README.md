@@ -5,15 +5,15 @@ by `BattleScene.tsx`:
 
 ```ts
 // 1. Try the per-location PNG (matches the location id, exactly)
-const locationBg = `/backgrounds/${state.currentLocation}.png`;
+const locationBg = `/backgrounds/${state.currentLocation}.webp`;
 
 // 2. If that 404s, fall back to the type-level PNG below
 const BG_BY_TYPE = {
-  town:        "/backgrounds/town.png",
-  cave:        "/backgrounds/cave.png",
-  victoryRoad: "/backgrounds/mountain.png",
-  raid:        "/backgrounds/town_port.png",
-  route:       "/backgrounds/grassland.png",
+  town:        "/backgrounds/town.webp",
+  cave:        "/backgrounds/cave.webp",
+  victoryRoad: "/backgrounds/mountain.webp",
+  raid:        "/backgrounds/town_port.webp",
+  route:       "/backgrounds/grassland.webp",
 };
 ```
 
@@ -27,83 +27,83 @@ and it'll show up automatically. Recommended size: **1280 × 720** (16:9).
 
 | File              | Used for                                        |
 |-------------------|-------------------------------------------------|
-| `town.png`        | All towns/cities                                |
-| `cave.png`        | All caves                                       |
-| `mountain.png`    | Victory Road type                               |
-| `town_port.png`   | Raid Island                                     |
-| `grassland.png`   | All numbered routes                             |
+| `town.webp`        | All towns/cities                                |
+| `cave.webp`        | All caves                                       |
+| `mountain.webp`    | Victory Road type                               |
+| `town_port.webp`   | Raid Island                                     |
+| `grassland.webp`   | All numbered routes                             |
 
 ## Cities
 
 | File                | Location          |
 |---------------------|-------------------|
-| `palletTown.png`    | Pallet Town       |
-| `viridianCity.png`  | Viridian City     |
-| `pewterCity.png`    | Pewter City       |
-| `ceruleanCity.png`  | Cerulean City     |
-| `vermilionCity.png` | Vermilion City    |
-| `saffronCity.png`   | Saffron City      |
-| `celadonCity.png`   | Celadon City      |
-| `lavenderTown.png`  | Lavender Town     |
-| `fuchsiaCity.png`   | Fuchsia City      |
-| `cinnabarIsland.png`| Cinnabar Island   |
-| `indigoPlat.png`    | Indigo Plateau    |
+| `palletTown.webp`    | Pallet Town       |
+| `viridianCity.webp`  | Viridian City     |
+| `pewterCity.webp`    | Pewter City       |
+| `ceruleanCity.webp`  | Cerulean City     |
+| `vermilionCity.webp` | Vermilion City    |
+| `saffronCity.webp`   | Saffron City      |
+| `celadonCity.webp`   | Celadon City      |
+| `lavenderTown.webp`  | Lavender Town     |
+| `fuchsiaCity.webp`   | Fuchsia City      |
+| `cinnabarIsland.webp`| Cinnabar Island   |
+| `indigoPlat.webp`    | Indigo Plateau    |
 
 ## Numbered Routes
 
 | File          | Location  |
 |---------------|-----------|
-| `route1.png`  | Route 1   |
-| `route2.png`  | Route 2   |
-| `route3.png`  | Route 3   |
-| `route4.png`  | Route 4   |
-| `route5.png`  | Route 5   |
-| `route6.png`  | Route 6   |
-| `route7.png`  | Route 7   |
-| `route8.png`  | Route 8   |
-| `route9.png`  | Route 9   |
-| `route10.png` | Route 10  |
-| `route11.png` | Route 11  |
-| `route12.png` | Route 12  |
-| `route13.png` | Route 13  |
-| `route14.png` | Route 14  |
-| `route15.png` | Route 15  |
-| `route16.png` | Route 16  |
-| `route17.png` | Route 17  |
-| `route18.png` | Route 18  |
-| `route19.png` | Route 19  |
-| `route20.png` | Route 20  |
-| `route21.png` | Route 21  |
-| `route22.png` | Route 22  |
-| `route23.png` | Route 23  |
-| `route24.png` | Route 24  |
-| `route25.png` | Route 25  |
+| `route1.webp`  | Route 1   |
+| `route2.webp`  | Route 2   |
+| `route3.webp`  | Route 3   |
+| `route4.webp`  | Route 4   |
+| `route5.webp`  | Route 5   |
+| `route6.webp`  | Route 6   |
+| `route7.webp`  | Route 7   |
+| `route8.webp`  | Route 8   |
+| `route9.webp`  | Route 9   |
+| `route10.webp` | Route 10  |
+| `route11.webp` | Route 11  |
+| `route12.webp` | Route 12  |
+| `route13.webp` | Route 13  |
+| `route14.webp` | Route 14  |
+| `route15.webp` | Route 15  |
+| `route16.webp` | Route 16  |
+| `route17.webp` | Route 17  |
+| `route18.webp` | Route 18  |
+| `route19.webp` | Route 19  |
+| `route20.webp` | Route 20  |
+| `route21.webp` | Route 21  |
+| `route22.webp` | Route 22  |
+| `route23.webp` | Route 23  |
+| `route24.webp` | Route 24  |
+| `route25.webp` | Route 25  |
 
 ## Caves & Special Areas
 
 | File                  | Location          |
 |-----------------------|-------------------|
-| `viridianForest.png`  | Viridian Forest   |
-| `mtMoon.png`          | Mt. Moon          |
-| `rockTunnel.png`      | Rock Tunnel       |
-| `powerPlant.png`      | Power Plant       |
-| `pokemonTower.png`    | Pokémon Tower     |
-| `diglettsCave.png`    | Diglett's Cave    |
-| `safariZone.png`      | Safari Zone       |
-| `seafoamIslands.png`  | Seafoam Islands   |
-| `pokemonMansion.png`  | Pokémon Mansion   |
+| `viridianForest.webp`  | Viridian Forest   |
+| `mtMoon.webp`          | Mt. Moon          |
+| `rockTunnel.webp`      | Rock Tunnel       |
+| `powerPlant.webp`      | Power Plant       |
+| `pokemonTower.webp`    | Pokémon Tower     |
+| `diglettsCave.webp`    | Diglett's Cave    |
+| `safariZone.webp`      | Safari Zone       |
+| `seafoamIslands.webp`  | Seafoam Islands   |
+| `pokemonMansion.webp`  | Pokémon Mansion   |
 
 ## Endgame
 
 | File                | Location       |
 |---------------------|----------------|
-| `victoryRoad.png`   | Victory Road   |
-| `ceruleanCave.png`  | Cerulean Cave  |
+| `victoryRoad.webp`   | Victory Road   |
+| `ceruleanCave.webp`  | Cerulean Cave  |
 
 ## Missing (uses type fallback)
 
-`Raid Island` has no dedicated `raidIsland.png` — it falls back to
-`town_port.png`. Add `raidIsland.png` to override.
+`Raid Island` has no dedicated `raidIsland.webp` — it falls back to
+`town_port.webp`. Add `raidIsland.webp` to override.
 
 ---
 
