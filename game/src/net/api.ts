@@ -56,7 +56,16 @@ export const api = {
   // gets dropped by the browser.
   signOutAll: () => request<{ ok: true }>("POST", "/api/auth/sign-out-all"),
   getSession: () => request<{ user: ProfileUser } | null>("GET", "/api/auth/get-session"),
-  googleSignInUrl: () => `${SERVER_URL}/api/auth/sign-in/social/google`,
+  // Better Auth expects a POST to /sign-in/social with the provider id +
+  // callbackURL. It responds with the OAuth provider's auth URL, which
+  // the client then navigates to. (There's no GET-able social sign-in
+  // route — that path 404s.)
+  signInSocial: (input: { provider: "google"; callbackURL: string }) =>
+    request<{ url: string; redirect: boolean }>(
+      "POST",
+      "/api/auth/sign-in/social",
+      input,
+    ),
   authProviders: () => request<{ google: boolean }>("GET", "/api/auth/providers"),
 
   // Password reset — request sends an email, reset takes the token from

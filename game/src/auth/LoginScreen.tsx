@@ -348,9 +348,36 @@ export function LoginScreen() {
           {providers.google && mode !== "forgot" && (
             <>
               <div className="auth-divider"><span>or</span></div>
-              <a className="auth-google" href={api.googleSignInUrl()}>
+              <button
+                type="button"
+                className="auth-google"
+                disabled={busy}
+                onClick={async () => {
+                  setError(null);
+                  setBusy(true);
+                  try {
+                    const res = await api.signInSocial({
+                      provider: "google",
+                      callbackURL: window.location.origin,
+                    });
+                    if (res?.url) {
+                      window.location.assign(res.url);
+                    } else {
+                      setError("Couldn't start Google sign-in. Try again.");
+                      setBusy(false);
+                    }
+                  } catch (err) {
+                    if (err instanceof ApiError) {
+                      setError(friendlyAuthError(err, mode));
+                    } else {
+                      setError("Couldn't reach the server. Try again.");
+                    }
+                    setBusy(false);
+                  }
+                }}
+              >
                 Continue with Google
-              </a>
+              </button>
             </>
           )}
 
