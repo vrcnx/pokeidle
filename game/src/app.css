@@ -389,12 +389,12 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
 }
-/* Town map (now hosted in a tab) takes the full body. The map's
-   canvas is locked to a 16:9 aspect ratio, so flex-growing the wrapper
-   would just leave dead black space below it on tall containers. Use
-   intrinsic sizing instead — the card hugs the map's natural height
-   on desktop, and the parent's `:has(.town-map)` rule below stops the
-   bottom-tabs container from forcing extra height around it. */
+/* Town map (hosted in a tab) sizes to its 16:9 canvas — the card
+   doesn't grow into empty space below it. The wrapping bottom-tabs
+   card keeps growing vertically as part of the column flex layout
+   (otherwise the inner body collapses), but we make the part below
+   the map transparent so the empty area shows the dashboard
+   background rather than a dark card with a black void. */
 .bottom-tab-body > .town-map {
   border: none;
   border-radius: 0;
@@ -402,11 +402,27 @@ a:focus-visible {
   min-height: 0;
   align-self: stretch;
 }
-/* When the map tab is active, the bottom-tabs region (bottom card on
-   desktop) sizes to its content — header strip + 16:9 map — instead
-   of flex-growing into empty space. Other tab contents (Mart / Bag /
-   PC / Dex) still flex-grow as before. */
-.center-column > .bottom-tabs:has(.town-map) { flex: 0 0 auto; }
+/* When the map tab is active, drop the card chrome from the
+   surrounding bottom-tabs container so the empty space below the
+   16:9 map canvas isn't a dark void — it's just the dashboard's
+   own background showing through. The .town-map element provides
+   its own background + border so the map itself still reads as a
+   distinct card. Other tabs keep the card chrome via their own
+   inner content. */
+.center-column > .bottom-tabs:has(.town-map) {
+  background: transparent;
+  border: none;
+}
+.bottom-tab-body:has(> .town-map) {
+  background: transparent;
+}
+/* And give the .town-map proper card chrome since the parent's
+   was just dropped. */
+.bottom-tab-body > .town-map {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
 
 /* Tab pane wrapper for non-map tabs. */
 .tab-pane {
