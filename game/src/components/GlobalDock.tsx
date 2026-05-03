@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { hasShinyCharm } from "../utils/pokemon";
@@ -10,6 +10,7 @@ import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { IconSettings, IconChat, IconHeart } from "./Icon";
 import { useModalEnter, CountUp } from "../utils/animate";
+import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import type { ReactNode } from "react";
 
 // Action dock split across columns:
@@ -88,6 +89,36 @@ interface DockBtnProps {
   title?: string;
   onClick: () => void;
 }
+// Profanity-filter toggle. Lives inside the Settings modal as its own
+// card so future chat preferences (mute lists, font size, etc.) have a
+// home next to it.
+function ChatPrefsCard() {
+  const [on, setOn] = useState(() => isProfanityFilterOn());
+  useEffect(() => subscribeProfanityFilter(setOn), []);
+  return (
+    <section className="g-card">
+      <h3>Chat</h3>
+      <div className="g-row">
+        <span>Profanity filter</span>
+        <strong className={on ? "g-tag on" : "g-tag off"}>{on ? "On" : "Off"}</strong>
+      </div>
+      <p className="g-help" style={{ marginTop: 4 }}>
+        Censors common slurs and strong language in global and area chat.
+        Each filtered message has a "show" link if you want to read the
+        original.
+      </p>
+      <div className="settings-legal-links">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() => setProfanityFilter(!on)}
+        >
+          {on ? "Turn off filter" : "Turn on filter"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function DockButton({ icon, label, active, disabled, title, onClick }: DockBtnProps) {
   return (
     <button
@@ -189,6 +220,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                 <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
               </section>
             )}
+
+            <ChatPrefsCard />
 
             <section className="g-card">
               <h3>Help & Feedback</h3>

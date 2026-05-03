@@ -18,11 +18,13 @@ import {
 // match how the desktop dashboard organises content — without nested
 // tab strips that confused the navigation before. Mart is accessed
 // from the Map tab's location panel; Dex is in Settings → Trainer Card.
-type MobileTab = "here" | "party" | "map" | "mart" | "bag" | "pc" | "chat";
+type MobileTab = "world" | "party" | "mart" | "bag" | "pc" | "chat";
+// "world" merges the old Here + Map tabs into a single bottom-bar slot
+// with an internal sub-tab toggle so we don't overflow into a second
+// row on phones. Six tabs comfortably fit a 360px viewport.
 const TABS: { id: MobileTab; label: string }[] = [
-  { id: "here",  label: "Here" },
+  { id: "world", label: "World" },
   { id: "party", label: "Party" },
-  { id: "map",   label: "Map" },
   { id: "mart",  label: "Mart" },
   { id: "bag",   label: "Bag" },
   { id: "pc",    label: "PC" },
@@ -42,9 +44,8 @@ function compactMoney(n: number): string {
 
 function tabIcon(id: MobileTab) {
   switch (id) {
-    case "here":  return <IconPin size={18} />;
+    case "world": return <IconMap size={18} />;
     case "party": return <IconBag size={18} />;
-    case "map":   return <IconMap size={18} />;
     case "mart":  return <IconCart size={18} />;
     case "bag":   return <IconBackpack size={18} />;
     case "pc":    return <IconMonitor size={18} />;
@@ -54,16 +55,23 @@ function tabIcon(id: MobileTab) {
 
 export function MobileShell() {
   const { state } = useGame();
-  const [tab, setTab] = useState<MobileTab>("here");
+  const [tab, setTab] = useState<MobileTab>("world");
+  // Sub-tab inside the World tab: "here" shows the location/raid
+  // panel, "map" shows the world map. Persisted across the World
+  // tab's lifecycle so toggling away and back doesn't reset the view.
+  const [worldView, setWorldView] = useState<"here" | "map">("here");
 
-  // Auto-hop to "Here" on the FIRST entry into a boss battle (gym
-  // leaders, E4, champion) so the player notices, but not on every
-  // wild/trainer tick — those happen constantly and yanking the user
-  // is annoying.
+  // Auto-hop to "World → Here" on the FIRST entry into a boss battle
+  // (gym leaders, E4, champion) so the player notices, but not on
+  // every wild/trainer tick — those happen constantly and yanking the
+  // user is annoying.
   const lastBossPhase = useRef(state.phase === "bossBattle");
   useEffect(() => {
     const isBoss = state.phase === "bossBattle";
-    if (isBoss && !lastBossPhase.current) setTab("here");
+    if (isBoss && !lastBossPhase.current) {
+      setTab("world");
+      setWorldView("here");
+    }
     lastBossPhase.current = isBoss;
   }, [state.phase]);
 
@@ -96,9 +104,32 @@ export function MobileShell() {
       </div>
 
       <div className="mobile-content">
-        {tab === "here"  && <ContextPanel />}
+        {tab === "world" && (
+          <div className="mobile-world">
+            <div className="mobile-world-tabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={worldView === "here"}
+                className={worldView === "here" ? "active" : ""}
+                onClick={() => setWorldView("here")}
+              >
+                <IconPin size={14} /> <span>Here</span>
+              </button>
+              <button
+                role="tab"
+                aria-selected={worldView === "map"}
+                className={worldView === "map" ? "active" : ""}
+                onClick={() => setWorldView("map")}
+              >
+                <IconMap size={14} /> <span>Map</span>
+              </button>
+            </div>
+            <div className="mobile-world-body">
+              {worldView === "here" ? <ContextPanel /> : <TownMap />}
+            </div>
+          </div>
+        )}
         {tab === "party" && <PartyColumn />}
-        {tab === "map"   && <TownMap />}
         {/* Bag / Mart / PC reuse the desktop tab-body chrome (the
             parchment / tile / CRT-monitor backgrounds + frosted card
             styles defined under .bottom-tab-body:has(> .X-tab)). */}

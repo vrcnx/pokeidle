@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { openPublicTrainerCard } from "./TrainerCardModal";
+import { censor, hasProfanity, isProfanityFilterOn, subscribeProfanityFilter } from "../utils/profanity";
 
 // Compact chat panel for the left column. Two tabs:
 //   Global — server-wide chat (channelId = "global")
@@ -151,7 +152,7 @@ export function MiniChat() {
                   Lv {m.user.accountLevel}
                 </span>
               </button>
-              <span className="mini-chat-body">{m.content}</span>
+              <ChatBody content={m.content} />
             </div>
           );
         })}
@@ -168,3 +169,33 @@ export function MiniChat() {
     </section>
   );
 }
+
+// Renders the message body honouring the profanity filter setting.
+// When the global filter is on AND the message contains profanity,
+// renders a censored version with a "show original" affordance the
+// player can click to toggle.
+function ChatBody({ content }: { content: string }) {
+  const [filterOn, setFilterOn] = useState(() => isProfanityFilterOn());
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => subscribeProfanityFilter(setFilterOn), []);
+
+  const dirty = hasProfanity(content);
+  const showCensored = filterOn && dirty && !revealed;
+
+  return (
+    <span className="mini-chat-body">
+      {showCensored ? censor(content) : content}
+      {filterOn && dirty && (
+        <button
+          type="button"
+          className="mini-chat-reveal"
+          onClick={() => setRevealed((v) => !v)}
+          title={revealed ? "Hide profanity" : "Show original message"}
+        >
+          {revealed ? "hide" : "show"}
+        </button>
+      )}
+    </span>
+  );
+}
+
