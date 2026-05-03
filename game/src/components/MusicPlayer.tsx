@@ -10,17 +10,33 @@ import type { MusicCategory } from "../data/musicPlaylists";
 // Category priority:
 //   1. Boss battle (gym leader / E4 / champion) → "challenge"
 //   2. Active raid                              → "challenge"
-//   3. currentLocation route type:
-//        town / mart / pc area  → "city"
-//        anything else          → "routes"
+//   3. Indigo Plateau (typed as a town, but conceptually a landmark
+//      that should share Victory Road's mood)        → "special"
+//   4. currentLocation route type:
+//        victoryRoad type        → "special"
+//        town                    → "city"
+//        anything else           → "routes"
 //
 // Wild and trainer encounters keep the route's music — only boss-tier
 // fights swap to challenge.
+// Locations that should play the "special" playlist regardless of
+// their route type. Add an id here when a new landmark needs the
+// approach-the-summit mood (Cerulean Cave, Mt. Silver, etc).
+const SPECIAL_LOCATIONS = new Set([
+  "victoryRoad",
+  // Indigo Plateau is typed "town" in the route data (the unlock
+  // graph + shop logic treat it like a city) but musically it belongs
+  // with Victory Road — same final-stretch atmosphere.
+  "indigoPlat",
+]);
+
 function pickCategory(state: ReturnType<typeof useGame>["state"]): MusicCategory | null {
   if (state.phase === "bossBattle" || state.bossBattle) return "challenge";
   if (state.inRaid) return "challenge";
   const here = routes[state.currentLocation];
   if (!here) return null;
+  if (SPECIAL_LOCATIONS.has(state.currentLocation)) return "special";
+  if (here.type === "victoryRoad") return "special";
   if (here.type === "town") return "city";
   return "routes";
 }
@@ -31,14 +47,19 @@ export function MusicPlayer() {
   // Track the last category we told the manager about so we can tell
   // whether a location change should trigger setCategory (which picks
   // a fresh track from the new playlist) or just next() (which rolls
-  // to a different track inside the SAME playlist).
-  const lastCat = useRef<MusicCategory | null>(cat);
+  // to a different track inside the SAME playlist). Initialised to a
+  // sentinel UNSET so the first render is treated as a category
+  // change — otherwise the music manager never gets its initial
+  // setCategory call and nothing plays at boot.
+  const UNSET = "__unset__" as const;
+  const lastCat = useRef<MusicCategory | null | typeof UNSET>(UNSET);
   const lastLoc = useRef<string>(state.currentLocation);
   const lastBossId = useRef<string | null>(state.bossBattle?.bossId ?? null);
 
   useEffect(() => {
     const bossId = state.bossBattle?.bossId ?? null;
-    const categoryChanged = lastCat.current !== cat;
+    const isFirstRun = lastCat.current === UNSET;
+    const categoryChanged = isFirstRun || lastCat.current !== cat;
     const locationChanged = lastLoc.current !== state.currentLocation;
     const bossChanged = lastBossId.current !== bossId;
 

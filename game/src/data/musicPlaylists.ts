@@ -8,11 +8,18 @@
 //   challenge — boss battles (gym leaders, E4, champion, legendary raids)
 //   city      — towns, marts, PC, indoor / built-up areas
 //   routes    — overworld routes, caves, mountains, the open world
+//   special   — landmark zones (Victory Road, Indigo Plateau, …)
 
 export const musicPlaylists: Record<MusicCategory, string[]> = {
   challenge: [
-    // Folder is empty as of writing — drop tracks in
-    // public/music/challenge/ and add their names here.
+    "challenge (1).mp3",
+    "challenge (2).mp3",
+    "challenge (3).mp3",
+    "challenge (4).mp3",
+    "challenge (5).mp3",
+    "challenge (6).mp3",
+    "challenge (7).mp3",
+    "challenge (8).mp3",
   ],
   city: [
     "city (1).mp3",
@@ -29,9 +36,13 @@ export const musicPlaylists: Record<MusicCategory, string[]> = {
     "routes (2).mp3",
     "routes (3).mp3",
   ],
+  special: [
+    "Pastel Hollow Loop.mp3",
+    "Pastel Hollow Loop (1).mp3",
+  ],
 };
 
-export type MusicCategory = "challenge" | "city" | "routes";
+export type MusicCategory = "challenge" | "city" | "routes" | "special";
 
 export function trackUrl(category: MusicCategory, filename: string): string {
   return `/music/${category}/${encodeURIComponent(filename)}`;

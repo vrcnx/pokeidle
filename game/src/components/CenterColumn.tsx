@@ -1,159 +1,108 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { BottomTabs } from "./BottomTabs";
+import { musicManager, type PublicState as MusicState } from "../utils/music";
+import { sfxManager } from "../utils/sfx";
 
 // Center column: battle arena → toolbar → moves → bottom tabs (Map / Mart /
 // Bag / PC / Pokédex). The toolbar (speed/heal/manage) is its own bar above
 // the moves card so it reads as a global controls strip.
 //
-// The battle area can be popped out into the OS-level Picture-in-Picture
-// window via the Document Picture-in-Picture API — the same kind of
-// always-on-top mini-window browsers offer for videos. The OS handles
-// drag/resize/multi-monitor; we just provide the content. Closing the
-// PiP window (or clicking the dock button in-page) re-attaches the
-// battle scene back into the column.
-//
-// The Document PiP API ships in Chromium-based browsers (Chrome 116+,
-// Edge 116+, Opera). On unsupported browsers the pop-out button is
-// disabled with an explanatory tooltip — we don't fall back to a
-// custom floating window because the user explicitly wanted the
-// browser's native controls.
-
-const PIP_WIDTH = 480;
-const PIP_HEIGHT = 270;
-
-declare global {
-  interface Window {
-    documentPictureInPicture?: {
-      requestWindow(opts?: { width?: number; height?: number }): Promise<Window>;
-      window: Window | null;
-    };
-  }
-}
-
-const pipSupported = typeof window !== "undefined" && "documentPictureInPicture" in window;
+// Two quick-toggle buttons sit in the top-right of the battle scene —
+// one for music, one for sound effects — so the player can silence
+// either bus without opening Settings.
 
 export function CenterColumn() {
-  const [pipWindow, setPipWindow] = useState<Window | null>(null);
-
-  // When the user closes the PiP window themselves (X in the title bar
-  // or via OS gestures), the page sees a `pagehide` event on it. Clean
-  // up our state so the inline scene re-renders.
-  useEffect(() => {
-    if (!pipWindow) return;
-    const onClose = () => setPipWindow(null);
-    pipWindow.addEventListener("pagehide", onClose);
-    return () => pipWindow.removeEventListener("pagehide", onClose);
-  }, [pipWindow]);
-
-  const popOut = async () => {
-    if (!pipSupported || !window.documentPictureInPicture) return;
-    try {
-      const w = await window.documentPictureInPicture.requestWindow({
-        width: PIP_WIDTH,
-        height: PIP_HEIGHT,
-      });
-      // The new window starts blank. Clone every <style> and stylesheet
-      // <link> from the host document into the popup head — handles both
-      // Vite's dev-mode inline styles AND production minified bundles
-      // without going through cssRules (which throws for cross-origin).
-      [...document.head.querySelectorAll('style, link[rel="stylesheet"]')].forEach(
-        (node) => {
-          w.document.head.appendChild(node.cloneNode(true));
-        }
-      );
-      // Hard-set body sizing inline so the scene fills the popup before
-      // the cloned CSS finishes parsing.
-      w.document.body.style.cssText =
-        "margin:0;padding:0;background:#000;width:100vw;height:100vh;overflow:hidden;";
-      w.document.body.classList.add("pip-body");
-      // Reflect the host document's title so the OS window chrome reads
-      // useful (otherwise it shows "about:blank" or similar).
-      w.document.title = "Pokémon — battle";
-      setPipWindow(w);
-    } catch (err) {
-      // Most common: user activation expired (took too long to click)
-      // or browser blocked because PiP slot is taken. Surface the
-      // message in the console for debugging.
-      console.warn("Document PiP failed:", err);
-    }
-  };
-
-  const dock = () => {
-    pipWindow?.close();
-    setPipWindow(null);
-  };
-
   return (
     <div className="center-column">
-      {pipWindow ? (
-        <BattlePlaceholder onDock={dock} />
-      ) : (
-        <div className="battle-area">
-          <BattleScene />
-          <button
-            type="button"
-            className="battle-popout-btn"
-            disabled={!pipSupported}
-            title={
-              pipSupported
-                ? "Pop the battle scene into a floating browser window"
-                : "Pop-out requires a Chromium-based browser (Chrome / Edge)"
-            }
-            onClick={popOut}
-            aria-label="Pop out battle scene"
-          >
-            <PopOutIcon />
-          </button>
+      <div className="battle-area">
+        <BattleScene />
+        <div className="battle-audio-toggles">
+          <MusicToggleButton />
+          <SfxToggleButton />
         </div>
-      )}
+      </div>
       <MovesToolbar />
       <MovesPanel />
       <BottomTabs />
-      {pipWindow &&
-        createPortal(
-          <div className="pip-stage">
-            <BattleScene />
-            <button className="pip-dock-btn" onClick={dock} aria-label="Dock">
-              <DockIcon />
-            </button>
-          </div>,
-          pipWindow.document.body
-        )}
     </div>
   );
 }
 
-function BattlePlaceholder({ onDock }: { onDock: () => void }) {
+function MusicToggleButton() {
+  const [s, setS] = useState<MusicState>(() => musicManager.snapshot());
+  useEffect(() => musicManager.subscribe(setS), []);
+  const on = s.enabled;
   return (
-    <div className="battle-area battle-placeholder">
-      <div className="battle-placeholder-text">
-        <strong>Battle scene popped out</strong>
-        <span className="dim small">Drag the floating window around or close it to dock back.</span>
-        <button className="g-btn-primary g-btn-small" onClick={onDock}>Dock back</button>
-      </div>
-    </div>
+    <button
+      type="button"
+      className={`battle-audio-btn ${on ? "" : "muted"}`}
+      onClick={() => musicManager.setEnabled(!on)}
+      title={on ? "Mute music" : "Unmute music"}
+      aria-label={on ? "Mute music" : "Unmute music"}
+      aria-pressed={!on}
+    >
+      {on ? <NoteIcon /> : <NoteOffIcon />}
+    </button>
   );
 }
 
-function PopOutIcon() {
+function SfxToggleButton() {
+  const [s, setS] = useState(() => sfxManager.snapshot());
+  useEffect(() => sfxManager.subscribe(setS), []);
+  const on = s.enabled;
+  return (
+    <button
+      type="button"
+      className={`battle-audio-btn ${on ? "" : "muted"}`}
+      onClick={() => sfxManager.setEnabled(!on)}
+      title={on ? "Mute sound effects" : "Unmute sound effects"}
+      aria-label={on ? "Mute sound effects" : "Unmute sound effects"}
+      aria-pressed={!on}
+    >
+      {on ? <SpeakerIcon /> : <SpeakerOffIcon />}
+    </button>
+  );
+}
+
+function NoteIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M14 3h7v7" />
-      <path d="M21 3 13 11" />
-      <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
     </svg>
   );
 }
 
-function DockIcon() {
+function NoteOffIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9 14L3 20" />
-      <path d="M3 14h6v6" />
-      <path d="M3 4h18v10H3z" />
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+      <line x1="3" y1="3" x2="21" y2="21" />
+    </svg>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+function SpeakerOffIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <line x1="23" y1="9" x2="17" y2="15" />
+      <line x1="17" y1="9" x2="23" y2="15" />
     </svg>
   );
 }

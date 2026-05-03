@@ -465,7 +465,11 @@ a:focus-visible {
 header.tab-pane-head.v2 {
   display: flex;
   flex-direction: column;
-  margin: 0 0 14px;
+  /* Margin: 0 — rely on the parent .pc-tab / .bag-tab / .dex-tab /
+     .mart-tab `gap: 10px` to space the header from the next child.
+     Stacking margin-bottom on top of the parent's gap was producing
+     ~20px of empty space below the title. */
+  margin: 0;
   padding: 0;
   background: transparent;
   border: 0;
@@ -476,7 +480,7 @@ header.tab-pane-head.v2 .tab-pane-head-row {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 0 10px;
+  padding: 2px 0 6px;
 }
 /* Title — clean sentence-case, gold accent. No uppercase / heavy
    letterspacing; that read as "system header" rather than the
@@ -521,7 +525,7 @@ header.tab-pane-head.v2 .tab-pane-head-tools {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 8px 0 4px;
+  padding: 4px 0 2px;
   background: transparent;
   border: 0;
 }
@@ -11068,15 +11072,20 @@ input:focus, textarea:focus, select:focus {
 .legal-section li { margin-bottom: 3px; }
 
 /* ───────────────────────────────────────────────────────────────────
-   Battle scene pop-out — picture-in-picture style floating window.
-   Click the corner button on the battle area to detach into a
-   draggable, resizable window; click the dock button to put it back.
+   Battle-scene audio toggles — small music + SFX mute buttons in
+   the top-right of the battle arena. Each independently flips its
+   own bus. Subtle by default, bright on hover; muted state is
+   dimmed with a strikethrough icon variant.
    ─────────────────────────────────────────────────────────────────── */
-.battle-popout-btn {
+.battle-audio-toggles {
   position: absolute;
   top: 6px;
   right: 6px;
   z-index: 5;
+  display: flex;
+  gap: 4px;
+}
+.battle-audio-btn {
   width: 26px;
   height: 26px;
   display: grid;
@@ -11088,11 +11097,19 @@ input:focus, textarea:focus, select:focus {
   border-radius: 5px;
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 120ms ease, background 120ms ease;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
-.battle-popout-btn:hover {
+.battle-audio-btn:hover {
   opacity: 1;
   background: rgba(0, 0, 0, 0.78);
+}
+.battle-audio-btn.muted {
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.35);
+}
+.battle-audio-btn.muted:hover {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
 }
 
 /* Placeholder shown in the center column while the scene is popped. */
