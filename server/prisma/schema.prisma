@@ -1,0 +1,179 @@
+// Pokemon MMO data model. Provider is set via DATABASE_URL — sqlite for
+// local dev (file:./dev.db), postgresql in prod (Railway).
+//
+// To switch providers in prod: change `provider = "postgresql"` here, run
+// `npx prisma migrate deploy`. Field types are kept compatible across both.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Auth tables (Better Auth schema) ─────────────────────────────────────
+model User {
+  id              String    @id
+  email           String    @unique
+  emailVerified   Boolean   @default(false)
+  name            String?
+  username        String    @unique
+  displayUsername String?
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Game state — stored as a JSON blob (serialized GameState minus
+  // ephemeral fields). Updated periodically via /api/saves/upload.
+  saveData        String?   // JSON-encoded
+  saveVersion     Int       @default(0)
+  saveUpdatedAt   DateTime  @default(now())
+
+  // Profile — derived metrics surfaced to other players.
+  accountLevel        Int   @default(0)
+  totalCaughtLevels   Int   @default(0)
+  pokedexCaughtCount  Int   @default(0)
+
+  // Presence — set by the socket connection lifecycle.
+  lastSeenAt      DateTime  @default(now())
+
+  // Moderation — admin flag bootstraps a user into the admin dashboard;
+  // bannedUntil > now blocks login + socket connections.
+  isAdmin         Boolean   @default(false)
+  bannedUntil     DateTime?
+  banReason       String?
+
+  // Relations
+  sessions          Session[]
+  accounts          Account[]
+  friendsRequested  Friend[]      @relation("Requester")
+  friendsReceived   Friend[]      @relation("Receiver")
+  messages          ChatMessage[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String    // OAuth subject id, or email for credentials
+  providerId            String    // "credential" | "google"
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?   // hashed (credentials provider)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ── Social ───────────────────────────────────────────────────────────────
+model Friend {
+  id          String   @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      String   // "pending" | "accepted"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  User @relation("Receiver",  fields: [receiverId],  references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId, status])
+  @@index([requesterId, status])
+}
+
+// ── Map editor ───────────────────────────────────────────────────────────
+// Single row per location id, edited via the admin dashboard. The game
+// frontend pulls these on boot and uses them to override the hard-coded
+// positions in `data/regions/<id>/routes.ts`. Pre-populated from the
+// existing values in routes.ts on first run.
+model MapPosition {
+  locationId String   @id
+  x          Float
+  y          Float
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?  // admin user id
+}
+
+// Crop rectangle for the town map image. All four values are
+// percentages of the source image (0..100). Lets the admin trim away
+// decorative borders/sky so only the playable region shows in the
+// game. Single row per regionId; the game pulls it on boot and uses
+// it to scale + offset the background image.
+model MapCrop {
+  regionId  String   @id
+  x         Float    // top-left X in source-image %
+  y         Float    // top-left Y in source-image %
+  w         Float    // width  in source-image %
+  h         Float    // height in source-image %
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+// ── Admin audit log ──────────────────────────────────────────────────────
+// Append-only record of every action an admin takes that touches another
+// user (raw save read, ban, demote, hard-delete, reset-save, chat-mod
+// delete). Lets us trace who did what when, and gives admins a record
+// they can show if a user disputes an action.
+model AdminAudit {
+  id        String   @id @default(cuid())
+  adminId   String   // who took the action
+  action    String   // e.g. "user.read_save", "user.ban", "user.delete"
+  targetId  String?  // affected user / message id when relevant
+  meta      String?  // optional JSON-encoded extras
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([targetId, createdAt])
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────
+// channelId convention:
+//   "global"               — global chat
+//   "dm:<userIdA>:<userIdB>" — DMs (sorted user ids so both sides resolve same key)
+model ChatMessage {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+}

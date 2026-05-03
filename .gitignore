@@ -1,0 +1,60 @@
+# ── Dependencies ─────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Build output ─────────────────────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+
+# ── Local env / secrets ──────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# .env.example is committed (template only)
+
+# ── Prisma local dev DB ──────────────────────────────────────────────────
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/prisma/migrations/
+
+# ── Logs ─────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Editor / OS junk ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# ── Claude Code session data ─────────────────────────────────────────────
+.claude/scheduled_tasks.json
+.claude/sessions/
+.claude/cache/
+
+# ── Personal art assets / one-off scripts ────────────────────────────────
+# 16 MB Photoshop background template — kept out of git so the repo
+# stays cloneable on slow links. Drop a copy into the repo locally if
+# you need to edit; just don't commit it.
+background-template.psd
+# Personal background-generation scripts — they read a token from a
+# hardcoded local path (~/.claude/skills/generate-image/.token) so they
+# don't make sense for other contributors. Excluded.
+bg_poll.py
+bg_submit.py
+
+# ── Recovery snapshots ───────────────────────────────────────────────────
+recovered/
+
+# ── Misc ─────────────────────────────────────────────────────────────────
+*.tmp
+.cache/
+coverage/

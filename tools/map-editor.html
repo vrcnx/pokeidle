@@ -1,0 +1,1362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pokémon Map Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --panel: #161616;
+    --panel-2: #1c1c1c;
+    --panel-3: #232323;
+    --panel-4: #2c2c2c;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.18);
+    --text: #ededed;
+    --text-muted: #a3a3a3;
+    --text-dim: #737373;
+    --accent: #fbbf24;
+    --accent-2: #f59e0b;
+    --good: #34d399;
+    --bad: #f87171;
+    --info: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  .app { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+
+  /* ── Top toolbar ─────────────────────────────────────────────── */
+  .toolbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar h1 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+  }
+  .tool-group {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .tool-btn, .util-btn {
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .tool-btn:hover { color: var(--text); background: var(--panel-3); }
+  .tool-btn.active {
+    background: var(--accent);
+    color: #0e1014;
+  }
+  .util-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    margin-left: 4px;
+  }
+  .util-btn:hover { background: var(--panel-3); border-color: var(--border-strong); }
+  .util-btn.primary { background: var(--accent); color: #0e1014; border-color: var(--accent); }
+  .util-btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+  .util-btn.danger  { color: var(--bad); }
+
+  .toolbar input[type="file"] { display: none; }
+  .file-label {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .file-label:hover { background: var(--panel-3); }
+
+  .spacer { flex: 1; }
+  .status { font-size: 11px; color: var(--text-dim); }
+
+  /* ── Canvas area ─────────────────────────────────────────────── */
+  .canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    background:
+      repeating-conic-gradient(#1a1a1a 0deg 90deg, #131313 90deg 180deg) 0 0 / 24px 24px;
+  }
+  .canvas-stage {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform-origin: center center;
+    cursor: crosshair;
+  }
+  .canvas-stage img.bg {
+    display: block;
+    image-rendering: pixelated;
+    pointer-events: none;
+    user-select: none;
+  }
+  /* SVG overlay for placed markers */
+  .canvas-stage svg.overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .canvas-stage svg.overlay .marker { pointer-events: auto; }
+  .canvas-stage svg.overlay .marker:hover circle,
+  .canvas-stage svg.overlay .marker.selected circle {
+    stroke: var(--accent);
+    stroke-width: 3;
+  }
+  .canvas-stage svg.overlay .route-line { pointer-events: auto; }
+  .canvas-stage svg.overlay .route-line:hover { stroke-width: 5; }
+  .canvas-stage svg.overlay .route-line.selected { stroke: var(--accent); stroke-width: 5; }
+  .canvas-stage svg.overlay text {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    fill: #fff;
+    paint-order: stroke;
+    stroke: rgba(0,0,0,0.7);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .pending-route-line {
+    stroke: var(--accent);
+    stroke-width: 3;
+    stroke-dasharray: 5 4;
+    fill: none;
+    pointer-events: none;
+  }
+  .pending-route-handle {
+    fill: var(--accent);
+    stroke: #0e1014;
+    stroke-width: 2;
+  }
+
+  .empty-hint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-dim);
+    font-size: 14px;
+    pointer-events: none;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────────── */
+  .sidebar {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .side-section h3 {
+    margin: 0 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .help-box {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .help-box kbd {
+    background: var(--panel-4);
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    padding: 1px 5px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    color: var(--text);
+  }
+
+  .item-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms;
+  }
+  .item-row:hover { background: var(--panel-3); }
+  .item-row.selected { border-color: var(--accent); background: var(--panel-3); }
+  .item-row .swatch {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .item-row .name { flex: 1; }
+  .item-row .coord { color: var(--text-dim); font-size: 10px; font-family: ui-monospace, monospace; }
+  .item-row .delete-btn {
+    background: transparent;
+    border: 0;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .item-row .delete-btn:hover { color: var(--bad); background: var(--panel-4); }
+
+  .id-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .id-picker input[type="text"] {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .id-picker input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
+  }
+  .id-picker .options-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  .id-picker .group-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 6px 8px 3px;
+    font-weight: 700;
+  }
+  .id-picker .opt {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+  }
+  .id-picker .opt:hover { background: var(--panel-3); }
+  .id-picker .opt.active { background: var(--accent); color: #0e1014; }
+  .id-picker .opt .id-tag { color: var(--text-dim); font-family: ui-monospace, monospace; font-size: 10px; }
+  .id-picker .opt.active .id-tag { color: rgba(0,0,0,0.55); }
+  .id-picker .empty-msg { padding: 14px; text-align: center; color: var(--text-dim); font-size: 12px; }
+
+  /* ── Modal for picking id ─────────────────────────────────── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    padding: 16px;
+    width: 360px;
+    max-width: 92vw;
+  }
+  .modal h2 { margin: 0 0 10px; font-size: 14px; }
+  .modal-body { display: flex; flex-direction: column; gap: 10px; }
+  .modal-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  pre.json-out {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px;
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+    color: var(--good);
+    max-height: 300px;
+    overflow: auto;
+    margin: 0;
+    white-space: pre;
+  }
+
+  /* ── Zoom controls ──────────────────────────────────────── */
+  .zoom-bar {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px;
+    z-index: 5;
+  }
+  .zoom-bar button {
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    width: 28px;
+    height: 28px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .zoom-bar button:hover { background: var(--panel-3); }
+  .zoom-bar .zoom-label {
+    color: var(--text-dim);
+    font-size: 11px;
+    align-self: center;
+    padding: 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="toolbar">
+    <h1>🗺 Map Editor</h1>
+
+    <label class="file-label">
+      Upload base map
+      <input type="file" id="bg-upload" accept="image/*" />
+    </label>
+
+    <div class="tool-group">
+      <button class="tool-btn active" data-tool="select">↖ Select</button>
+      <button class="tool-btn" data-tool="city">🏙 Place City</button>
+      <button class="tool-btn" data-tool="route">📍 Place Route</button>
+    </div>
+
+    <span class="spacer"></span>
+    <span class="status" id="status">No base map loaded.</span>
+
+    <button class="util-btn" id="undo-btn" title="Undo (Ctrl/Cmd+Z)">↶ Undo</button>
+    <button class="util-btn" id="import-btn">Import existing</button>
+    <button class="util-btn primary" id="export-btn">Export JSON</button>
+    <button class="util-btn danger" id="clear-btn">Clear all</button>
+  </div>
+
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div class="empty-hint" id="empty-hint">
+      Click <strong>Upload base map</strong> in the toolbar to begin.
+    </div>
+    <div class="canvas-stage" id="stage" style="display:none;">
+      <img id="bg-img" class="bg" alt="" />
+      <svg id="overlay" class="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="zoom-bar">
+      <button id="zoom-out" title="Zoom out (-)">−</button>
+      <span class="zoom-label" id="zoom-label">100%</span>
+      <button id="zoom-in" title="Zoom in (+)">+</button>
+      <button id="zoom-fit" title="Fit to window (0)">⤢</button>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="side-section">
+      <h3>How to use</h3>
+      <div class="help-box">
+        <p style="margin:0 0 6px"><strong>Cities</strong>: pick the <em>City</em> tool, then click on the map to drop a marker — choose which city it represents from the dropdown.</p>
+        <p style="margin:0 0 6px"><strong>Routes</strong>: pick the <em>Route</em> tool, click each waypoint along the route, double-click or press <kbd>Enter</kbd> to finish, then label it.</p>
+        <p style="margin:0"><strong>Edit</strong>: pick <em>Select</em> tool, then drag any marker. Right-click a marker or use the list on the right to delete.</p>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <h3>Cities <span id="city-count" style="color:var(--text-dim);font-weight:400;">(0)</span></h3>
+      <ul class="item-list" id="city-list"></ul>
+    </div>
+
+    <div class="side-section">
+      <h3>Routes <span id="route-count" style="color:var(--text-dim);font-weight:400;">(0)</span></h3>
+      <ul class="item-list" id="route-list"></ul>
+    </div>
+
+    <div class="side-section">
+      <h3>Coordinate system</h3>
+      <div class="help-box">
+        Stored as <code>(x, y)</code> percentages of the map (0–100). Matches the <code>routes.ts</code> <code>position</code> field — just paste the exported JSON straight in.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Modal for picking a route/city id after placement -->
+<div class="modal-overlay" id="picker-overlay" style="display:none;">
+  <div class="modal">
+    <h2 id="picker-title">Choose location</h2>
+    <div class="modal-body">
+      <div class="id-picker">
+        <input type="text" id="picker-search" placeholder="Type to search…" autocomplete="off" />
+        <ul class="options-list" id="picker-options"></ul>
+      </div>
+      <div class="help-box" id="picker-help"></div>
+      <div class="modal-actions">
+        <button class="util-btn" id="picker-cancel">Cancel</button>
+        <button class="util-btn primary" id="picker-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for export JSON output -->
+<div class="modal-overlay" id="export-overlay" style="display:none;">
+  <div class="modal" style="width: 600px;">
+    <h2>Exported JSON</h2>
+    <div class="modal-body">
+      <pre class="json-out" id="export-text"></pre>
+      <div class="modal-actions">
+        <button class="util-btn" id="export-copy">Copy to clipboard</button>
+        <button class="util-btn primary" id="export-close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for import -->
+<div class="modal-overlay" id="import-overlay" style="display:none;">
+  <div class="modal" style="width: 600px;">
+    <h2>Paste existing JSON</h2>
+    <div class="modal-body">
+      <textarea id="import-text" rows="14" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:8px;font-family:ui-monospace,monospace;font-size:11px;"></textarea>
+      <div class="modal-actions">
+        <button class="util-btn" id="import-cancel">Cancel</button>
+        <button class="util-btn primary" id="import-load">Load</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// Location id catalog (mirrors data/routes.ts). Keep in sync if you
+// add new routes — these are the dropdown options when labelling a
+// freshly-placed marker. Type stamps the marker color.
+const LOCATIONS = [
+  { id: "palletTown",      name: "Pallet Town",       type: "town" },
+  { id: "viridianCity",    name: "Viridian City",     type: "town" },
+  { id: "pewterCity",      name: "Pewter City",       type: "town" },
+  { id: "ceruleanCity",    name: "Cerulean City",     type: "town" },
+  { id: "vermilionCity",   name: "Vermilion City",    type: "town" },
+  { id: "saffronCity",     name: "Saffron City",      type: "town" },
+  { id: "celadonCity",     name: "Celadon City",      type: "town" },
+  { id: "lavenderTown",    name: "Lavender Town",     type: "town" },
+  { id: "fuchsiaCity",     name: "Fuchsia City",      type: "town" },
+  { id: "cinnabarIsland",  name: "Cinnabar Island",   type: "town" },
+  { id: "indigoPlat",      name: "Indigo Plateau",    type: "town" },
+  { id: "route1",  name: "Route 1",  type: "route" },
+  { id: "route2",  name: "Route 2",  type: "route" },
+  { id: "route3",  name: "Route 3",  type: "route" },
+  { id: "route4",  name: "Route 4",  type: "route" },
+  { id: "route5",  name: "Route 5",  type: "route" },
+  { id: "route6",  name: "Route 6",  type: "route" },
+  { id: "route7",  name: "Route 7",  type: "route" },
+  { id: "route8",  name: "Route 8",  type: "route" },
+  { id: "route9",  name: "Route 9",  type: "route" },
+  { id: "route10", name: "Route 10", type: "route" },
+  { id: "route11", name: "Route 11", type: "route" },
+  { id: "route12", name: "Route 12", type: "route" },
+  { id: "route13", name: "Route 13", type: "route" },
+  { id: "route14", name: "Route 14", type: "route" },
+  { id: "route15", name: "Route 15", type: "route" },
+  { id: "route16", name: "Route 16", type: "route" },
+  { id: "route17", name: "Route 17", type: "route" },
+  { id: "route18", name: "Route 18", type: "route" },
+  { id: "route19", name: "Route 19", type: "route" },
+  { id: "route20", name: "Route 20", type: "route" },
+  { id: "route21", name: "Route 21", type: "route" },
+  { id: "route22", name: "Route 22", type: "route" },
+  { id: "route23", name: "Route 23", type: "route" },
+  { id: "route24", name: "Route 24", type: "route" },
+  { id: "route25", name: "Route 25", type: "route" },
+  { id: "viridianForest",  name: "Viridian Forest",   type: "route" },
+  { id: "mtMoon",          name: "Mt. Moon",          type: "route" },
+  { id: "rockTunnel",      name: "Rock Tunnel",       type: "route" },
+  { id: "powerPlant",      name: "Power Plant",       type: "route" },
+  { id: "pokemonTower",    name: "Pokemon Tower",     type: "route" },
+  { id: "diglettsCave",    name: "Diglett's Cave",    type: "route" },
+  { id: "safariZone",      name: "Safari Zone",       type: "route" },
+  { id: "seafoamIslands",  name: "Seafoam Islands",   type: "route" },
+  { id: "pokemonMansion",  name: "Pokemon Mansion",   type: "route" },
+  { id: "victoryRoad",     name: "Victory Road",      type: "route" },
+  { id: "ceruleanCave",    name: "Cerulean Cave",     type: "route" },
+  { id: "raidIsland",      name: "Raid Island",       type: "raid" },
+];
+
+const LOCATION_BY_ID = Object.fromEntries(LOCATIONS.map(l => [l.id, l]));
+
+// All locations — cities AND routes — are single (x%, y%) points.
+// Mirrors the game's data model in routes.ts where every entry has just
+// a single `position: { x, y }`.
+const STATE_KEY = "pkmn-map-editor-state-v2";
+const state = migrate(loadState()) ?? {
+  bg: null,            // data URL of uploaded base
+  bgWidth: 0,
+  bgHeight: 0,
+  cities: [],          // { id, name, type, x, y }
+  routes: [],          // { id, name, type, x, y }
+  zoom: 1,
+  pan: { x: 0, y: 0 },
+};
+
+// Migrate older saves that had route polylines (`points: [{x,y}...]`)
+// down to the single-point shape — keep the centroid.
+function migrate(s) {
+  if (!s) return null;
+  if (Array.isArray(s.routes)) {
+    s.routes = s.routes.map(r => {
+      if (typeof r.x === "number" && typeof r.y === "number") return r;
+      if (Array.isArray(r.points) && r.points.length > 0) {
+        const cx = r.points.reduce((a, p) => a + p.x, 0) / r.points.length;
+        const cy = r.points.reduce((a, p) => a + p.y, 0) / r.points.length;
+        return { id: r.id, name: r.name, type: r.type, x: cx, y: cy };
+      }
+      return r;
+    }).filter(r => typeof r.x === "number");
+  }
+  return s;
+}
+
+// ── Undo stack ───────────────────────────────────────────────────
+// Snapshot state before each mutation; Ctrl+Z pops one back. Capped
+// at 50 entries to keep localStorage manageable.
+const undoStack = [];
+const UNDO_CAP = 50;
+function pushUndo() {
+  // Snapshot only the placed data — bg + zoom/pan don't need undo.
+  undoStack.push(JSON.stringify({
+    cities: state.cities,
+    routes: state.routes,
+  }));
+  if (undoStack.length > UNDO_CAP) undoStack.shift();
+}
+function undo() {
+  const snap = undoStack.pop();
+  if (!snap) return;
+  const parsed = JSON.parse(snap);
+  state.cities = parsed.cities;
+  state.routes = parsed.routes;
+  selected = null;
+  pendingRoutePoints = null;
+  saveState();
+  render();
+}
+
+let tool = "select";
+let dragging = null;           // { kind: 'city'|'route', idx }
+let selected = null;           // { kind, idx }
+
+const stage = document.getElementById("stage");
+const bgImg = document.getElementById("bg-img");
+const overlay = document.getElementById("overlay");
+const wrap = document.getElementById("canvas-wrap");
+const status = document.getElementById("status");
+const emptyHint = document.getElementById("empty-hint");
+
+// ── Persistence ─────────────────────────────────────────────────
+function saveState() {
+  try {
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  } catch { /* quota — ignore */ }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+// ── Background upload ───────────────────────────────────────────
+// The game's town-map-canvas is locked to 16:9 — uploads should match
+// or the editor will warn (markers placed in the cropped band would be
+// invisible in-game).
+const TARGET_ASPECT = 16 / 9;
+const ASPECT_TOLERANCE = 0.005; // 0.5% — strict-ish
+
+document.getElementById("bg-upload").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const url = reader.result;
+    const tmp = new Image();
+    tmp.onload = () => {
+      const ratio = tmp.naturalWidth / tmp.naturalHeight;
+      const ratioOk = Math.abs(ratio - TARGET_ASPECT) < ASPECT_TOLERANCE * TARGET_ASPECT;
+      if (!ratioOk) {
+        const want = `${Math.round(tmp.naturalHeight * TARGET_ASPECT)}×${tmp.naturalHeight}`;
+        const got = `${tmp.naturalWidth}×${tmp.naturalHeight}`;
+        const proceed = confirm(
+          `That image is ${got} (ratio ${ratio.toFixed(3)}). The game map is locked to 16:9 — for a perfect fit, use ${want} (or any 16:9 size).\n\nLoad it anyway? Areas outside the 16:9 frame will be cropped in-game.`
+        );
+        if (!proceed) return;
+      }
+      state.bg = url;
+      state.bgWidth = tmp.naturalWidth;
+      state.bgHeight = tmp.naturalHeight;
+      state.zoom = computeFitZoom();
+      state.pan = { x: 0, y: 0 };
+      saveState();
+      render();
+    };
+    tmp.src = url;
+  };
+  reader.readAsDataURL(f);
+});
+
+function computeFitZoom() {
+  if (!state.bgWidth || !state.bgHeight) return 1;
+  const wrapRect = wrap.getBoundingClientRect();
+  const scale = Math.min(
+    (wrapRect.width - 40) / state.bgWidth,
+    (wrapRect.height - 40) / state.bgHeight,
+    4
+  );
+  return Math.max(0.1, scale);
+}
+
+// ── Tool selection ─────────────────────────────────────────────
+document.querySelectorAll(".tool-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    tool = btn.dataset.tool;
+    selected = null;
+    stage.style.cursor = tool === "select" ? "default" : "crosshair";
+    render();
+  });
+});
+
+// ── Coordinate conversion ─────────────────────────────────────────
+// Click pixel (relative to image natural size) ↔ percentage (0-100).
+function clientToPct(clientX, clientY) {
+  const rect = bgImg.getBoundingClientRect();
+  const px = clientX - rect.left;
+  const py = clientY - rect.top;
+  return {
+    x: clamp((px / rect.width) * 100, 0, 100),
+    y: clamp((py / rect.height) * 100, 0, 100),
+  };
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ── Canvas click / drag ───────────────────────────────────────────
+let panStart = null;
+
+stage.addEventListener("mousedown", (e) => {
+  if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    panStart = { x: e.clientX, y: e.clientY, panX: state.pan.x, panY: state.pan.y };
+    e.preventDefault();
+    return;
+  }
+  if (e.button !== 0) return;
+
+  // Universal: if mousedown lands on an existing marker, drag it. This
+  // works in any tool, so you don't have to swap to Select to move
+  // something you've already placed.
+  const hit = hitTestMarkers(e.clientX, e.clientY);
+  if (hit) {
+    selected = hit;
+    dragging = hit;
+    e.preventDefault();
+    render();
+    return;
+  }
+
+  if (tool === "select") {
+    // Click empty space — deselect.
+    selected = null;
+    render();
+    return;
+  }
+
+  if (tool === "city" || tool === "route") {
+    const pct = clientToPct(e.clientX, e.clientY);
+    openIdPicker(tool, (id) => {
+      const def = LOCATION_BY_ID[id];
+      if (!def) return;
+      pushUndo();
+      const entry = { id, name: def.name, type: def.type, x: pct.x, y: pct.y };
+      if (tool === "city") {
+        state.cities = state.cities.filter(c => c.id !== id);
+        state.cities.push(entry);
+      } else {
+        state.routes = state.routes.filter(r => r.id !== id);
+        state.routes.push(entry);
+      }
+      saveState();
+      render();
+    });
+    return;
+  }
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (panStart) {
+    state.pan.x = panStart.panX + (e.clientX - panStart.x);
+    state.pan.y = panStart.panY + (e.clientY - panStart.y);
+    applyTransform();
+    return;
+  }
+  if (dragging) {
+    if (!dragging.snapshotted) {
+      pushUndo();
+      dragging.snapshotted = true;
+    }
+    let pct = clientToPct(e.clientX, e.clientY);
+
+    // Alignment helpers: if held marker's x or y comes within ~0.6% of
+    // another marker, snap to that exact value and remember which one
+    // we snapped to so we can draw the guide line. Hold Alt to disable.
+    snapGuides = { vx: null, hy: null };
+    if (!e.altKey) {
+      const SNAP = 0.6; // % tolerance
+      const others = [...state.cities, ...state.routes].filter(m =>
+        !(dragging.kind === "city" && state.cities[dragging.idx] === m) &&
+        !(dragging.kind === "route" && state.routes[dragging.idx] === m)
+      );
+      let bestX = null, bestY = null;
+      for (const o of others) {
+        if (Math.abs(o.x - pct.x) < SNAP && (!bestX || Math.abs(o.x - pct.x) < Math.abs(bestX - pct.x))) bestX = o.x;
+        if (Math.abs(o.y - pct.y) < SNAP && (!bestY || Math.abs(o.y - pct.y) < Math.abs(bestY - pct.y))) bestY = o.y;
+      }
+      if (bestX != null) { pct.x = bestX; snapGuides.vx = bestX; }
+      if (bestY != null) { pct.y = bestY; snapGuides.hy = bestY; }
+    }
+
+    const target = dragging.kind === "city" ? state.cities[dragging.idx] : state.routes[dragging.idx];
+    target.x = pct.x;
+    target.y = pct.y;
+    saveState();
+    render();
+  }
+});
+
+// Active snap guide lines (set during a drag, cleared on release).
+let snapGuides = { vx: null, hy: null };
+
+window.addEventListener("mouseup", () => {
+  panStart = null;
+  if (dragging) {
+    dragging = null;
+    snapGuides = { vx: null, hy: null };
+    render();
+  }
+});
+
+window.addEventListener("keydown", (e) => {
+  // Ignore keys while typing in inputs.
+  const t = e.target;
+  const inField = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+  if (inField) return;
+
+  // Undo: Ctrl+Z (Cmd+Z on macOS).
+  if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+    return;
+  }
+  if (e.key === "Escape") {
+    selected = null;
+    render();
+  } else if (e.key === "Delete" || e.key === "Backspace") {
+    if (selected) {
+      pushUndo();
+      if (selected.kind === "city") state.cities.splice(selected.idx, 1);
+      if (selected.kind === "route") state.routes.splice(selected.idx, 1);
+      selected = null;
+      saveState();
+      render();
+    }
+  } else if (e.key === "+" || e.key === "=") {
+    state.zoom = Math.min(8, state.zoom * 1.2);
+    saveState(); applyTransform();
+  } else if (e.key === "-" || e.key === "_") {
+    state.zoom = Math.max(0.1, state.zoom / 1.2);
+    saveState(); applyTransform();
+  } else if (e.key === "0") {
+    state.zoom = computeFitZoom();
+    state.pan = { x: 0, y: 0 };
+    saveState(); applyTransform();
+  }
+});
+
+// Wheel = zoom around cursor.
+wrap.addEventListener("wheel", (e) => {
+  if (!state.bg) return;
+  e.preventDefault();
+  const wrapRect = wrap.getBoundingClientRect();
+  const cx = e.clientX - wrapRect.left - wrapRect.width / 2;
+  const cy = e.clientY - wrapRect.top - wrapRect.height / 2;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.max(0.1, Math.min(8, state.zoom * factor));
+  // Adjust pan so the point under the cursor stays put.
+  state.pan.x = cx + (state.pan.x - cx) * (newZoom / state.zoom);
+  state.pan.y = cy + (state.pan.y - cy) * (newZoom / state.zoom);
+  state.zoom = newZoom;
+  saveState();
+  applyTransform();
+}, { passive: false });
+
+// ── Hit testing ───────────────────────────────────────────────
+function hitTestMarkers(clientX, clientY) {
+  const stageRect = bgImg.getBoundingClientRect();
+  const hitRadius = 12;
+
+  const probe = (arr, kind) => {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const m = arr[i];
+      const px = stageRect.left + (m.x / 100) * stageRect.width;
+      const py = stageRect.top + (m.y / 100) * stageRect.height;
+      if (Math.hypot(clientX - px, clientY - py) < hitRadius) {
+        return { kind, idx: i };
+      }
+    }
+    return null;
+  };
+  // Cities first (drawn on top), then routes.
+  return probe(state.cities, "city") ?? probe(state.routes, "route");
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function render() {
+  if (!state.bg) {
+    stage.style.display = "none";
+    emptyHint.style.display = "block";
+    status.textContent = "No base map loaded.";
+    renderLists();
+    return;
+  }
+  stage.style.display = "block";
+  emptyHint.style.display = "none";
+  bgImg.src = state.bg;
+  bgImg.style.width = state.bgWidth + "px";
+  bgImg.style.height = state.bgHeight + "px";
+
+  applyTransform();
+
+  // Build SVG overlay.
+  const w = state.bgWidth, h = state.bgHeight;
+  overlay.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  overlay.setAttribute("width", w);
+  overlay.setAttribute("height", h);
+  overlay.innerHTML = "";
+
+  // 16:9 safe-area guide — outlines the area that will actually render
+  // in-game. If the upload is exactly 16:9 this just hugs the edge; for
+  // mismatched uploads it shows the cropped-out band.
+  const targetW = h * TARGET_ASPECT;
+  const targetH = w / TARGET_ASPECT;
+  let frameX = 0, frameY = 0, frameW = w, frameH = h;
+  if (w / h > TARGET_ASPECT) {
+    // Image is wider than 16:9 → safe area is centered horizontally.
+    frameW = targetW;
+    frameX = (w - targetW) / 2;
+  } else if (w / h < TARGET_ASPECT) {
+    frameH = targetH;
+    frameY = (h - targetH) / 2;
+  }
+  overlay.appendChild(svg("rect", {
+    x: frameX, y: frameY, width: frameW, height: frameH,
+    fill: "none",
+    stroke: "rgba(251, 191, 36, 0.5)",
+    "stroke-width": 2,
+    "stroke-dasharray": "8 6",
+    "pointer-events": "none",
+  }));
+
+  // Routes — single dot per location (smaller than cities so they read
+  // as different markers without needing a shape distinction).
+  for (let i = 0; i < state.routes.length; i++) {
+    drawDot(state.routes[i], i, "route", w, h, /* radius */ 6, /* labelOffset */ -11);
+  }
+
+  // Cities — bigger dot, drawn after so they sit on top.
+  for (let i = 0; i < state.cities.length; i++) {
+    drawDot(state.cities[i], i, "city", w, h, /* radius */ 9, /* labelOffset */ -14);
+  }
+
+  // Snap guide lines during drag.
+  if (snapGuides.vx != null) {
+    overlay.appendChild(svg("line", {
+      x1: (snapGuides.vx / 100) * w, y1: 0,
+      x2: (snapGuides.vx / 100) * w, y2: h,
+      stroke: "rgba(96, 165, 250, 0.85)",
+      "stroke-width": 1,
+      "stroke-dasharray": "4 4",
+      "pointer-events": "none",
+    }));
+  }
+  if (snapGuides.hy != null) {
+    overlay.appendChild(svg("line", {
+      x1: 0, y1: (snapGuides.hy / 100) * h,
+      x2: w, y2: (snapGuides.hy / 100) * h,
+      stroke: "rgba(96, 165, 250, 0.85)",
+      "stroke-width": 1,
+      "stroke-dasharray": "4 4",
+      "pointer-events": "none",
+    }));
+  }
+
+  status.textContent = `${state.cities.length} cities, ${state.routes.length} routes  •  ${state.bgWidth}×${state.bgHeight}px  •  ${Math.round(state.zoom * 100)}%`;
+  renderLists();
+}
+
+function drawDot(m, i, kind, w, h, radius, labelOffset) {
+  const isSel = selected && selected.kind === kind && selected.idx === i;
+  const color = colorForType(m.type);
+  const cx = (m.x / 100) * w, cy = (m.y / 100) * h;
+  const g = svg("g", { class: "marker" + (isSel ? " selected" : ""), style: "cursor: pointer" });
+  g.appendChild(svg("circle", { cx, cy, r: radius, fill: color, stroke: "#0e1014", "stroke-width": 2 }));
+  g.appendChild(svg("text", { x: cx, y: cy + labelOffset, "text-anchor": "middle" }, m.name));
+  g.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selected = { kind, idx: i };
+    render();
+  });
+  g.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    pushUndo();
+    if (kind === "city") state.cities.splice(i, 1);
+    else state.routes.splice(i, 1);
+    saveState();
+    render();
+  });
+  overlay.appendChild(g);
+}
+
+function applyTransform() {
+  stage.style.transform = `translate(calc(-50% + ${state.pan.x}px), calc(-50% + ${state.pan.y}px)) scale(${state.zoom})`;
+  document.getElementById("zoom-label").textContent = Math.round(state.zoom * 100) + "%";
+  if (status && state.bg) {
+    status.textContent = `${state.cities.length} cities, ${state.routes.length} routes  •  ${state.bgWidth}×${state.bgHeight}px  •  ${Math.round(state.zoom * 100)}%`;
+  }
+}
+
+function colorForType(type) {
+  if (type === "town") return "#fbbf24";
+  if (type === "raid") return "#a855f7";
+  return "#34d399";
+}
+
+function svg(tag, attrs, text) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+// ── Sidebar lists ─────────────────────────────────────────────
+function renderLists() {
+  const cl = document.getElementById("city-list");
+  const rl = document.getElementById("route-list");
+  document.getElementById("city-count").textContent = `(${state.cities.length})`;
+  document.getElementById("route-count").textContent = `(${state.routes.length})`;
+  cl.innerHTML = "";
+  rl.innerHTML = "";
+
+  for (let i = 0; i < state.cities.length; i++) {
+    const c = state.cities[i];
+    const isSel = selected && selected.kind === "city" && selected.idx === i;
+    const li = document.createElement("li");
+    li.className = "item-row" + (isSel ? " selected" : "");
+    li.innerHTML = `
+      <span class="swatch" style="background:${colorForType(c.type)}"></span>
+      <span class="name">${c.name}</span>
+      <span class="coord">${c.x.toFixed(1)},${c.y.toFixed(1)}</span>
+      <button class="delete-btn" title="Delete">×</button>
+    `;
+    li.addEventListener("click", () => { selected = { kind: "city", idx: i }; render(); });
+    li.querySelector(".delete-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.cities.splice(i, 1);
+      selected = null;
+      saveState();
+      render();
+    });
+    cl.appendChild(li);
+  }
+  for (let i = 0; i < state.routes.length; i++) {
+    const r = state.routes[i];
+    const isSel = selected && selected.kind === "route" && selected.idx === i;
+    const li = document.createElement("li");
+    li.className = "item-row" + (isSel ? " selected" : "");
+    li.innerHTML = `
+      <span class="swatch" style="background:${colorForType(r.type)}"></span>
+      <span class="name">${r.name}</span>
+      <span class="coord">${r.points.length} pts</span>
+      <button class="delete-btn" title="Delete">×</button>
+    `;
+    li.addEventListener("click", () => { selected = { kind: "route", idx: i }; render(); });
+    li.querySelector(".delete-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.routes.splice(i, 1);
+      selected = null;
+      saveState();
+      render();
+    });
+    rl.appendChild(li);
+  }
+}
+
+// ── ID picker modal ───────────────────────────────────────────
+// Bucket each location into a group so the picker is scannable
+// instead of one giant flat list. Numbered routes, special areas
+// (caves/forests/towers/mansions), and endgame zones each get their
+// own header.
+const SPECIAL_AREAS = new Set([
+  "viridianForest", "mtMoon", "rockTunnel", "powerPlant",
+  "pokemonTower", "diglettsCave", "safariZone", "seafoamIslands",
+  "pokemonMansion",
+]);
+const ENDGAME = new Set(["victoryRoad", "ceruleanCave", "indigoPlat", "raidIsland"]);
+
+function groupOf(loc) {
+  if (loc.type === "town") return "Cities";
+  if (ENDGAME.has(loc.id)) return "Endgame";
+  if (SPECIAL_AREAS.has(loc.id)) return "Special Areas";
+  return "Numbered Routes";
+}
+
+let pickerCallback = null;
+let pickerOptions = [];   // flat list of currently-visible options
+let pickerActiveIdx = 0;
+
+function openIdPicker(kind, cb) {
+  pickerCallback = cb;
+  pickerActiveIdx = 0;
+
+  const overlay = document.getElementById("picker-overlay");
+  const search = document.getElementById("picker-search");
+  const title = document.getElementById("picker-title");
+  const help = document.getElementById("picker-help");
+
+  const placedIds = new Set([
+    ...state.cities.map(c => c.id),
+    ...state.routes.map(r => r.id),
+  ]);
+  const filtered = LOCATIONS
+    .filter(l =>
+      kind === "city" ? l.type === "town" :
+      kind === "route" ? (l.type === "route" || l.type === "raid") :
+      true
+    )
+    .filter(l => !placedIds.has(l.id));
+
+  if (filtered.length === 0) {
+    alert(kind === "city"
+      ? "All cities have already been placed. Delete one first to re-place it."
+      : "All routes have already been placed. Delete one first to re-place it.");
+    pickerCallback = null;
+    return;
+  }
+
+  pickerOptions = filtered;
+  title.textContent = kind === "city" ? "Choose city" : "Choose route";
+  help.textContent = `${filtered.length} ${kind === "city" ? "cities" : "routes"} still to place — type to search, Enter to confirm.`;
+  search.value = "";
+  renderPickerOptions("");
+  overlay.style.display = "flex";
+  setTimeout(() => search.focus(), 30);
+}
+
+function renderPickerOptions(query) {
+  const list = document.getElementById("picker-options");
+  const q = query.trim().toLowerCase();
+
+  // Filter against name, id, OR (for "Route N") any digit substring.
+  const matched = pickerOptions.filter(l => {
+    if (!q) return true;
+    return (
+      l.name.toLowerCase().includes(q) ||
+      l.id.toLowerCase().includes(q)
+    );
+  });
+
+  if (matched.length === 0) {
+    list.innerHTML = `<li class="empty-msg">No matches.</li>`;
+    return;
+  }
+
+  // Group + sort.
+  const groups = {};
+  for (const l of matched) {
+    const g = groupOf(l);
+    (groups[g] ??= []).push(l);
+  }
+  // Stable group order:
+  const order = ["Cities", "Numbered Routes", "Special Areas", "Endgame"];
+
+  const html = [];
+  let flatIdx = 0;
+  pickerActiveIdx = Math.min(pickerActiveIdx, matched.length - 1);
+  if (pickerActiveIdx < 0) pickerActiveIdx = 0;
+  for (const g of order) {
+    if (!groups[g]) continue;
+    html.push(`<li class="group-label">${g}</li>`);
+    for (const l of groups[g]) {
+      const isActive = flatIdx === pickerActiveIdx;
+      html.push(`<li class="opt ${isActive ? "active" : ""}" data-idx="${flatIdx}" data-id="${l.id}">
+        <span>${l.name}</span><span class="id-tag">${l.id}</span>
+      </li>`);
+      flatIdx++;
+    }
+  }
+  list.innerHTML = html.join("");
+
+  // Wire click handlers.
+  list.querySelectorAll(".opt").forEach(li => {
+    li.addEventListener("click", () => {
+      pickByIdx(parseInt(li.dataset.idx, 10));
+    });
+  });
+
+  // Keep active option in view.
+  const active = list.querySelector(".opt.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+
+  // Cache flat list for keyboard nav.
+  pickerVisible = matched;
+}
+let pickerVisible = [];
+
+document.getElementById("picker-search").addEventListener("input", (e) => {
+  pickerActiveIdx = 0;
+  renderPickerOptions(e.target.value);
+});
+
+document.getElementById("picker-search").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    pickerActiveIdx = Math.min(pickerVisible.length - 1, pickerActiveIdx + 1);
+    renderPickerOptions(e.target.value);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    pickerActiveIdx = Math.max(0, pickerActiveIdx - 1);
+    renderPickerOptions(e.target.value);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    pickByIdx(pickerActiveIdx);
+  } else if (e.key === "Escape") {
+    closePicker();
+  }
+});
+
+function pickByIdx(idx) {
+  const choice = pickerVisible[idx];
+  if (!choice) return;
+  if (pickerCallback) pickerCallback(choice.id);
+  closePicker();
+}
+document.getElementById("picker-cancel").addEventListener("click", closePicker);
+document.getElementById("picker-confirm").addEventListener("click", () => {
+  pickByIdx(pickerActiveIdx);
+});
+function closePicker() {
+  document.getElementById("picker-overlay").style.display = "none";
+  pickerCallback = null;
+}
+
+// ── Export / Import / Clear ───────────────────────────────────
+document.getElementById("export-btn").addEventListener("click", () => {
+  // Match routes.ts shape: every location is a single { x, y } point.
+  const merged = {};
+  for (const c of state.cities) merged[c.id] = { x: round(c.x, 2), y: round(c.y, 2) };
+  for (const r of state.routes) merged[r.id] = { x: round(r.x, 2), y: round(r.y, 2) };
+  document.getElementById("export-text").textContent = JSON.stringify(merged, null, 2);
+  document.getElementById("export-overlay").style.display = "flex";
+});
+document.getElementById("export-close").addEventListener("click", () => {
+  document.getElementById("export-overlay").style.display = "none";
+});
+document.getElementById("export-copy").addEventListener("click", async () => {
+  const t = document.getElementById("export-text").textContent;
+  const btn = document.getElementById("export-copy");
+  let ok = false;
+
+  // navigator.clipboard requires HTTPS or localhost — file:// blocks it.
+  // Try it first; on failure fall through to the execCommand fallback.
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(t);
+      ok = true;
+    }
+  } catch { /* fall through */ }
+
+  if (!ok) {
+    // Fallback: temp textarea + execCommand("copy"). Works on file://.
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    document.body.removeChild(ta);
+  }
+
+  if (ok) {
+    btn.textContent = "Copied!";
+  } else {
+    // Last resort: select the JSON in the visible <pre> so the user can
+    // press Ctrl+C themselves.
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("export-text"));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    btn.textContent = "Press Ctrl+C";
+  }
+  setTimeout(() => { btn.textContent = "Copy to clipboard"; }, 1800);
+});
+
+document.getElementById("import-btn").addEventListener("click", () => {
+  const ta = document.getElementById("import-text");
+  ta.value = "";
+  document.getElementById("import-overlay").style.display = "flex";
+});
+document.getElementById("import-cancel").addEventListener("click", () => {
+  document.getElementById("import-overlay").style.display = "none";
+});
+document.getElementById("import-load").addEventListener("click", () => {
+  try {
+    const text = document.getElementById("import-text").value;
+    const data = JSON.parse(text);
+    pushUndo();
+    state.cities = [];
+    state.routes = [];
+    // Accept either the new flat shape ({ id: { x, y } }) or the old
+    // shape with separate cities/routes maps (paths in routes get
+    // collapsed to their centroid).
+    if (data.cities || data.routes) {
+      const flat = { ...(data.cities ?? {}) };
+      for (const [id, val] of Object.entries(data.routes ?? {})) {
+        if (Array.isArray(val.path) && val.path.length > 0) {
+          const cx = val.path.reduce((s, [x]) => s + x, 0) / val.path.length;
+          const cy = val.path.reduce((s, [, y]) => s + y, 0) / val.path.length;
+          flat[id] = { x: cx, y: cy };
+        } else if (typeof val.x === "number") {
+          flat[id] = { x: val.x, y: val.y };
+        }
+      }
+      Object.assign(data, flat);
+      delete data.cities;
+      delete data.routes;
+    }
+    for (const [id, { x, y }] of Object.entries(data)) {
+      const def = LOCATION_BY_ID[id];
+      if (!def) continue;
+      const entry = { id, name: def.name, type: def.type, x, y };
+      if (def.type === "town") state.cities.push(entry);
+      else state.routes.push(entry);
+    }
+    saveState();
+    render();
+    document.getElementById("import-overlay").style.display = "none";
+  } catch (err) {
+    alert("Could not parse JSON: " + err.message);
+  }
+});
+
+document.getElementById("clear-btn").addEventListener("click", () => {
+  if (!confirm("Clear all placed cities and routes? (The base map stays.)")) return;
+  pushUndo();
+  state.cities = [];
+  state.routes = [];
+  selected = null;
+  saveState();
+  render();
+});
+
+document.getElementById("undo-btn").addEventListener("click", undo);
+
+// ── Zoom controls ─────────────────────────────────────────────
+document.getElementById("zoom-in").addEventListener("click", () => {
+  state.zoom = Math.min(8, state.zoom * 1.2);
+  saveState(); applyTransform();
+});
+document.getElementById("zoom-out").addEventListener("click", () => {
+  state.zoom = Math.max(0.1, state.zoom / 1.2);
+  saveState(); applyTransform();
+});
+document.getElementById("zoom-fit").addEventListener("click", () => {
+  state.zoom = computeFitZoom();
+  state.pan = { x: 0, y: 0 };
+  saveState(); applyTransform();
+});
+
+// ── Helpers ─────────────────────────────────────────────────────
+function centroid(pts) {
+  const x = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  const y = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+  return { x, y };
+}
+function round(n, dec) { const f = Math.pow(10, dec); return Math.round(n * f) / f; }
+
+// ── Boot ───────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

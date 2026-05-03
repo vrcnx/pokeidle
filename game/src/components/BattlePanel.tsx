@@ -1,0 +1,83 @@
+import { useGame } from "../state/GameContext";
+import { PokemonCard } from "./PokemonCard";
+import { pokeballs } from "../data/pokeballs";
+import { BALL_ORDER } from "../utils/items";
+import { routes } from "../data/routes";
+import { encounters } from "../data/encounters";
+
+export function BattlePanel() {
+  const { state, dispatch } = useGame();
+  const route = routes[state.currentRoute];
+  const routeName = encounters[state.currentRoute]?.name ?? route?.name ?? state.currentRoute;
+  const bgImg = backgroundFor(route?.type);
+
+  return (
+    <div className="battle-panel" style={{ backgroundImage: `url(${bgImg})` }}>
+      <div className="battle-panel-header">
+        <span>{routeName}</span>
+        <span>Phase: {state.phase}</span>
+        {state.paused && <span className="badge-paused">PAUSED</span>}
+      </div>
+      <div className="battle-arena">
+        <div className="enemy-slot">
+          {state.enemyPokemon ? (
+            <PokemonCard pokemon={state.enemyPokemon} />
+          ) : (
+            <div className="placeholder">Looking for wild Pokémon…</div>
+          )}
+        </div>
+        <div className="player-slot">
+          {state.playerPokemon && <PokemonCard pokemon={state.playerPokemon} isBack />}
+        </div>
+      </div>
+
+      {state.phase === "battle" && state.enemyPokemon && (
+        <div className="ball-row">
+          {BALL_ORDER.map((id) => {
+            const owned = state.inventory[id] ?? 0;
+            return (
+              <button
+                key={id}
+                disabled={owned <= 0}
+                onClick={() => dispatch({ type: "CATCH_POKEMON", payload: { ballId: id } })}
+              >
+                {pokeballs[id].name} × {owned}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {(state.phase === "trainerBattle" || state.phase === "bossBattle") && state.enemyPokemon && (
+        <div className="ball-row">
+          <span className="dim">Trainer battle — can't catch.</span>
+        </div>
+      )}
+
+      <div className="battle-controls">
+        <button onClick={() => dispatch({ type: "TOGGLE_PAUSE" })}>
+          {state.paused ? "Resume" : "Pause"}
+        </button>
+        {[1, 2, 5].map((s) => (
+          <button
+            key={s}
+            className={state.speed === s ? "active" : ""}
+            onClick={() => dispatch({ type: "SET_SPEED", payload: { speed: s } })}
+          >
+            ×{s}
+          </button>
+        ))}
+        <button onClick={() => dispatch({ type: "HEAL_PARTY" })}>Heal Party</button>
+      </div>
+    </div>
+  );
+}
+
+function backgroundFor(type?: string): string {
+  switch (type) {
+    case "town":         return "/backgrounds/town.png";
+    case "cave":         return "/backgrounds/cave.png";
+    case "victoryRoad":  return "/backgrounds/mountain.png";
+    case "raid":         return "/backgrounds/town_port.png";
+    default:             return "/backgrounds/grassland.png";
+  }
+}

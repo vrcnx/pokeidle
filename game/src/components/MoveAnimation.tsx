@@ -1,0 +1,231 @@
+import { useEffect, useRef, useState } from "react";
+import { useGame } from "../state/GameContext";
+import { moves as movesTable } from "../data/moves";
+import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
+import type { BattleEvent, PokemonType } from "../types";
+
+// Particle/keyframe layer mounted inside .battle-scene. When an "attack"
+// battle event reaches the head of pendingEvents, this looks up the
+// move's archetype and mounts the matching CSS-driven effect briefly.
+//
+// Phase 1 archetypes implemented: fire-special, electric-special. All
+// other moves currently fall through to a generic flash so battles
+// don't look broken — additional archetypes will be filled in next.
+
+interface ActiveAnim {
+  key: number;
+  archetype: EffectArchetype;
+  target: "enemy" | "player";
+  shake: boolean;
+  moveType: PokemonType;
+}
+
+export function MoveAnimation() {
+  const { state } = useGame();
+  const [active, setActive] = useState<ActiveAnim | null>(null);
+  // Track the last attack-event we animated by identity so we don't
+  // re-fire when other state changes cause a re-render.
+  const lastAnimatedEventRef = useRef<BattleEvent | null>(null);
+  const counterRef = useRef(0);
+
+  const head = state.pendingEvents[0];
+
+  useEffect(() => {
+    if (!head || head.type !== "attack") return;
+    if (head === lastAnimatedEventRef.current) return;
+    lastAnimatedEventRef.current = head;
+
+    const moveId = head.payload?.moveId as string | undefined;
+    const target = (head.payload?.target as "enemy" | "player") ?? "enemy";
+    if (!moveId) return;
+    const m = movesTable[moveId];
+    if (!m) return;
+    const archetype = archetypeFor(moveId, m.type, m.category);
+    const shake = SHAKE_MOVES.has(moveId);
+
+    counterRef.current++;
+    setActive({ key: counterRef.current, archetype, target, shake, moveType: m.type });
+
+    // Auto-clear after the animation finishes. Scales with battle speed
+    // so the visual lifetime stays in sync with the typewriter pacing.
+    const speed = state.speed;
+    const dur = speed >= 5 ? 280 : speed >= 2 ? 420 : 600;
+    const t = window.setTimeout(() => setActive(null), dur);
+    return () => clearTimeout(t);
+  }, [head, state.speed]);
+
+  if (!active) return null;
+  // Type color is injected as a CSS variable so generic effects (impact,
+  // aura) can pick it up without hard-coded per-type rules.
+  const typeColor = TYPE_COLOR[active.moveType];
+  return (
+    <div
+      key={active.key}
+      className={`move-anim move-anim-${active.archetype} target-${active.target}${active.shake ? " shake-screen" : ""}`}
+      style={{ ["--type-color" as string]: typeColor }}
+      aria-hidden
+    >
+      {active.archetype === "fire-special"     && <ParticleStream className="fire-particle"    count={6} />}
+      {active.archetype === "water-special"    && <ParticleStream className="water-particle"   count={7} />}
+      {active.archetype === "grass-special"    && <ParticleStream className="grass-particle"   count={5} />}
+      {active.archetype === "ice-special"      && <ParticleStream className="ice-particle"     count={6} />}
+      {active.archetype === "poison-special"   && <ParticleStream className="poison-particle"  count={5} />}
+      {active.archetype === "bug-special"      && <ParticleStream className="bug-particle"     count={4} />}
+      {active.archetype === "rock-special"     && <ParticleStream className="rock-particle"    count={5} />}
+      {active.archetype === "ground-special"   && <ParticleStream className="ground-particle"  count={5} />}
+      {active.archetype === "flying-special"   && <ParticleStream className="flying-particle"  count={4} />}
+      {active.archetype === "normal-special"   && <ParticleStream className="normal-particle"  count={4} />}
+      {active.archetype === "fighting-special" && <FightingImpact />}
+      {active.archetype === "physical-impact"  && <PhysicalImpact />}
+      {active.archetype === "status-aura"      && <StatusAura />}
+      {active.archetype === "electric-special" && <ElectricBolt />}
+      {active.archetype === "psychic-special"  && <PsychicWave />}
+      {active.archetype === "ghost-special"    && <GhostWisps />}
+      {active.archetype === "dragon-special"   && <DragonBeam />}
+      {active.archetype === "dark-special"     && <DarkVoid />}
+      {active.archetype === "hyper-beam"       && <HyperBeam />}
+      {active.archetype === "solar-beam"       && <SolarBeam />}
+      {active.archetype === "explosion"        && <Explosion />}
+    </div>
+  );
+}
+
+// Generic flying-particle stream — used by most projectile-ish elements.
+// Per-type CSS picks the color/shape via the className passed in.
+function ParticleStream({ className, count }: { className: string; count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} className={className} />
+      ))}
+    </>
+  );
+}
+
+// Vertical jagged bolt + flash on the target.
+function ElectricBolt() {
+  return (
+    <>
+      <span className="electric-bolt" />
+      <span className="electric-flash" />
+    </>
+  );
+}
+
+// Pulsing ring centered on the target — pink/purple psychic feel.
+function PsychicWave() {
+  return (
+    <>
+      <span className="psychic-ring r1" />
+      <span className="psychic-ring r2" />
+      <span className="psychic-ring r3" />
+    </>
+  );
+}
+
+// Three semi-transparent purple wisps that drift toward the target then fade.
+function GhostWisps() {
+  return (
+    <>
+      <span className="ghost-wisp w1" />
+      <span className="ghost-wisp w2" />
+      <span className="ghost-wisp w3" />
+    </>
+  );
+}
+
+// Single thick beam that fires from attacker → defender. Saturated
+// orange/purple gradient evokes a dragon-energy feel.
+function DragonBeam() {
+  return <span className="dragon-beam" />;
+}
+
+// Dark wisps converging on the target with a vignette darkening the area.
+function DarkVoid() {
+  return (
+    <>
+      <span className="dark-vignette" />
+      <span className="dark-wisp w1" />
+      <span className="dark-wisp w2" />
+      <span className="dark-wisp w3" />
+    </>
+  );
+}
+
+// Quick slash + impact star on the target — heavier than the generic
+// physical-impact pulse to fit Fighting moves' weight.
+function FightingImpact() {
+  return (
+    <>
+      <span className="fighting-slash s1" />
+      <span className="fighting-slash s2" />
+      <span className="fighting-impact-star" />
+    </>
+  );
+}
+
+// Physical-impact: every non-special damaging move (Tackle, Body Slam,
+// Earthquake, Dragon Claw, etc.) gets a visible slash + ring burst on
+// the target. Tinted by --type-color so an Ice Punch reads blue, a Fire
+// Punch reads orange, etc.
+function PhysicalImpact() {
+  return (
+    <>
+      <span className="impact-slash s1" />
+      <span className="impact-slash s2" />
+      <span className="impact-ring" />
+    </>
+  );
+}
+
+// Status-aura: a colored expanding ring + sparkle on the target so stat
+// changes / status moves don't look like nothing's happening.
+function StatusAura() {
+  return (
+    <>
+      <span className="aura-ring r1" />
+      <span className="aura-ring r2" />
+      <span className="aura-sparkle s1" />
+      <span className="aura-sparkle s2" />
+      <span className="aura-sparkle s3" />
+    </>
+  );
+}
+
+// Hyper Beam — wide bright beam from attacker → defender + ring burst.
+function HyperBeam() {
+  return (
+    <>
+      <span className="hyperbeam-charge" />
+      <span className="hyperbeam-ray" />
+      <span className="hyperbeam-impact" />
+    </>
+  );
+}
+
+// Solar Beam — yellow gather aura on attacker, then a green beam blast.
+function SolarBeam() {
+  return (
+    <>
+      <span className="solarbeam-charge" />
+      <span className="solarbeam-ray" />
+      <span className="solarbeam-impact" />
+    </>
+  );
+}
+
+// Explosion / Self-Destruct — full-scene white flash + expanding fire ring.
+function Explosion() {
+  return (
+    <>
+      <span className="explosion-flash" />
+      <span className="explosion-ring" />
+      <span className="explosion-debris d1" />
+      <span className="explosion-debris d2" />
+      <span className="explosion-debris d3" />
+      <span className="explosion-debris d4" />
+      <span className="explosion-debris d5" />
+      <span className="explosion-debris d6" />
+    </>
+  );
+}

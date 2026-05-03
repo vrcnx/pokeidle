@@ -1,0 +1,151 @@
+import { useGame } from "../state/GameContext";
+import { encounters } from "../data/encounters";
+import { pokemonTable } from "../data/pokemon";
+import { pokemonSpriteUrl } from "../utils/sprites";
+import { resolveCatchSettings } from "../utils/catchSettings";
+import { BALL_ORDER } from "../utils/items";
+import { pokeballs } from "../data/pokeballs";
+import type { CatchMode, CatchSettings } from "../types";
+
+const MODE_OPTIONS: { value: CatchMode; label: string }[] = [
+  { value: "always",          label: "Always catch" },
+  { value: "shiny_only",      label: "Only shinies" },
+  { value: "level_threshold", label: "Above level…" },
+  { value: "pokedex_new",     label: "Not caught yet" },
+];
+
+// Per-route, per-species rules. Default falls through to globalCatchDefaults.
+export function CatchSettingsPanel() {
+  const { state, dispatch } = useGame();
+  const route = state.currentRoute;
+  const list = encounters[route]?.encounters ?? [];
+
+  function update(speciesKey: string, settings: CatchSettings) {
+    dispatch({
+      type: "SET_CATCH_RULE",
+      payload: { routeKey: route, speciesKey, settings },
+    });
+  }
+
+  function toggleAll(enabled: boolean) {
+    dispatch({
+      type: "TOGGLE_ROUTE_CATCH_ALL",
+      payload: { routeKey: route, enabled },
+    });
+  }
+
+  function updateGlobalDefaults(settings: CatchSettings) {
+    dispatch({ type: "SET_GLOBAL_CATCH_DEFAULTS", payload: { settings } });
+  }
+
+  return (
+    <div className="catch-settings-panel">
+      <h2>Catch settings — {route}</h2>
+      <p className="dim">Per-species rules for this route. Falls back to global defaults.</p>
+
+      <div className="catch-row global">
+        <strong>Global default</strong>
+        <CatchEditor settings={state.globalCatchDefaults} onChange={updateGlobalDefaults} />
+      </div>
+
+      {list.length === 0 ? (
+        <p className="dim">No wild encounters configured for this route.</p>
+      ) : (
+        <>
+          <div className="catch-bulk">
+            <button onClick={() => toggleAll(true)}>Enable all on this route</button>
+            <button onClick={() => toggleAll(false)}>Disable all</button>
+          </div>
+          <ul className="catch-list">
+            {list.map((e) => {
+              const rule = resolveCatchSettings(state, route, e.speciesKey);
+              return (
+                <li key={e.speciesKey}>
+                  <img
+                    src={pokemonSpriteUrl(e.speciesKey)}
+                    alt={e.speciesKey}
+                    width={48}
+                    height={48}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                  <div>
+                    <strong>{pokemonTable[e.speciesKey]?.name ?? e.speciesKey}</strong>
+                    <small className="dim">
+                      L{e.minLevel}–{e.maxLevel} · weight {e.weight}
+                    </small>
+                  </div>
+                  <CatchEditor
+                    settings={rule}
+                    onChange={(s) => update(e.speciesKey, s)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CatchEditor({
+  settings,
+  onChange,
+}: {
+  settings: CatchSettings;
+  onChange: (s: CatchSettings) => void;
+}) {
+  return (
+    <div className="catch-editor">
+      <label>
+        <input
+          type="checkbox"
+          checked={settings.enabled}
+          onChange={(e) => onChange({ ...settings, enabled: e.target.checked })}
+        />{" "}
+        Auto-catch
+      </label>
+      <select
+        value={settings.mode}
+        onChange={(e) =>
+          onChange({ ...settings, mode: e.target.value as CatchMode })
+        }
+      >
+        {MODE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {settings.mode === "level_threshold" && (
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={settings.levelThreshold}
+          onChange={(e) =>
+            onChange({ ...settings, levelThreshold: Number(e.target.value) })
+          }
+        />
+      )}
+      <div className="catch-balls">
+        {BALL_ORDER.map((b) => {
+          const enabled = settings.enabledBalls.includes(b);
+          return (
+            <label key={b}>
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={() => {
+                  const next = enabled
+                    ? settings.enabledBalls.filter((id) => id !== b)
+                    : [...settings.enabledBalls, b];
+                  onChange({ ...settings, enabledBalls: next });
+                }}
+              />{" "}
+              {pokeballs[b].name.replace(" Ball", "")}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

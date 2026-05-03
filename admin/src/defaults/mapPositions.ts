@@ -1,0 +1,58 @@
+// Baseline positions copied from `game/src/data/regions/kanto/routes.ts`.
+// Used by MapEditorPage so the editor starts in a useful state when no
+// admin-saved positions exist in the DB yet — every node renders at its
+// in-game default, ready to be tweaked.
+//
+// When you add a new location to the game's routes.ts, add it here too
+// so the admin can place it (or just type the id and click save once).
+
+export const DEFAULT_MAP_POSITIONS: Record<string, { x: number; y: number }> = {
+  indigoPlat:      { x: 23.27, y: 26.92 },
+  victoryRoad:     { x: 23.27, y: 33.75 },
+  route23:         { x: 23.27, y: 49.32 },
+  route22:         { x: 26.09, y: 56.89 },
+  pewterCity:      { x: 29.64, y: 33.75 },
+  viridianForest:  { x: 29.64, y: 49.32 },
+  route2:          { x: 29.64, y: 41.44 },
+  viridianCity:    { x: 29.64, y: 56.89 },
+  route1:          { x: 29.64, y: 64.84 },
+  palletTown:      { x: 29.64, y: 75.18 },
+  route21:         { x: 29.64, y: 84.21 },
+  cinnabarIsland:  { x: 29.64, y: 91.18 },
+  route3:          { x: 36.29, y: 33.75 },
+  mtMoon:          { x: 42.11, y: 28.58 },
+  route4:          { x: 51.39, y: 28.58 },
+  ceruleanCity:    { x: 61.63, y: 28.58 },
+  route9:          { x: 67.87, y: 28.58 },
+  rockTunnel:      { x: 74.10, y: 28.58 },
+  route24:         { x: 61.63, y: 22.21 },
+  route25:         { x: 64.68, y: 17.84 },
+  ceruleanCave:    { x: 67.87, y: 17.84 },
+  route10:         { x: 74.10, y: 36.52 },
+  powerPlant:      { x: 76.22, y: 39.80 },
+  route5:          { x: 61.63, y: 36.52 },
+  saffronCity:     { x: 61.63, y: 45.26 },
+  route6:          { x: 61.63, y: 53.51 },
+  vermilionCity:   { x: 61.63, y: 62.87 },
+  route7:          { x: 55.82, y: 45.26 },
+  celadonCity:     { x: 50.28, y: 45.26 },
+  route8:          { x: 67.87, y: 45.26 },
+  lavenderTown:    { x: 74.10, y: 45.26 },
+  pokemonTower:    { x: 74.10, y: 53.51 },
+  route11:         { x: 67.87, y: 62.87 },
+  diglettsCave:    { x: 67.87, y: 56.89 },
+  route16:         { x: 39.06, y: 45.26 },
+  route17:         { x: 39.06, y: 62.87 },
+  route18:         { x: 45.84, y: 81.33 },
+  route12:         { x: 74.10, y: 69.02 },
+  route13:         { x: 68.84, y: 75.18 },
+  route14:         { x: 64.68, y: 77.89 },
+  route15:         { x: 60.39, y: 81.33 },
+  fuchsiaCity:     { x: 54.99, y: 81.33 },
+  safariZone:      { x: 54.99, y: 75.18 },
+  route19:         { x: 54.99, y: 88.23 },
+  route20:         { x: 45.84, y: 91.18 },
+  seafoamIslands:  { x: 39.06, y: 91.18 },
+  pokemonMansion:  { x: 26.87, y: 91.18 },
+  raidIsland:      { x: 88.43, y: 10.08 },
+};
