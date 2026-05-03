@@ -10,8 +10,8 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#a0a0a0",
       spriteKey: "brock-gen3",
       team: [
-        { speciesKey: "geodude", level: 12 },
-        { speciesKey: "onix", level: 14 },
+        { speciesKey: "geodude", level: 14 },
+        { speciesKey: "onix", level: 16 },
       ],
     },
     {
@@ -23,8 +23,8 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#4a90d9",
       spriteKey: "misty-gen3",
       team: [
-        { speciesKey: "staryu", level: 18 },
-        { speciesKey: "starmie", level: 21 },
+        { speciesKey: "staryu", level: 23 },
+        { speciesKey: "starmie", level: 26 },
       ],
     },
     {
@@ -36,9 +36,9 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#f0c030",
       spriteKey: "ltsurge-gen3",
       team: [
-        { speciesKey: "voltorb", level: 21 },
-        { speciesKey: "pikachu", level: 18 },
-        { speciesKey: "raichu", level: 24 },
+        { speciesKey: "voltorb", level: 28 },
+        { speciesKey: "pikachu", level: 25 },
+        { speciesKey: "raichu", level: 32 },
       ],
     },
     {
@@ -50,9 +50,9 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#78c850",
       spriteKey: "erika-gen3",
       team: [
-        { speciesKey: "victreebel", level: 29 },
-        { speciesKey: "tangela", level: 24 },
-        { speciesKey: "vileplume", level: 29 },
+        { speciesKey: "victreebel", level: 36 },
+        { speciesKey: "tangela", level: 31 },
+        { speciesKey: "vileplume", level: 38 },
       ],
     },
     {
@@ -64,10 +64,10 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#a040a0",
       spriteKey: "koga-gen3",
       team: [
-        { speciesKey: "koffing", level: 37 },
-        { speciesKey: "muk", level: 39 },
-        { speciesKey: "koffing", level: 37 },
-        { speciesKey: "weezing", level: 43 },
+        { speciesKey: "koffing", level: 41 },
+        { speciesKey: "muk", level: 43 },
+        { speciesKey: "koffing", level: 41 },
+        { speciesKey: "weezing", level: 47 },
       ],
     },
     {
@@ -79,10 +79,10 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#e868a8",
       spriteKey: "sabrina-gen3",
       team: [
-        { speciesKey: "kadabra", level: 38 },
-        { speciesKey: "mrMime", level: 37 },
-        { speciesKey: "venomoth", level: 38 },
-        { speciesKey: "alakazam", level: 43 },
+        { speciesKey: "kadabra", level: 47 },
+        { speciesKey: "mrMime", level: 46 },
+        { speciesKey: "venomoth", level: 47 },
+        { speciesKey: "alakazam", level: 53 },
       ],
     },
     {
@@ -94,10 +94,10 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#f08030",
       spriteKey: "blaine-gen3",
       team: [
-        { speciesKey: "growlithe", level: 42 },
-        { speciesKey: "ponyta", level: 40 },
-        { speciesKey: "rapidash", level: 42 },
-        { speciesKey: "arcanine", level: 47 },
+        { speciesKey: "growlithe", level: 53 },
+        { speciesKey: "ponyta", level: 51 },
+        { speciesKey: "rapidash", level: 54 },
+        { speciesKey: "arcanine", level: 60 },
       ],
     },
     {
@@ -109,11 +109,11 @@ export const gymLeaders: GymLeader[] = [
       badgeColor: "#e0c068",
       spriteKey: "giovanni-gen3",
       team: [
-        { speciesKey: "rhyhorn", level: 45 },
-        { speciesKey: "dugtrio", level: 42 },
-        { speciesKey: "nidoqueen", level: 44 },
-        { speciesKey: "nidoking", level: 45 },
-        { speciesKey: "rhydon", level: 50 },
+        { speciesKey: "rhyhorn", level: 58 },
+        { speciesKey: "dugtrio", level: 55 },
+        { speciesKey: "nidoqueen", level: 58 },
+        { speciesKey: "nidoking", level: 60 },
+        { speciesKey: "rhydon", level: 65 },
       ],
     },
   ];
