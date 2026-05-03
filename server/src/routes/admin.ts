@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { prisma } from "../db.js";
 import { requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit } from "../lib/audit.js";
+import { validateSave } from "../lib/saveValidation.js";
+import { computeAccountLevel } from "../lib/level.js";
 
 const app = new Hono();
 
@@ -153,6 +155,98 @@ app.delete("/users/:id", async (c) => {
     return c.json({ error: "user not found" }, 404);
   }
 });
+
+// Apply a partial patch to a user's save data. The patch is a partial
+// object; only allow-listed top-level keys are accepted, and the
+// merged result is run through the same validateSave the player's own
+// uploads pass through. After a successful patch we bump saveVersion
+// so the player's next save (if their tab is still open) will get
+// rejected as stale and re-pull the cloud copy.
+//
+// Allowed keys are explicitly listed below. New fields the admin
+// dashboard wants to edit must be added here AND understood by
+// validateSave or they'll be rejected.
+const PATCHABLE_KEYS = new Set([
+  "money",
+  "inventory",
+  "party",
+  "box",
+  "defeatedGyms",
+  "defeatedEliteFour",
+  "championDefeated",
+  "victoryTokens",
+  "pokedexCaught",
+  "pokedexSeen",
+  "shinyCaught",
+  "shinySeen",
+  "unlockedLocations",
+  "currentLocation",
+  "activePlayerPokemonIndex",
+  "battlesWonByLocation",
+  "wildBattlesWon",
+  "trainerBattlesWon",
+]);
+
+app.post("/users/:id/save-patch", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { patch?: Record<string, unknown> }
+    | null;
+  if (!body?.patch || typeof body.patch !== "object" || Array.isArray(body.patch)) {
+    return c.json({ error: "patch object required" }, 400);
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { saveData: true, saveVersion: true },
+  });
+  if (!target) return c.json({ error: "user not found" }, 404);
+
+  const baseSave = target.saveData ? safeParseObject(target.saveData) : {};
+  if (!baseSave) return c.json({ error: "user save is corrupt" }, 500);
+
+  const merged: Record<string, unknown> = { ...baseSave };
+  const appliedKeys: string[] = [];
+  for (const [key, value] of Object.entries(body.patch)) {
+    if (!PATCHABLE_KEYS.has(key)) {
+      return c.json({ error: `key not patchable: ${key}` }, 400);
+    }
+    merged[key] = value;
+    appliedKeys.push(key);
+  }
+
+  const v = validateSave(merged);
+  if (!v.ok) {
+    return c.json({ error: "patch produced invalid save", reason: v.reason }, 400);
+  }
+
+  const derived = computeAccountLevel(merged);
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      saveData: JSON.stringify(merged),
+      saveVersion: { increment: 1 },
+      saveUpdatedAt: new Date(),
+      accountLevel: derived.accountLevel,
+      totalCaughtLevels: derived.totalCaughtLevels,
+      pokedexCaughtCount: derived.pokedexCaughtCount,
+    },
+    select: { id: true, saveVersion: true, accountLevel: true, pokedexCaughtCount: true },
+  });
+
+  void audit(me.id, "user.save_patch", id, { keys: appliedKeys });
+  return c.json({ ok: true, ...updated, keys: appliedKeys });
+});
+
+function safeParseObject(s: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(s);
+    return v && typeof v === "object" && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 // Reset a user's save (clears the JSON blob — they'll be back in the
 // starter-select state on next login).

@@ -252,6 +252,120 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .save-inspect summary { cursor: pointer; font-size: 12px; font-weight: 600; }
 .save-inspect pre { font-size: 10px; line-height: 1.5; max-height: 380px; overflow: auto; margin: 8px 0 0; color: var(--text-muted); }
 
+/* Save editor — folded inline below the read-only stats. */
+.save-editor {
+  margin-bottom: 18px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.save-editor-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.save-editor-head h3 { margin: 0; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+.save-editor-body { padding: 12px 14px 4px; }
+.save-section { margin-bottom: 14px; }
+.save-section h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.save-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.save-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.save-field span { color: var(--text-muted); }
+.save-field input,
+.save-editor input[type="number"],
+.save-editor input[type="text"] {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  width: 100%;
+}
+.save-editor input:focus { outline: none; border-color: var(--text-muted); }
+
+.save-checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 12px; }
+.save-checks-tight { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.save-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.save-check input { margin: 0; cursor: pointer; }
+
+.inv-rows { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.inv-row {
+  display: grid;
+  grid-template-columns: 1fr 90px auto;
+  gap: 8px;
+  align-items: center;
+}
+.inv-id {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-add {
+  display: grid;
+  grid-template-columns: 1fr 90px auto;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  align-items: center;
+}
+
+.poke-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.poke-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.poke-row:hover { background: var(--panel-3); }
+.poke-name { font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poke-level { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+.poke-level input { width: 60px; padding: 4px 6px; }
+.poke-box-details summary { cursor: pointer; padding: 6px 0; }
+
+.btn-tiny {
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1;
+  min-width: 0;
+}
+.btn-small { padding: 4px 10px; font-size: 11px; }
+
+.save-editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  margin: 0 -14px -4px;
+}
+.save-editor-msg { flex: 1; }
+
 /* Chat moderation */
 .chat-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .chat-table th, .chat-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: top; }

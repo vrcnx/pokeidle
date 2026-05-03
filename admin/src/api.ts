@@ -89,6 +89,12 @@ export const api = {
   deleteUser: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/users/${id}`),
   resetSave: (id: string) =>
     req<{ id: string; saveVersion: number }>("POST", `/api/admin/users/${id}/reset-save`),
+  savePatch: (id: string, patch: Record<string, unknown>) =>
+    req<{ ok: true; id: string; saveVersion: number; accountLevel: number; pokedexCaughtCount: number; keys: string[] }>(
+      "POST",
+      `/api/admin/users/${id}/save-patch`,
+      { patch },
+    ),
 
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
