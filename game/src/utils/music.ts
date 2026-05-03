@@ -143,6 +143,17 @@ class MusicManager {
     this.playNext();
   }
 
+  /** Temporarily silence the music without flipping the enabled flag
+   *  or interfering with any in-flight crossfade. Used by foreground
+   *  effects that want to take centre stage briefly (e.g. the Pokémon
+   *  Center heal chime). The audio elements keep their current
+   *  volume/playback state — `muted` is layered on top, so unducking
+   *  immediately restores them. */
+  duck(on: boolean): void {
+    if (this.active) this.active.muted = on;
+    if (this.incoming) this.incoming.muted = on;
+  }
+
   // ── Internals ───────────────────────────────────────────────────
 
   private persist(): void {
@@ -196,6 +207,17 @@ class MusicManager {
       window.clearInterval(this.fadeTimer);
       this.fadeTimer = null;
     }
+    // If a previous crossfade was still mid-flight, its `incoming`
+    // is now orphaned — pause it immediately so we don't end up
+    // with overlapping tracks layered on top of each other (the
+    // bug: rapid location changes left old tracks audible in the
+    // background even after their target location was gone). The
+    // PREVIOUS active becomes the one fading out; the OLD incoming
+    // gets killed outright.
+    if (this.incoming && this.incoming !== into) {
+      this.incoming.pause();
+      this.incoming.src = "";
+    }
     const out = this.active;
     this.incoming = into;
     const targetVol = this.state.volume;
@@ -218,6 +240,13 @@ class MusicManager {
   }
 
   private fadeOut(): void {
+    // Kill any in-flight incoming first — same orphan-prevention as
+    // crossfade, just on the way down.
+    if (this.incoming) {
+      this.incoming.pause();
+      this.incoming.src = "";
+      this.incoming = null;
+    }
     if (!this.active) return;
     const out = this.active;
     const startVol = out.volume;

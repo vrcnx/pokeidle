@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { sfxManager } from "../utils/sfx";
+import { musicManager } from "../utils/music";
 
 // In-scene heal animation. The heal video is the source of truth for
 // timing — we play it through completely and fire COMPLETE_HEALING on
@@ -45,6 +46,10 @@ export function HealOverlay() {
     // is done. Pitch is preserved so the chime still sounds itself
     // even at 5× speed.
     sfxManager.play("heal", { rate: playRate });
+    // Duck the background music while the heal chime is playing so
+    // the sting reads cleanly. The cleanup below unducks when the
+    // heal scene tears down (or the user travels away mid-heal).
+    musicManager.duck(true);
 
     const start = () => {
       const dur = (isFinite(v?.duration ?? NaN) && (v?.duration ?? 0) > 0)
@@ -84,6 +89,7 @@ export function HealOverlay() {
       if (stepT2) clearTimeout(stepT2);
       if (safety) clearTimeout(safety);
       if (v) v.removeEventListener("ended", onEnded);
+      musicManager.duck(false);
     };
   }, [active, dispatch]);
 

@@ -208,10 +208,18 @@ function ExpGainFlash() {
     return () => clearTimeout(t);
   }, [state.battleLog, state.speed]);
   if (!pop) return null;
+  // Scale the CSS animation duration to the game's speed so the
+  // pop's keyframes finish in the same window the JS unmount timer
+  // is using. Otherwise at 5× speed the element is removed at 700ms
+  // while the (fixed-1400ms) animation has only completed half its
+  // travel — looked broken / out of sync. Match the JS timing
+  // exactly: ×1 → 1400ms, ×2 → 1000ms, ×5 → 700ms.
+  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
   return (
     <div
       key={pop.key}
       className={`exp-gain-flash ${pop.share ? "share" : "active"}`}
+      style={{ animationDuration: `${animMs}ms` }}
       aria-hidden
     >
       +{pop.amount} EXP
