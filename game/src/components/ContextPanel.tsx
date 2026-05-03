@@ -90,6 +90,9 @@ function BattleTrainerPanel() {
   const leader = getGymLeaderForLocation(state.currentLocation);
   if (leader) {
     const defeated = state.defeatedGyms.includes(leader.id);
+    const reqBadges = gymBadgeRequirement(leader.id);
+    const haveBadges = state.defeatedGyms.length;
+    const lockedByBadges = !defeated && reqBadges > haveBadges;
     return (
       <section className="ctx-section">
         <h4>Gym Leader</h4>
@@ -108,10 +111,16 @@ function BattleTrainerPanel() {
           </div>
           <button
             type="button"
-            title={defeated
-              ? "You've already beaten this gym — challenge again for the rematch"
-              : "Bails out of any active battle, heals your party, and starts the gym fight"}
+            disabled={lockedByBadges}
+            title={
+              lockedByBadges
+                ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
+                : defeated
+                ? "You've already beaten this gym — challenge again for the rematch"
+                : "Bails out of any active battle, heals your party, and starts the gym fight"
+            }
             onClick={() => {
+              if (lockedByBadges) return;
               const { team } = buildTeam(leader.team, `gym_${leader.id}_${Date.now()}`);
               dispatch({
                 type: "START_BOSS_BATTLE",
@@ -126,7 +135,7 @@ function BattleTrainerPanel() {
               });
             }}
           >
-            {defeated ? "Rematch" : "Challenge"}
+            {lockedByBadges ? `🔒 ${reqBadges} badges` : defeated ? "Rematch" : "Challenge"}
           </button>
         </div>
         <p className="dim small" style={{ margin: "6px 0 0" }}>
@@ -220,9 +229,14 @@ function IdleTownPanel() {
   const here = state.currentLocation;
   const route = routes[here];
   const leader = getGymLeaderForLocation(here);
+  const defeatedHere = leader ? state.defeatedGyms.includes(leader.id) : false;
+  const reqBadges = leader ? gymBadgeRequirement(leader.id) : 0;
+  const haveBadges = state.defeatedGyms.length;
+  const lockedByBadges = !!leader && !defeatedHere && reqBadges > haveBadges;
 
   function challengeGym() {
     if (!leader) return;
+    if (lockedByBadges) return;
     // No "already in battle" gate — START_BOSS_BATTLE bails from the
     // current encounter and heals the party before the boss fight.
     // No "already defeated" gate either — players can rematch any time.
@@ -261,10 +275,19 @@ function IdleTownPanel() {
             </div>
             <button
               type="button"
+              disabled={lockedByBadges}
               onClick={challengeGym}
-              title="Bails out of any active battle, heals your party, and starts the gym fight"
+              title={
+                lockedByBadges
+                  ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
+                  : "Bails out of any active battle, heals your party, and starts the gym fight"
+              }
             >
-              {state.defeatedGyms.includes(leader.id) ? "Rematch" : "Challenge"}
+              {lockedByBadges
+                ? `🔒 ${reqBadges} badges`
+                : defeatedHere
+                  ? "Rematch"
+                  : "Challenge"}
             </button>
           </div>
         </section>
@@ -457,6 +480,17 @@ function IdleRaidPanel() {
       </section>
     </>
   );
+}
+
+// How many badges the player must already own before they're allowed
+// to challenge a given gym leader. Most gyms are open from the start
+// — the player just needs to physically reach the city. Giovanni is
+// the exception: he's positioned in Viridian (which the player can
+// reach almost immediately) but is canonically the final gym, so we
+// gate him behind 7 prior badges to preserve the intended progression.
+function gymBadgeRequirement(leaderId: string): number {
+  if (leaderId === "giovanni") return 7;
+  return 0;
 }
 
 function tierUnlockHint(t: RaidTier): string {

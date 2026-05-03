@@ -47,6 +47,16 @@ export const sfxLibrary: Record<SfxCategory, string[]> = {
   ],
 };
 
+// Pokemon cries — hosted by PokeAPI on GitHub. `latest` is the
+// modern Gen-5+ recording (every species has one); `legacy` is the
+// retro 8-bit chiptune cry (only Gen 1-2, #1-251). Strategy: try
+// latest first, fall back to legacy on 404 so newer species still
+// chirp something instead of going silent.
+const CRY_LATEST = (id: number) =>
+  `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`;
+const CRY_LEGACY = (id: number) =>
+  `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/legacy/${id}.ogg`;
+
 function trackUrl(cat: SfxCategory, file: string): string {
   return `/music/sound-effects/${cat}/${encodeURIComponent(file)}`;
 }
@@ -144,6 +154,43 @@ class SfxManager {
       // Autoplay-blocked or 404 — drop quietly. Music's first-gesture
       // unlock will eventually clear the autoplay block.
       this.active.delete(audio);
+    });
+  }
+
+  /** Play a Pokemon's species cry. Tries the modern (latest) cry
+   *  first; on 404 falls back to the legacy 8-bit cry. Honours the
+   *  same enabled / volume settings as other SFX. */
+  playCry(dexId: number): void {
+    if (!this.state.enabled) return;
+    if (!Number.isFinite(dexId) || dexId <= 0) return;
+    if (this.active.size >= MAX_CONCURRENT) {
+      const oldest = this.active.values().next().value as HTMLAudioElement | undefined;
+      if (oldest) { oldest.pause(); this.active.delete(oldest); }
+    }
+    const audio = new Audio(CRY_LATEST(dexId));
+    audio.volume = this.state.volume * SFX_VOLUME_TRIM;
+    audio.preload = "auto";
+    this.active.add(audio);
+    let triedLegacy = false;
+    audio.addEventListener("ended", () => { this.active.delete(audio); });
+    audio.addEventListener("error", () => {
+      if (!triedLegacy) {
+        triedLegacy = true;
+        audio.src = CRY_LEGACY(dexId);
+        void audio.play().catch(() => { this.active.delete(audio); });
+      } else {
+        this.active.delete(audio);
+      }
+    });
+    void audio.play().catch(() => {
+      // Same fallback path: try legacy if the initial play() rejects.
+      if (!triedLegacy) {
+        triedLegacy = true;
+        audio.src = CRY_LEGACY(dexId);
+        void audio.play().catch(() => { this.active.delete(audio); });
+      } else {
+        this.active.delete(audio);
+      }
     });
   }
 

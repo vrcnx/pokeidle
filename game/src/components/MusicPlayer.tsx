@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
+import { pokemonTable } from "../data/pokemon";
 import { musicManager } from "../utils/music";
+import { sfxManager } from "../utils/sfx";
 import type { MusicCategory } from "../data/musicPlaylists";
 
 // Watches game state and tells the music manager which playlist
@@ -76,6 +78,24 @@ export function MusicPlayer() {
     lastLoc.current = state.currentLocation;
     lastBossId.current = bossId;
   }, [cat, state.currentLocation, state.bossBattle?.bossId]);
+
+  // Pokemon cry on encounter — fires whenever a new enemy Pokemon
+  // appears (wild encounter, trainer's next mon, gym leader's lead,
+  // etc). Keyed by enemy id + speciesKey so consecutive wilds of the
+  // same species each play a cry.
+  const lastEnemyId = useRef<string | null>(null);
+  const enemyKey = state.enemyPokemon?.speciesKey ?? null;
+  const enemyId = state.enemyPokemon?.id ?? null;
+  useEffect(() => {
+    if (!enemyKey || !enemyId) {
+      lastEnemyId.current = null;
+      return;
+    }
+    if (lastEnemyId.current === enemyId) return;
+    lastEnemyId.current = enemyId;
+    const dexId = pokemonTable[enemyKey]?.id;
+    if (dexId) sfxManager.playCry(dexId);
+  }, [enemyKey, enemyId]);
 
   return null;
 }
