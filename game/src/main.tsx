@@ -5,6 +5,7 @@ import { GameProvider } from "./state/GameContext";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginScreen } from "./auth/LoginScreen";
 import { ResetPasswordScreen } from "./auth/ResetPasswordScreen";
+import { FirstVisitDisclaimer } from "./components/FirstVisitDisclaimer";
 import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
 import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
@@ -39,12 +40,22 @@ function Root() {
   if (window.location.pathname.startsWith("/reset-password")) {
     return <ResetPasswordScreen />;
   }
-  if (status === "loading") return <LoadingSplash />;
-  if (status === "anonymous") return <LoginScreen />;
   return (
-    <GameProvider>
-      <App />
-    </GameProvider>
+    <>
+      {/* First-visit fan-game disclaimer — sits above whatever the user
+          would otherwise see (login screen or game). Locks scroll until
+          accepted; once dismissed, never shown again on this device. */}
+      <FirstVisitDisclaimer />
+      {status === "loading" ? (
+        <LoadingSplash />
+      ) : status === "anonymous" ? (
+        <LoginScreen />
+      ) : (
+        <GameProvider>
+          <App />
+        </GameProvider>
+      )}
+    </>
   );
 }
 

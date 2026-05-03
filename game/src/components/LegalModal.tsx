@@ -243,12 +243,14 @@ function DisclaimerContent() {
         loads sprites at runtime from public third-party CDN URLs that
         already host those images.
       </p>
-      <h4>Takedowns</h4>
+      <h4>Contact</h4>
       <p>
+        Bug reports, takedown requests, account issues, anything else —
+        email <a href="mailto:contact@pokeidle.com">contact@pokeidle.com</a>.
         If you are a Pokémon rights-holder (or their authorized
         representative) and you would like content removed or the
-        project shut down, please email us — we will comply promptly. No
-        notice or formality is required.
+        project shut down, we will comply promptly. No notice or
+        formality is required.
       </p>
       <p className="dim small">
         "Pokémon" and "Pokémon character names" are trademarks of

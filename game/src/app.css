@@ -4712,10 +4712,27 @@ body.is-dragging .pc-slot.empty {
   .move-slot { font-size: 8px; padding: 3px 5px; }
   .move-slot-stats { font-size: 6px; gap: 4px; }
   .tab-icon { font-size: 16px; }
-  /* Even tighter on phones. */
+  /* Even tighter on phones — drop the label to keep four square icon
+     buttons at comfortable tap size. The action is still surfaced via
+     the title attribute for long-press. */
   .moves-toolbar .toolbar-btn,
-  .moves-toolbar .more-actions-trigger { font-size: 10px; padding: 0 8px; }
-  .moves-toolbar .speed-btn { font-size: 10px; padding: 0 7px; }
+  .moves-toolbar .more-actions-trigger {
+    font-size: 0;
+    padding: 0 !important;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    justify-content: center;
+  }
+  .moves-toolbar .toolbar-btn span,
+  .moves-toolbar .more-actions-trigger span { display: none; }
+  .moves-toolbar .toolbar-btn svg,
+  .moves-toolbar .more-actions-trigger svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0;
+  }
+  .moves-toolbar .speed-btn { font-size: 11px; padding: 0 7px; }
 }
 
 /* ---------- Scene-content wrapper (lets us shake everything inside the
@@ -10314,6 +10331,63 @@ input:focus, textarea:focus, select:focus {
 
 /* Legal modal — three-tab dialog used on signup AND from the footer. */
 .legal-modal { max-width: 720px; width: min(720px, 96vw); }
+
+/* First-visit fan-game disclaimer — non-dismissable overlay shown once
+   per browser before anything else loads. Sits above auth screen and
+   game; the only way out is the "I understand" button. */
+.disclaimer-overlay {
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
+}
+.disclaimer-modal {
+  width: min(520px, 96vw);
+  max-height: 92vh;
+}
+.disclaimer-modal .g-modal-head { border-bottom: 1px solid var(--border); }
+.disclaimer-body { gap: 10px; }
+.disclaimer-lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.disclaimer-lead strong { color: #fff; }
+.disclaimer-points {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.disclaimer-points li::marker { color: var(--text-dim); }
+.disclaimer-contact {
+  margin: 4px 0 0;
+  font-size: 13px;
+  background: var(--panel-2, #1a1a1a);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.disclaimer-contact a {
+  color: #93c5fd;
+  font-weight: 600;
+}
+.disclaimer-foot {
+  justify-content: center;
+}
+.disclaimer-accept {
+  min-width: 240px;
+}
+@media (max-width: 480px) {
+  .disclaimer-modal { width: 100%; max-height: calc(100vh - 12px); }
+  .disclaimer-lead { font-size: 13px; }
+  .disclaimer-points { font-size: 12px; padding-left: 16px; }
+  .disclaimer-contact { font-size: 12px; padding: 8px 10px; }
+  .disclaimer-accept { min-width: 0; width: 100%; }
+}
 .legal-tabs {
   display: flex;
   gap: 0;
