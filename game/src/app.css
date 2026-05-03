@@ -475,10 +475,14 @@ header.tab-pane-head.v2 .tab-pane-head-row {
   padding: 10px 12px;
 }
 /* Reset the h3 baseline since we're inside .v2 — explicit line-height
-   so the inherited 1.5 doesn't add a phantom gap below the title. */
+   so the inherited 1.5 doesn't add a phantom gap below the title.
+   `!important` on the color so legacy per-tab overrides
+   (`.mart-tab .tab-pane-head h3 { color: #0a0a0a !important }`) from
+   when those tabs had light backgrounds don't leak through to the
+   new flat-gray v2 header. */
 header.tab-pane-head.v2 h3 {
   margin: 0;
-  color: #fff;
+  color: #fff !important;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.4px;
@@ -486,6 +490,7 @@ header.tab-pane-head.v2 h3 {
   line-height: 1;
   display: flex;
   align-items: center;
+  text-shadow: none !important;
 }
 header.tab-pane-head.v2 h3 small {
   display: inline;
@@ -494,15 +499,17 @@ header.tab-pane-head.v2 h3 small {
   font-weight: 600;
   letter-spacing: 0.6px;
   text-transform: none;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.55) !important;
+  text-shadow: none !important;
 }
 header.tab-pane-head.v2 .tab-pane-head-meta {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.3px;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.78) !important;
   white-space: nowrap;
   line-height: 1;
+  text-shadow: none !important;
 }
 header.tab-pane-head.v2 .tab-pane-head-tools {
   display: flex;
