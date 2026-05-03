@@ -16,7 +16,15 @@ type Mode = "signin" | "signup" | "forgot";
 // the message is correct but a bit terse, so we override the most
 // common ones for clarity. Anything we don't know how to map falls
 // through to the server's own message.
-function friendlyAuthError(err: ApiError, mode: Mode): string {
+function friendlyAuthError(err: ApiError, mode: Mode, googleEnabled: boolean): string {
+  // Hint appended to credential errors when the email might be on a
+  // Google-linked account. Better Auth doesn't tell us "this email is
+  // Google-only" (and shouldn't, for enumeration safety) so we just
+  // surface the option whenever Google is configured.
+  const googleHint = googleEnabled
+    ? " If you signed up with Google, use Continue with Google below."
+    : "";
+
   // Banned account — server middleware returns 403 with banReason.
   if (err.status === 403 && err.details?.error === "banned") {
     const until = err.details?.bannedUntil
@@ -35,7 +43,7 @@ function friendlyAuthError(err: ApiError, mode: Mode): string {
     // ── Sign-up rejections ────────────────────────────────────────────
     case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
     case "USER_ALREADY_EXISTS":
-      return "An account with that email already exists. Try signing in instead.";
+      return "An account with that email already exists. Try signing in instead." + googleHint;
     case "USERNAME_IS_ALREADY_TAKEN":
       return "That username is already taken. Pick another.";
     case "USERNAME_TOO_SHORT":
@@ -55,11 +63,11 @@ function friendlyAuthError(err: ApiError, mode: Mode): string {
     // ── Sign-in rejections ────────────────────────────────────────────
     case "INVALID_EMAIL_OR_PASSWORD":
     case "INVALID_USERNAME_OR_PASSWORD":
-      return mode === "signin"
+      return (mode === "signin"
         ? "Wrong email/username or password."
-        : "Wrong credentials.";
+        : "Wrong credentials.") + googleHint;
     case "USER_NOT_FOUND":
-      return "No account found with that email or username.";
+      return "No account found with that email or username." + googleHint;
     case "EMAIL_NOT_VERIFIED":
       return "Please verify your email before signing in.";
 
@@ -156,7 +164,7 @@ export function LoginScreen() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(friendlyAuthError(err, mode));
+        setError(friendlyAuthError(err, mode, providers.google));
       } else {
         setError("Couldn't reach the server. Check your connection and try again.");
       }
@@ -368,7 +376,7 @@ export function LoginScreen() {
                     }
                   } catch (err) {
                     if (err instanceof ApiError) {
-                      setError(friendlyAuthError(err, mode));
+                      setError(friendlyAuthError(err, mode, providers.google));
                     } else {
                       setError("Couldn't reach the server. Try again.");
                     }

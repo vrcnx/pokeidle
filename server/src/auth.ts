@@ -93,6 +93,38 @@ export const auth = betterAuth({
       usernameValidator: (u) => /^[a-zA-Z0-9_]{3,20}$/.test(u),
     }),
   ],
+  // Account linking — credentials and Google can attach to the same
+  // User row when the email matches and the OAuth provider verified the
+  // email (Google always does). With this on, a player who signed up
+  // with email/password and later clicks "Continue with Google" gets
+  // auto-linked instead of a "user already exists" error, and vice
+  // versa. `trustedProviders` makes the intent explicit even though
+  // emailVerified=true would already let it through.
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
+  // Auto-generate a username for OAuth signups. Google doesn't return
+  // one and the User table requires it (NOT NULL + unique), so without
+  // this hook the OAuth flow blows up with "Argument `username` is
+  // missing." Strategy: derive from email local-part, sanitize to the
+  // same alphabet the credentials path uses, and append random digits
+  // until we land on something free.
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const u = user as typeof user & { username?: string; displayUsername?: string };
+          if (u.username) return { data: u };
+          u.username = await generateUniqueUsername(u.email ?? "");
+          if (!u.displayUsername) u.displayUsername = u.username;
+          return { data: u };
+        },
+      },
+    },
+  },
   advanced: {
     cookiePrefix: "pkmn",
     crossSubDomainCookies: { enabled: false },
@@ -116,4 +148,33 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// Derive a free username from an email for OAuth signups. Used by the
+// databaseHooks.user.create.before hook so Google/etc. signups have a
+// valid username on first write. Strategy: take the local-part, strip
+// to the credentials-path alphabet [a-zA-Z0-9_], clamp to 3..16 chars
+// (leaves room for collision suffix), then probe the DB for a free
+// slot, falling back to base + random 3-digit suffix on conflict.
+async function generateUniqueUsername(email: string): Promise<string> {
+  const local = email.split("@")[0] ?? "";
+  let base = local.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 16);
+  if (base.length < 3) base = "trainer";
+
+  // Probe a few candidates. The first try is the bare base — works for
+  // ~all first-time signups. After that we suffix with random digits;
+  // 1000 possibilities × 12 attempts is overkill but cheap.
+  for (let i = 0; i < 12; i++) {
+    const candidate = i === 0
+      ? base
+      : `${base.slice(0, 16)}${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+    const taken = await prisma.user.findUnique({
+      where: { username: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  // Pathological collision case — fall back to random + a UUID-ish
+  // tail. Should be effectively impossible to hit in practice.
+  return `trainer${Date.now().toString(36)}`;
 }
