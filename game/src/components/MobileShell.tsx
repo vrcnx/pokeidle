@@ -6,11 +6,11 @@ import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { TownMap } from "./TownMap";
 import { PartyColumn } from "./PartyColumn";
 import { ContextPanel } from "./ContextPanel";
-import { BagTab, PCTab, MartTab } from "./BottomTabs";
+import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
 import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
 import {
-  IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor, IconCart,
+  IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor, IconCart, IconBook,
 } from "./Icon";
 
 // Mobile single-column layout. Battle scene + moves are always pinned
@@ -60,6 +60,10 @@ export function MobileShell() {
   // panel, "map" shows the world map. Persisted across the World
   // tab's lifecycle so toggling away and back doesn't reset the view.
   const [worldView, setWorldView] = useState<"here" | "map">("here");
+  // Sub-tab inside the PC tab: "box" is the storage view, "dex" is
+  // the Pokédex (which has no top-level slot in the bottom bar — too
+  // many tabs would wrap on a phone, so we tuck it into PC).
+  const [pcView, setPcView] = useState<"box" | "dex">("box");
 
   // Auto-hop to "World → Here" on the FIRST entry into a boss battle
   // (gym leaders, E4, champion) so the player notices, but not on
@@ -135,7 +139,29 @@ export function MobileShell() {
             styles defined under .bottom-tab-body:has(> .X-tab)). */}
         {tab === "mart"  && <div className="bottom-tab-body"><MartTab /></div>}
         {tab === "bag"   && <div className="bottom-tab-body"><BagTab /></div>}
-        {tab === "pc"    && <div className="bottom-tab-body"><PCTab /></div>}
+        {tab === "pc"    && (
+          <div className={`bottom-tab-body pc-host pc-view-${pcView}`}>
+            <div className="mobile-pc-tabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={pcView === "box"}
+                className={pcView === "box" ? "active" : ""}
+                onClick={() => setPcView("box")}
+              >
+                <IconMonitor size={14} /> <span>Box</span>
+              </button>
+              <button
+                role="tab"
+                aria-selected={pcView === "dex"}
+                className={pcView === "dex" ? "active" : ""}
+                onClick={() => setPcView("dex")}
+              >
+                <IconBook size={14} /> <span>Dex</span>
+              </button>
+            </div>
+            {pcView === "box" ? <PCTab /> : <DexTab />}
+          </div>
+        )}
         {tab === "chat"  && <MiniChat />}
       </div>
 

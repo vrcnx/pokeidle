@@ -2404,6 +2404,75 @@ body.is-dragging .pc-slot.empty {
 }
 .mobile-world-body > * { flex: 1; min-height: 0; width: 100%; }
 
+/* Bag / Mart / PC tab bodies on mobile must fill the visible content
+   area so their themed backgrounds (parchment, CRT-blue, candy-stripe
+   awning) reach the bottom of the page even when the inner content is
+   short. The default .bottom-tab-body { min-height: 0 } rule wins on
+   specificity over .mobile-content > *, so target the combination
+   explicitly. */
+.mobile-content > .bottom-tab-body {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.mobile-content > .bottom-tab-body > * { flex: 1; min-height: 0; }
+
+/* PC tab on mobile hosts both Box and Dex via a sub-toggle, so
+   the inner .pc-tab/.dex-tab needs to share the bottom-tab-body. The
+   :has(> .pc-tab) / :has(> .dex-tab) backdrop selectors still match
+   because the sub-toggle row is a sibling — the .pc-tab / .dex-tab
+   elements remain direct children of the bottom-tab-body. */
+.mobile-pc-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.mobile-pc-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+.mobile-pc-tabs button:hover { color: #fff; }
+.mobile-pc-tabs button.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Tighten the PC/Bag/Mart sort header on phones — at desktop sizes
+   it's a comfortable single-line grid; at 360 px the title + Sort:
+   label + 3 buttons cram together and wrap awkwardly. Stack into two
+   rows so each section breathes. */
+@media (max-width: 480px) {
+  .mobile-content .tab-pane-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .mobile-content .tab-pane-tools {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .mobile-content .tab-pane-tools button {
+    font-size: 11px;
+    padding: 6px 10px;
+    min-height: 30px;
+  }
+}
+
 /* TownMap inside the World tab — the canvas's container-query sizing
    (`width: min(100cqw, 100cqh*16/9)`) collapses to 0 because the
    ancestor flex chain doesn't give the container a height to contain
