@@ -121,16 +121,29 @@ function SelfCard({ onClose }: { onClose: () => void }) {
           <section className="g-card g-card-full">
             <h3>Gym Badges</h3>
             <div className="g-badge-grid">
-              {gymLeaders.map((g) => {
+              {gymLeaders.map((g, i) => {
                 const earned = state.defeatedGyms.includes(g.id);
+                // PokeAPI hosts the eight Kanto badges at sprites/badges/
+                // 1.png … 8.png in their sprite repo, in the same order
+                // as our gymLeaders array (Brock, Misty, Surge, Erika,
+                // Koga, Sabrina, Blaine, Giovanni). Pull from the GitHub
+                // raw URL — locked badges render the same image with a
+                // grayscale + low-opacity filter applied via CSS.
+                const badgeUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/${i + 1}.png`;
                 return (
                   <div
                     key={g.id}
                     className={`g-badge ${earned ? "earned" : ""}`}
                     title={earned ? `${g.badgeName} — defeated ${g.name}` : `${g.name} (${g.locationKey}) — not yet defeated`}
                   >
-                    <div className="g-badge-disc" style={earned ? { background: g.badgeColor } : undefined}>
-                      {earned ? "" : "?"}
+                    <div className="g-badge-disc">
+                      <img
+                        src={badgeUrl}
+                        alt={g.badgeName}
+                        width={48}
+                        height={48}
+                        style={{ imageRendering: "pixelated" }}
+                      />
                     </div>
                     <div className="g-badge-name">{earned ? g.badgeName : "Locked"}</div>
                     <div className="g-badge-leader">{g.name}</div>

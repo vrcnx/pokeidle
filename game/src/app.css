@@ -313,6 +313,16 @@ a:focus-visible {
   flex-direction: column;
   overflow: hidden;
 }
+/* Hide the scrollbar on the party column (and any inner scrollable
+   area within it) so the left rail reads clean. Wheel + drag still
+   work — only the visible scrollbar UI is suppressed. */
+.party-column,
+.party-column * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.party-column::-webkit-scrollbar,
+.party-column *::-webkit-scrollbar { display: none; width: 0; height: 0; }
 /* Center column is a stack of independent cards rather than a single bordered
    panel — battle area, moves panel, and town map each get their own surface. */
 .center-column {
@@ -11422,18 +11432,23 @@ body { background: transparent !important; }
 }
 .g-badge.earned { opacity: 1; }
 .g-badge-disc {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.06);
+  width: 48px; height: 48px;
   display: grid; place-items: center;
-  color: var(--text-muted);
-  font-weight: 700;
-  font-size: 14px;
-  border: 2px solid rgba(255,255,255,0.1);
+  background: transparent;
+  border: 0;
 }
-.g-badge.earned .g-badge-disc {
-  border-color: rgba(255,255,255,0.6);
-  box-shadow: 0 0 8px rgba(255,255,255,0.15);
+.g-badge-disc img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Locked badges: desaturate + dim. Earned: full color. The .earned
+     state is on the parent .g-badge container. */
+  filter: grayscale(1) brightness(0.55);
+  transition: filter 160ms ease;
+}
+.g-badge.earned .g-badge-disc img {
+  filter: none;
+  drop-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
 }
 .g-badge-name {
   font-size: 10px;
