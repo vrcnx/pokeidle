@@ -11,6 +11,7 @@ import { openReportBug } from "./ReportBugModal";
 import { IconSettings, IconChat, IconHeart } from "./Icon";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
+import { musicManager, type PublicState as MusicState } from "../utils/music";
 import type { ReactNode } from "react";
 
 // Action dock split across columns:
@@ -89,6 +90,66 @@ interface DockBtnProps {
   title?: string;
   onClick: () => void;
 }
+// Audio preferences — master mute + volume slider. Lives next to the
+// Chat card in the Settings modal. Subscribes to the music manager so
+// the controls reflect any external state changes (e.g. autoplay
+// finally unblocking on first user gesture).
+function AudioPrefsCard() {
+  const [state, setState] = useState<MusicState>(() => musicManager.snapshot());
+  useEffect(() => musicManager.subscribe(setState), []);
+
+  const onVolChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    musicManager.setVolume(parseFloat(e.target.value) / 100);
+  };
+  const toggle = () => musicManager.setEnabled(!state.enabled);
+
+  const label = state.currentTrack
+    ? state.currentTrack.replace(/\.mp3$/i, "")
+    : state.category
+      ? `Loading…`
+      : "Stopped";
+
+  return (
+    <section className="g-card">
+      <h3>Audio</h3>
+      <div className="g-row">
+        <span>Music</span>
+        <strong className={state.enabled ? "g-tag on" : "g-tag off"}>
+          {state.enabled ? "On" : "Muted"}
+        </strong>
+      </div>
+      <div className="audio-volume-row">
+        <span className="dim small">Volume</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={Math.round(state.volume * 100)}
+          onChange={onVolChange}
+          aria-label="Music volume"
+          disabled={!state.enabled}
+        />
+        <span className="audio-volume-pct">{Math.round(state.volume * 100)}</span>
+      </div>
+      <p className="g-help" style={{ marginTop: 4 }}>
+        Now playing: <em>{label}</em>
+        {state.waitingForGesture && " — tap anywhere to start"}
+      </p>
+      <div className="settings-legal-links">
+        <button className="g-btn-ghost g-btn-small" onClick={toggle}>
+          {state.enabled ? "Mute music" : "Unmute music"}
+        </button>
+        {state.enabled && state.category && (
+          <button className="g-btn-ghost g-btn-small" onClick={() => musicManager.next()}>
+            Skip track
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // Profanity-filter toggle. Lives inside the Settings modal as its own
 // card so future chat preferences (mute lists, font size, etc.) have a
 // home next to it.
@@ -221,6 +282,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               </section>
             )}
 
+            <AudioPrefsCard />
             <ChatPrefsCard />
 
             <section className="g-card">

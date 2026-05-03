@@ -2737,6 +2737,32 @@ body.is-dragging .pc-slot.empty {
    `!important` because the v2 header rule has higher specificity. */
 .mobile-shell .pc-tab .tab-pane-head-tools { display: none !important; }
 
+/* Audio settings — volume slider in the Settings modal. */
+.audio-volume-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.audio-volume-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--gold, #facc15);
+  cursor: pointer;
+}
+.audio-volume-row input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.audio-volume-pct {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-muted, #9c9c9c);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
 /* Mobile chat — pin the input bar to the bottom of the chat tab so
    the player can always see where they're typing, regardless of how
    long the message list is. The list itself becomes the scroll

@@ -6,6 +6,7 @@ import { useCatchAnimation } from "./hooks/useCatchAnimation";
 import { StarterSelect } from "./components/StarterSelect";
 import { GameShell } from "./components/GameShell";
 import { ContextMenuHost } from "./components/ContextMenu";
+import { MusicPlayer } from "./components/MusicPlayer";
 
 // Evolution is opt-in. EventDriver consumes pendingEvents at typewriter pace.
 // useAutoProceed travels to newly unlocked routes when the toggle is on.
@@ -21,6 +22,7 @@ export function App() {
     <>
       {state.phase === "starterSelect" ? <StarterSelect /> : <GameShell />}
       <ContextMenuHost />
+      <MusicPlayer />
     </>
   );
 }
