@@ -1,23 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "node:path";
 
+// Admin is built standalone — it must not depend on sibling packages
+// (game/) being present. Catalog data + sprite helpers live as JSON
+// snapshots + inlined functions in src/data/gameCatalog.ts. To refresh
+// from the game's source: `npx tsx scripts/snapshot.mts`.
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
     strictPort: true,
-    // Allow importing from sibling packages (game/ specifically) so
-    // the admin can reuse the source-of-truth Pokémon table and items
-    // catalog without copying that data here. Reads only — Vite still
-    // refuses writes outside the project root.
-    fs: {
-      allow: [path.resolve(__dirname, "..")],
-    },
-  },
-  resolve: {
-    alias: {
-      "@game": path.resolve(__dirname, "..", "game", "src"),
-    },
   },
 });

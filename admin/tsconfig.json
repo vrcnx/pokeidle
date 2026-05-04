@@ -13,11 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "baseUrl": ".",
-    "paths": {
-      "@game/*": ["../game/src/*"]
-    }
+    "noEmit": true
   },
   "include": ["src"]
 }

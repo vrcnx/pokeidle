@@ -1,0 +1,699 @@
+[
+  {
+    "id": "blackbelt",
+    "name": "Black Belt",
+    "category": "held",
+    "description": "A held item that boosts Fighting-type moves by 20%.",
+    "spriteOverride": "black-belt"
+  },
+  {
+    "id": "blackglasses",
+    "name": "Black Glasses",
+    "category": "held",
+    "description": "A held item that boosts Dark-type moves by 20%.",
+    "spriteOverride": "black-glasses"
+  },
+  {
+    "id": "charcoal",
+    "name": "Charcoal",
+    "category": "held",
+    "description": "A held item that boosts Fire-type moves by 20%."
+  },
+  {
+    "id": "dragonfang",
+    "name": "Dragon Fang",
+    "category": "held",
+    "description": "A held item that boosts Dragon-type moves by 20%.",
+    "spriteOverride": "dragon-fang"
+  },
+  {
+    "id": "expShare",
+    "name": "Exp. Share",
+    "category": "held",
+    "description": "Activates a 300-battle buff that shares 3% EXP with every non-fainted party member. Sold at the Celadon Dept. Store.",
+    "spriteOverride": "exp-share"
+  },
+  {
+    "id": "focussash",
+    "name": "Focus Sash",
+    "category": "held",
+    "description": "If at full HP, the holder survives a one-shot KO with 1 HP. Consumed on use.",
+    "spriteOverride": "focus-sash"
+  },
+  {
+    "id": "hardstone",
+    "name": "Hard Stone",
+    "category": "held",
+    "description": "A held item that boosts Rock-type moves by 20%.",
+    "spriteOverride": "hard-stone"
+  },
+  {
+    "id": "leftovers",
+    "name": "Leftovers",
+    "category": "held",
+    "description": "Restores 1/16 max HP each turn while held.",
+    "spriteOverride": "leftovers"
+  },
+  {
+    "id": "lifeorb",
+    "name": "Life Orb",
+    "category": "held",
+    "description": "Boosts attack damage by 30%, but the holder loses 10% HP per attack.",
+    "spriteOverride": "life-orb"
+  },
+  {
+    "id": "magnet",
+    "name": "Magnet",
+    "category": "held",
+    "description": "A held item that boosts Electric-type moves by 20%."
+  },
+  {
+    "id": "miracleseed",
+    "name": "Miracle Seed",
+    "category": "held",
+    "description": "A held item that boosts Grass-type moves by 20%.",
+    "spriteOverride": "miracle-seed"
+  },
+  {
+    "id": "mysticwater",
+    "name": "Mystic Water",
+    "category": "held",
+    "description": "A held item that boosts Water-type moves by 20%.",
+    "spriteOverride": "mystic-water"
+  },
+  {
+    "id": "nevermeltice",
+    "name": "Never-Melt Ice",
+    "category": "held",
+    "description": "A held item that boosts Ice-type moves by 20%.",
+    "spriteOverride": "never-melt-ice"
+  },
+  {
+    "id": "poisonbarb",
+    "name": "Poison Barb",
+    "category": "held",
+    "description": "A held item that boosts Poison-type moves by 20%.",
+    "spriteOverride": "poison-barb"
+  },
+  {
+    "id": "sharpbeak",
+    "name": "Sharp Beak",
+    "category": "held",
+    "description": "A held item that boosts Flying-type moves by 20%.",
+    "spriteOverride": "sharp-beak"
+  },
+  {
+    "id": "shinycharm",
+    "name": "Shiny Charm",
+    "category": "held",
+    "description": "Doubles shiny encounter rate. Earned automatically by completing the Pokédex.",
+    "spriteOverride": "shiny-charm"
+  },
+  {
+    "id": "silkscarf",
+    "name": "Silk Scarf",
+    "category": "held",
+    "description": "A held item that boosts Normal-type moves by 20%.",
+    "spriteOverride": "silk-scarf"
+  },
+  {
+    "id": "silverpowder",
+    "name": "Silver Powder",
+    "category": "held",
+    "description": "A held item that boosts Bug-type moves by 20%.",
+    "spriteOverride": "silver-powder"
+  },
+  {
+    "id": "softsand",
+    "name": "Soft Sand",
+    "category": "held",
+    "description": "A held item that boosts Ground-type moves by 20%.",
+    "spriteOverride": "soft-sand"
+  },
+  {
+    "id": "spelltag",
+    "name": "Spell Tag",
+    "category": "held",
+    "description": "A held item that boosts Ghost-type moves by 20%.",
+    "spriteOverride": "spell-tag"
+  },
+  {
+    "id": "twistedspoon",
+    "name": "Twisted Spoon",
+    "category": "held",
+    "description": "A held item that boosts Psychic-type moves by 20%.",
+    "spriteOverride": "twisted-spoon"
+  },
+  {
+    "id": "hm01",
+    "name": "HM01 Cut",
+    "category": "hm",
+    "description": "Slashes through obstacles. (Catalog only)"
+  },
+  {
+    "id": "hm02",
+    "name": "HM02 Fly",
+    "category": "hm",
+    "description": "Returns the user to the last Poké Center visited. (Catalog only)"
+  },
+  {
+    "id": "hm03",
+    "name": "HM03 Surf",
+    "category": "hm",
+    "description": "Travel across water. (Catalog only)"
+  },
+  {
+    "id": "hm04",
+    "name": "HM04 Strength",
+    "category": "hm",
+    "description": "Move heavy boulders. (Catalog only)"
+  },
+  {
+    "id": "hm05",
+    "name": "HM05 Flash",
+    "category": "hm",
+    "description": "Lights up dark caves. (Catalog only)"
+  },
+  {
+    "id": "bicycle",
+    "name": "Bicycle",
+    "category": "key",
+    "description": "A folding bicycle. (Catalog only)"
+  },
+  {
+    "id": "goodrod",
+    "name": "Good Rod",
+    "category": "key",
+    "description": "A standard fishing rod. (Catalog only)",
+    "spriteOverride": "good-rod"
+  },
+  {
+    "id": "itemfinder",
+    "name": "Itemfinder",
+    "category": "key",
+    "description": "Detects nearby hidden items. (Catalog only)",
+    "spriteOverride": "dowsing-machine"
+  },
+  {
+    "id": "oldrod",
+    "name": "Old Rod",
+    "category": "key",
+    "description": "An old, worn fishing rod. (Catalog only)",
+    "spriteOverride": "old-rod"
+  },
+  {
+    "id": "pokeflute",
+    "name": "Poké Flute",
+    "category": "key",
+    "description": "Wakes Pokémon from sleep. (Catalog only)",
+    "spriteOverride": "poke-flute"
+  },
+  {
+    "id": "superrod",
+    "name": "Super Rod",
+    "category": "key",
+    "description": "An awesome fishing rod. (Catalog only)",
+    "spriteOverride": "super-rod"
+  },
+  {
+    "id": "greatball",
+    "name": "Great Ball",
+    "category": "pokeball",
+    "description": "A high-performance ball with a higher success rate than a Poké Ball."
+  },
+  {
+    "id": "masterball",
+    "name": "Master Ball",
+    "category": "pokeball",
+    "description": "The best Ball with the ultimate level of performance. It catches any Pokémon without fail."
+  },
+  {
+    "id": "pokeball",
+    "name": "Poké Ball",
+    "category": "pokeball",
+    "description": "A device for catching wild Pokémon. Standard catch rate."
+  },
+  {
+    "id": "ultraball",
+    "name": "Ultra Ball",
+    "category": "pokeball",
+    "description": "An ultra-performance ball that catches Pokémon more reliably."
+  },
+  {
+    "id": "firestone",
+    "name": "Fire Stone",
+    "category": "stone",
+    "description": "A rare stone that radiates heat. Evolves certain Pokémon.",
+    "spriteOverride": "fire-stone"
+  },
+  {
+    "id": "leafstone",
+    "name": "Leaf Stone",
+    "category": "stone",
+    "description": "A rare stone with a leaf pattern. Evolves certain Pokémon.",
+    "spriteOverride": "leaf-stone"
+  },
+  {
+    "id": "moonstone",
+    "name": "Moon Stone",
+    "category": "stone",
+    "description": "A mysterious stone that resembles the Moon. Cannot be bought — only found.",
+    "spriteOverride": "moon-stone"
+  },
+  {
+    "id": "sunstone",
+    "name": "Sun Stone",
+    "category": "stone",
+    "description": "A radiant stone that captures sunlight. Cannot be bought — only found.",
+    "spriteOverride": "sun-stone"
+  },
+  {
+    "id": "thunderstone",
+    "name": "Thunder Stone",
+    "category": "stone",
+    "description": "A rare stone that gives off a faint shock. Evolves certain Pokémon.",
+    "spriteOverride": "thunder-stone"
+  },
+  {
+    "id": "waterstone",
+    "name": "Water Stone",
+    "category": "stone",
+    "description": "A rare stone with a blue, watery appearance. Evolves certain Pokémon.",
+    "spriteOverride": "water-stone"
+  },
+  {
+    "id": "tm01",
+    "name": "TM01",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm02",
+    "name": "TM02",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm03",
+    "name": "TM03",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm04",
+    "name": "TM04",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm05",
+    "name": "TM05",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm06",
+    "name": "TM06",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm07",
+    "name": "TM07",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm08",
+    "name": "TM08",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm09",
+    "name": "TM09",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm10",
+    "name": "TM10",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm11",
+    "name": "TM11",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm12",
+    "name": "TM12",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm13",
+    "name": "TM13",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm14",
+    "name": "TM14",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm15",
+    "name": "TM15",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm16",
+    "name": "TM16",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm17",
+    "name": "TM17",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm18",
+    "name": "TM18",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm19",
+    "name": "TM19",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm20",
+    "name": "TM20",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm21",
+    "name": "TM21",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm22",
+    "name": "TM22",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm23",
+    "name": "TM23",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm24",
+    "name": "TM24",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm25",
+    "name": "TM25",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm26",
+    "name": "TM26",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm27",
+    "name": "TM27",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm28",
+    "name": "TM28",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm29",
+    "name": "TM29",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm30",
+    "name": "TM30",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm31",
+    "name": "TM31",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm32",
+    "name": "TM32",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm33",
+    "name": "TM33",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm34",
+    "name": "TM34",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm35",
+    "name": "TM35",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm36",
+    "name": "TM36",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm37",
+    "name": "TM37",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm38",
+    "name": "TM38",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm39",
+    "name": "TM39",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm40",
+    "name": "TM40",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm41",
+    "name": "TM41",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm42",
+    "name": "TM42",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm43",
+    "name": "TM43",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm44",
+    "name": "TM44",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm45",
+    "name": "TM45",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm46",
+    "name": "TM46",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm47",
+    "name": "TM47",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm48",
+    "name": "TM48",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm49",
+    "name": "TM49",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm50",
+    "name": "TM50",
+    "category": "tm",
+    "description": "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "bignugget",
+    "name": "Big Nugget",
+    "category": "treasure",
+    "description": "A big nugget of pure gold. Sells for a very high price.",
+    "spriteOverride": "big-nugget"
+  },
+  {
+    "id": "bigpearl",
+    "name": "Big Pearl",
+    "category": "treasure",
+    "description": "A large, lustrous pearl. Sells for a high price.",
+    "spriteOverride": "big-pearl"
+  },
+  {
+    "id": "nugget",
+    "name": "Nugget",
+    "category": "treasure",
+    "description": "A nugget of pure gold. Sells for a high price."
+  },
+  {
+    "id": "pearl",
+    "name": "Pearl",
+    "category": "treasure",
+    "description": "A pretty pearl. Sells for a fair price."
+  },
+  {
+    "id": "starpiece",
+    "name": "Star Piece",
+    "category": "treasure",
+    "description": "A piece of a beautiful gem. Sells for a high price.",
+    "spriteOverride": "star-piece"
+  },
+  {
+    "id": "stardust",
+    "name": "Stardust",
+    "category": "treasure",
+    "description": "Lovely red sand. Sells for a price."
+  },
+  {
+    "id": "honey",
+    "name": "Honey",
+    "category": "utility",
+    "description": "Doubles a wild Pokémon's encounter weight on the current route for 500 battles."
+  },
+  {
+    "id": "maxrepel",
+    "name": "Max Repel",
+    "category": "utility",
+    "description": "Halves wild encounters for 2000 battles.",
+    "spriteOverride": "max-repel"
+  },
+  {
+    "id": "repel",
+    "name": "Repel",
+    "category": "utility",
+    "description": "Halves a wild Pokémon's encounter weight on the current route for 500 battles."
+  },
+  {
+    "id": "superrepel",
+    "name": "Super Repel",
+    "category": "utility",
+    "description": "Halves wild encounters for 1000 battles.",
+    "spriteOverride": "super-repel"
+  }
+]
