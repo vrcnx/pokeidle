@@ -4,6 +4,7 @@ import { auth } from "./auth.js";
 import { prisma } from "./db.js";
 import { canAccessChannel, GLOBAL_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
+import { validateSave } from "./lib/saveValidation.js";
 
 // ── Rate limits ──────────────────────────────────────────────────────────
 // Per-user limits; values are deliberate bands, not optimisations:
@@ -55,6 +56,14 @@ interface TradeSide {
   username: string;
   offer: TradeOffer | null; // serialised Pokemon (pre-evolution)
   locked: boolean;
+  // Snapshot of {party, box} that the client attaches to the trade:lock
+  // event. We use it as the canonical source for findMon() instead of
+  // reading saveData from the DB, because the DB lags behind real client
+  // state (autosave debounces ~1.5s + HTTP roundtrip), which caused the
+  // Haunter→Gastly bug: server reads pre-evolution Gastly from DB and
+  // ships it even though the player just evolved + locked. The snapshot
+  // is validateSave()-checked for type bounds before being trusted.
+  liveSnapshot?: { party?: unknown; box?: unknown } | null;
 }
 // What the client serialises into a trade. The shape is validated
 // strictly with zod (see TradeOfferSchema below) before the server
@@ -357,33 +366,59 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       // The client's offer payload is untrusted — a malicious client can
       // claim to be sending any Pokemon, including ones it doesn't own
       // (perfect-IV shiny Mewtwo, etc.). Before relaying the swap, look
-      // up each user's saveData and find the offered mon BY ID in their
-      // party or box. If found, replace what we relay with the canonical
-      // server-side copy. If not found, the trade fails.
+      // up the offered mon BY ID in the player's current state and use
+      // THAT (not the offer payload) as the canonical version we ship.
+      //
+      // Source for the lookup, in priority order:
+      //   1. The `liveSnapshot` the client attached to trade:lock — this
+      //      is the freshest possible state, written at the same instant
+      //      the player clicked Lock. Eliminates the autosave/lock race
+      //      that caused the Haunter→Gastly bug (DB had pre-evolution
+      //      Gastly because the autosave hadn't flushed yet).
+      //   2. The DB saveData — fallback when the client didn't send a
+      //      snapshot (older clients, or snapshot failed validation).
       const aId = String(t.a.offer.id);
       const bId = String(t.b.offer.id);
       const [aRow, bRow] = await Promise.all([
-        prisma.user.findUnique({ where: { id: t.a.userId }, select: { saveData: true } }),
-        prisma.user.findUnique({ where: { id: t.b.userId }, select: { saveData: true } }),
+        t.a.liveSnapshot
+          ? Promise.resolve(null)
+          : prisma.user.findUnique({ where: { id: t.a.userId }, select: { saveData: true } }),
+        t.b.liveSnapshot
+          ? Promise.resolve(null)
+          : prisma.user.findUnique({ where: { id: t.b.userId }, select: { saveData: true } }),
       ]);
-      const findMon = (saveDataJson: string | null, id: string): TradeOffer | null => {
-        if (!saveDataJson) return null;
-        try {
-          const save = JSON.parse(saveDataJson);
-          const candidates: unknown[] = [
-            ...(Array.isArray(save?.party) ? save.party : []),
-            ...(Array.isArray(save?.box) ? save.box : []),
-          ];
-          for (const c of candidates) {
-            if (c && typeof c === "object" && (c as { id?: unknown }).id === id) {
-              return c as TradeOffer;
-            }
+      const findMonInSave = (save: unknown, id: string): TradeOffer | null => {
+        if (!save || typeof save !== "object") return null;
+        const s = save as { party?: unknown; box?: unknown };
+        const candidates: unknown[] = [
+          ...(Array.isArray(s.party) ? s.party : []),
+          ...(Array.isArray(s.box) ? s.box : []),
+        ];
+        for (const c of candidates) {
+          if (c && typeof c === "object" && (c as { id?: unknown }).id === id) {
+            return c as TradeOffer;
           }
-        } catch { /* malformed save — treat as not found */ }
+        }
         return null;
       };
-      const aCanonical = findMon(aRow?.saveData ?? null, aId);
-      const bCanonical = findMon(bRow?.saveData ?? null, bId);
+      const findMon = (
+        snapshot: { party?: unknown; box?: unknown } | null | undefined,
+        saveDataJson: string | null,
+        id: string,
+      ): TradeOffer | null => {
+        if (snapshot) {
+          const m = findMonInSave(snapshot, id);
+          if (m) return m;
+        }
+        if (saveDataJson) {
+          try {
+            return findMonInSave(JSON.parse(saveDataJson), id);
+          } catch { /* malformed — treat as not found */ }
+        }
+        return null;
+      };
+      const aCanonical = findMon(t.a.liveSnapshot, aRow?.saveData ?? null, aId);
+      const bCanonical = findMon(t.b.liveSnapshot, bRow?.saveData ?? null, bId);
       if (!aCanonical || !bCanonical) {
         // Either side claimed a mon they don't own — abort the trade.
         cancelTrade(
@@ -394,52 +429,30 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         );
         return;
       }
-      // Stale-save guard: client autosave debounces ~1.5s, so a player
-      // who evolves a Pokémon and immediately starts a trade may have
-      // a cloud save that's still on the pre-evolution version. The
-      // canonical lookup above would then return that old version
-      // (Gastly instead of Haunter, etc.), which silently shipped the
-      // wrong species to the recipient. Compare the offered species
-      // and level against what's actually saved; if they don't match,
-      // bail out with a clear error so the player can re-trade after
-      // the autosave catches up.
-      const aOfferSpecies = String((t.a.offer as { speciesKey?: string }).speciesKey ?? "");
-      const aOfferLevel = Number((t.a.offer as { level?: number }).level ?? 0);
-      const bOfferSpecies = String((t.b.offer as { speciesKey?: string }).speciesKey ?? "");
-      const bOfferLevel = Number((t.b.offer as { level?: number }).level ?? 0);
-      const aCanonSpecies = String((aCanonical as { speciesKey?: string }).speciesKey ?? "");
-      const aCanonLevel = Number((aCanonical as { level?: number }).level ?? 0);
-      const bCanonSpecies = String((bCanonical as { speciesKey?: string }).speciesKey ?? "");
-      const bCanonLevel = Number((bCanonical as { level?: number }).level ?? 0);
-      if (aOfferSpecies !== aCanonSpecies || aOfferLevel !== aCanonLevel) {
-        cancelTrade(
-          t,
-          `${t.a.username}'s save isn't synced yet (offered ${aOfferSpecies} Lv.${aOfferLevel}, server has ${aCanonSpecies} Lv.${aCanonLevel}). Try again in a moment.`,
-        );
-        return;
-      }
-      if (bOfferSpecies !== bCanonSpecies || bOfferLevel !== bCanonLevel) {
-        cancelTrade(
-          t,
-          `${t.b.username}'s save isn't synced yet (offered ${bOfferSpecies} Lv.${bOfferLevel}, server has ${bCanonSpecies} Lv.${bCanonLevel}). Try again in a moment.`,
-        );
-        return;
-      }
-      // Block trading the active mon if it's the user's only healthy mon
-      // and / or their only mon (you should have at least one Pokemon
-      // after a trade). Reuse the same heuristic as PARTY_TO_BOX.
-      const sideHasOtherMons = (saveDataJson: string | null, id: string): boolean => {
+      // Block trading the offered mon if it would leave the player with
+      // an empty party. Same source priority as findMon: live snapshot
+      // first, DB saveData fallback. partyOf returns null when neither
+      // source has a usable party.
+      const partyOf = (
+        snapshot: { party?: unknown } | null | undefined,
+        saveDataJson: string | null,
+      ): unknown[] | null => {
+        if (snapshot && Array.isArray(snapshot.party)) return snapshot.party;
+        if (!saveDataJson) return null;
         try {
-          const save = JSON.parse(saveDataJson || "null");
-          const party: unknown[] = Array.isArray(save?.party) ? save.party : [];
-          return party.some((p) => p && typeof p === "object" && (p as { id?: unknown }).id !== id);
-        } catch { return false; }
+          const save = JSON.parse(saveDataJson);
+          return Array.isArray(save?.party) ? save.party : null;
+        } catch { return null; }
       };
-      if (!sideHasOtherMons(aRow?.saveData ?? null, aId)) {
+      const sideHasOtherMons = (party: unknown[] | null, id: string): boolean =>
+        !!party && party.some((p) => p && typeof p === "object" && (p as { id?: unknown }).id !== id);
+      const aParty = partyOf(t.a.liveSnapshot, aRow?.saveData ?? null);
+      const bParty = partyOf(t.b.liveSnapshot, bRow?.saveData ?? null);
+      if (!sideHasOtherMons(aParty, aId)) {
         cancelTrade(t, `${t.a.username} would be left with no Pokémon — trade refused.`);
         return;
       }
-      if (!sideHasOtherMons(bRow?.saveData ?? null, bId)) {
+      if (!sideHasOtherMons(bParty, bId)) {
         cancelTrade(t, `${t.b.username} would be left with no Pokémon — trade refused.`);
         return;
       }
@@ -522,8 +535,8 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         const trade: Trade = {
           id,
           status: "invited",
-          a: { userId: user.id, username: user.username, offer: null, locked: false },
-          b: { userId: recipient.id, username: recipient.username, offer: null, locked: false },
+          a: { userId: user.id, username: user.username, offer: null, locked: false, liveSnapshot: null },
+          b: { userId: recipient.id, username: recipient.username, offer: null, locked: false, liveSnapshot: null },
           expiresAt,
           expiryTimer,
         };
@@ -610,9 +623,22 @@ export function attachSocketServer(httpServer: HttpServer): Server {
 
     // Either side toggles their lock-in. When both lock + both have an
     // offer, the server fires trade:complete.
+    //
+    // The lock event carries an optional `liveSnapshot` of the player's
+    // current {party, box}. The client sends it so the server can pick
+    // a canonical mon from the freshest possible state — saving via the
+    // REST endpoint races with the lock event over socket.io and the DB
+    // copy can lag a few hundred ms behind, which is what caused the
+    // Haunter→Gastly bug. The snapshot is type/bound-checked with the
+    // same validateSave() that the save endpoint uses; a malformed
+    // snapshot is silently ignored and we fall back to DB saveData.
     socket.on(
       "trade:lock",
-      ({ tradeId, locked }: { tradeId: string; locked: boolean }, ack?: (r: any) => void) => {
+      (
+        { tradeId, locked, liveSnapshot }:
+          { tradeId: string; locked: boolean; liveSnapshot?: unknown },
+        ack?: (r: any) => void,
+      ) => {
         const t = trades.get(tradeId);
         if (!t || t.status !== "active") { ack?.({ ok: false, error: "trade not active" }); return; }
         const me = mySide(t);
@@ -622,6 +648,20 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         }
         if (locked && !me.offer) { ack?.({ ok: false, error: "no offer set" }); return; }
         me.locked = !!locked;
+        // Stash the live snapshot if it passes validation. We only need
+        // {party, box} for the canonical lookup; validateSave gracefully
+        // ignores fields it doesn't recognise, so a partial snapshot
+        // (just party + box) is fine.
+        if (locked && liveSnapshot && typeof liveSnapshot === "object") {
+          const v = validateSave(liveSnapshot);
+          if (v.ok) {
+            me.liveSnapshot = liveSnapshot as { party?: unknown; box?: unknown };
+          } else {
+            me.liveSnapshot = null;
+          }
+        } else if (!locked) {
+          me.liveSnapshot = null;
+        }
         const broadcast = {
           tradeId: t.id,
           a: { userId: t.a.userId, hasOffer: !!t.a.offer, locked: t.a.locked, offer: t.a.offer },

@@ -101,8 +101,18 @@ export function setOffer(tradeId: string, mon: Pokemon | null) {
   const offer = mon ? (mon as unknown as TradeOffer) : null;
   getSocket().emit("trade:offer", { tradeId, offer });
 }
-export function setLock(tradeId: string, locked: boolean) {
-  getSocket().emit("trade:lock", { tradeId, locked });
+export function setLock(
+  tradeId: string,
+  locked: boolean,
+  liveSnapshot?: { party: unknown; box: unknown },
+) {
+  // liveSnapshot is the freshest local {party, box} at the moment the
+  // player clicked Lock. Server uses it as canonical instead of reading
+  // from saveData (which lags behind by the autosave debounce window).
+  // Sending it on the lock event eliminates the Haunter→Gastly bug
+  // where a just-evolved mon shipped as its pre-evolution form because
+  // the cloud save hadn't caught up yet.
+  getSocket().emit("trade:lock", { tradeId, locked, liveSnapshot });
 }
 export function cancelTrade(tradeId: string) {
   getSocket().emit("trade:cancel", { tradeId });
