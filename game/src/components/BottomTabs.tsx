@@ -22,6 +22,8 @@ import { TabPaneHead } from "./TabPaneHead";
 import { pushToast } from "./Toast";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
+import { useDraggable, useDropTarget } from "../hooks/useDrag";
+import type { Pokemon } from "../types";
 import type { ReactNode } from "react";
 
 // Bottom of the center column — used to be just the Town Map. Now it's a
@@ -313,70 +315,18 @@ export function BagTab() {
 // ---------------------------------------------------------------------------
 // PC — just the storage box. Party stays in the left column; drag a party
 // row into the box (or a box cell into a party row) to move/swap.
+// Uses the custom dragController (touch-friendly) — see useDrag.ts.
 // ---------------------------------------------------------------------------
-type DragSource = { kind: "party" | "box"; index: number };
-function parseSource(raw: string): DragSource | null {
-  const [kind, idxStr] = raw.split(":");
-  const index = Number(idxStr);
-  if (Number.isNaN(index)) return null;
-  if (kind === "party" || kind === "box") return { kind, index };
-  return null;
-}
-
 export function PCTab() {
   const { state, dispatch } = useGame();
   const PER_PAGE = 30;
   const [page, setPage] = useState(0);
-  const [hover, setHover] = useState<number | null>(null);
-  const [boxDragIdx, setBoxDragIdx] = useState<number | null>(null);
   const pageCount = Math.max(1, Math.ceil(state.box.length / PER_PAGE));
   useEffect(() => {
     if (page > pageCount - 1) setPage(pageCount - 1);
   }, [page, pageCount]);
 
-  // Mirror PartyColumn: when a box cell is being dragged, mark body so
-  // every drop target across the page can hint it's a valid receiver.
-  useEffect(() => {
-    const cls = "is-dragging";
-    if (boxDragIdx !== null) document.body.classList.add(cls);
-    else document.body.classList.remove(cls);
-    return () => document.body.classList.remove(cls);
-  }, [boxDragIdx]);
-
   const slice = state.box.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-
-  const onSlotDrop = (boxIndex: number | null) => (e: React.DragEvent) => {
-    e.preventDefault();
-    setHover(null);
-    const src = parseSource(e.dataTransfer.getData("text/plain"));
-    if (!src) {
-      setBoxDragIdx(null);
-      return;
-    }
-    let dropped = false;
-    if (src.kind === "party") {
-      // Refuse to empty the party.
-      if (state.party.length <= 1) {
-        setBoxDragIdx(null);
-        return;
-      }
-      if (boxIndex !== null && state.box[boxIndex]) {
-        dispatch({
-          type: "SWAP_PARTY_BOX",
-          payload: { partyIndex: src.index, boxIndex },
-        });
-      } else {
-        dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: src.index } });
-      }
-      dropped = true;
-    }
-    // box → box reordering isn't a separate action; sort buttons cover it.
-    if (dropped) {
-      const target = e.currentTarget as HTMLElement;
-      requestAnimationFrame(() => animatePop(target, 1.08));
-    }
-    setBoxDragIdx(null);
-  };
 
   return (
     <div className="tab-pane pc-tab">
@@ -405,90 +355,123 @@ export function PCTab() {
           </>
         }
       />
-      <div
-        className="pc-box-grid box-mode tab-box-grid"
-        onDragOver={(e) => { e.preventDefault(); }}
-        onDrop={onSlotDrop(null)}
-      >
+      <div className="pc-box-grid box-mode tab-box-grid">
         {Array.from({ length: PER_PAGE }, (_, i) => {
           const real = page * PER_PAGE + i;
           const p = slice[i];
-          return (
-            <div
-              key={real}
-              className={`pc-slot pc-box-slot ${hover === real ? "drag-over" : ""} ${!p ? "empty" : ""}`}
-              onDragOver={(e) => { e.preventDefault(); setHover(real); }}
-              onDragLeave={() => setHover((h) => (h === real ? null : h))}
-              onDrop={onSlotDrop(real)}
-            >
-              {p && (
-                <button
-                  className={`pc-cell ${boxDragIdx === real ? "dragging" : ""}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", `box:${real}`);
-                    e.dataTransfer.effectAllowed = "move";
-                    setBoxDragIdx(real);
-                  }}
-                  onDragEnd={() => setBoxDragIdx(null)}
-                  onClick={() => openPokemonDetail({ type: "box", index: real })}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    const partyFull = state.party.length >= 6;
-                    openContextMenu(e, [
-                      {
-                        label: "View details",
-                        onClick: () => openPokemonDetail({ type: "box", index: real }),
-                      },
-                      {
-                        label: partyFull ? "Send to party (full)" : "Send to party",
-                        disabled: partyFull,
-                        onClick: () =>
-                          dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: real } }),
-                      },
-                      {
-                        label: "Release",
-                        danger: true,
-                        onClick: () => {
-                          if (window.confirm(`Release ${p.name}? This cannot be undone.`)) {
-                            dispatch({
-                              type: "RELEASE_POKEMON",
-                              payload: { source: "box", index: real },
-                            });
-                          }
-                        },
-                      },
-                    ]);
-                  }}
-                  title={`${p.name} · Lv.${p.level} · right-click for actions`}
-                >
-                  <img
-                    src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
-                    alt={p.name}
-                    width={40}
-                    height={40}
-                    style={{ imageRendering: "pixelated" }}
-                  />
-                  {p.heldItem && itemsCatalog[p.heldItem] && (
-                    <img
-                      className="held-item-badge"
-                      src={itemSpriteUrl(p.heldItem, itemSpriteSlug(p.heldItem))}
-                      alt=""
-                      title={itemsCatalog[p.heldItem]?.name ?? p.heldItem}
-                      width={16}
-                      height={16}
-                      draggable={false}
-                    />
-                  )}
-                </button>
-              )}
-            </div>
-          );
+          return <BoxSlot key={real} pokemon={p} index={real} />;
         })}
       </div>
       <p className="dim small" style={{ margin: "6px 0 0", textAlign: "center" }}>
         Drag from your party (left column) to deposit, or drag from here to your party.
       </p>
+    </div>
+  );
+}
+
+function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; index: number }) {
+  const { state, dispatch } = useGame();
+
+  // The slot div is a drop target whether or not it holds a Pokémon —
+  // empty cells accept party deposits, occupied cells swap.
+  const slotRef = useDropTarget<HTMLDivElement>({
+    accept: (payload) => {
+      if (payload.kind === "party") {
+        // Refuse to empty the party.
+        return state.party.length > 1;
+      }
+      if (payload.kind === "box") {
+        const fromIdx = (payload.data as { index: number }).index;
+        return fromIdx !== real;
+      }
+      return false;
+    },
+    onDrop: (payload) => {
+      if (payload.kind === "party") {
+        const fromIdx = (payload.data as { index: number }).index;
+        if (state.box[real]) {
+          dispatch({
+            type: "SWAP_PARTY_BOX",
+            payload: { partyIndex: fromIdx, boxIndex: real },
+          });
+        } else {
+          // Note: PARTY_TO_BOX puts the mon in the first empty slot, not
+          // necessarily `real`. Matches the original behaviour — sort
+          // buttons handle in-box reordering.
+          dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: fromIdx } });
+        }
+      }
+      // box→box reordering isn't a separate action; sort buttons cover it.
+      if (slotRef.current) requestAnimationFrame(() => animatePop(slotRef.current!, 1.08));
+    },
+  });
+
+  // The inner button only exists when the cell has a Pokémon — that's the
+  // drag source. Has its own ref because the controller needs a stable
+  // element to attach pointerdown to.
+  const cellRef = useDraggable<HTMLButtonElement>({
+    payload: () => ({ kind: "box", data: { index: real } }),
+    enabled: !!p,
+  });
+
+  return (
+    <div ref={slotRef} className={`pc-slot pc-box-slot ${!p ? "empty" : ""}`}>
+      {p && (
+        <button
+          ref={cellRef}
+          className="pc-cell"
+          onClick={() => openPokemonDetail({ type: "box", index: real })}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            const partyFull = state.party.length >= 6;
+            openContextMenu(e, [
+              {
+                label: "View details",
+                onClick: () => openPokemonDetail({ type: "box", index: real }),
+              },
+              {
+                label: partyFull ? "Send to party (full)" : "Send to party",
+                disabled: partyFull,
+                onClick: () =>
+                  dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: real } }),
+              },
+              {
+                label: "Release",
+                danger: true,
+                onClick: () => {
+                  if (window.confirm(`Release ${p.name}? This cannot be undone.`)) {
+                    dispatch({
+                      type: "RELEASE_POKEMON",
+                      payload: { source: "box", index: real },
+                    });
+                  }
+                },
+              },
+            ]);
+          }}
+          title={`${p.name} · Lv.${p.level} · tap for details · hold-and-drag to move · right-click for actions`}
+        >
+          <img
+            src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+            alt={p.name}
+            width={40}
+            height={40}
+            style={{ imageRendering: "pixelated" }}
+            draggable={false}
+          />
+          {p.heldItem && itemsCatalog[p.heldItem] && (
+            <img
+              className="held-item-badge"
+              src={itemSpriteUrl(p.heldItem, itemSpriteSlug(p.heldItem))}
+              alt=""
+              title={itemsCatalog[p.heldItem]?.name ?? p.heldItem}
+              width={16}
+              height={16}
+              draggable={false}
+            />
+          )}
+        </button>
+      )}
     </div>
   );
 }
