@@ -205,6 +205,12 @@ export function attachSocketServer(httpServer: HttpServer): Server {
   });
 
   ioInstance = io;
+  // Broadcast the global online-user count to every connected socket.
+  // We count distinct user ids (the `online` Map keys), not sockets,
+  // so a player with two tabs open counts as one.
+  const broadcastOnlineCount = () => {
+    io.emit("presence:count", { count: online.size });
+  };
   io.on("connection", async (socket) => {
     const user = socket.data.user!;
     const wasFirst = addPresence(user.id, socket.id);
@@ -219,8 +225,15 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
       .catch(() => undefined);
 
+    // Send the current count to the freshly-connected socket so the
+    // chat header has a value to show immediately, before any other
+    // user comes/goes.
+    socket.emit("presence:count", { count: online.size });
+
     if (wasFirst) {
-      // Notify friends that this user came online.
+      // First connection for this user — broadcast updated total to
+      // everyone, and notify their friends specifically.
+      broadcastOnlineCount();
       const friends = await prisma.friend.findMany({
         where: {
           status: "accepted",
@@ -702,6 +715,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         }
       }
       if (wasLast) {
+        // Last connection for this user is gone — broadcast updated
+        // total to everyone.
+        broadcastOnlineCount();
         // If this user had an open trade, cancel it so the other side
         // gets unblocked instead of staring at a frozen lock.
         for (const t of Array.from(trades.values())) {

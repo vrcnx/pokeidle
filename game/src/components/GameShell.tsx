@@ -5,6 +5,7 @@ import { LocationColumn } from "./LocationColumn";
 import { MobileShell } from "./MobileShell";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { bindTradeSocket } from "../state/trade";
+import { bindPresenceSocket } from "../state/presence";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
@@ -32,6 +33,7 @@ export function GameShell() {
   // against double-subscribing if GameShell unmounts and remounts.
   useEffect(() => {
     bindTradeSocket();
+    bindPresenceSocket();
   }, []);
   return (
     <div className="game-window">

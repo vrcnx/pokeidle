@@ -7838,8 +7838,42 @@ input, textarea, select {
 }
 .mini-chat-tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
   margin: 0 0 8px;
+}
+/* "X online" pill on the right of the chat tab strip — sits next to
+   the tab buttons, not flexed so its width is just its content. The
+   live dot reuses the global-chat green to imply "live, server-wide". */
+.mini-chat-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  cursor: default;
+}
+.mini-chat-online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 6px var(--good);
+  animation: miniChatPulse 2.4s ease-in-out infinite;
+}
+@keyframes miniChatPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--good); }
+  50%      { opacity: 0.5; box-shadow: 0 0 2px var(--good); }
 }
 .mini-chat-tab {
   flex: 1;

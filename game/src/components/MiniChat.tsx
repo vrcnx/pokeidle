@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { openPublicTrainerCard } from "./TrainerCardModal";
+import { useOnlineCount } from "../state/presence";
 import { censor, hasProfanity, isProfanityFilterOn, subscribeProfanityFilter } from "../utils/profanity";
 
 // Compact chat panel for the left column. Two tabs:
@@ -40,6 +41,7 @@ export function MiniChat() {
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, ChatMessage[]>>({});
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
+  const onlineCount = useOnlineCount();
 
   // Wire the global channel once.
   useEffect(() => {
@@ -131,6 +133,14 @@ export function MiniChat() {
         >
           <span className="mini-chat-dot local" /> {localName}
         </button>
+        <span
+          className="mini-chat-online"
+          title={`${onlineCount} player${onlineCount === 1 ? "" : "s"} online`}
+          aria-label={`${onlineCount} online`}
+        >
+          <span className="mini-chat-online-dot" />
+          {onlineCount}
+        </span>
       </div>
       <div className="mini-chat-list" ref={listRef}>
         {messages.length === 0 && <div className="dim small mini-chat-empty">No messages yet.</div>}
