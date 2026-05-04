@@ -84,10 +84,21 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
   };
   const onUnpick = () => setOffer(room.tradeId, null);
   const onToggleLock = () => setLock(room.tradeId, !room.myLocked);
-  const onCancel = () => cancelTrade(room.tradeId);
+  // Cancelling a trade was previously instant — clicking the X or the
+  // backdrop fired cancelTrade() right away, which meant a stray click
+  // on the dimmed area threw away both sides' offers. Now the X / cancel
+  // button flips to a confirm state in-place; the user has to click
+  // "Yes, cancel" before we actually emit. Backdrop clicks no-op.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const requestCancel = () => setConfirmingCancel(true);
+  const onConfirmCancel = () => {
+    setConfirmingCancel(false);
+    cancelTrade(room.tradeId);
+  };
+  const onAbortCancel = () => setConfirmingCancel(false);
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay">
       <div
         ref={dialogRef}
         className="g-modal trade-room-modal"
@@ -100,8 +111,23 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
             Trading with <strong>{room.other.username}</strong>
           </h2>
           <span className="dim small trade-room-timer">{secondsLeft}s</span>
-          <button className="g-modal-close" onClick={onCancel} aria-label="Cancel">×</button>
+          <button className="g-modal-close" onClick={requestCancel} aria-label="Cancel">×</button>
         </header>
+        {confirmingCancel && (
+          <div className="trade-cancel-confirm" role="alertdialog" aria-label="Confirm cancel">
+            <span>
+              Cancel this trade? Both sides will lose any locked offers.
+            </span>
+            <div className="trade-cancel-confirm-actions">
+              <button className="g-btn-ghost g-btn-small" onClick={onAbortCancel}>
+                Keep trading
+              </button>
+              <button className="g-btn-danger-ghost g-btn-small" onClick={onConfirmCancel}>
+                Yes, cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="g-modal-body">
           <div className="trade-room-board">
@@ -183,7 +209,7 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
         </div>
 
         <footer className="g-modal-foot">
-          <button className="g-btn-danger-ghost" onClick={onCancel}>Cancel trade</button>
+          <button className="g-btn-danger-ghost" onClick={requestCancel}>Cancel trade</button>
           <span style={{ flex: 1 }} />
           <button
             className={room.myLocked ? "g-btn-ghost" : "g-btn-primary"}
