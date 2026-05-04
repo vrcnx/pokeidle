@@ -1463,6 +1463,15 @@ body.dnd-active .pc-slot.empty {
 /* While dragging, disable the cursor on non-source elements so the
    ghost doesn't compete with a hover state. */
 body.dnd-active * { cursor: grabbing !important; }
+/* Block native touch gestures (scroll, pinch-zoom) while a drag is in
+   flight. Combined with preventDefault on pointermove this guarantees
+   the gesture is dedicated to the drag — without this the browser
+   could interrupt with a scroll on touch. */
+body.dnd-active {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 
 .party-row.drop-target-active {
   border-color: var(--gold);
