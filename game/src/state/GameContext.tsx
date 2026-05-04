@@ -58,6 +58,11 @@ function normalizePokemon(p: Pokemon): Pokemon {
 interface GameContextValue {
   state: GameState;
   dispatch: Dispatch;
+  /** Flush the debounced cloud save immediately. Used by the trade
+   *  flow before locking so the server's canonical lookup sees the
+   *  current species/level instead of a 1.5s-stale version (the bug
+   *  where evolving then trading shipped the pre-evolved form). */
+  forceSave: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -280,8 +285,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
     state.defeatedEliteFour.length,
   ]);
 
+  // Stable reference to current state for forceSave. Reading from a
+  // ref avoids re-creating forceSave on every state change and makes
+  // sure it always sees the latest snapshot when called.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const forceSave = async () => {
+    if (!cloudReadyRef.current) return;
+    if (!stateRef.current.playerPokemon) return;
+    // Cancel the pending debounced upload — we're about to do it now.
+    if (uploadTimerRef.current) {
+      window.clearTimeout(uploadTimerRef.current);
+      uploadTimerRef.current = undefined;
+    }
+    const snapshot = pickPersistent(stateRef.current);
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === lastUploadedRef.current) return;
+    lastUploadedRef.current = serialized;
+    try {
+      await api.putSave(snapshot);
+      refreshProfile();
+    } catch {
+      // Surface failure to the caller so trade-lock can bail rather
+      // than emitting against a stale cloud copy.
+      throw new Error("save_sync_failed");
+    }
+  };
+
   return (
-    <GameContext.Provider value={{ state, dispatch: dispatch as Dispatch }}>
+    <GameContext.Provider value={{ state, dispatch: dispatch as Dispatch, forceSave }}>
       {children}
     </GameContext.Provider>
   );

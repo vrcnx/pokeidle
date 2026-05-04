@@ -31,7 +31,7 @@ export function TradeRoomModal() {
 }
 
 function TradeRoomDialog({ room }: { room: RoomState }) {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, forceSave } = useGame();
   const dialogRef = useModalEnter(".g-card");
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -83,7 +83,29 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
     setOffer(room.tradeId, p);
   };
   const onUnpick = () => setOffer(room.tradeId, null);
-  const onToggleLock = () => setLock(room.tradeId, !room.myLocked);
+  // Lock toggles need to flush the cloud save before emitting the
+  // trade:lock event — otherwise the server's canonical mon lookup
+  // can return a pre-evolution version of the offered Pokémon (the
+  // bug where Haunter showed up on the recipient's side as Gastly).
+  // Unlocking has no such constraint; pass through directly.
+  const [syncing, setSyncing] = useState(false);
+  const onToggleLock = async () => {
+    if (room.myLocked) {
+      setLock(room.tradeId, false);
+      return;
+    }
+    setSyncing(true);
+    try {
+      await forceSave();
+      setLock(room.tradeId, true);
+    } catch {
+      // Save failed; don't lock the trade against a stale cloud copy.
+      // Server-side guard would catch a mismatch anyway, but better
+      // to fail fast and let the user retry.
+    } finally {
+      setSyncing(false);
+    }
+  };
   // Cancelling a trade was previously instant — clicking the X or the
   // backdrop fired cancelTrade() right away, which meant a stray click
   // on the dimmed area threw away both sides' offers. Now the X / cancel
@@ -214,14 +236,15 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
           <button
             className={room.myLocked ? "g-btn-ghost" : "g-btn-primary"}
             onClick={onToggleLock}
-            disabled={!room.myOffer || state.party.length <= 1}
+            disabled={!room.myOffer || state.party.length <= 1 || syncing}
             title={
               !room.myOffer ? "Pick a Pokémon first"
               : state.party.length <= 1 ? "Need at least 2 party Pokémon"
+              : syncing ? "Syncing your save…"
               : undefined
             }
           >
-            {room.myLocked ? "Unlock" : "Lock in offer"}
+            {syncing ? "Syncing…" : room.myLocked ? "Unlock" : "Lock in offer"}
           </button>
         </footer>
       </div>

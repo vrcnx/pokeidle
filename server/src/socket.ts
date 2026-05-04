@@ -394,6 +394,37 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         );
         return;
       }
+      // Stale-save guard: client autosave debounces ~1.5s, so a player
+      // who evolves a Pokémon and immediately starts a trade may have
+      // a cloud save that's still on the pre-evolution version. The
+      // canonical lookup above would then return that old version
+      // (Gastly instead of Haunter, etc.), which silently shipped the
+      // wrong species to the recipient. Compare the offered species
+      // and level against what's actually saved; if they don't match,
+      // bail out with a clear error so the player can re-trade after
+      // the autosave catches up.
+      const aOfferSpecies = String((t.a.offer as { speciesKey?: string }).speciesKey ?? "");
+      const aOfferLevel = Number((t.a.offer as { level?: number }).level ?? 0);
+      const bOfferSpecies = String((t.b.offer as { speciesKey?: string }).speciesKey ?? "");
+      const bOfferLevel = Number((t.b.offer as { level?: number }).level ?? 0);
+      const aCanonSpecies = String((aCanonical as { speciesKey?: string }).speciesKey ?? "");
+      const aCanonLevel = Number((aCanonical as { level?: number }).level ?? 0);
+      const bCanonSpecies = String((bCanonical as { speciesKey?: string }).speciesKey ?? "");
+      const bCanonLevel = Number((bCanonical as { level?: number }).level ?? 0);
+      if (aOfferSpecies !== aCanonSpecies || aOfferLevel !== aCanonLevel) {
+        cancelTrade(
+          t,
+          `${t.a.username}'s save isn't synced yet (offered ${aOfferSpecies} Lv.${aOfferLevel}, server has ${aCanonSpecies} Lv.${aCanonLevel}). Try again in a moment.`,
+        );
+        return;
+      }
+      if (bOfferSpecies !== bCanonSpecies || bOfferLevel !== bCanonLevel) {
+        cancelTrade(
+          t,
+          `${t.b.username}'s save isn't synced yet (offered ${bOfferSpecies} Lv.${bOfferLevel}, server has ${bCanonSpecies} Lv.${bCanonLevel}). Try again in a moment.`,
+        );
+        return;
+      }
       // Block trading the active mon if it's the user's only healthy mon
       // and / or their only mon (you should have at least one Pokemon
       // after a trade). Reuse the same heuristic as PARTY_TO_BOX.
