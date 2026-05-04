@@ -29,6 +29,7 @@ import {
   raidTiers,
   DEFAULT_RAID_TIER,
   RAID_START_LEVEL,
+  RAID_COOLDOWN_MS,
 } from "../data/raidLegendaries";
 import { itemsCatalog } from "../data/itemsCatalog";
 
@@ -390,7 +391,8 @@ export function reducer(state: GameState, action: Action): GameState {
         whiteoutAnim: wasAllFainted ? { key: Date.now() } : state.whiteoutAnim,
       };
       if (wasInRaid) {
-        const cooldownEnd = Date.now() + 10 * 60 * 1000;
+        const cooldownEnd = Date.now() + RAID_COOLDOWN_MS;
+        const tierId = state.raidLegendary?.tier ?? DEFAULT_RAID_TIER;
         next = {
           ...next,
           inRaid: false,
@@ -400,6 +402,7 @@ export function reducer(state: GameState, action: Action): GameState {
           currentRoute: state.preRaidLocation ?? "route1",
           preRaidLocation: null,
           raidCooldownEnd: cooldownEnd,
+          raidCooldowns: { ...state.raidCooldowns, [tierId]: cooldownEnd },
         };
       }
       const msg = wasInBattle
@@ -1347,7 +1350,8 @@ export function reducer(state: GameState, action: Action): GameState {
     }
 
     case "END_RAID": {
-      const cooldownEnd = Date.now() + 10 * 60 * 1000;
+      const cooldownEnd = Date.now() + RAID_COOLDOWN_MS;
+      const tierId = state.raidLegendary?.tier ?? DEFAULT_RAID_TIER;
       return {
         ...state,
         inRaid: false,
@@ -1357,6 +1361,7 @@ export function reducer(state: GameState, action: Action): GameState {
         currentRoute: state.preRaidLocation ?? "route1",
         preRaidLocation: null,
         raidCooldownEnd: cooldownEnd,
+        raidCooldowns: { ...state.raidCooldowns, [tierId]: cooldownEnd },
         phase: "idle",
         enemyPokemon: null,
       };
@@ -1587,7 +1592,8 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
       // Raid wipe: bail out, no white-out penalty. Player returns to the
       // pre-raid location, party stays fainted (heal at a Center first).
       if (next.inRaid) {
-        const cooldownEnd = Date.now() + 10 * 60 * 1000;
+        const cooldownEnd = Date.now() + RAID_COOLDOWN_MS;
+        const tierId = next.raidLegendary?.tier ?? DEFAULT_RAID_TIER;
         return pushLog(
           {
             ...next,
@@ -1600,6 +1606,7 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
             currentRoute: next.preRaidLocation ?? "route1",
             preRaidLocation: null,
             raidCooldownEnd: cooldownEnd,
+            raidCooldowns: { ...next.raidCooldowns, [tierId]: cooldownEnd },
           },
           "The raid ended. You stagger back to the mainland."
         );
@@ -1803,6 +1810,8 @@ function handleFaint(state: GameState): GameState {
   // state. Non-raid white-out: send to Pallet Town as before.
   if (state.inRaid) {
     const back = state.preRaidLocation || "palletTown";
+    const cooldownEnd = Date.now() + RAID_COOLDOWN_MS;
+    const tierId = state.raidLegendary?.tier ?? DEFAULT_RAID_TIER;
     return pushLog(
       {
         ...state,
@@ -1815,7 +1824,8 @@ function handleFaint(state: GameState): GameState {
         raidLegendary: null,
         raidLevel: 0,
         preRaidLocation: null,
-        raidCooldownEnd: Date.now() + 10 * 60 * 1000,
+        raidCooldownEnd: cooldownEnd,
+        raidCooldowns: { ...state.raidCooldowns, [tierId]: cooldownEnd },
         currentLocation: back,
         currentRoute: back,
         money: moneyAfter,

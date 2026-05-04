@@ -51,6 +51,7 @@ export const initialState: GameState = {
   victoryTokens: 0,
   autoProceed: false,
   raidCooldownEnd: null,
+  raidCooldowns: {},
   raidLegendary: null,
   inRaid: false,
   raidLevel: 0,

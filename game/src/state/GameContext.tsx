@@ -144,6 +144,7 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "victoryTokens",
   "autoProceed",
   "raidCooldownEnd",
+  "raidCooldowns",
   "raidLegendary",
   "inRaid",
   "raidLevel",

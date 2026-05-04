@@ -329,6 +329,10 @@ export interface GameState {
   victoryTokens: number;
   autoProceed: boolean;
   raidCooldownEnd: number | null;
+  /** Per-tier raid cooldowns (epoch ms when each tier becomes
+   *  available again). Replaces the single global raidCooldownEnd
+   *  for the gating UX — clearing one tier no longer locks the rest. */
+  raidCooldowns: Record<string, number>;
   raidLegendary: { speciesKey: string; level: number; tier?: import("../data/raidLegendaries").RaidTierId } | null;
   inRaid: boolean;
   raidLevel: number;

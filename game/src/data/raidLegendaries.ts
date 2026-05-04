@@ -10,7 +10,7 @@ import type { CatchSettings } from "../types";
 // available from the start, higher tiers unlock as the player clears
 // content (gym badges → Cover Legends, post-game → Mythical).
 
-export const RAID_COOLDOWN_MS = 10 * 60 * 1000;
+export const RAID_COOLDOWN_MS = 5 * 60 * 1000;
 // Default starting level (used when no tier is supplied — keeps the
 // previous behaviour for any callers that haven't been migrated).
 export const RAID_START_LEVEL = 70;

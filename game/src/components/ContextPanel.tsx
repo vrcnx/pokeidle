@@ -299,10 +299,6 @@ function IdleTownPanel() {
 function IdleRaidPanel() {
   const { state, dispatch } = useGame();
   const route = routes[state.currentLocation];
-  const cooldown = state.raidCooldownEnd ?? 0;
-  const cdLeft = Math.max(0, cooldown - Date.now());
-  const onCooldown = cdLeft > 0;
-  const canRaid = !onCooldown && !state.inRaid;
 
   // Default the picker to the first unlocked tier the player has access
   // to. The user can click any unlocked tier card to switch.
@@ -310,6 +306,21 @@ function IdleRaidPanel() {
   const [selectedTier, setSelectedTier] = useState<RaidTierId>(firstUnlocked.id);
   const tier = raidTiersOrdered.find((t) => t.id === selectedTier) ?? firstUnlocked;
   const tierUnlocked = isTierUnlocked(tier, state);
+
+  // Per-tier cooldown — clearing one tier no longer locks every
+  // tier. Falls back to the legacy global field for old saves that
+  // predate the per-tier map.
+  const tierCooldown = state.raidCooldowns?.[selectedTier] ?? 0;
+  const legacyCooldown = state.raidCooldownEnd ?? 0;
+  const cooldown = Math.max(tierCooldown, 0);
+  // Old saves that only have raidCooldownEnd — honor it for the
+  // currently-set selectedTier so we don't suddenly unlock raids
+  // mid-cooldown for upgrading players. Once any new raid completes
+  // the per-tier map takes over.
+  const effectiveCooldown = state.raidCooldowns ? cooldown : legacyCooldown;
+  const cdLeft = Math.max(0, effectiveCooldown - Date.now());
+  const onCooldown = cdLeft > 0;
+  const canRaid = !onCooldown && !state.inRaid;
 
   // Live ticker so the cooldown timer counts down in the UI.
   const [, force] = useState(0);
