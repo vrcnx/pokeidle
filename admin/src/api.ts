@@ -123,6 +123,11 @@ export const api = {
   recentChat: (limit = 50) =>
     req<{ messages: any[] }>("GET", `/api/admin/chat/recent?limit=${limit}`),
   deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/chat/${id}`),
+  // Wipes every message in the public live-chat channels (global +
+  // area:*). DMs are preserved. Server broadcasts chat:cleared so live
+  // clients flush their cached messages immediately.
+  clearAllChat: () =>
+    req<{ ok: true; deleted: number }>("DELETE", `/api/admin/chat/clear`),
 
   // Bug reports — list + status update
   listBugReports: (status = "", limit = 50, offset = 0) =>

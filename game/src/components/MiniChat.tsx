@@ -56,7 +56,23 @@ export function MiniChat() {
         return { ...prev, [msg.channelId]: [...list, msg].slice(-50) };
       });
     };
+    // Server fires chat:cleared after an admin wipes the public chat.
+    // Drop our cached messages for the affected scope ("public" =
+    // global + every area:* channel) so the UI flushes immediately
+    // without needing a refresh. DM caches are kept intact.
+    const onCleared = (payload: { scope: string }) => {
+      if (payload?.scope !== "public") return;
+      setMessagesByChannel((prev) => {
+        const next: Record<string, ChatMessage[]> = {};
+        for (const [chan, list] of Object.entries(prev)) {
+          if (chan === GLOBAL || chan.startsWith("area:")) continue;
+          next[chan] = list;
+        }
+        return next;
+      });
+    };
     sock.on("chat:message", onMessage);
+    sock.on("chat:cleared", onCleared);
     sock.emit("chat:join", { channelId: GLOBAL });
 
     api.chatHistory(GLOBAL, 30)
@@ -65,6 +81,7 @@ export function MiniChat() {
 
     return () => {
       sock.off("chat:message", onMessage);
+      sock.off("chat:cleared", onCleared);
     };
   }, [me]);
 

@@ -4,6 +4,7 @@ import { requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
+import { broadcastChatCleared } from "../socket.js";
 
 const app = new Hono();
 
@@ -445,6 +446,31 @@ app.get("/chat/recent", async (c) => {
     include: { user: { select: { id: true, username: true, name: true, isAdmin: true } } },
   });
   return c.json({ messages: messages.reverse() });
+});
+
+// Wipe every message in the public live-chat channels (global + any
+// area:*). DMs are intentionally excluded — those are private 1-1
+// conversations between users, not "live chat", and clearing them
+// would feel like a privacy violation. After the DB delete we
+// broadcast chat:cleared to all connected sockets so live clients
+// flush their cached message lists without needing a refresh.
+//
+// MUST be declared BEFORE /chat/:id — Hono matches routes in order,
+// and a static `/chat/clear` registered after the param route would
+// be intercepted with id="clear".
+app.delete("/chat/clear", async (c) => {
+  const me = c.get("user");
+  const result = await prisma.chatMessage.deleteMany({
+    where: {
+      OR: [
+        { channelId: "global" },
+        { channelId: { startsWith: "area:" } },
+      ],
+    },
+  });
+  broadcastChatCleared("public");
+  void audit(me.id, "chat.clearAll", null, { deleted: result.count });
+  return c.json({ ok: true, deleted: result.count });
 });
 
 app.delete("/chat/:id", async (c) => {

@@ -175,6 +175,15 @@ export function isOnline(userId: string): boolean {
   return online.has(userId);
 }
 
+// Broadcast a "chat cleared" notification to every connected socket so
+// clients can wipe their cached message lists for the affected channels
+// without needing a refresh. Called by the admin clear-chat endpoint.
+//   scope: "public" → clear global + all area:* channels client-side
+export function broadcastChatCleared(scope: "public"): void {
+  if (!ioInstance) return;
+  ioInstance.emit("chat:cleared", { scope });
+}
+
 export function attachSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
