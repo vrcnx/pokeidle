@@ -62,6 +62,8 @@ export interface Analytics {
     accountLevel: number;
   };
   signupSeries: Record<string, number>;
+  dauSeries: Record<string, number>;
+  levelBuckets: { label: string; count: number }[];
   leaderboards: {
     pokedex: { id: string; username: string; name: string | null; accountLevel: number; pokedexCaughtCount: number }[];
   };
@@ -94,6 +96,28 @@ export const api = {
       "POST",
       `/api/admin/users/${id}/save-patch`,
       { patch },
+    ),
+  sendPasswordReset: (id: string, redirectTo?: string) =>
+    req<{ ok: true; sentTo: string }>(
+      "POST",
+      `/api/admin/users/${id}/send-password-reset`,
+      { redirectTo },
+    ),
+  userSessions: (id: string) =>
+    req<{ sessions: UserSession[] }>("GET", `/api/admin/users/${id}/sessions`),
+  userMessages: (id: string, limit = 200, before?: string) => {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (before) qs.set("before", before);
+    return req<{ messages: UserMessage[] }>(
+      "GET",
+      `/api/admin/users/${id}/messages?${qs.toString()}`,
+    );
+  },
+  setUserItem: (id: string, itemId: string, quantity: number) =>
+    req<{ ok: true; itemId: string; quantity: number }>(
+      "POST",
+      `/api/admin/users/${id}/items`,
+      { itemId, quantity },
     ),
 
   // Analytics
@@ -159,6 +183,22 @@ export interface BugReport {
   adminNotes: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UserSession {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface UserMessage {
+  id: string;
+  channelId: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface ErrorEntry {

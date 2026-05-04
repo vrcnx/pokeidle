@@ -5,6 +5,7 @@ import { audit } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { broadcastChatCleared } from "../socket.js";
+import { auth } from "../auth.js";
 
 const app = new Hono();
 
@@ -267,6 +268,140 @@ app.post("/users/:id/reset-save", async (c) => {
   }
 });
 
+// ── User: send password reset ──────────────────────────────────────────
+// Trigger Better Auth's normal password-reset flow on behalf of the
+// admin. The user receives an email with a one-shot reset link
+// (1-hour expiry) and chooses a new password themselves. We never
+// see or store the new password — that's deliberate; admins should
+// not be able to read user passwords, only initiate a reset. The
+// `redirectTo` is the game frontend's reset page; the admin caller
+// supplies it because the server doesn't know the public game URL.
+app.post("/users/:id/send-password-reset", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { redirectTo?: string }
+    | null;
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { email: true, username: true },
+  });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const redirectTo = body?.redirectTo
+    ?? (process.env.FRONTEND_ORIGIN?.split(",")[0]?.trim()
+        ? `${process.env.FRONTEND_ORIGIN.split(",")[0].trim()}/reset-password`
+        : "http://localhost:5173/reset-password");
+  try {
+    await auth.api.requestPasswordReset({
+      body: { email: target.email, redirectTo },
+    });
+    void audit(me.id, "user.send_password_reset", id);
+    return c.json({ ok: true, sentTo: target.email });
+  } catch (e) {
+    return c.json({ error: "failed to send reset email", detail: String(e) }, 500);
+  }
+});
+
+// ── User: sessions (login history) ─────────────────────────────────────
+// Returns Better Auth Session rows for the user — expiresAt, ipAddress,
+// userAgent, createdAt, updatedAt. This is the closest thing to a
+// "login history" we have; rows are deleted by Better Auth when they
+// expire or the user signs out, so don't expect a full audit trail.
+app.get("/users/:id/sessions", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const sessions = await prisma.session.findMany({
+    where: { userId: id },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      ipAddress: true,
+      userAgent: true,
+      createdAt: true,
+      updatedAt: true,
+      expiresAt: true,
+    },
+  });
+  void audit(me.id, "user.read_sessions", id);
+  return c.json({ sessions });
+});
+
+// ── User: chat messages they've sent ───────────────────────────────────
+// All channels (global + area:* + dm:*). Capped at 500 to keep the
+// payload reasonable; older messages can be paged via `before` (an
+// ISO timestamp — return rows with createdAt < before).
+app.get("/users/:id/messages", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const limit = Math.min(500, Math.max(20, parseInt(c.req.query("limit") ?? "200", 10)));
+  const beforeRaw = c.req.query("before");
+  const before = beforeRaw ? new Date(beforeRaw) : null;
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const messages = await prisma.chatMessage.findMany({
+    where: {
+      userId: id,
+      ...(before && !isNaN(before.getTime()) ? { createdAt: { lt: before } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { id: true, channelId: true, content: true, createdAt: true },
+  });
+  void audit(me.id, "user.read_messages", id);
+  return c.json({ messages });
+});
+
+// ── User: set inventory item quantity ──────────────────────────────────
+// Convenience wrapper around save-patch for the common admin action of
+// granting / removing an item. Quantity 0 deletes the entry. Quantity
+// must be a non-negative integer; validateSave enforces the upper
+// bound (MAX_INVENTORY_STACK = 999_999).
+app.post("/users/:id/items", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { itemId?: string; quantity?: number }
+    | null;
+  const itemId = String(body?.itemId ?? "");
+  const quantity = Math.floor(Number(body?.quantity ?? -1));
+  if (!/^[a-zA-Z0-9_-]{1,40}$/.test(itemId)) {
+    return c.json({ error: "invalid itemId" }, 400);
+  }
+  if (!Number.isFinite(quantity) || quantity < 0 || quantity > 999_999) {
+    return c.json({ error: "quantity must be 0..999999" }, 400);
+  }
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { saveData: true },
+  });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const baseSave = target.saveData ? safeParseObject(target.saveData) : {};
+  if (!baseSave) return c.json({ error: "user save is corrupt" }, 500);
+  const inventory: Record<string, number> = {
+    ...((baseSave.inventory && typeof baseSave.inventory === "object" && !Array.isArray(baseSave.inventory))
+      ? (baseSave.inventory as Record<string, number>)
+      : {}),
+  };
+  if (quantity === 0) delete inventory[itemId];
+  else inventory[itemId] = quantity;
+  const merged = { ...baseSave, inventory };
+  const v = validateSave(merged);
+  if (!v.ok) return c.json({ error: "patch produced invalid save", reason: v.reason }, 400);
+  await prisma.user.update({
+    where: { id },
+    data: {
+      saveData: JSON.stringify(merged),
+      saveVersion: { increment: 1 },
+      saveUpdatedAt: new Date(),
+    },
+  });
+  void audit(me.id, "user.set_item", id, { itemId, quantity });
+  return c.json({ ok: true, itemId, quantity });
+});
+
 // ── Analytics ──────────────────────────────────────────────────────────
 app.get("/analytics", async (c) => {
   const now = new Date();
@@ -316,6 +451,46 @@ app.get("/analytics", async (c) => {
     if (k in signupSeries) signupSeries[k]++;
   }
 
+  // DAU buckets — daily active users over the last 30 days. lastSeenAt
+  // is updated on every socket connection, so this is a reasonable proxy
+  // for "logged in today". Approximates DAU from the latest snapshot
+  // since we don't keep per-day login records (would need a separate
+  // event log table). Buckets users by whose last seen falls in each
+  // 24-hour window.
+  const lastSeenRows = await prisma.user.findMany({
+    where: { lastSeenAt: { gte: thirtyDaysAgo } },
+    select: { lastSeenAt: true },
+  });
+  const dauSeries: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now.getTime() - i * day);
+    dauSeries[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const row of lastSeenRows) {
+    if (!row.lastSeenAt) continue;
+    const k = row.lastSeenAt.toISOString().slice(0, 10);
+    if (k in dauSeries) dauSeries[k]++;
+  }
+
+  // Account-level distribution — bucket users by 10-level bands so the
+  // histogram shows a digestible breakdown of progression. Buckets are
+  // 0-9, 10-19, ..., 100-109, 110+ for anything beyond.
+  const allLevels = await prisma.user.findMany({
+    select: { accountLevel: true },
+  });
+  const levelBuckets: { label: string; count: number }[] = [];
+  const BAND_SIZE = 10;
+  const MAX_BANDS = 12;
+  for (let i = 0; i < MAX_BANDS - 1; i++) {
+    levelBuckets.push({ label: `${i * BAND_SIZE}–${i * BAND_SIZE + BAND_SIZE - 1}`, count: 0 });
+  }
+  levelBuckets.push({ label: `${(MAX_BANDS - 1) * BAND_SIZE}+`, count: 0 });
+  for (const u of allLevels) {
+    const lv = u.accountLevel ?? 0;
+    const idx = Math.min(MAX_BANDS - 1, Math.floor(lv / BAND_SIZE));
+    levelBuckets[idx].count += 1;
+  }
+
   // Top 10 by pokedex completion.
   const topByDex = await prisma.user.findMany({
     orderBy: { pokedexCaughtCount: "desc" },
@@ -346,6 +521,8 @@ app.get("/analytics", async (c) => {
       accountLevel: Math.round((pokedexAvg._avg.accountLevel ?? 0) * 10) / 10,
     },
     signupSeries,
+    dauSeries,
+    levelBuckets,
     leaderboards: {
       pokedex: topByDex,
     },

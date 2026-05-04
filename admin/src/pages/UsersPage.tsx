@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type AdminUser } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage } from "../api";
 
+// ─── User list page ────────────────────────────────────────────────────
+// Top-level: paginated, searchable user list. Clicking a row opens the
+// tabbed UserDetailPanel on the right side.
 export function UsersPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
@@ -26,12 +29,13 @@ export function UsersPage() {
     <div className="page">
       <header className="page-head">
         <h1>Users <span className="dim">({data?.total ?? "…"})</span></h1>
+        <p className="dim">Search by username, email or display name. Click a row to open the full management panel.</p>
       </header>
 
       <div className="users-toolbar">
         <input
           className="search-input"
-          placeholder="Search username, email, or display name…"
+          placeholder="Search…"
           value={q}
           onChange={(e) => { setQ(e.target.value); setPage(0); }}
         />
@@ -55,7 +59,12 @@ export function UsersPage() {
         </thead>
         <tbody>
           {(data?.users ?? []).map((u) => (
-            <tr key={u.id} className={selected === u.id ? "selected" : ""}>
+            <tr
+              key={u.id}
+              className={selected === u.id ? "selected" : ""}
+              onClick={() => setSelected(u.id)}
+              style={{ cursor: "pointer" }}
+            >
               <td>
                 <strong>{u.name ?? u.username}</strong>
                 <div className="dim small">@{u.username}</div>
@@ -68,9 +77,9 @@ export function UsersPage() {
                 {u.bannedUntil && new Date(u.bannedUntil).getTime() > Date.now() && <span className="tag banned">BANNED</span>}
                 {!u.isAdmin && !u.bannedUntil && <span className="dim small">—</span>}
               </td>
-              <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-              <td>{new Date(u.lastSeenAt).toLocaleDateString()}</td>
-              <td><button className="btn-ghost" onClick={() => setSelected(u.id)}>Open</button></td>
+              <td className="dim small">{new Date(u.createdAt).toLocaleDateString()}</td>
+              <td className="dim small">{new Date(u.lastSeenAt).toLocaleDateString()}</td>
+              <td><button className="btn-ghost btn-small" onClick={(e) => { e.stopPropagation(); setSelected(u.id); }}>Open</button></td>
             </tr>
           ))}
           {data && data.users.length === 0 && (
@@ -97,8 +106,6 @@ export function UsersPage() {
 }
 
 // ─── Save-edit constants ────────────────────────────────────────────────
-// Hardcoded so the admin can toggle them without depending on the game's
-// data files. Names match the gym/eliteFour ids exported by the game.
 const GYM_IDS = ["brock", "misty", "surge", "erika", "koga", "sabrina", "blaine", "giovanni"] as const;
 const GYM_NAMES: Record<string, string> = {
   brock: "Brock", misty: "Misty", surge: "Lt. Surge", erika: "Erika",
@@ -109,17 +116,20 @@ const E4_NAMES: Record<string, string> = {
   lorelei: "Lorelei", bruno: "Bruno", agatha: "Agatha", lance: "Lance",
 };
 
-interface PartialPokemon {
-  id?: string;
-  speciesKey: string;
-  nickname?: string;
-  level: number;
-  isShiny?: boolean;
-}
+// Hand-picked datalist of common item IDs so the admin doesn't have to
+// memorise the full catalog when granting items. Not exhaustive — admin
+// can still type any valid id (validateSave only checks the regex).
+const COMMON_ITEM_IDS = [
+  "pokeball", "greatball", "ultraball", "masterball", "premierball", "luxuryball",
+  "potion", "super-potion", "hyper-potion", "max-potion", "full-restore", "revive", "max-revive",
+  "antidote", "burn-heal", "ice-heal", "awakening", "paralyze-heal", "full-heal",
+  "fire-stone", "water-stone", "thunder-stone", "leaf-stone", "moon-stone", "sun-stone",
+  "rare-candy", "exp-share", "exp-candy-s", "exp-candy-m", "exp-candy-l", "exp-candy-xl",
+  "hp-up", "protein", "iron", "calcium", "zinc", "carbos",
+  "leftovers", "lucky-egg", "amulet-coin", "soothe-bell",
+];
 
-// Local edit state — tracks pending mutations against the loaded save.
-// A single "Save changes" submits the diff (the admin doesn't need to
-// re-send untouched fields; the server merges).
+// Edit-state shape for the save patch (mirrors PATCHABLE_KEYS on the server).
 interface SaveEdit {
   money?: number;
   victoryTokens?: number;
@@ -131,12 +141,15 @@ interface SaveEdit {
   box?: any[];
 }
 
+type DetailTab = "profile" | "pokemon" | "items" | "progress" | "messages" | "sessions" | "raw";
+
+// ─── User detail (tabbed) ───────────────────────────────────────────────
 function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () => void; onChange: () => void }) {
+  const [tab, setTab] = useState<DetailTab>("profile");
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<SaveEdit>({});
-  const [editMode, setEditMode] = useState(false);
   const [savingMsg, setSavingMsg] = useState<string | null>(null);
 
   const reload = () => {
@@ -157,61 +170,23 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
   const banned = data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now();
   const save = data.saveData ? (() => { try { return JSON.parse(data.saveData); } catch { return null; } })() : null;
 
-  const promote = async () => {
-    setBusy(true);
-    await api.setAdmin(id, !data.isAdmin).catch((e) => setErr(e.message));
-    setBusy(false);
-    reload(); onChange();
-  };
-  const ban = async () => {
-    const reason = window.prompt("Ban reason (optional):") ?? null;
-    const until = new Date(Date.now() + 7 * 86400000).toISOString();
-    setBusy(true);
-    await api.ban(id, until, reason).catch((e) => setErr(e.message));
-    setBusy(false);
-    reload(); onChange();
-  };
-  const unban = async () => {
-    setBusy(true);
-    await api.ban(id, null, null).catch((e) => setErr(e.message));
-    setBusy(false);
-    reload(); onChange();
-  };
-  const resetSave = async () => {
-    if (!window.confirm(`Reset ${data.username}'s save? This cannot be undone.`)) return;
-    setBusy(true);
-    await api.resetSave(id).catch((e) => setErr(e.message));
-    setBusy(false);
-    reload(); onChange();
-  };
-  const deleteUser = async () => {
-    if (!window.confirm(`Permanently delete ${data.username}? This cascades to friends, chat, sessions.`)) return;
-    setBusy(true);
-    await api.deleteUser(id).catch((e) => setErr(e.message));
-    setBusy(false);
-    onClose(); onChange();
-  };
-
   const saveEdit = async () => {
-    if (Object.keys(edit).length === 0) {
-      setSavingMsg("No changes to save.");
-      window.setTimeout(() => setSavingMsg(null), 1500);
-      return;
-    }
+    if (Object.keys(edit).length === 0) return;
     setBusy(true);
     setSavingMsg(null);
     try {
       const res = await api.savePatch(id, edit as Record<string, unknown>);
-      setSavingMsg(`Saved (${res.keys.join(", ")}). Save version → ${res.saveVersion}.`);
+      setSavingMsg(`Saved (${res.keys.join(", ")}). v${res.saveVersion}`);
       reload();
       onChange();
     } catch (e) {
-      const err = e as Error;
-      setSavingMsg(`Error: ${err.message}`);
+      setSavingMsg(`Error: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
   };
+
+  const dirty = Object.keys(edit).length > 0;
 
   return (
     <aside className="detail-panel">
@@ -220,18 +195,141 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
           <h2>{data.name ?? data.username}</h2>
           <div className="dim small">@{data.username} · {data.email}</div>
         </div>
-        <button className="btn-ghost" onClick={onClose}>×</button>
+        <button className="btn-ghost" onClick={onClose} aria-label="Close">×</button>
       </header>
 
+      <nav className="detail-tabs" role="tablist">
+        {(["profile", "pokemon", "items", "progress", "messages", "sessions", "raw"] as DetailTab[]).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`detail-tab ${tab === t ? "active" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            {t === "profile" ? "Profile"
+              : t === "pokemon" ? `Pokémon (${(save?.party?.length ?? 0)}+${(save?.box?.length ?? 0)})`
+              : t === "items" ? `Items (${Object.keys(save?.inventory ?? {}).length})`
+              : t === "progress" ? "Progress"
+              : t === "messages" ? "Messages"
+              : t === "sessions" ? "Sessions"
+              : "Raw"}
+          </button>
+        ))}
+      </nav>
+
+      <div className="detail-body">
+        {tab === "profile" && (
+          <ProfileTab data={data} banned={banned} busy={busy} setBusy={setBusy} reload={reload} onChange={onChange} onClose={onClose} />
+        )}
+        {tab === "pokemon" && save && (
+          <PokemonTab save={save} edit={edit} onEdit={setEdit} />
+        )}
+        {tab === "items" && save && (
+          <ItemsTab save={save} edit={edit} onEdit={setEdit} userId={id} reload={reload} />
+        )}
+        {tab === "progress" && save && (
+          <ProgressTab save={save} edit={edit} onEdit={setEdit} />
+        )}
+        {tab === "messages" && (
+          <MessagesTab userId={id} />
+        )}
+        {tab === "sessions" && (
+          <SessionsTab userId={id} />
+        )}
+        {tab === "raw" && save && (
+          <RawSaveTab save={save} />
+        )}
+        {!save && (tab === "pokemon" || tab === "items" || tab === "progress" || tab === "raw") && (
+          <p className="dim">No save data — user hasn't started the game yet.</p>
+        )}
+      </div>
+
+      {dirty && tab !== "messages" && tab !== "sessions" && tab !== "raw" && (
+        <div className="detail-savebar">
+          <span className="dim small">{savingMsg ?? `Unsaved changes (${Object.keys(edit).join(", ")})`}</span>
+          <button className="btn-ghost" onClick={() => { setEdit({}); setSavingMsg(null); }} disabled={busy}>Discard</button>
+          <button className="btn-primary" onClick={saveEdit} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      )}
+      {!dirty && savingMsg && (
+        <div className="detail-savebar"><span className="dim small">{savingMsg}</span></div>
+      )}
+    </aside>
+  );
+}
+
+// ─── Profile tab — top-level account actions ────────────────────────────
+function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: {
+  data: any; banned: boolean; busy: boolean;
+  setBusy: (v: boolean) => void; reload: () => void; onChange: () => void; onClose: () => void;
+}) {
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+
+  const promote = async () => {
+    setBusy(true);
+    try { await api.setAdmin(data.id, !data.isAdmin); reload(); onChange(); }
+    finally { setBusy(false); }
+  };
+  const ban = async () => {
+    const reason = window.prompt("Ban reason (optional):") ?? null;
+    const until = new Date(Date.now() + 7 * 86400000).toISOString();
+    setBusy(true);
+    try { await api.ban(data.id, until, reason); reload(); onChange(); }
+    finally { setBusy(false); }
+  };
+  const unban = async () => {
+    setBusy(true);
+    try { await api.ban(data.id, null, null); reload(); onChange(); }
+    finally { setBusy(false); }
+  };
+  const resetSave = async () => {
+    if (!window.confirm(`Reset ${data.username}'s save? This cannot be undone.`)) return;
+    setBusy(true);
+    try { await api.resetSave(data.id); reload(); onChange(); }
+    finally { setBusy(false); }
+  };
+  const deleteUser = async () => {
+    if (!window.confirm(`Permanently delete ${data.username}? This cascades to friends, chat, sessions.`)) return;
+    setBusy(true);
+    try { await api.deleteUser(data.id); onClose(); onChange(); }
+    finally { setBusy(false); }
+  };
+  const sendPasswordReset = async () => {
+    if (!window.confirm(
+      `Send a password-reset email to ${data.email}?\n\n`
+      + `They'll receive a one-shot link (1 hour expiry) to choose a new password. `
+      + `You will not be able to see their new password.`
+    )) return;
+    setBusy(true);
+    setResetMsg(null);
+    try {
+      const redirectTo = window.prompt(
+        "Redirect URL (game frontend reset page):",
+        "https://pokeidle.com/reset-password",
+      );
+      if (!redirectTo) { setBusy(false); return; }
+      const res = await api.sendPasswordReset(data.id, redirectTo);
+      setResetMsg(`Reset email sent to ${res.sentTo}.`);
+    } catch (e) {
+      setResetMsg(`Error: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
       <div className="detail-stats">
         <div><span>Account Lv</span><strong>{data.accountLevel}</strong></div>
         <div><span>Pokédex</span><strong>{data.pokedexCaughtCount}/151</strong></div>
         <div><span>Caught levels</span><strong>{data.totalCaughtLevels}</strong></div>
-        <div><span>Created</span><strong>{new Date(data.createdAt).toLocaleDateString()}</strong></div>
-        <div><span>Last seen</span><strong>{new Date(data.lastSeenAt).toLocaleString()}</strong></div>
-        <div><span>Friends</span><strong>{data._count?.friendsRequested + data._count?.friendsReceived}</strong></div>
-        <div><span>Messages sent</span><strong>{data._count?.messages}</strong></div>
         <div><span>Save version</span><strong>{data.saveVersion}</strong></div>
+        <div><span>Created</span><strong>{new Date(data.createdAt).toLocaleString()}</strong></div>
+        <div><span>Last seen</span><strong>{new Date(data.lastSeenAt).toLocaleString()}</strong></div>
+        <div><span>Email verified</span><strong>{data.emailVerified ? "Yes" : "No"}</strong></div>
+        <div><span>Friends</span><strong>{(data._count?.friendsRequested ?? 0) + (data._count?.friendsReceived ?? 0)}</strong></div>
+        <div><span>Messages sent</span><strong>{data._count?.messages ?? 0}</strong></div>
       </div>
 
       {banned && (
@@ -241,321 +339,461 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
         </div>
       )}
 
-      <div className="detail-actions">
-        <button className="btn-primary" onClick={promote} disabled={busy}>
-          {data.isAdmin ? "Demote from admin" : "Promote to admin"}
-        </button>
-        {banned ? (
-          <button className="btn-secondary" onClick={unban} disabled={busy}>Unban</button>
-        ) : (
-          <button className="btn-warn" onClick={ban} disabled={busy}>Ban (7 days)</button>
-        )}
-        <button className="btn-warn" onClick={resetSave} disabled={busy}>Reset save</button>
-        <button className="btn-danger" onClick={deleteUser} disabled={busy}>Delete user</button>
-      </div>
-
-      {save && (
-        <div className="save-editor">
-          <header className="save-editor-head">
-            <h3>Save editor</h3>
-            <button
-              className="btn-ghost"
-              onClick={() => setEditMode((v) => !v)}
-            >
-              {editMode ? "Hide editor" : "Show editor"}
-            </button>
-          </header>
-
-          {editMode && (
-            <SaveEditorBody
-              save={save}
-              edit={edit}
-              onEdit={setEdit}
-              onSave={saveEdit}
-              onCancel={() => { setEdit({}); setSavingMsg(null); }}
-              busy={busy}
-              savingMsg={savingMsg}
-            />
+      <section className="profile-section">
+        <h3>Account</h3>
+        <div className="profile-actions">
+          <button className="btn-secondary" onClick={promote} disabled={busy}>
+            {data.isAdmin ? "Demote from admin" : "Promote to admin"}
+          </button>
+          {banned ? (
+            <button className="btn-secondary" onClick={unban} disabled={busy}>Unban</button>
+          ) : (
+            <button className="btn-warn" onClick={ban} disabled={busy}>Ban (7 days)</button>
           )}
+          <button className="btn-warn" onClick={sendPasswordReset} disabled={busy}>Send password reset</button>
         </div>
-      )}
+        {resetMsg && <p className="profile-msg dim small">{resetMsg}</p>}
+        <p className="dim small">
+          We can't view passwords — they're hashed one-way. The reset email lets the user pick a new one themselves.
+        </p>
+      </section>
 
-      {save && (
-        <details className="save-inspect">
-          <summary>Save snapshot ({save.party?.length ?? 0} party · {save.box?.length ?? 0} box · {save.unlockedLocations?.length ?? 0} unlocked)</summary>
-          <pre>{JSON.stringify(save, null, 2).slice(0, 4000)}</pre>
-        </details>
-      )}
-    </aside>
+      <section className="profile-section">
+        <h3>Save data</h3>
+        <div className="profile-actions">
+          <button className="btn-warn" onClick={resetSave} disabled={busy}>Reset save</button>
+          <button className="btn-danger" onClick={deleteUser} disabled={busy}>Delete user</button>
+        </div>
+        <p className="dim small">
+          Reset save wipes their progress (party, box, items, money) but keeps the account.
+          Delete user is permanent and cascades to friends, chat messages, sessions.
+        </p>
+      </section>
+    </>
   );
 }
 
-function SaveEditorBody({
-  save, edit, onEdit, onSave, onCancel, busy, savingMsg,
-}: {
-  save: any;
-  edit: SaveEdit;
-  onEdit: (e: SaveEdit) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  busy: boolean;
-  savingMsg: string | null;
+// ─── Pokémon tab — party + box editor + give-mon ────────────────────────
+function PokemonTab({ save, edit, onEdit }: {
+  save: any; edit: SaveEdit; onEdit: (e: SaveEdit) => void;
 }) {
-  // The "live" value for each field — pending edit if present, otherwise
-  // the last-loaded saveData value. Useful for rendering inputs that show
-  // the would-be-saved value but haven't been committed yet.
   const live = useMemo(() => ({
-    money: edit.money ?? (save.money ?? 0),
-    victoryTokens: edit.victoryTokens ?? (save.victoryTokens ?? 0),
-    championDefeated: edit.championDefeated ?? (save.championDefeated ?? false),
-    inventory: edit.inventory ?? (save.inventory ?? {}),
-    defeatedGyms: edit.defeatedGyms ?? (save.defeatedGyms ?? []),
-    defeatedEliteFour: edit.defeatedEliteFour ?? (save.defeatedEliteFour ?? []),
     party: edit.party ?? (save.party ?? []),
     box: edit.box ?? (save.box ?? []),
   }), [edit, save]);
 
-  const dirty = Object.keys(edit).length > 0;
+  // Helpers
+  const updateMon = (where: "party" | "box", idx: number, patch: Record<string, unknown>) => {
+    const next = [...live[where]];
+    next[idx] = { ...next[idx], ...patch };
+    onEdit({ ...edit, [where]: next });
+  };
+  const removeMon = (where: "party" | "box", idx: number) => {
+    const p = live[where][idx];
+    if (!window.confirm(`Remove ${p?.nickname ?? p?.name ?? "this Pokémon"} from ${where}?`)) return;
+    const next = live[where].filter((_: any, i: number) => i !== idx);
+    onEdit({ ...edit, [where]: next });
+  };
 
-  // ── Money / Tokens ──
-  const setMoney = (n: number) => onEdit({ ...edit, money: Math.max(0, Math.min(999_999_999, Math.floor(n))) });
-  const setTokens = (n: number) => onEdit({ ...edit, victoryTokens: Math.max(0, Math.floor(n)) });
-
-  // ── Badges / E4 / Champion ──
-  const toggleGym = (gid: string) => {
-    const cur = new Set<string>(live.defeatedGyms as string[]);
-    if (cur.has(gid)) cur.delete(gid); else cur.add(gid);
-    onEdit({ ...edit, defeatedGyms: Array.from(cur) });
-  };
-  const toggleE4 = (eid: string) => {
-    const cur = new Set<string>(live.defeatedEliteFour as string[]);
-    if (cur.has(eid)) cur.delete(eid); else cur.add(eid);
-    onEdit({ ...edit, defeatedEliteFour: Array.from(cur) });
-  };
-  const toggleChampion = () => onEdit({ ...edit, championDefeated: !live.championDefeated });
-
-  // ── Inventory ──
-  const setItem = (itemId: string, qty: number) => {
-    const next = { ...live.inventory };
-    if (qty <= 0) {
-      delete next[itemId];
-    } else {
-      next[itemId] = Math.max(0, Math.min(999_999, Math.floor(qty)));
-    }
-    onEdit({ ...edit, inventory: next });
-  };
-  const removeItem = (itemId: string) => {
-    const next = { ...live.inventory };
-    delete next[itemId];
-    onEdit({ ...edit, inventory: next });
-  };
-  const [newItemId, setNewItemId] = useState("");
-  const [newItemQty, setNewItemQty] = useState(1);
-  const addItem = () => {
-    const id = newItemId.trim();
-    if (!id) return;
-    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) {
-      window.alert("Item id must be alphanumeric / underscore / dash, ≤ 40 chars.");
+  // Give-mon form — adds a fresh Pokémon to party or box. Stats are
+  // intentionally minimal (level + species + shiny); the game's reducer
+  // re-derives most fields from the catalog on next state hydration.
+  const [give, setGive] = useState({ where: "party" as "party" | "box", speciesKey: "", level: 5, isShiny: false });
+  const giveMon = () => {
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(give.speciesKey.trim())) {
+      window.alert("speciesKey must be a slug like 'gengar' or 'mr-mime'.");
       return;
     }
-    setItem(id, newItemQty);
-    setNewItemId("");
-    setNewItemQty(1);
-  };
-
-  // ── Pokémon edits ──
-  const setPartyLevel = (idx: number, lvl: number) => {
-    const next = [...live.party];
-    next[idx] = { ...next[idx], level: clamp(Math.floor(lvl), 1, 100) };
-    onEdit({ ...edit, party: next });
-  };
-  const setBoxLevel = (idx: number, lvl: number) => {
-    const next = [...live.box];
-    next[idx] = { ...next[idx], level: clamp(Math.floor(lvl), 1, 100) };
-    onEdit({ ...edit, box: next });
-  };
-  const removeParty = (idx: number) => {
-    if (!window.confirm(`Remove ${live.party[idx]?.nickname ?? live.party[idx]?.name ?? "this Pokémon"} from party?`)) return;
-    const next = live.party.filter((_: any, i: number) => i !== idx);
-    onEdit({ ...edit, party: next });
-  };
-  const removeBox = (idx: number) => {
-    if (!window.confirm(`Remove ${live.box[idx]?.nickname ?? live.box[idx]?.name ?? "this Pokémon"} from box?`)) return;
-    const next = live.box.filter((_: any, i: number) => i !== idx);
-    onEdit({ ...edit, box: next });
+    const newId = `admin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const mon = {
+      id: newId,
+      speciesKey: give.speciesKey.trim().toLowerCase(),
+      name: give.speciesKey.trim(),
+      level: clamp(give.level, 1, 100),
+      isShiny: give.isShiny,
+      currentHp: 999,
+      maxHp: 999,
+      attack: 50, defense: 50, spAttack: 50, spDefense: 50, speed: 50,
+      ivs: { hp: 31, attack: 31, defense: 31, spAttack: 31, spDefense: 31, speed: 31 },
+      totalExp: 0,
+      moves: [],
+    };
+    if (give.where === "party") {
+      if (live.party.length >= 6) { window.alert("Party is full (6)."); return; }
+      onEdit({ ...edit, party: [...live.party, mon] });
+    } else {
+      onEdit({ ...edit, box: [...live.box, mon] });
+    }
+    setGive({ ...give, speciesKey: "" });
   };
 
   return (
-    <div className="save-editor-body">
-      {/* Money + Tokens row */}
-      <section className="save-section">
-        <h4>Currency</h4>
-        <div className="save-grid-2">
-          <label className="save-field">
-            <span>Money</span>
-            <input
-              type="number"
-              min={0}
-              max={999_999_999}
-              value={live.money}
-              onChange={(e) => setMoney(parseInt(e.target.value, 10) || 0)}
-            />
-          </label>
-          <label className="save-field">
-            <span>Victory tokens</span>
-            <input
-              type="number"
-              min={0}
-              value={live.victoryTokens}
-              onChange={(e) => setTokens(parseInt(e.target.value, 10) || 0)}
-            />
-          </label>
-        </div>
-      </section>
-
-      {/* Progress: badges + E4 + champion */}
-      <section className="save-section">
-        <h4>Progress</h4>
-        <div className="save-checks">
-          {GYM_IDS.map((g) => (
-            <label key={g} className="save-check">
-              <input
-                type="checkbox"
-                checked={live.defeatedGyms.includes(g)}
-                onChange={() => toggleGym(g)}
-              />
-              <span>{GYM_NAMES[g]}</span>
-            </label>
-          ))}
-        </div>
-        <div className="save-checks save-checks-tight">
-          {E4_IDS.map((e) => (
-            <label key={e} className="save-check">
-              <input
-                type="checkbox"
-                checked={live.defeatedEliteFour.includes(e)}
-                onChange={() => toggleE4(e)}
-              />
-              <span>{E4_NAMES[e]}</span>
-            </label>
-          ))}
-          <label className="save-check">
-            <input
-              type="checkbox"
-              checked={live.championDefeated}
-              onChange={toggleChampion}
-            />
-            <span>Champion</span>
-          </label>
-        </div>
-      </section>
-
-      {/* Inventory */}
-      <section className="save-section">
-        <h4>Inventory <span className="dim small">({Object.keys(live.inventory).length} items)</span></h4>
-        <div className="inv-rows">
-          {Object.entries(live.inventory)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([itemId, qty]) => (
-              <div className="inv-row" key={itemId}>
-                <span className="inv-id mono">{itemId}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={999_999}
-                  value={qty as number}
-                  onChange={(e) => setItem(itemId, parseInt(e.target.value, 10) || 0)}
-                />
-                <button className="btn-ghost btn-tiny" onClick={() => removeItem(itemId)}>×</button>
-              </div>
-            ))}
-          {Object.keys(live.inventory).length === 0 && (
-            <div className="dim small">Inventory is empty.</div>
-          )}
-        </div>
-        <div className="inv-add">
-          <input
-            type="text"
-            placeholder="item id (e.g. pokeball)"
-            value={newItemId}
-            onChange={(e) => setNewItemId(e.target.value)}
-          />
-          <input
-            type="number"
-            min={1}
-            max={999_999}
-            value={newItemQty}
-            onChange={(e) => setNewItemQty(parseInt(e.target.value, 10) || 1)}
-          />
-          <button className="btn-primary btn-small" onClick={addItem}>Add</button>
-        </div>
-      </section>
-
-      {/* Party */}
-      <section className="save-section">
-        <h4>Party <span className="dim small">({live.party.length}/6)</span></h4>
-        <div className="poke-rows">
-          {live.party.map((p: PartialPokemon, idx: number) => (
-            <div className="poke-row" key={p.id ?? idx}>
-              <span className="poke-name">
-                {p.nickname && <strong>{p.nickname}</strong>}
-                <span className="dim small">{" "}{p.speciesKey}{p.isShiny ? " ✨" : ""}</span>
-              </span>
-              <label className="poke-level">
-                <span>Lv</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={p.level}
-                  onChange={(e) => setPartyLevel(idx, parseInt(e.target.value, 10) || 1)}
-                />
-              </label>
-              <button className="btn-ghost btn-tiny" onClick={() => removeParty(idx)}>×</button>
-            </div>
+    <>
+      <section className="profile-section">
+        <h3>Party <span className="dim small">({live.party.length}/6)</span></h3>
+        <div className="poke-grid">
+          {live.party.map((p: any, idx: number) => (
+            <PokemonRow key={p.id ?? idx} mon={p} onEdit={(patch) => updateMon("party", idx, patch)} onRemove={() => removeMon("party", idx)} />
           ))}
           {live.party.length === 0 && <div className="dim small">No party.</div>}
         </div>
       </section>
 
-      {/* Box (collapsed by default for huge boxes) */}
-      <section className="save-section">
-        <h4>Box <span className="dim small">({live.box.length}/600)</span></h4>
+      <section className="profile-section">
+        <h3>Box <span className="dim small">({live.box.length}/600)</span></h3>
         <details className="poke-box-details">
-          <summary className="dim small">{live.box.length === 0 ? "Box is empty." : `Show ${live.box.length} Pokémon`}</summary>
-          <div className="poke-rows" style={{ marginTop: 8 }}>
-            {live.box.map((p: PartialPokemon, idx: number) => (
-              <div className="poke-row" key={p.id ?? idx}>
-                <span className="poke-name">
-                  {p.nickname && <strong>{p.nickname}</strong>}
-                  <span className="dim small">{" "}{p.speciesKey}{p.isShiny ? " ✨" : ""}</span>
-                </span>
-                <label className="poke-level">
-                  <span>Lv</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={p.level}
-                    onChange={(e) => setBoxLevel(idx, parseInt(e.target.value, 10) || 1)}
-                  />
-                </label>
-                <button className="btn-ghost btn-tiny" onClick={() => removeBox(idx)}>×</button>
-              </div>
+          <summary className="dim small">{live.box.length === 0 ? "Box is empty." : `Show ${live.box.length} stored Pokémon`}</summary>
+          <div className="poke-grid" style={{ marginTop: 8 }}>
+            {live.box.map((p: any, idx: number) => (
+              <PokemonRow key={p.id ?? idx} mon={p} onEdit={(patch) => updateMon("box", idx, patch)} onRemove={() => removeMon("box", idx)} />
             ))}
           </div>
         </details>
       </section>
 
-      {/* Save bar */}
-      <div className="save-editor-foot">
-        <div className="save-editor-msg dim small">{savingMsg ?? (dirty ? "Unsaved changes." : "")}</div>
-        <button className="btn-ghost" onClick={onCancel} disabled={busy || !dirty}>Discard</button>
-        <button className="btn-primary" onClick={onSave} disabled={busy || !dirty}>
-          {busy ? "Saving…" : "Save changes"}
-        </button>
+      <section className="profile-section">
+        <h3>Give Pokémon</h3>
+        <div className="give-mon">
+          <select value={give.where} onChange={(e) => setGive({ ...give, where: e.target.value as "party" | "box" })}>
+            <option value="party">Party</option>
+            <option value="box">Box</option>
+          </select>
+          <input
+            placeholder="speciesKey (e.g. gengar, mewtwo)"
+            value={give.speciesKey}
+            onChange={(e) => setGive({ ...give, speciesKey: e.target.value })}
+          />
+          <label className="give-level">
+            Lv
+            <input type="number" min={1} max={100} value={give.level} onChange={(e) => setGive({ ...give, level: parseInt(e.target.value, 10) || 1 })} />
+          </label>
+          <label className="give-shiny">
+            <input type="checkbox" checked={give.isShiny} onChange={(e) => setGive({ ...give, isShiny: e.target.checked })} />
+            Shiny
+          </label>
+          <button className="btn-primary btn-small" onClick={giveMon}>Give</button>
+        </div>
+        <p className="dim small">
+          Adds a fresh Pokémon with perfect IVs and the given level. Stats will re-derive from the species catalog on the user's next save load.
+        </p>
+      </section>
+    </>
+  );
+}
+
+function PokemonRow({ mon, onEdit, onRemove }: { mon: any; onEdit: (patch: Record<string, unknown>) => void; onRemove: () => void }) {
+  return (
+    <div className="poke-card">
+      <div className="poke-card-head">
+        <div>
+          <strong>{mon.nickname ?? mon.name ?? mon.speciesKey}</strong>
+          {mon.isShiny && <span className="poke-shiny" title="Shiny">★</span>}
+          <div className="dim small mono">{mon.speciesKey}</div>
+        </div>
+        <button className="btn-ghost btn-tiny" onClick={onRemove} title="Remove">×</button>
+      </div>
+      <div className="poke-card-body">
+        <label>
+          <span>Lv</span>
+          <input type="number" min={1} max={100} value={mon.level ?? 1} onChange={(e) => onEdit({ level: clamp(parseInt(e.target.value, 10) || 1, 1, 100) })} />
+        </label>
+        <label>
+          <span>Nickname</span>
+          <input type="text" maxLength={32} value={mon.nickname ?? ""} onChange={(e) => onEdit({ nickname: e.target.value || undefined })} />
+        </label>
+        <label>
+          <span>Held item</span>
+          <input
+            type="text"
+            value={mon.heldItem ?? ""}
+            onChange={(e) => onEdit({ heldItem: e.target.value || null })}
+            list="common-items"
+            placeholder="(none)"
+          />
+        </label>
+        <label className="poke-shiny-toggle">
+          <input type="checkbox" checked={!!mon.isShiny} onChange={(e) => onEdit({ isShiny: e.target.checked })} />
+          <span>Shiny</span>
+        </label>
       </div>
     </div>
+  );
+}
+
+// ─── Items tab — inventory with item picker ────────────────────────────
+function ItemsTab({ save, edit, onEdit, userId, reload }: {
+  save: any; edit: SaveEdit; onEdit: (e: SaveEdit) => void;
+  userId: string; reload: () => void;
+}) {
+  const live = useMemo(() => edit.inventory ?? (save.inventory ?? {}), [edit, save]);
+  const [newItem, setNewItem] = useState("");
+  const [newQty, setNewQty] = useState(1);
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantMsg, setGrantMsg] = useState<string | null>(null);
+
+  const setItem = (itemId: string, qty: number) => {
+    const next = { ...live };
+    if (qty <= 0) delete next[itemId];
+    else next[itemId] = Math.max(0, Math.min(999_999, Math.floor(qty)));
+    onEdit({ ...edit, inventory: next });
+  };
+
+  // "Grant immediately" path uses the focused /items endpoint, which
+  // applies + persists in one shot. Useful when the admin just wants to
+  // hand someone an item without going through the patch save flow.
+  const grantNow = async () => {
+    const id = newItem.trim();
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) {
+      window.alert("Item id must match the slug regex (alphanumerics + dash/underscore, ≤ 40 chars).");
+      return;
+    }
+    setGrantBusy(true);
+    setGrantMsg(null);
+    try {
+      await api.setUserItem(userId, id, newQty);
+      setGrantMsg(`Set ${id} → ${newQty}.`);
+      setNewItem("");
+      setNewQty(1);
+      reload();
+    } catch (e) {
+      setGrantMsg(`Error: ${(e as Error).message}`);
+    } finally {
+      setGrantBusy(false);
+    }
+  };
+
+  const sortedEntries = Object.entries(live).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <>
+      <datalist id="common-items">
+        {COMMON_ITEM_IDS.map((id) => <option key={id} value={id} />)}
+      </datalist>
+
+      <section className="profile-section">
+        <h3>Inventory <span className="dim small">({sortedEntries.length} items)</span></h3>
+        <div className="inv-grid">
+          {sortedEntries.map(([itemId, qty]) => (
+            <div className="inv-cell" key={itemId}>
+              <span className="inv-id mono">{itemId}</span>
+              <input
+                type="number"
+                min={0}
+                max={999_999}
+                value={qty as number}
+                onChange={(e) => setItem(itemId, parseInt(e.target.value, 10) || 0)}
+              />
+              <button className="btn-ghost btn-tiny" onClick={() => setItem(itemId, 0)} title="Remove">×</button>
+            </div>
+          ))}
+          {sortedEntries.length === 0 && <div className="dim small">Inventory is empty.</div>}
+        </div>
+        <p className="dim small">
+          Edits made here join the pending patch. To save, hit "Save changes" at the bottom.
+          Or use "Grant now" below to set an item quantity instantly.
+        </p>
+      </section>
+
+      <section className="profile-section">
+        <h3>Grant item now</h3>
+        <div className="inv-grant">
+          <input
+            type="text"
+            placeholder="item id (e.g. masterball)"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            list="common-items"
+          />
+          <input
+            type="number"
+            min={0}
+            max={999_999}
+            value={newQty}
+            onChange={(e) => setNewQty(parseInt(e.target.value, 10) || 0)}
+          />
+          <button className="btn-primary btn-small" onClick={grantNow} disabled={grantBusy || !newItem.trim()}>
+            {grantBusy ? "Setting…" : "Grant"}
+          </button>
+        </div>
+        {grantMsg && <p className="profile-msg dim small">{grantMsg}</p>}
+      </section>
+    </>
+  );
+}
+
+// ─── Progress tab — money, badges, E4, champion ────────────────────────
+function ProgressTab({ save, edit, onEdit }: { save: any; edit: SaveEdit; onEdit: (e: SaveEdit) => void }) {
+  const live = useMemo(() => ({
+    money: edit.money ?? (save.money ?? 0),
+    victoryTokens: edit.victoryTokens ?? (save.victoryTokens ?? 0),
+    championDefeated: edit.championDefeated ?? (save.championDefeated ?? false),
+    defeatedGyms: (edit.defeatedGyms ?? save.defeatedGyms ?? []) as string[],
+    defeatedEliteFour: (edit.defeatedEliteFour ?? save.defeatedEliteFour ?? []) as string[],
+  }), [edit, save]);
+
+  const toggleGym = (gid: string) => {
+    const cur = new Set(live.defeatedGyms);
+    if (cur.has(gid)) cur.delete(gid); else cur.add(gid);
+    onEdit({ ...edit, defeatedGyms: Array.from(cur) });
+  };
+  const toggleE4 = (eid: string) => {
+    const cur = new Set(live.defeatedEliteFour);
+    if (cur.has(eid)) cur.delete(eid); else cur.add(eid);
+    onEdit({ ...edit, defeatedEliteFour: Array.from(cur) });
+  };
+
+  return (
+    <>
+      <section className="profile-section">
+        <h3>Currency</h3>
+        <div className="progress-currency">
+          <label>
+            <span>Money</span>
+            <input type="number" min={0} max={999_999_999} value={live.money}
+              onChange={(e) => onEdit({ ...edit, money: Math.max(0, Math.min(999_999_999, parseInt(e.target.value, 10) || 0)) })} />
+          </label>
+          <label>
+            <span>Victory tokens</span>
+            <input type="number" min={0} value={live.victoryTokens}
+              onChange={(e) => onEdit({ ...edit, victoryTokens: Math.max(0, parseInt(e.target.value, 10) || 0) })} />
+          </label>
+        </div>
+      </section>
+
+      <section className="profile-section">
+        <h3>Gym badges</h3>
+        <div className="progress-checks">
+          {GYM_IDS.map((g) => (
+            <label key={g} className="progress-check">
+              <input type="checkbox" checked={live.defeatedGyms.includes(g)} onChange={() => toggleGym(g)} />
+              <span>{GYM_NAMES[g]}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="profile-section">
+        <h3>Elite Four & Champion</h3>
+        <div className="progress-checks">
+          {E4_IDS.map((e) => (
+            <label key={e} className="progress-check">
+              <input type="checkbox" checked={live.defeatedEliteFour.includes(e)} onChange={() => toggleE4(e)} />
+              <span>{E4_NAMES[e]}</span>
+            </label>
+          ))}
+          <label className="progress-check">
+            <input type="checkbox" checked={live.championDefeated} onChange={() => onEdit({ ...edit, championDefeated: !live.championDefeated })} />
+            <span>Champion</span>
+          </label>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ─── Messages tab — every chat message this user has sent ──────────────
+function MessagesTab({ userId }: { userId: string }) {
+  const [messages, setMessages] = useState<UserMessage[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setBusy(true);
+    api.userMessages(userId, 200)
+      .then((d) => setMessages(d.messages))
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false));
+  }, [userId]);
+
+  const channelLabel = (chan: string) => {
+    if (chan === "global") return "Global";
+    if (chan.startsWith("area:")) return `Area · ${chan.slice(5)}`;
+    if (chan.startsWith("dm:")) return "DM";
+    return chan;
+  };
+
+  if (busy) return <p className="dim">Loading messages…</p>;
+  if (err) return <div className="page-err">{err}</div>;
+  if (messages.length === 0) return <p className="dim">No messages.</p>;
+
+  return (
+    <div className="messages-list">
+      {messages.map((m) => (
+        <div key={m.id} className="message-row">
+          <div className="message-meta">
+            <span className={`channel-tag ${m.channelId.startsWith("dm:") ? "dm" : m.channelId === "global" ? "global" : "area"}`}>
+              {channelLabel(m.channelId)}
+            </span>
+            <span className="dim small">{new Date(m.createdAt).toLocaleString()}</span>
+          </div>
+          <div className="message-content">{m.content}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Sessions tab — Better Auth session rows ───────────────────────────
+function SessionsTab({ userId }: { userId: string }) {
+  const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setBusy(true);
+    api.userSessions(userId)
+      .then((d) => setSessions(d.sessions))
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false));
+  }, [userId]);
+
+  if (busy) return <p className="dim">Loading sessions…</p>;
+  if (err) return <div className="page-err">{err}</div>;
+  if (sessions.length === 0) return <p className="dim">No active or recent sessions. Better Auth removes expired rows automatically.</p>;
+
+  return (
+    <table className="sessions-table">
+      <thead>
+        <tr><th>Created</th><th>Last seen</th><th>IP</th><th>User agent</th><th>Expires</th></tr>
+      </thead>
+      <tbody>
+        {sessions.map((s) => (
+          <tr key={s.id}>
+            <td className="dim small">{new Date(s.createdAt).toLocaleString()}</td>
+            <td className="dim small">{new Date(s.updatedAt).toLocaleString()}</td>
+            <td className="mono">{s.ipAddress ?? "—"}</td>
+            <td className="dim small ua-cell" title={s.userAgent ?? ""}>{shortenUA(s.userAgent)}</td>
+            <td className="dim small">{new Date(s.expiresAt).toLocaleDateString()}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function shortenUA(ua: string | null): string {
+  if (!ua) return "—";
+  // Brief OS + browser hint — full UA is in the title tooltip.
+  const os = /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Linux/.test(ua) ? "Linux" : "?";
+  const br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "?";
+  return `${os} · ${br}`;
+}
+
+// ─── Raw save tab — pre-formatted dump for full visibility ─────────────
+function RawSaveTab({ save }: { save: any }) {
+  const json = JSON.stringify(save, null, 2);
+  const copy = () => {
+    navigator.clipboard.writeText(json).then(
+      () => window.alert("Save JSON copied to clipboard."),
+      () => window.alert("Couldn't copy — your browser blocked clipboard write."),
+    );
+  };
+  return (
+    <>
+      <div className="raw-toolbar">
+        <button className="btn-ghost btn-small" onClick={copy}>Copy JSON</button>
+        <span className="dim small">{(json.length / 1024).toFixed(1)} KB</span>
+      </div>
+      <pre className="raw-save">{json}</pre>
+    </>
   );
 }
 
