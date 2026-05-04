@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -7,6 +7,7 @@ import {
   pokemonSpriteUrl,
   itemSpriteUrl,
   pokemonStaticSpriteUrl,
+  createPokemon,
 } from "../data/gameCatalog";
 
 // ─── User list page ────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ interface SaveEdit {
   box?: any[];
 }
 
-type DetailTab = "profile" | "pokemon" | "items" | "progress" | "messages" | "sessions" | "raw";
+type DetailTab = "profile" | "pokemon" | "items" | "progress" | "messages" | "trades" | "sessions" | "raw";
 
 // ─── User detail (full page) ──────────────────────────────────────────
 function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () => void; onChange: () => void }) {
@@ -210,7 +211,7 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
       </header>
 
       <nav className="detail-tabs detail-tabs-page" role="tablist">
-        {(["profile", "pokemon", "items", "progress", "messages", "sessions", "raw"] as DetailTab[]).map((t) => (
+        {(["profile", "pokemon", "items", "progress", "messages", "trades", "sessions", "raw"] as DetailTab[]).map((t) => (
           <button
             key={t}
             role="tab"
@@ -223,6 +224,7 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
               : t === "items" ? `Items · ${Object.keys(save?.inventory ?? {}).length}`
               : t === "progress" ? "Progress"
               : t === "messages" ? "Messages"
+              : t === "trades" ? "Trades"
               : t === "sessions" ? "Sessions"
               : "Raw"}
           </button>
@@ -244,6 +246,9 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
         )}
         {tab === "messages" && (
           <MessagesTab userId={id} />
+        )}
+        {tab === "trades" && (
+          <TradesTab userId={id} />
         )}
         {tab === "sessions" && (
           <SessionsTab userId={id} />
@@ -438,19 +443,21 @@ function PokemonTab({ save, edit, onEdit }: {
       return;
     }
     const sp = give.species;
-    const newId = `admin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const level = clamp(give.level, 1, 100);
+    // Use the game's createPokemon factory so the new mon has correctly
+    // derived stats / max HP / totalExp / starting moveset / nature /
+    // ability — all matching what the game would produce for a freshly
+    // caught wild encounter at this level. Without this the player's
+    // client would render with wrong HP / Attack until they manually
+    // re-saved.
+    //
+    // Use a string-collision-safe id rather than the game's numeric
+    // counter — we don't have access to nextPokemonId from the user's
+    // save here, and the game accepts arbitrary string ids.
+    const fakeNumericId = Date.now() + Math.floor(Math.random() * 1000);
     const mon = {
-      id: newId,
-      speciesKey: sp.speciesKey,
-      name: sp.name,
-      level: clamp(give.level, 1, 100),
-      isShiny: give.isShiny,
-      currentHp: 999,
-      maxHp: 999,
-      attack: 50, defense: 50, spAttack: 50, spDefense: 50, speed: 50,
-      ivs: { hp: 31, attack: 31, defense: 31, spAttack: 31, spDefense: 31, speed: 31 },
-      totalExp: 0,
-      moves: [],
+      ...createPokemon(sp.speciesKey, level, fakeNumericId, give.isShiny),
+      id: `admin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     };
     if (give.where === "party") {
       if (live.party.length >= 6) { window.alert("Party is full (6)."); return; }
@@ -478,8 +485,11 @@ function PokemonTab({ save, edit, onEdit }: {
         <details className="poke-box-details">
           <summary className="dim small">{live.box.length === 0 ? "Box is empty." : `Show ${live.box.length} stored Pokémon`}</summary>
           <div className="poke-grid" style={{ marginTop: 8 }}>
+            {/* Static sprites in the box — animated GIFs across hundreds
+                of mons would chew CPU while the panel sits open. Party
+                still uses the animated set. */}
             {live.box.map((p: any, idx: number) => (
-              <PokemonRow key={p.id ?? idx} mon={p} onEdit={(patch) => updateMon("box", idx, patch)} onRemove={() => removeMon("box", idx)} />
+              <PokemonRow key={p.id ?? idx} mon={p} onEdit={(patch) => updateMon("box", idx, patch)} onRemove={() => removeMon("box", idx)} useStaticSprite />
             ))}
           </div>
         </details>
@@ -551,8 +561,21 @@ function PokemonTab({ save, edit, onEdit }: {
   );
 }
 
-function PokemonRow({ mon, onEdit, onRemove }: { mon: any; onEdit: (patch: Record<string, unknown>) => void; onRemove: () => void }) {
-  const spriteUrl = pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny);
+function PokemonRow({ mon, onEdit, onRemove, useStaticSprite }: {
+  mon: any;
+  onEdit: (patch: Record<string, unknown>) => void;
+  onRemove: () => void;
+  useStaticSprite?: boolean;
+}) {
+  // Box uses the static PNG (cheap to render hundreds at once); party
+  // uses the animated Gen-V GIF. pokemonStaticSpriteUrl needs a numeric
+  // dex id, so map slug→id via POKEMON_LIST.
+  const dexId = useStaticSprite
+    ? POKEMON_LIST.find((p) => p.speciesKey === mon.speciesKey)?.id ?? null
+    : null;
+  const spriteUrl = useStaticSprite
+    ? (dexId != null ? pokemonStaticSpriteUrl(dexId) : "")
+    : pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny);
   return (
     <div className="poke-card">
       <div className="poke-card-head">
@@ -857,6 +880,91 @@ function MessagesTab({ userId }: { userId: string }) {
   );
 }
 
+// ─── Trades tab — completed-trade history (both sides) ─────────────────
+function TradesTab({ userId }: { userId: string }) {
+  const [trades, setTrades] = useState<UserTrade[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setBusy(true);
+    api.userTrades(userId)
+      .then((d) => setTrades(d.trades))
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false));
+  }, [userId]);
+
+  if (busy) return <p className="dim">Loading trades…</p>;
+  if (err) return <div className="page-err">{err}</div>;
+  if (trades.length === 0) return <p className="dim">No trade history. Records start populating with the next trade after this commit deploys.</p>;
+
+  return (
+    <div className="trades-list">
+      {trades.map((t) => {
+        // The "self" side is whichever record column matches this user.
+        // Render as: you sent X → them sent Y, with both species + level
+        // and the counterpart's username.
+        const youAreA = t.userAId === userId;
+        const youSent = youAreA
+          ? { species: t.userASentSpecies, level: t.userASentLevel, mon: safeParseMon(t.userASentMon) }
+          : { species: t.userBSentSpecies, level: t.userBSentLevel, mon: safeParseMon(t.userBSentMon) };
+        const theySent = youAreA
+          ? { species: t.userBSentSpecies, level: t.userBSentLevel, mon: safeParseMon(t.userBSentMon) }
+          : { species: t.userASentSpecies, level: t.userASentLevel, mon: safeParseMon(t.userASentMon) };
+        const partnerName = youAreA ? t.userBUsername : t.userAUsername;
+
+        return (
+          <div key={t.id} className="trade-row">
+            <div className="trade-row-meta">
+              <span className="dim small">{new Date(t.createdAt).toLocaleString()}</span>
+              <span className="dim small">↔ <strong>{partnerName}</strong></span>
+            </div>
+            <div className="trade-row-mons">
+              <TradeMonCard label="Sent" mon={youSent.mon} fallbackSpecies={youSent.species} fallbackLevel={youSent.level} />
+              <span className="trade-arrow" aria-hidden>⇄</span>
+              <TradeMonCard label="Received" mon={theySent.mon} fallbackSpecies={theySent.species} fallbackLevel={theySent.level} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function safeParseMon(s: string): any {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+function TradeMonCard({ label, mon, fallbackSpecies, fallbackLevel }: {
+  label: string;
+  mon: any;
+  fallbackSpecies: string;
+  fallbackLevel: number;
+}) {
+  const speciesKey = mon?.speciesKey ?? fallbackSpecies;
+  const level = mon?.level ?? fallbackLevel;
+  const isShiny = !!mon?.isShiny;
+  const url = pokemonSpriteUrl(speciesKey, false, isShiny);
+  return (
+    <div className="trade-mon">
+      <span className="trade-mon-label dim small">{label}</span>
+      <div className="trade-mon-sprite-wrap">
+        {url ? (
+          <img className="trade-mon-sprite" src={url} alt="" loading="lazy" style={{ imageRendering: "pixelated" }} />
+        ) : (
+          <span className="dim small">?</span>
+        )}
+      </div>
+      <div className="trade-mon-info">
+        <strong>
+          {mon?.nickname ?? mon?.name ?? speciesKey}
+          {isShiny && <span className="poke-shiny" title="Shiny">★</span>}
+        </strong>
+        <small className="dim">Lv {level} · {speciesKey}</small>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sessions tab — Better Auth session rows ───────────────────────────
 function SessionsTab({ userId }: { userId: string }) {
   const [sessions, setSessions] = useState<UserSession[]>([]);
@@ -877,7 +985,7 @@ function SessionsTab({ userId }: { userId: string }) {
   return (
     <table className="sessions-table">
       <thead>
-        <tr><th>Created</th><th>Last seen</th><th>IP</th><th>User agent</th><th>Expires</th></tr>
+        <tr><th>Created</th><th>Last seen</th><th>IP</th><th>Country</th><th>User agent</th><th>Expires</th></tr>
       </thead>
       <tbody>
         {sessions.map((s) => (
@@ -885,6 +993,7 @@ function SessionsTab({ userId }: { userId: string }) {
             <td className="dim small">{new Date(s.createdAt).toLocaleString()}</td>
             <td className="dim small">{new Date(s.updatedAt).toLocaleString()}</td>
             <td className="mono">{s.ipAddress ?? "—"}</td>
+            <td className="dim small">{s.country ?? "—"}</td>
             <td className="dim small ua-cell" title={s.userAgent ?? ""}>{shortenUA(s.userAgent)}</td>
             <td className="dim small">{new Date(s.expiresAt).toLocaleDateString()}</td>
           </tr>

@@ -229,3 +229,34 @@ model ChatMessage {
 
   @@index([channelId, createdAt])
 }
+
+// ── Trade history ────────────────────────────────────────────────────────
+// Append-only record of every completed trade. The live trade flow lives
+// entirely in memory (server/src/socket.ts) so a successful swap normally
+// leaves no on-disk trace; this table catches each completion as it
+// happens so the admin dashboard (and, eventually, players themselves)
+// can review past trades.
+//
+// Both sides are denormalized — userId + the JSON snapshot of the mon
+// they sent — so a deleted user account leaves the trade record intact
+// for the surviving counterpart. usernameSnapshot likewise is captured
+// at trade time so a later username change doesn't rewrite history.
+model TradeRecord {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  userAId           String
+  userAUsername     String
+  userASentMon      String   // JSON-serialized Pokémon snapshot
+  userASentSpecies  String
+  userASentLevel    Int
+
+  userBId           String
+  userBUsername     String
+  userBSentMon      String
+  userBSentSpecies  String
+  userBSentLevel    Int
+
+  @@index([userAId, createdAt])
+  @@index([userBId, createdAt])
+}

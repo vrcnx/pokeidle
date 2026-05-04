@@ -16,6 +16,7 @@ export {
   pokemonStaticSpriteUrl,
   itemSpriteUrl,
 } from "@game/utils/sprites";
+export { createPokemon } from "@game/utils/pokemon";
 import { pokemonTable as _pokemonTable } from "@game/data/pokemon";
 import { itemsCatalog as _itemsCatalog } from "@game/data/itemsCatalog";
 

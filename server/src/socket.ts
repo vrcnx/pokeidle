@@ -495,6 +495,30 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         received: aCanonical,
         otherUser: { id: t.a.userId, username: t.a.username },
       });
+      // Persist the completed trade so the admin dashboard can review
+      // history (the live trade flow is in-memory only). Fire-and-
+      // forget — failure here mustn't break the swap that already
+      // shipped to both clients. Snapshot the mons + usernames AT
+      // trade time so a later rename / account delete preserves
+      // history for the surviving counterpart.
+      prisma.tradeRecord
+        .create({
+          data: {
+            userAId: t.a.userId,
+            userAUsername: t.a.username,
+            userASentMon: JSON.stringify(aCanonical),
+            userASentSpecies: String((aCanonical as { speciesKey?: string }).speciesKey ?? ""),
+            userASentLevel: Number((aCanonical as { level?: number }).level ?? 0),
+            userBId: t.b.userId,
+            userBUsername: t.b.username,
+            userBSentMon: JSON.stringify(bCanonical),
+            userBSentSpecies: String((bCanonical as { speciesKey?: string }).speciesKey ?? ""),
+            userBSentLevel: Number((bCanonical as { level?: number }).level ?? 0),
+          },
+        })
+        .catch((e) => {
+          console.error("[trade] failed to persist record", { tradeId: t.id, err: String(e) });
+        });
       setTimeout(() => trades.delete(t.id), 5_000);
     };
 

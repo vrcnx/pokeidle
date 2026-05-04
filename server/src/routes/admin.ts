@@ -325,8 +325,66 @@ app.get("/users/:id/sessions", async (c) => {
       expiresAt: true,
     },
   });
+  // Annotate each session with a coarse country lookup (best-effort).
+  // Uses ip-api.com's free no-auth endpoint, which is rate-limited to
+  // 45 req/min per IP — fine for an admin tool. Failures (private IP,
+  // network, rate limit) silently degrade to country: null.
+  const decorated = await Promise.all(
+    sessions.map(async (s) => {
+      const country = s.ipAddress ? await lookupCountry(s.ipAddress) : null;
+      return { ...s, country };
+    }),
+  );
   void audit(me.id, "user.read_sessions", id);
-  return c.json({ sessions });
+  return c.json({ sessions: decorated });
+});
+
+// In-memory country cache. Expires after 7 days so a long-lived process
+// doesn't accumulate forever, but reuses lookups across admin views.
+const _countryCache = new Map<string, { country: string | null; at: number }>();
+const COUNTRY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function lookupCountry(ip: string): Promise<string | null> {
+  // Skip private / loopback / IPv6-link-local — they have no public
+  // GeoIP entry and would just waste a request.
+  if (
+    ip === "127.0.0.1" || ip === "::1" || ip.startsWith("10.")
+    || ip.startsWith("192.168.") || ip.startsWith("172.")
+    || ip.startsWith("fe80:") || ip.startsWith("fc00:")
+  ) return "Local";
+  const cached = _countryCache.get(ip);
+  if (cached && Date.now() - cached.at < COUNTRY_CACHE_TTL_MS) return cached.country;
+  try {
+    const res = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json() as { status?: string; country?: string };
+    const country = data.status === "success" && data.country ? data.country : null;
+    _countryCache.set(ip, { country, at: Date.now() });
+    return country;
+  } catch {
+    _countryCache.set(ip, { country: null, at: Date.now() });
+    return null;
+  }
+}
+
+// ── User: trade history ────────────────────────────────────────────────
+// Returns up to 100 completed trades involving this user, sorted newest
+// first. Each row includes both sides' mons and usernames as captured
+// at trade time, so renames / account deletes don't rewrite history.
+app.get("/users/:id/trades", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const trades = await prisma.tradeRecord.findMany({
+    where: { OR: [{ userAId: id }, { userBId: id }] },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  void audit(me.id, "user.read_trades", id);
+  return c.json({ trades });
 });
 
 // ── User: chat messages they've sent ───────────────────────────────────

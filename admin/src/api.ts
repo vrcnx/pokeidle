@@ -113,6 +113,8 @@ export const api = {
       `/api/admin/users/${id}/messages?${qs.toString()}`,
     );
   },
+  userTrades: (id: string) =>
+    req<{ trades: UserTrade[] }>("GET", `/api/admin/users/${id}/trades`),
   setUserItem: (id: string, itemId: string, quantity: number) =>
     req<{ ok: true; itemId: string; quantity: number }>(
       "POST",
@@ -192,6 +194,7 @@ export interface UserSession {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  country: string | null;
 }
 
 export interface UserMessage {
@@ -199,6 +202,21 @@ export interface UserMessage {
   channelId: string;
   content: string;
   createdAt: string;
+}
+
+export interface UserTrade {
+  id: string;
+  createdAt: string;
+  userAId: string;
+  userAUsername: string;
+  userASentMon: string;       // JSON-serialized Pokémon
+  userASentSpecies: string;
+  userASentLevel: number;
+  userBId: string;
+  userBUsername: string;
+  userBSentMon: string;
+  userBSentSpecies: string;
+  userBSentLevel: number;
 }
 
 export interface ErrorEntry {
