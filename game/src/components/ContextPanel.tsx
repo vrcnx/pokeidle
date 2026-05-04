@@ -44,9 +44,6 @@ export function ContextPanel() {
         {phase === "idle-town" && <IdleTownPanel />}
         {phase === "idle-raid" && <IdleRaidPanel />}
         {phase === "meta" && <MetaPanel />}
-        {/* Goal path — always visible, regardless of phase. Sits at the
-            bottom so it doesn't push down phase-specific content. */}
-        <UnlockHint />
       </div>
     </div>
   );
@@ -674,8 +671,10 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
 // Always-visible goal tracker. Shows the next location to unlock (with
 // progress bars for each requirement) plus a one-line preview of what's
 // coming after it, so the player has a clear path forward regardless of
-// which screen they're on.
-function UnlockHint() {
+// which screen they're on. Rendered in the right column above MiniChat
+// (was inside ContextPanel previously; moved out so it sits next to
+// chat, where the player's eye lands more often).
+export function UnlockHint() {
   const { state } = useGame();
   const candidates = Object.values(routes)
     .filter((r) => !state.unlockedLocations.includes(r.id))

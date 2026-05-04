@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { api, ApiError, type AdminMe } from "./api";
 import { UsersPage } from "./pages/UsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -63,15 +64,30 @@ export function App() {
           <span className="admin-brand-tag">Admin</span>
         </div>
         <nav className="admin-nav">
-          <NavItem active={page === "analytics"} onClick={() => setPage("analytics")} label="Analytics" />
-          <NavItem active={page === "users"} onClick={() => setPage("users")} label="Users" />
-          <NavItem active={page === "map"} onClick={() => setPage("map")} label="Map editor" />
-          <NavItem active={page === "chat"} onClick={() => setPage("chat")} label="Chat moderation" />
-          <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" />
-          <NavItem active={page === "errors"} onClick={() => setPage("errors")} label="Error log" />
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Overview</span>
+            <NavItem active={page === "analytics"} onClick={() => setPage("analytics")} label="Analytics" icon={<IconChart />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">People</span>
+            <NavItem active={page === "users"} onClick={() => setPage("users")} label="Users" icon={<IconUsers />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Moderation</span>
+            <NavItem active={page === "chat"} onClick={() => setPage("chat")} label="Chat" icon={<IconChat />} />
+            <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" icon={<IconBug />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Diagnostics</span>
+            <NavItem active={page === "errors"} onClick={() => setPage("errors")} label="Error log" icon={<IconAlert />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Tools</span>
+            <NavItem active={page === "map"} onClick={() => setPage("map")} label="Map editor" icon={<IconMap />} />
+          </div>
         </nav>
         <div className="admin-foot">
-          <span className="admin-me">{me?.username}</span>
+          <span className="admin-me" title={me?.username}>{me?.username}</span>
           <button className="admin-signout" onClick={() => api.signOut().then(() => location.reload())}>
             Sign out
           </button>
@@ -89,10 +105,64 @@ export function App() {
   );
 }
 
-function NavItem({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function NavItem({ active, label, onClick, icon }: { active: boolean; label: string; onClick: () => void; icon: ReactNode }) {
   return (
     <button className={`admin-nav-item ${active ? "active" : ""}`} onClick={onClick}>
-      {label}
+      <span className="admin-nav-icon">{icon}</span>
+      <span>{label}</span>
     </button>
+  );
+}
+
+// ── Inline SVG icons ────────────────────────────────────────────────
+// Lucide-flavoured outline icons (16px). Inlining avoids pulling in
+// an icon library for ~6 glyphs.
+function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" /><path d="M7 14l3-3 3 3 5-5" />
+    </svg>
+  );
+}
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+function IconBug() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="6" width="8" height="14" rx="4" />
+      <path d="M12 2v4M5 8l3 2M19 8l-3 2M3 14h3M21 14h-3M5 20l3-2M19 20l-3-2" />
+    </svg>
+  );
+}
+function IconAlert() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+function IconMap() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
   );
 }

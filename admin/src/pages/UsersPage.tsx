@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type AdminUser, type UserSession, type UserMessage } from "../api";
+import { Combobox } from "../components/Combobox";
+import {
+  POKEMON_LIST,
+  ITEM_LIST,
+  pokemonSpriteUrl,
+  itemSpriteUrl,
+  pokemonStaticSpriteUrl,
+} from "../data/gameCatalog";
 
 // ─── User list page ────────────────────────────────────────────────────
-// Top-level: paginated, searchable user list. Clicking a row opens the
-// tabbed UserDetailPanel on the right side.
+// Two views in one component, switched by `selected` state:
+//   - List view (default): paginated, searchable user table
+//   - Detail view: full-page tabbed management panel for one user
+// Clicking a row navigates to detail; the "Back to users" button on
+// the detail view returns to the list, preserving search + page state.
 export function UsersPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
@@ -23,13 +34,24 @@ export function UsersPage() {
   };
   useEffect(reload, [q, page]);
 
+  // Detail view — full page replaces the list.
+  if (selected) {
+    return (
+      <UserDetailFullPage
+        id={selected}
+        onBack={() => setSelected(null)}
+        onChange={reload}
+      />
+    );
+  }
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
   return (
     <div className="page">
       <header className="page-head">
         <h1>Users <span className="dim">({data?.total ?? "…"})</span></h1>
-        <p className="dim">Search by username, email or display name. Click a row to open the full management panel.</p>
+        <p className="dim">Search by username, email or display name. Click a row to open the full management page.</p>
       </header>
 
       <div className="users-toolbar">
@@ -61,7 +83,6 @@ export function UsersPage() {
           {(data?.users ?? []).map((u) => (
             <tr
               key={u.id}
-              className={selected === u.id ? "selected" : ""}
               onClick={() => setSelected(u.id)}
               style={{ cursor: "pointer" }}
             >
@@ -93,14 +114,6 @@ export function UsersPage() {
         <span className="dim">Page {page + 1} of {totalPages}</span>
         <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next ›</button>
       </div>
-
-      {selected && (
-        <UserDetailPanel
-          id={selected}
-          onClose={() => setSelected(null)}
-          onChange={reload}
-        />
-      )}
     </div>
   );
 }
@@ -116,19 +129,6 @@ const E4_NAMES: Record<string, string> = {
   lorelei: "Lorelei", bruno: "Bruno", agatha: "Agatha", lance: "Lance",
 };
 
-// Hand-picked datalist of common item IDs so the admin doesn't have to
-// memorise the full catalog when granting items. Not exhaustive — admin
-// can still type any valid id (validateSave only checks the regex).
-const COMMON_ITEM_IDS = [
-  "pokeball", "greatball", "ultraball", "masterball", "premierball", "luxuryball",
-  "potion", "super-potion", "hyper-potion", "max-potion", "full-restore", "revive", "max-revive",
-  "antidote", "burn-heal", "ice-heal", "awakening", "paralyze-heal", "full-heal",
-  "fire-stone", "water-stone", "thunder-stone", "leaf-stone", "moon-stone", "sun-stone",
-  "rare-candy", "exp-share", "exp-candy-s", "exp-candy-m", "exp-candy-l", "exp-candy-xl",
-  "hp-up", "protein", "iron", "calcium", "zinc", "carbos",
-  "leftovers", "lucky-egg", "amulet-coin", "soothe-bell",
-];
-
 // Edit-state shape for the save patch (mirrors PATCHABLE_KEYS on the server).
 interface SaveEdit {
   money?: number;
@@ -143,8 +143,8 @@ interface SaveEdit {
 
 type DetailTab = "profile" | "pokemon" | "items" | "progress" | "messages" | "sessions" | "raw";
 
-// ─── User detail (tabbed) ───────────────────────────────────────────────
-function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () => void; onChange: () => void }) {
+// ─── User detail (full page) ──────────────────────────────────────────
+function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () => void; onChange: () => void }) {
   const [tab, setTab] = useState<DetailTab>("profile");
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -161,10 +161,16 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
   useEffect(reload, [id]);
 
   if (err) return (
-    <aside className="detail-panel"><div className="page-err">{err}</div></aside>
+    <div className="page">
+      <DetailHeader onBack={onBack} />
+      <div className="page-err">{err}</div>
+    </div>
   );
   if (!data) return (
-    <aside className="detail-panel"><p className="dim">Loading…</p></aside>
+    <div className="page">
+      <DetailHeader onBack={onBack} />
+      <p className="dim">Loading…</p>
+    </div>
   );
 
   const banned = data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now();
@@ -189,16 +195,21 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
   const dirty = Object.keys(edit).length > 0;
 
   return (
-    <aside className="detail-panel">
-      <header className="detail-head">
+    <div className="page user-detail-page">
+      <DetailHeader onBack={onBack} />
+      <header className="user-detail-head">
         <div>
-          <h2>{data.name ?? data.username}</h2>
-          <div className="dim small">@{data.username} · {data.email}</div>
+          <h1>{data.name ?? data.username}</h1>
+          <div className="dim">@{data.username} · {data.email}</div>
         </div>
-        <button className="btn-ghost" onClick={onClose} aria-label="Close">×</button>
+        <div className="user-detail-status">
+          {data.isAdmin && <span className="tag admin">ADMIN</span>}
+          {banned && <span className="tag banned">BANNED</span>}
+          <span className="dim small">v{data.saveVersion}</span>
+        </div>
       </header>
 
-      <nav className="detail-tabs" role="tablist">
+      <nav className="detail-tabs detail-tabs-page" role="tablist">
         {(["profile", "pokemon", "items", "progress", "messages", "sessions", "raw"] as DetailTab[]).map((t) => (
           <button
             key={t}
@@ -208,8 +219,8 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
             onClick={() => setTab(t)}
           >
             {t === "profile" ? "Profile"
-              : t === "pokemon" ? `Pokémon (${(save?.party?.length ?? 0)}+${(save?.box?.length ?? 0)})`
-              : t === "items" ? `Items (${Object.keys(save?.inventory ?? {}).length})`
+              : t === "pokemon" ? `Pokémon · ${(save?.party?.length ?? 0)}+${(save?.box?.length ?? 0)}`
+              : t === "items" ? `Items · ${Object.keys(save?.inventory ?? {}).length}`
               : t === "progress" ? "Progress"
               : t === "messages" ? "Messages"
               : t === "sessions" ? "Sessions"
@@ -218,9 +229,9 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
         ))}
       </nav>
 
-      <div className="detail-body">
+      <div className="detail-body detail-body-page">
         {tab === "profile" && (
-          <ProfileTab data={data} banned={banned} busy={busy} setBusy={setBusy} reload={reload} onChange={onChange} onClose={onClose} />
+          <ProfileTab data={data} banned={banned} busy={busy} setBusy={setBusy} reload={reload} onChange={onChange} onClose={onBack} />
         )}
         {tab === "pokemon" && save && (
           <PokemonTab save={save} edit={edit} onEdit={setEdit} />
@@ -246,16 +257,23 @@ function UserDetailPanel({ id, onClose, onChange }: { id: string; onClose: () =>
       </div>
 
       {dirty && tab !== "messages" && tab !== "sessions" && tab !== "raw" && (
-        <div className="detail-savebar">
+        <div className="detail-savebar detail-savebar-page">
           <span className="dim small">{savingMsg ?? `Unsaved changes (${Object.keys(edit).join(", ")})`}</span>
           <button className="btn-ghost" onClick={() => { setEdit({}); setSavingMsg(null); }} disabled={busy}>Discard</button>
           <button className="btn-primary" onClick={saveEdit} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
         </div>
       )}
       {!dirty && savingMsg && (
-        <div className="detail-savebar"><span className="dim small">{savingMsg}</span></div>
+        <div className="detail-savebar detail-savebar-page"><span className="dim small">{savingMsg}</span></div>
       )}
-    </aside>
+    </div>
+  );
+}
+
+// Tiny back-link header used at the top of the user detail page.
+function DetailHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <button className="detail-back" onClick={onBack}>← Back to users</button>
   );
 }
 
@@ -395,20 +413,36 @@ function PokemonTab({ save, edit, onEdit }: {
     onEdit({ ...edit, [where]: next });
   };
 
-  // Give-mon form — adds a fresh Pokémon to party or box. Stats are
-  // intentionally minimal (level + species + shiny); the game's reducer
-  // re-derives most fields from the catalog on next state hydration.
-  const [give, setGive] = useState({ where: "party" as "party" | "box", speciesKey: "", level: 5, isShiny: false });
+  // Give-mon form — adds a fresh Pokémon to party or box. The species
+  // picker is a searchable combobox sourced from the game's pokemonTable
+  // (re-exported via gameCatalog), so the admin doesn't have to memorise
+  // any of the ~200 slugs. The game's reducer re-derives stats / moves
+  // / max HP from the species catalog on the user's next save load, so
+  // we only need the bare minimum here.
+  const [give, setGive] = useState<{
+    where: "party" | "box";
+    species: { speciesKey: string; name: string; id: number; types: string[] } | null;
+    speciesQuery: string;
+    level: number;
+    isShiny: boolean;
+  }>({
+    where: "party",
+    species: null,
+    speciesQuery: "",
+    level: 5,
+    isShiny: false,
+  });
   const giveMon = () => {
-    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(give.speciesKey.trim())) {
-      window.alert("speciesKey must be a slug like 'gengar' or 'mr-mime'.");
+    if (!give.species) {
+      window.alert("Pick a Pokémon first.");
       return;
     }
+    const sp = give.species;
     const newId = `admin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const mon = {
       id: newId,
-      speciesKey: give.speciesKey.trim().toLowerCase(),
-      name: give.speciesKey.trim(),
+      speciesKey: sp.speciesKey,
+      name: sp.name,
       level: clamp(give.level, 1, 100),
       isShiny: give.isShiny,
       currentHp: 999,
@@ -424,7 +458,7 @@ function PokemonTab({ save, edit, onEdit }: {
     } else {
       onEdit({ ...edit, box: [...live.box, mon] });
     }
-    setGive({ ...give, speciesKey: "" });
+    setGive({ ...give, species: null, speciesQuery: "" });
   };
 
   return (
@@ -454,27 +488,63 @@ function PokemonTab({ save, edit, onEdit }: {
       <section className="profile-section">
         <h3>Give Pokémon</h3>
         <div className="give-mon">
-          <select value={give.where} onChange={(e) => setGive({ ...give, where: e.target.value as "party" | "box" })}>
+          <select
+            value={give.where}
+            onChange={(e) => setGive({ ...give, where: e.target.value as "party" | "box" })}
+          >
             <option value="party">Party</option>
             <option value="box">Box</option>
           </select>
-          <input
-            placeholder="speciesKey (e.g. gengar, mewtwo)"
-            value={give.speciesKey}
-            onChange={(e) => setGive({ ...give, speciesKey: e.target.value })}
+          <Combobox
+            value={give.speciesQuery}
+            onChange={(text) => setGive({ ...give, speciesQuery: text, species: null })}
+            onSelect={(sp) => setGive({ ...give, species: sp, speciesQuery: `${sp.name} (#${sp.id})` })}
+            options={POKEMON_LIST}
+            placeholder="Search Pokémon by name or slug…"
+            getKey={(sp) => sp.speciesKey}
+            getSearchText={(sp) => `${sp.name} ${sp.speciesKey} ${sp.types.join(" ")}`}
+            renderOption={(sp) => (
+              <div className="combobox-pokemon">
+                <img
+                  src={pokemonStaticSpriteUrl(sp.id)}
+                  alt=""
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <div className="combobox-pokemon-info">
+                  <strong>{sp.name}</strong>
+                  <small className="dim">#{sp.id} · {sp.speciesKey}</small>
+                </div>
+                <div className="combobox-pokemon-types">
+                  {sp.types.map((t) => <span key={t} className={`type-chip type-${t.toLowerCase()}`}>{t}</span>)}
+                </div>
+              </div>
+            )}
           />
           <label className="give-level">
             Lv
-            <input type="number" min={1} max={100} value={give.level} onChange={(e) => setGive({ ...give, level: parseInt(e.target.value, 10) || 1 })} />
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={give.level}
+              onChange={(e) => setGive({ ...give, level: parseInt(e.target.value, 10) || 1 })}
+            />
           </label>
           <label className="give-shiny">
-            <input type="checkbox" checked={give.isShiny} onChange={(e) => setGive({ ...give, isShiny: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={give.isShiny}
+              onChange={(e) => setGive({ ...give, isShiny: e.target.checked })}
+            />
             Shiny
           </label>
-          <button className="btn-primary btn-small" onClick={giveMon}>Give</button>
+          <button className="btn-primary btn-small" onClick={giveMon} disabled={!give.species}>Give</button>
         </div>
         <p className="dim small">
-          Adds a fresh Pokémon with perfect IVs and the given level. Stats will re-derive from the species catalog on the user's next save load.
+          Adds a fresh Pokémon with perfect IVs and the given level. Stats re-derive from the species catalog on the user's next save load.
         </p>
       </section>
     </>
@@ -482,10 +552,24 @@ function PokemonTab({ save, edit, onEdit }: {
 }
 
 function PokemonRow({ mon, onEdit, onRemove }: { mon: any; onEdit: (patch: Record<string, unknown>) => void; onRemove: () => void }) {
+  const spriteUrl = pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny);
   return (
     <div className="poke-card">
       <div className="poke-card-head">
-        <div>
+        <div className="poke-card-sprite-wrap">
+          {spriteUrl ? (
+            <img
+              className="poke-card-sprite"
+              src={spriteUrl}
+              alt=""
+              loading="lazy"
+              style={{ imageRendering: "pixelated" }}
+            />
+          ) : (
+            <div className="poke-card-sprite missing" title="Sprite unavailable">?</div>
+          )}
+        </div>
+        <div className="poke-card-name">
           <strong>{mon.nickname ?? mon.name ?? mon.speciesKey}</strong>
           {mon.isShiny && <span className="poke-shiny" title="Shiny">★</span>}
           <div className="dim small mono">{mon.speciesKey}</div>
@@ -507,7 +591,6 @@ function PokemonRow({ mon, onEdit, onRemove }: { mon: any; onEdit: (patch: Recor
             type="text"
             value={mon.heldItem ?? ""}
             onChange={(e) => onEdit({ heldItem: e.target.value || null })}
-            list="common-items"
             placeholder="(none)"
           />
         </label>
@@ -526,7 +609,8 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
   userId: string; reload: () => void;
 }) {
   const live = useMemo(() => edit.inventory ?? (save.inventory ?? {}), [edit, save]);
-  const [newItem, setNewItem] = useState("");
+  const [pickedItem, setPickedItem] = useState<typeof ITEM_LIST[number] | null>(null);
+  const [pickedQuery, setPickedQuery] = useState("");
   const [newQty, setNewQty] = useState(1);
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantMsg, setGrantMsg] = useState<string | null>(null);
@@ -539,20 +623,20 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
   };
 
   // "Grant immediately" path uses the focused /items endpoint, which
-  // applies + persists in one shot. Useful when the admin just wants to
-  // hand someone an item without going through the patch save flow.
+  // applies + persists in one shot. Useful when the admin just wants
+  // to hand someone an item without going through the patch save flow.
   const grantNow = async () => {
-    const id = newItem.trim();
-    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(id)) {
-      window.alert("Item id must match the slug regex (alphanumerics + dash/underscore, ≤ 40 chars).");
+    if (!pickedItem) {
+      window.alert("Pick an item first.");
       return;
     }
     setGrantBusy(true);
     setGrantMsg(null);
     try {
-      await api.setUserItem(userId, id, newQty);
-      setGrantMsg(`Set ${id} → ${newQty}.`);
-      setNewItem("");
+      await api.setUserItem(userId, pickedItem.id, newQty);
+      setGrantMsg(`Set ${pickedItem.name} → ${newQty}.`);
+      setPickedItem(null);
+      setPickedQuery("");
       setNewQty(1);
       reload();
     } catch (e) {
@@ -562,47 +646,88 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
     }
   };
 
-  const sortedEntries = Object.entries(live).sort(([a], [b]) => a.localeCompare(b));
+  // Match inventory entries up with catalog metadata so we can show
+  // the item's display name + sprite next to the slug. Falls back to
+  // the raw slug when an unknown item id is in the user's save.
+  const itemMeta = useMemo(() => {
+    const map = new Map<string, typeof ITEM_LIST[number]>();
+    for (const it of ITEM_LIST) map.set(it.id, it);
+    return map;
+  }, []);
+  const sortedEntries = Object.entries(live).sort(([a], [b]) => {
+    const ma = itemMeta.get(a)?.name ?? a;
+    const mb = itemMeta.get(b)?.name ?? b;
+    return ma.localeCompare(mb);
+  });
 
   return (
     <>
-      <datalist id="common-items">
-        {COMMON_ITEM_IDS.map((id) => <option key={id} value={id} />)}
-      </datalist>
-
       <section className="profile-section">
         <h3>Inventory <span className="dim small">({sortedEntries.length} items)</span></h3>
         <div className="inv-grid">
-          {sortedEntries.map(([itemId, qty]) => (
-            <div className="inv-cell" key={itemId}>
-              <span className="inv-id mono">{itemId}</span>
-              <input
-                type="number"
-                min={0}
-                max={999_999}
-                value={qty as number}
-                onChange={(e) => setItem(itemId, parseInt(e.target.value, 10) || 0)}
-              />
-              <button className="btn-ghost btn-tiny" onClick={() => setItem(itemId, 0)} title="Remove">×</button>
-            </div>
-          ))}
+          {sortedEntries.map(([itemId, qty]) => {
+            const meta = itemMeta.get(itemId);
+            return (
+              <div className="inv-cell" key={itemId}>
+                <img
+                  className="inv-sprite"
+                  src={itemSpriteUrl(itemId, meta?.spriteOverride)}
+                  alt=""
+                  loading="lazy"
+                  width={24}
+                  height={24}
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <div className="inv-name">
+                  <strong>{meta?.name ?? itemId}</strong>
+                  <span className="dim small mono">{itemId}</span>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={999_999}
+                  value={qty as number}
+                  onChange={(e) => setItem(itemId, parseInt(e.target.value, 10) || 0)}
+                />
+                <button className="btn-ghost btn-tiny" onClick={() => setItem(itemId, 0)} title="Remove">×</button>
+              </div>
+            );
+          })}
           {sortedEntries.length === 0 && <div className="dim small">Inventory is empty.</div>}
         </div>
         <p className="dim small">
-          Edits made here join the pending patch. To save, hit "Save changes" at the bottom.
-          Or use "Grant now" below to set an item quantity instantly.
+          Edits join the pending patch — hit "Save changes" at the bottom.
+          Or use "Grant now" below to set an item quantity instantly without going through the save flow.
         </p>
       </section>
 
       <section className="profile-section">
         <h3>Grant item now</h3>
         <div className="inv-grant">
-          <input
-            type="text"
-            placeholder="item id (e.g. masterball)"
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-            list="common-items"
+          <Combobox
+            value={pickedQuery}
+            onChange={(text) => { setPickedQuery(text); setPickedItem(null); }}
+            onSelect={(it) => { setPickedItem(it); setPickedQuery(it.name); }}
+            options={ITEM_LIST}
+            placeholder="Search items by name, slug, or category…"
+            getKey={(it) => it.id}
+            getSearchText={(it) => `${it.name} ${it.id} ${it.category}`}
+            renderOption={(it) => (
+              <div className="combobox-item">
+                <img
+                  src={itemSpriteUrl(it.id, it.spriteOverride)}
+                  alt=""
+                  width={24}
+                  height={24}
+                  loading="lazy"
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <div className="combobox-item-info">
+                  <strong>{it.name}</strong>
+                  <small className="dim">{it.category} · {it.id}</small>
+                </div>
+              </div>
+            )}
           />
           <input
             type="number"
@@ -611,7 +736,7 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
             value={newQty}
             onChange={(e) => setNewQty(parseInt(e.target.value, 10) || 0)}
           />
-          <button className="btn-primary btn-small" onClick={grantNow} disabled={grantBusy || !newItem.trim()}>
+          <button className="btn-primary btn-small" onClick={grantNow} disabled={grantBusy || !pickedItem}>
             {grantBusy ? "Setting…" : "Grant"}
           </button>
         </div>

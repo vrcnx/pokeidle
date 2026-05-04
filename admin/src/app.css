@@ -77,47 +77,91 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .auth-card p { color: var(--text-muted); margin: 0 0 8px; font-size: 13px; }
 
 .admin-sidebar {
-  background: var(--panel);
+  background: linear-gradient(180deg, #0e0e0e, #0a0a0a);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 20px 14px;
+  padding: 18px 12px;
 }
 .admin-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 8px 22px;
+  margin: 0 6px 24px;
+  padding: 6px 6px 14px;
+  border-bottom: 1px solid var(--border);
   font-weight: 700;
   font-size: 14px;
   letter-spacing: -0.02em;
 }
-.admin-brand-icon { width: 28px; height: 28px; }
-.admin-brand-mark { height: 18px; width: auto; opacity: 0.92; }
+.admin-brand-icon { width: 26px; height: 26px; }
+.admin-brand-mark { height: 16px; width: auto; opacity: 0.92; }
 .admin-brand-tag {
   margin-left: auto;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  padding: 2px 6px;
+  color: #93c5fd;
+  background: rgba(96,165,250,0.12);
+  border: 1px solid rgba(96,165,250,0.3);
+  padding: 2px 7px;
   border-radius: 4px;
 }
-.admin-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  overflow-y: auto;
+}
+.admin-nav-group { display: flex; flex-direction: column; gap: 1px; }
+.admin-nav-heading {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 12px 6px;
+}
 .admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   background: transparent;
   border: 0;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
+  position: relative;
+  transition: background 100ms ease, color 100ms ease;
 }
 .admin-nav-item:hover { background: var(--panel-2); color: var(--text); }
-.admin-nav-item.active { background: var(--panel-3); color: var(--text); font-weight: 600; }
+.admin-nav-item.active {
+  background: var(--panel-3);
+  color: var(--text);
+  font-weight: 600;
+}
+.admin-nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 2px;
+  background: var(--text);
+  border-radius: 1px;
+}
+.admin-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.admin-nav-icon svg { width: 16px; height: 16px; }
 .admin-foot {
   display: flex;
   align-items: center;
@@ -992,3 +1036,206 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: var(--text-muted);
   letter-spacing: 0.3px;
 }
+
+/* ─── User detail (full page) ──────────────────────────────────────── */
+.user-detail-page { max-width: 1400px; }
+.detail-back {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  padding: 4px 0 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.detail-back:hover { color: var(--text); }
+.user-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.user-detail-head h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.02em; }
+.user-detail-status { display: flex; align-items: center; gap: 8px; }
+
+.detail-tabs-page {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+  background: transparent;
+}
+.detail-body-page {
+  background: transparent;
+  padding: 0;
+  overflow: visible;
+}
+.detail-savebar-page {
+  position: sticky;
+  bottom: 0;
+  margin: 18px -36px -28px;
+  padding: 12px 36px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  z-index: 10;
+}
+
+/* ─── Combobox (searchable select) ─────────────────────────────────── */
+.combobox {
+  position: relative;
+  min-width: 0;
+}
+.combobox-input {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+}
+.combobox-input:focus { outline: none; border-color: var(--text-muted); }
+.combobox-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 50;
+  padding: 4px;
+}
+.combobox-empty { padding: 12px; color: var(--text-muted); font-size: 12px; text-align: center; }
+.combobox-option {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+.combobox-option.highlighted { background: var(--panel-3); }
+.combobox-pokemon {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.combobox-pokemon img { background: rgba(255,255,255,0.04); border-radius: 4px; }
+.combobox-pokemon-info { display: flex; flex-direction: column; min-width: 0; }
+.combobox-pokemon-info strong { font-size: 13px; }
+.combobox-pokemon-info small { font-size: 10px; }
+.combobox-pokemon-types { display: flex; gap: 3px; flex-wrap: wrap; }
+.combobox-item {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.combobox-item img { background: rgba(255,255,255,0.04); border-radius: 3px; }
+.combobox-item-info { display: flex; flex-direction: column; min-width: 0; }
+.combobox-item-info strong { font-size: 12.5px; }
+.combobox-item-info small { font-size: 10px; }
+
+/* Override: the combobox grant cells + give-mon need flexible widths */
+.inv-grant {
+  grid-template-columns: 1fr 100px auto;
+}
+.inv-grant .combobox { width: 100%; }
+.give-mon {
+  grid-template-columns: auto 1fr auto auto auto;
+}
+.give-mon .combobox { width: 100%; }
+
+/* ─── Type chips (combobox + sprite cards) ─────────────────────────── */
+.type-chip {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted);
+}
+.type-chip.type-normal   { background: rgba(168,168,120,0.22); color: #d6d6a8; }
+.type-chip.type-fire     { background: rgba(240,128,48,0.22);  color: #f9a878; }
+.type-chip.type-water    { background: rgba(104,144,240,0.22); color: #a3bef5; }
+.type-chip.type-electric { background: rgba(248,208,48,0.22);  color: #ffe07d; }
+.type-chip.type-grass    { background: rgba(120,200,80,0.22);  color: #b3e295; }
+.type-chip.type-ice      { background: rgba(152,216,216,0.22); color: #c9eaea; }
+.type-chip.type-fighting { background: rgba(192,48,40,0.22);   color: #f0938b; }
+.type-chip.type-poison   { background: rgba(160,64,160,0.22);  color: #d49ed4; }
+.type-chip.type-ground   { background: rgba(224,192,104,0.22); color: #efd994; }
+.type-chip.type-flying   { background: rgba(168,144,240,0.22); color: #c9b8f5; }
+.type-chip.type-psychic  { background: rgba(248,88,136,0.22);  color: #ffa8c0; }
+.type-chip.type-bug      { background: rgba(168,184,32,0.22);  color: #d8e060; }
+.type-chip.type-rock     { background: rgba(184,160,56,0.22);  color: #ddc77a; }
+.type-chip.type-ghost    { background: rgba(112,88,152,0.22);  color: #b9a8d4; }
+.type-chip.type-dragon   { background: rgba(112,56,248,0.22);  color: #b598ff; }
+.type-chip.type-dark     { background: rgba(112,88,72,0.22);   color: #b8a89c; }
+.type-chip.type-steel    { background: rgba(184,184,208,0.22); color: #d6d6e0; }
+.type-chip.type-fairy    { background: rgba(238,153,172,0.22); color: #f7c2d0; }
+
+/* ─── Pokémon card sprite wrapper ──────────────────────────────────── */
+.poke-card-sprite-wrap {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 4px;
+}
+.poke-card-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.poke-card-sprite.missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 18px;
+  background: transparent;
+}
+.poke-card-name {
+  flex: 1;
+  min-width: 0;
+}
+.poke-card-name strong { font-size: 13px; }
+.poke-card-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* Larger inventory cells with sprite + name + qty */
+.inv-cell {
+  display: grid;
+  grid-template-columns: 28px 1fr 80px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+}
+.inv-sprite {
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px;
+  padding: 2px;
+}
+.inv-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.inv-name strong { font-size: 12px; }
