@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "@pkmn/protocol": "^0.7.2",
+    "@pkmn/sim": "^0.10.7",
     "@prisma/client": "^5.22.0",
     "better-auth": "^1.1.18",
     "hono": "^4.6.14",

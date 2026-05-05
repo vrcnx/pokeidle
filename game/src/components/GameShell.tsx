@@ -6,6 +6,7 @@ import { MobileShell } from "./MobileShell";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { bindTradeSocket } from "../state/trade";
 import { bindPresenceSocket } from "../state/presence";
+import { bindPvpSocket } from "../state/pvp";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
@@ -19,6 +20,8 @@ import { BattleLogModal } from "./BattleLogModal";
 import { PublicTrainerCardMount } from "./TrainerCardModal";
 import { TradeInviteToast } from "./TradeInviteToast";
 import { TradeRoomModal } from "./TradeRoomModal";
+import { BattleInviteToast } from "./BattleInviteToast";
+import { PvpBattleModal } from "./PvpBattleModal";
 import { ReportBugModal } from "./ReportBugModal";
 
 // Three-column dashboard layout. A floating <GlobalDock> at the top-right
@@ -34,6 +37,7 @@ export function GameShell() {
   useEffect(() => {
     bindTradeSocket();
     bindPresenceSocket();
+    bindPvpSocket();
   }, []);
   return (
     <div className="game-window">
@@ -60,6 +64,8 @@ export function GameShell() {
       <PublicTrainerCardMount />
       <TradeRoomModal />
       <TradeInviteToast />
+      <PvpBattleModal />
+      <BattleInviteToast />
       <ReportBugModal />
     </div>
   );

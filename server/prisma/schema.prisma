@@ -230,6 +230,75 @@ model ChatMessage {
   @@index([channelId, createdAt])
 }
 
+// ── PvP battles ──────────────────────────────────────────────────────────
+// One row per completed PvP battle. The live battle runs in-memory on
+// the server with @pkmn/sim; this model captures the result + a replay
+// log so the admin dashboard (and eventually a "match history" surface
+// for players) has something to show. Teams are snapshotted as JSON
+// at battle-start time so a later party change doesn't rewrite history.
+model PvpMatch {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  finishedAt  DateTime?
+  format      String   // "anything-goes" for v1; tier id later
+  status      String   // "active" | "completed" | "forfeit" | "cancelled"
+
+  userAId           String
+  userAUsername     String
+  userATeam         String   // JSON-serialized PokemonSet[] sent to @pkmn/sim
+  userBId           String
+  userBUsername     String
+  userBTeam         String
+
+  winnerId          String?  // null on cancellation / mutual draw
+  loserId           String?
+  endReason         String?  // "ko" | "forfeit" | "timeout" | "cancelled"
+  battleLog         String?  // newline-joined Showdown protocol lines
+  tournamentId      String?  // set when this match is part of a tournament round
+
+  @@index([userAId, createdAt])
+  @@index([userBId, createdAt])
+  @@index([tournamentId])
+}
+
+// ── Tournaments ──────────────────────────────────────────────────────────
+// Foundation only in v1 — schema + admin endpoints to create/seed/run
+// brackets are scaffolded but the player-facing UI ships in a follow-up.
+// `bracket` holds a JSON tree of round/match assignments updated as
+// matches complete; advancement reads the winner from PvpMatch and
+// rewrites the next round's slots.
+model Tournament {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  startsAt    DateTime?
+  finishedAt  DateTime?
+  name        String
+  format      String   // mirrors PvpMatch.format
+  status      String   // "scheduled" | "open" | "live" | "completed" | "cancelled"
+  bracket     String?  // JSON tree of rounds → match slots
+  ownerId     String   // admin who created it
+
+  entries TournamentEntry[]
+
+  @@index([status, createdAt])
+}
+
+model TournamentEntry {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  userId        String
+  username      String   // captured at signup so renames don't break the bracket
+  seed          Int?     // optional seeding number, lower = better
+  eliminated    Boolean  @default(false)
+  joinedAt      DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, eliminated])
+  @@index([userId])
+}
+
 // ── Trade history ────────────────────────────────────────────────────────
 // Append-only record of every completed trade. The live trade flow lives
 // entirely in memory (server/src/socket.ts) so a successful swap normally

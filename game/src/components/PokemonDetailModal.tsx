@@ -375,18 +375,8 @@ function PokemonDetailDialog({
           </section>
 
           <section className="g-card">
-            <h3>IVs / EVs</h3>
-            <ul className="detail-stats">
-              {(["hp","attack","defense","spAttack","spDefense","speed"] as const).map((k) => (
-                <li key={k}>
-                  <span>{statShort(k)}</span>
-                  <span>
-                    <span className="dim">IV</span> {p.ivs[k]}
-                    <span className="dim" style={{ marginLeft: 6 }}>EV</span> {p.evs?.[k] ?? 0}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <h3>EV training</h3>
+            <EvRadar evs={p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 }} ivs={p.ivs} />
           </section>
         </div>
 
@@ -605,5 +595,175 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
       {pokemon.nickname || pokemon.name}{pokemon.isShiny ? " ✨" : ""}
       <small> Lv. {pokemon.level}</small>
     </h2>
+  );
+}
+
+// ── EV / IV radar ──────────────────────────────────────────────────
+// Hexagonal stat radar: outer hexagon = max EVs (252), inner filled
+// polygon = current EVs, with IV pips alongside each stat label.
+// Rendered as inline SVG (~200 lines of pure geometry — no chart lib
+// needed, dashboard-style). EV cap is enforced server-side; this just
+// visualises the current state.
+function EvRadar({
+  evs,
+  ivs,
+}: {
+  evs: { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
+  ivs: { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
+}) {
+  // Six-stat vertices. Order matches the canonical Showdown radar:
+  // HP (top), Atk, Def, SpA, SpD, Spe. We rotate so HP is at the top.
+  const STAT_LABELS: Array<{ key: keyof typeof evs; short: string; full: string }> = [
+    { key: "hp",        short: "HP",  full: "HP" },
+    { key: "attack",    short: "Atk", full: "Attack" },
+    { key: "defense",   short: "Def", full: "Defense" },
+    { key: "spAttack",  short: "SpA", full: "Sp. Atk" },
+    { key: "spDefense", short: "SpD", full: "Sp. Def" },
+    { key: "speed",     short: "Spe", full: "Speed" },
+  ];
+  const N = STAT_LABELS.length;
+  const SIZE = 220;
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+  const R = SIZE / 2 - 28;  // leave margin for outer labels
+  const MAX_EV = 252;
+
+  // Vertex angle for each stat. Start at -90° (top) and go clockwise.
+  const angle = (i: number) => (-Math.PI / 2) + (i * 2 * Math.PI) / N;
+  const vertex = (i: number, r: number) => ({
+    x: CX + Math.cos(angle(i)) * r,
+    y: CY + Math.sin(angle(i)) * r,
+  });
+
+  // Background hex grid: 25%, 50%, 75%, 100% of full radius.
+  const gridLevels = [0.25, 0.5, 0.75, 1.0];
+
+  // Filled polygon for current EV values.
+  const evPoly = STAT_LABELS.map((s, i) => {
+    const ratio = Math.min(1, (evs[s.key] ?? 0) / MAX_EV);
+    const v = vertex(i, R * ratio);
+    return `${v.x.toFixed(1)},${v.y.toFixed(1)}`;
+  }).join(" ");
+
+  // Total EV count — capped at 510 in-game.
+  const evTotal = STAT_LABELS.reduce((sum, s) => sum + (evs[s.key] ?? 0), 0);
+  const ivTotal = STAT_LABELS.reduce((sum, s) => sum + (ivs[s.key] ?? 0), 0);
+
+  // Label positions sit slightly outside each vertex so they don't
+  // clip the polygon. Anchor based on whether the vertex is above /
+  // below / on the centre horizontal so labels read correctly.
+  const labelPos = (i: number): { x: number; y: number; anchor: "middle" | "start" | "end" } => {
+    const v = vertex(i, R + 14);
+    const a = angle(i);
+    const cosA = Math.cos(a);
+    const anchor: "middle" | "start" | "end" =
+      Math.abs(cosA) < 0.2 ? "middle" : cosA > 0 ? "start" : "end";
+    return { x: v.x, y: v.y, anchor };
+  };
+
+  return (
+    <div className="ev-radar-wrap">
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="ev-radar" aria-label="EV radar">
+        {/* Background hex grid rings */}
+        {gridLevels.map((lvl, ringIdx) => {
+          const points = STAT_LABELS.map((_, i) => {
+            const v = vertex(i, R * lvl);
+            return `${v.x.toFixed(1)},${v.y.toFixed(1)}`;
+          }).join(" ");
+          return (
+            <polygon
+              key={ringIdx}
+              points={points}
+              fill="none"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        {/* Spokes from centre to each vertex */}
+        {STAT_LABELS.map((_, i) => {
+          const v = vertex(i, R);
+          return (
+            <line
+              key={i}
+              x1={CX} y1={CY}
+              x2={v.x} y2={v.y}
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        {/* Filled EV polygon */}
+        <polygon
+          points={evPoly}
+          fill="rgba(96, 165, 250, 0.30)"
+          stroke="#60a5fa"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+
+        {/* EV vertex dots */}
+        {STAT_LABELS.map((s, i) => {
+          const ratio = Math.min(1, (evs[s.key] ?? 0) / MAX_EV);
+          const v = vertex(i, R * ratio);
+          return <circle key={s.key} cx={v.x} cy={v.y} r={2.5} fill="#60a5fa" />;
+        })}
+
+        {/* Stat labels */}
+        {STAT_LABELS.map((s, i) => {
+          const pos = labelPos(i);
+          return (
+            <g key={s.key}>
+              <text
+                x={pos.x}
+                y={pos.y - 2}
+                textAnchor={pos.anchor}
+                className="ev-radar-label"
+              >
+                {s.short}
+              </text>
+              <text
+                x={pos.x}
+                y={pos.y + 9}
+                textAnchor={pos.anchor}
+                className="ev-radar-value"
+              >
+                {evs[s.key] ?? 0}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="ev-radar-totals">
+        <div>
+          <span>EV total</span>
+          <strong>{evTotal} <span className="dim">/ 510</span></strong>
+        </div>
+        <div>
+          <span>IV total</span>
+          <strong>{ivTotal} <span className="dim">/ 186</span></strong>
+        </div>
+      </div>
+
+      <ul className="ev-radar-iv-list">
+        {STAT_LABELS.map((s) => (
+          <li key={s.key}>
+            <span className="ev-radar-iv-label">{s.short}</span>
+            <span className="ev-radar-iv-pips">
+              {Array.from({ length: 31 }, (_, i) => (
+                <span
+                  key={i}
+                  className={`ev-radar-iv-pip ${i < (ivs[s.key] ?? 0) ? "filled" : ""}`}
+                />
+              ))}
+            </span>
+            <span className="ev-radar-iv-num">{ivs[s.key] ?? 0}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

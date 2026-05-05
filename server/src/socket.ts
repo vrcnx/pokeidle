@@ -5,6 +5,15 @@ import { prisma } from "./db.js";
 import { canAccessChannel, GLOBAL_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
+import {
+  battleRooms,
+  newBattleId,
+  startBattle,
+  applyChoice,
+  endBattle,
+  startInviteExpiry,
+  type BattleRoom,
+} from "./pvp.js";
 
 // ── Rate limits ──────────────────────────────────────────────────────────
 // Per-user limits; values are deliberate bands, not optimisations:
@@ -15,6 +24,11 @@ import { validateSave } from "./lib/saveValidation.js";
 const chatLimiter = makeRateLimiter({ tokens: 20, windowMs: 30_000 });
 const tradeInviteLimiter = makeRateLimiter({ tokens: 5, windowMs: 60_000 });
 const tradeActionLimiter = makeRateLimiter({ tokens: 60, windowMs: 60_000 });
+// PvP rate limits — invites mirror trade invites (anti-spam) and per-
+// turn choices have a generous-but-finite ceiling so a runaway client
+// can't flood the simulator.
+const battleInviteLimiter = makeRateLimiter({ tokens: 5, windowMs: 60_000 });
+const battleChoiceLimiter = makeRateLimiter({ tokens: 120, windowMs: 60_000 });
 
 // Parse FRONTEND_ORIGIN as a comma-separated allowlist (mirrors what
 // the Hono CORS in index.ts does). Socket.IO's `cors.origin` accepts
@@ -738,6 +752,154 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       }
     );
 
+    // ── PvP battle events ────────────────────────────────────────
+    // Mirrors the trade-invite flow but the room hosts a @pkmn/sim
+    // battle stream instead of an offer/lock state machine. Heavy
+    // lifting lives in pvp.ts; the socket handlers here are thin
+    // glue that does input validation + routing.
+    socket.on(
+      "battle:invite",
+      async ({ toUserId, team }: { toUserId: string; team: unknown[] }, ack?: (r: any) => void) => {
+        if (typeof toUserId !== "string" || !toUserId || toUserId === user.id) {
+          ack?.({ ok: false, error: "bad target" }); return;
+        }
+        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
+          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
+        }
+        if (!battleInviteLimiter.consume(user.id)) {
+          ack?.({ ok: false, error: "rate_limited" }); return;
+        }
+        // One outstanding battle per user — same heuristic as trades.
+        for (const room of battleRooms.values()) {
+          if (
+            room.status !== "completed" && room.status !== "cancelled" &&
+            (room.a.userId === user.id || room.b.userId === user.id ||
+             room.a.userId === toUserId || room.b.userId === toUserId)
+          ) {
+            ack?.({ ok: false, error: "already in a battle" }); return;
+          }
+        }
+        if (!online.has(toUserId)) { ack?.({ ok: false, error: "user is offline" }); return; }
+        const recipient = await prisma.user.findUnique({
+          where: { id: toUserId },
+          select: { id: true, username: true },
+        });
+        if (!recipient) { ack?.({ ok: false, error: "user not found" }); return; }
+        const id = newBattleId();
+        const room: BattleRoom = {
+          id,
+          status: "invited",
+          format: "anything-goes",
+          createdAt: Date.now(),
+          lastChoiceAt: Date.now(),
+          a: { userId: user.id, username: user.username, team: team as never, stream: null, request: null, connected: true },
+          b: { userId: recipient.id, username: recipient.username, team: [], stream: null, request: null, connected: false },
+          log: [],
+          stream: null,
+          expiryTimer: null,
+        };
+        battleRooms.set(id, room);
+        startInviteExpiry(room, () => {
+          if (room.status === "invited") {
+            room.status = "cancelled";
+            sendToUser(room.a.userId, "battle:cancelled", { battleId: id, reason: "Invite expired." });
+            sendToUser(room.b.userId, "battle:cancelled", { battleId: id, reason: "Invite expired." });
+            battleRooms.delete(id);
+          }
+        });
+        sendToUser(recipient.id, "battle:invite", {
+          battleId: id,
+          from: { id: user.id, username: user.username },
+          expiresAt: Date.now() + 60_000,
+        });
+        ack?.({ ok: true, battleId: id });
+      },
+    );
+
+    socket.on(
+      "battle:respond",
+      async (
+        { battleId, accept, team }: { battleId: string; accept: boolean; team?: unknown[] },
+        ack?: (r: any) => void,
+      ) => {
+        const room = battleRooms.get(battleId);
+        if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
+        if (room.status !== "invited") { ack?.({ ok: false, error: "battle not pending" }); return; }
+        if (room.b.userId !== user.id) { ack?.({ ok: false, error: "not the receiver" }); return; }
+        if (!accept) {
+          room.status = "cancelled";
+          if (room.expiryTimer) clearTimeout(room.expiryTimer);
+          sendToUser(room.a.userId, "battle:cancelled", { battleId, reason: `${user.username} declined the battle.` });
+          sendToUser(room.b.userId, "battle:cancelled", { battleId, reason: `${user.username} declined the battle.` });
+          battleRooms.delete(battleId);
+          ack?.({ ok: true }); return;
+        }
+        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
+          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
+        }
+        room.b.team = team as never;
+        room.b.connected = true;
+        sendToUser(room.a.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: room.b.userId, username: room.b.username },
+          you: "a",
+        });
+        sendToUser(room.b.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: room.a.userId, username: room.a.username },
+          you: "b",
+        });
+        try {
+          await startBattle(io, room, sendToUser);
+          ack?.({ ok: true });
+        } catch (e) {
+          room.status = "cancelled";
+          sendToUser(room.a.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+          sendToUser(room.b.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+          battleRooms.delete(battleId);
+          console.error("[pvp] startBattle failed", { battleId, err: String(e) });
+          ack?.({ ok: false, error: "engine refused the matchup" });
+        }
+      },
+    );
+
+    socket.on(
+      "battle:choose",
+      ({ battleId, choice }: { battleId: string; choice: string }, ack?: (r: any) => void) => {
+        if (!battleChoiceLimiter.consume(user.id)) {
+          ack?.({ ok: false, error: "rate_limited" }); return;
+        }
+        const room = battleRooms.get(battleId);
+        if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
+        const result = applyChoice(room, user.id, choice);
+        ack?.(result);
+      },
+    );
+
+    socket.on(
+      "battle:cancel",
+      ({ battleId }: { battleId: string }, ack?: (r: any) => void) => {
+        const room = battleRooms.get(battleId);
+        if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
+        if (room.a.userId !== user.id && room.b.userId !== user.id) {
+          ack?.({ ok: false, error: "not in battle" }); return;
+        }
+        // Forfeit if mid-battle, otherwise just cancel the pending invite.
+        if (room.status === "active") {
+          room.winnerId = user.id === room.a.userId ? room.b.userId : room.a.userId;
+          room.loserId = user.id;
+          void endBattle(room, sendToUser, "forfeit");
+        } else {
+          room.status = "cancelled";
+          if (room.expiryTimer) clearTimeout(room.expiryTimer);
+          sendToUser(room.a.userId, "battle:cancelled", { battleId, reason: `${user.username} cancelled.` });
+          sendToUser(room.b.userId, "battle:cancelled", { battleId, reason: `${user.username} cancelled.` });
+          battleRooms.delete(battleId);
+        }
+        ack?.({ ok: true });
+      },
+    );
+
     socket.on("disconnect", async () => {
       const wasLast = removePresence(user.id, socket.id);
       if (user.sessionId) {
@@ -751,6 +913,27 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // Last connection for this user is gone — broadcast updated
         // total to everyone.
         broadcastOnlineCount();
+        // Forfeit any active PvP battle. Disconnect = forfeit; the
+        // other side gets the win instead of staring at a frozen
+        // turn timer.
+        for (const room of Array.from(battleRooms.values())) {
+          if (room.status !== "active" && room.status !== "invited") continue;
+          if (room.a.userId === user.id || room.b.userId === user.id) {
+            if (room.status === "active") {
+              room.winnerId = user.id === room.a.userId ? room.b.userId : room.a.userId;
+              room.loserId = user.id;
+              void endBattle(room, sendToUser, "forfeit");
+            } else {
+              // Pending invite — just cancel it.
+              room.status = "cancelled";
+              if (room.expiryTimer) clearTimeout(room.expiryTimer);
+              const reason = `${user.username} disconnected.`;
+              sendToUser(room.a.userId, "battle:cancelled", { battleId: room.id, reason });
+              sendToUser(room.b.userId, "battle:cancelled", { battleId: room.id, reason });
+              battleRooms.delete(room.id);
+            }
+          }
+        }
         // If this user had an open trade, cancel it so the other side
         // gets unblocked instead of staring at a frozen lock.
         for (const t of Array.from(trades.values())) {

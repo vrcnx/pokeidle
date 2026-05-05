@@ -12064,3 +12064,256 @@ html, body {
   background-position: center;
   background-repeat: no-repeat !important;
 }
+
+/* ─── PvP Battle Modal ────────────────────────────────────────────── */
+.pvp-modal { max-width: min(94vw, 760px); width: 100%; }
+.pvp-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pvp-side {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.pvp-side-foe { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.18); }
+.pvp-side-you { background: rgba(96,165,250,0.06); border-color: rgba(96,165,250,0.18); }
+.pvp-side-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9c9c9c);
+  margin-bottom: 6px;
+}
+.pvp-fighter {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.pvp-fighter.fainted { opacity: 0.35; filter: grayscale(0.8); }
+.pvp-fighter-sprite {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+}
+.pvp-fighter-sprite.missing {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: rgba(255,255,255,0.25);
+}
+.pvp-fighter-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pvp-fighter-info strong { font-size: 14px; }
+.pvp-fighter-hp {
+  height: 10px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.pvp-fighter-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #34d399, #10b981);
+  transition: width 280ms ease;
+}
+.pvp-fighter-hp.warn .pvp-fighter-hp-fill { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.pvp-fighter-hp.low  .pvp-fighter-hp-fill { background: linear-gradient(90deg, #f87171, #ef4444); }
+.pvp-fighter-status {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.08);
+}
+.pvp-fighter-status.status-brn { background: rgba(248,113,113,0.18); color: #fca5a5; }
+.pvp-fighter-status.status-psn,
+.pvp-fighter-status.status-tox { background: rgba(168,64,160,0.22); color: #d49ed4; }
+.pvp-fighter-status.status-par { background: rgba(248,208,48,0.22); color: #ffe07d; }
+.pvp-fighter-status.status-slp { background: rgba(168,144,240,0.22); color: #c9b8f5; }
+.pvp-fighter-status.status-frz { background: rgba(152,216,216,0.22); color: #c9eaea; }
+
+/* Battle log */
+.pvp-log-card { margin-bottom: 12px; }
+.pvp-log {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  background: rgba(0,0,0,0.3);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+.pvp-log-line { color: var(--text, #f5f5f5); }
+.pvp-log-line.pvp-log-turn {
+  color: var(--gold, #f6c84a);
+  font-weight: 700;
+  text-align: center;
+  margin: 6px 0;
+  letter-spacing: 0.6px;
+}
+.pvp-log-line.pvp-log-faint { color: #f87171; font-weight: 600; }
+.pvp-log-line.pvp-log-win   { color: var(--gold, #f6c84a); font-weight: 700; text-align: center; margin-top: 6px; }
+.pvp-log-line.pvp-log-error { color: #f87171; }
+
+/* Move chooser */
+.pvp-chooser-card { padding-bottom: 10px; }
+.pvp-moves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+.pvp-move {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--text, #f5f5f5);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+.pvp-move:hover:not(:disabled) {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.25);
+}
+.pvp-move:disabled { opacity: 0.4; cursor: not-allowed; }
+.pvp-move-name { font-weight: 600; font-size: 13px; }
+.pvp-move-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted, #9c9c9c);
+}
+
+.pvp-switch-details { margin-top: 8px; }
+.pvp-switch-details summary { cursor: pointer; font-size: 11px; color: var(--text-muted, #9c9c9c); padding: 4px 0; }
+.pvp-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.pvp-switch-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.pvp-switch-card:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.pvp-switch-card:disabled { opacity: 0.4; cursor: not-allowed; }
+.pvp-switch-card.active { border-color: var(--gold, #f6c84a); }
+.pvp-switch-card.fainted img { filter: grayscale(0.9); opacity: 0.5; }
+.pvp-switch-info { display: flex; flex-direction: column; min-width: 0; font-size: 11px; }
+.pvp-switch-info strong { font-size: 12px; }
+.pvp-switch-info small { color: var(--text-muted, #9c9c9c); }
+
+.pvp-verdict {
+  margin-top: 12px;
+  padding: 12px;
+  text-align: center;
+  background: rgba(96,165,250,0.08);
+  border: 1px solid rgba(96,165,250,0.25);
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+/* Battle toast — variant of trade toast */
+.battle-toast { border-color: rgba(96,165,250,0.32); }
+.battle-toast-cancel { border-color: rgba(248,113,113,0.4); }
+
+/* ─── EV / IV radar ──────────────────────────────────────────────── */
+.ev-radar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.ev-radar { width: 100%; max-width: 260px; height: auto; display: block; }
+.ev-radar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  fill: var(--text, #f5f5f5);
+}
+.ev-radar-value {
+  font-size: 9px;
+  fill: var(--text-muted, #9c9c9c);
+  font-family: ui-monospace, monospace;
+}
+.ev-radar-totals {
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  width: 100%;
+  justify-content: center;
+}
+.ev-radar-totals > div { display: flex; flex-direction: column; align-items: center; }
+.ev-radar-totals span { color: var(--text-muted, #9c9c9c); font-size: 10px; }
+.ev-radar-totals strong { font-size: 13px; }
+
+.ev-radar-iv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+}
+.ev-radar-iv-list li {
+  display: grid;
+  grid-template-columns: 26px 1fr 22px;
+  gap: 6px;
+  align-items: center;
+}
+.ev-radar-iv-label {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9c9c9c);
+}
+.ev-radar-iv-pips {
+  display: grid;
+  grid-template-columns: repeat(31, 1fr);
+  gap: 1px;
+  height: 6px;
+}
+.ev-radar-iv-pip {
+  background: rgba(255,255,255,0.06);
+  border-radius: 1px;
+}
+.ev-radar-iv-pip.filled {
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+}
+.ev-radar-iv-num {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  text-align: right;
+  color: var(--text-muted, #9c9c9c);
+}

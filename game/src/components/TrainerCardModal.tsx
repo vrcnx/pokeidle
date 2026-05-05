@@ -7,6 +7,7 @@ import { pokemonTable } from "../data/pokemon";
 import { api, type PublicProfile } from "../net/api";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
+import { sendBattleInvite, usePvpState } from "../state/pvp";
 
 // Trainer card. Two modes:
 //   self    — full card with badges, sign-out, etc. (the one the
@@ -193,6 +194,9 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
+  const [battleInviteSent, setBattleInviteSent] = useState(false);
+  const pvpState = usePvpState();
+  const game = useGame();
   const [friendRel, setFriendRel] = useState<FriendRel>("none");
   const [friendBusy, setFriendBusy] = useState(false);
   const tradeState = useTradeState();
@@ -226,6 +230,22 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
   const close = () => onClose?.();
   const isSelf = me && profile && me.id === profile.id;
   const inActiveTrade = !!tradeState.room || !!tradeState.invite;
+  const inActiveBattle = !!pvpState.room || !!pvpState.invite;
+
+  const requestBattle = () => {
+    if (!profile || isSelf || inActiveBattle) return;
+    if (game.state.party.length < 1) {
+      setError("You need at least one Pokémon to battle.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    sendBattleInvite(profile.id, game.state.party, (res) => {
+      setBusy(false);
+      if (res.ok) setBattleInviteSent(true);
+      else setError(res.error ?? "Could not send battle invite.");
+    });
+  };
 
   const requestTrade = () => {
     if (!profile || isSelf || inActiveTrade) return;
@@ -350,6 +370,19 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
                 }
               >
                 {inviteSent ? "Invite sent ✓" : busy ? "…" : "Request trade"}
+              </button>
+              <button
+                className="g-btn-secondary"
+                onClick={requestBattle}
+                disabled={busy || battleInviteSent || inActiveBattle || friendRel !== "accepted"}
+                title={
+                  friendRel !== "accepted" ? "Add as friend before battling"
+                  : inActiveBattle ? "You're already in a battle"
+                  : battleInviteSent ? "Battle invite sent — waiting for response"
+                  : undefined
+                }
+              >
+                {battleInviteSent ? "Battle sent ✓" : "Battle"}
               </button>
             </>
           )}
