@@ -94,56 +94,24 @@ export function App() {
   );
 }
 
-// Friendly "you can't be here" landing for non-admins. Counts down
-// from 5 seconds and bounces to the live game; surfaces a manual link
-// in case the auto-redirect is blocked. We don't differentiate the
-// final destination between "anon" and "forbidden" — both go to the
-// game's home page where they can sign in / play normally — but we
-// DO surface a different headline so a forbidden admin knows their
-// session worked, just without the privilege.
-function NotAuthorized({ kind }: { kind: "anon" | "forbidden" }) {
-  // Where do we send them? In production this is the public game URL.
-  // For local development we fall back to the dev server. Override at
-  // build time via VITE_GAME_URL if you're running on a different host.
+// Non-admin / non-signed-in users have no business here — bounce
+// them straight to the live game. No countdown, no message, no
+// flash of "Pokémon Admin" UI. Production points at pokeidle.com,
+// dev falls back to the local game server, override via
+// VITE_GAME_URL.
+function NotAuthorized(_props: { kind: "anon" | "forbidden" }) {
   const gameUrl =
     (import.meta as any).env?.VITE_GAME_URL
     ?? (typeof window !== "undefined" && window.location.hostname !== "localhost"
       ? "https://pokeidle.com"
       : "http://localhost:5173");
-
-  const [secondsLeft, setSecondsLeft] = useState(5);
+  // window.location.replace fires synchronously, but doing it inside
+  // an effect (rather than during render) keeps React happy and lets
+  // the parent component finish its render cycle cleanly.
   useEffect(() => {
-    const t = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(t);
-          window.location.replace(gameUrl);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(t);
+    window.location.replace(gameUrl);
   }, [gameUrl]);
-
-  return (
-    <div className="admin-shell auth-prompt">
-      <div className="auth-card">
-        <h1>{kind === "forbidden" ? "Admin only" : "Pokémon Admin"}</h1>
-        <p>
-          {kind === "forbidden"
-            ? "Your account doesn't have admin privileges."
-            : "You need to sign in as an admin to access this dashboard."}
-        </p>
-        <p className="dim small">
-          Redirecting to <a href={gameUrl}>{gameUrl.replace(/^https?:\/\//, "")}</a> in {secondsLeft}s…
-        </p>
-        <p className="dim small">
-          <a href={gameUrl}>Go now</a>
-        </p>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 function NavItem({ active, label, onClick, icon }: { active: boolean; label: string; onClick: () => void; icon: ReactNode }) {
