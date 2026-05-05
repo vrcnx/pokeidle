@@ -9,8 +9,8 @@ import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
-import { joinRandomQueue, leaveRandomQueue, usePvpState } from "../state/pvp";
-import { openTeamBuilder } from "./TeamBuilderModal";
+import { usePvpState } from "../state/pvp";
+import { openPvpHub } from "./PvpHubModal";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
@@ -58,21 +58,23 @@ export function GameplayDock() {
 export function MetaDock() {
   const [open, setOpen] = useOpen();
   const pvp = usePvpState();
-  // The PvP button toggles a small popover. Mid-battle / mid-queue we
-  // disable the open behaviour — there's nothing to do from this menu
-  // while a battle's already running, and the toast covers queue state.
-  const pvpBusy = !!pvp.room || !!pvp.queue;
+  // The PvP button is live-disabled mid-battle (nothing useful to do
+  // from the hub then) but stays enabled while queueing — the queue
+  // state is fine to inspect / leave from inside the hub.
+  const inBattle = !!pvp.room;
   return (
     <>
       <div className="dock dock-meta" role="toolbar" aria-label="Account actions">
         <DockButton
           icon={<IconSwords size={18} />}
           label="PvP"
-          active={open === "pvp"}
-          title={pvpBusy ? "Already in a PvP battle" : "Battle other players"}
+          title={inBattle ? "Already in a PvP battle" : "PvP — battle other players"}
           onClick={() => {
-            if (pvpBusy) return;
-            setOpen(open === "pvp" ? null : "pvp");
+            if (inBattle) return;
+            // Hub is its own modal; close any other dock popup so we
+            // don't stack overlays.
+            setOpen(null);
+            openPvpHub();
           }}
         />
         <DockButton
@@ -89,52 +91,9 @@ export function MetaDock() {
           onClick={() => setOpen(open === "social" ? null : "social")}
         />
       </div>
-      {open === "pvp" && <PvpDockPopup onClose={() => setOpen(null)} />}
       {open === "settings" && <SettingsModal onClose={() => setOpen(null)} />}
       <SocialPanel open={open === "social"} onClose={() => setOpen(null)} />
     </>
-  );
-}
-
-// Tiny popover anchored to the PvP dock button — kept inline here
-// because it's small and only the dock uses it. Two actions:
-//   - Random Battle: opens team builder with a Lv 50 cap, then queues
-//   - Challenge a friend: nudges to the social panel (friends list)
-function PvpDockPopup({ onClose }: { onClose: () => void }) {
-  const game = useGame();
-  const startRandom = () => {
-    if (game.state.party.length + game.state.box.length < 1) {
-      window.alert("You need at least one Pokémon to battle.");
-      onClose();
-      return;
-    }
-    openTeamBuilder({
-      mode: "queue",
-      levelCap: 50,
-      onConfirm: (team) => {
-        joinRandomQueue(team, (res) => {
-          if (!res.ok) {
-            window.alert(res.error ? `Couldn't queue: ${res.error}` : "Couldn't queue.");
-            leaveRandomQueue();
-          }
-        });
-        onClose();
-      },
-    });
-  };
-  return (
-    <div className="dock-popup pvp-dock-popup" role="menu">
-      <header>
-        <strong>PvP battles</strong>
-      </header>
-      <button className="pvp-dock-action" onClick={startRandom}>
-        <strong>Random Battle</strong>
-        <small>Match a random opponent. All Pokémon clamped to Lv 50.</small>
-      </button>
-      <div className="pvp-dock-hint dim small">
-        To challenge a friend, open Social → click their name → "Battle".
-      </div>
-    </div>
   );
 }
 

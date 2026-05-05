@@ -10,6 +10,7 @@ import chatRoute from "./routes/chat.js";
 import adminRoute from "./routes/admin.js";
 import mapRoute from "./routes/map.js";
 import bugReportsRoute from "./routes/bugReports.js";
+import pvpRoute from "./routes/pvp.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
@@ -126,6 +127,7 @@ app.route("/api/chat", chatRoute);
 app.route("/api/admin", adminRoute);
 app.route("/api/map", mapRoute);
 app.route("/api/bug-reports", bugReportsRoute);
+app.route("/api/pvp", pvpRoute);
 
 // Global error handler — anything that throws inside a route handler
 // without being caught lands here. We persist a structured ErrorLog

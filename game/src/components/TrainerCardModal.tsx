@@ -196,6 +196,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
   const [busy, setBusy] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [battleInviteSent, setBattleInviteSent] = useState(false);
+  const [pvpStats, setPvpStats] = useState<{ rating: number; peak: number; wins: number; losses: number; matchesPlayed: number; unranked: boolean } | null>(null);
   const pvpState = usePvpState();
   const game = useGame();
   const [friendRel, setFriendRel] = useState<FriendRel>("none");
@@ -207,12 +208,28 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
     setProfile(null);
     setError(null);
     setFriendRel("none");
+    setPvpStats(null);
     Promise.all([
       api.publicProfile(username),
       api.listFriends().catch(() => null),
     ]).then(([p, friends]) => {
       if (cancelled) return;
       setProfile(p);
+      // Fire-and-forget the rating fetch — fine if it lags or fails;
+      // the trainer card is useful without a rating banner.
+      api.ratingFor(p.id)
+        .then((r) => {
+          if (cancelled) return;
+          setPvpStats({
+            rating: r.rating,
+            peak: r.peakRating,
+            wins: r.wins,
+            losses: r.losses,
+            matchesPlayed: r.matchesPlayed,
+            unranked: r.unranked,
+          });
+        })
+        .catch(() => undefined);
       // Determine the current relationship by looking up `p` in each
       // bucket. The friends API returns id-keyed entries we can match
       // against the loaded profile's id.
@@ -338,6 +355,25 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
                 <div className="g-row"><span>Pokémon caught</span><strong>{profile.pokedexCaughtCount}</strong></div>
                 <div className="g-row"><span>Σ Pokémon levels</span><strong>{profile.totalCaughtLevels.toLocaleString()}</strong></div>
               </section>
+
+              {pvpStats && (
+                <section className="g-card g-card-full pvp-trainer-card">
+                  <h3>PvP rating</h3>
+                  {pvpStats.unranked ? (
+                    <p className="dim small">Unranked — hasn't played a Random Battle yet.</p>
+                  ) : (
+                    <>
+                      <div className="g-row"><span>Rating</span><strong>{pvpStats.rating}</strong></div>
+                      <div className="g-row"><span>Peak</span><strong>{pvpStats.peak}</strong></div>
+                      <div className="g-row">
+                        <span>Record</span>
+                        <strong>{pvpStats.wins}W / {pvpStats.losses}L</strong>
+                      </div>
+                      <div className="g-row"><span>Matches</span><strong>{pvpStats.matchesPlayed}</strong></div>
+                    </>
+                  )}
+                </section>
+              )}
             </>
           )}
         </div>

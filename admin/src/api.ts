@@ -192,6 +192,22 @@ export const api = {
       `/api/admin/tournaments/${id}/match`,
       { aUserId, bUserId },
     ),
+  generateBracket: (id: string) =>
+    req<{ tournament: AdminTournament }>(
+      "POST",
+      `/api/admin/tournaments/${id}/generate-bracket`,
+    ),
+  advanceBracket: (id: string) =>
+    req<{ tournament: AdminTournament; championId: string | null }>(
+      "POST",
+      `/api/admin/tournaments/${id}/advance-bracket`,
+    ),
+  startBracketMatch: (id: string, matchId: string) =>
+    req<{ ok: true; battleId: string }>(
+      "POST",
+      `/api/admin/tournaments/${id}/start-bracket-match`,
+      { matchId },
+    ),
 };
 
 export interface BugReport {

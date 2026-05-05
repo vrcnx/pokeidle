@@ -12449,3 +12449,142 @@ html, body {
 .pvp-dock-action strong { font-size: 12px; }
 .pvp-dock-action small { font-size: 10px; color: var(--text-muted, #9c9c9c); }
 .pvp-dock-hint { padding: 2px 4px; }
+
+/* ─── PvP Hub Modal ───────────────────────────────────────────────── */
+.pvp-hub-modal { max-width: min(96vw, 760px); width: 100%; }
+.pvp-hub-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 6px;
+}
+.pvp-hub-tab {
+  background: transparent;
+  border: 0;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9c9c9c);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+.pvp-hub-tab:hover { color: var(--text, #f5f5f5); }
+.pvp-hub-tab.active {
+  color: var(--text, #f5f5f5);
+  border-bottom-color: var(--gold, #f6c84a);
+}
+.pvp-hub-tab-body { display: flex; flex-direction: column; gap: 12px; }
+.pvp-hub-action h3 { margin-top: 0; }
+.pvp-hub-action button { margin-top: 8px; }
+
+.pvp-rating-card { padding-bottom: 14px; }
+.pvp-rating-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px 16px;
+  margin-top: 8px;
+}
+.pvp-rating-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.pvp-rating-grid span {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9c9c9c);
+}
+.pvp-rating-grid strong { font-size: 16px; font-weight: 700; }
+
+.pvp-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pvp-history-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  gap: 10px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+  align-items: center;
+  font-size: 12px;
+}
+.pvp-history-result {
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-align: center;
+}
+.pvp-history-win .pvp-history-result {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
+}
+.pvp-history-loss .pvp-history-result {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+.pvp-history-forfeit .pvp-history-result {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fcd34d;
+}
+.pvp-history-draw .pvp-history-result {
+  background: rgba(255,255,255,0.08);
+}
+
+.pvp-leaderboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pvp-leaderboard th, .pvp-leaderboard td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  text-align: left;
+}
+.pvp-leaderboard th {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9c9c9c);
+}
+.pvp-leaderboard tr.me {
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.pvp-tournament-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pvp-tournament-row {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pvp-tournament-head { display: flex; justify-content: space-between; align-items: center; }
+.pvp-tournament-meta { margin: 0; }
+.pvp-tournament-actions { margin-top: 6px; }
+.tag.tournament-status-open      { background: rgba(96,165,250,0.18);  color: #93c5fd; }
+.tag.tournament-status-live      { background: rgba(34,197,94,0.18);   color: #86efac; }
+.tag.tournament-status-completed { background: rgba(168,144,240,0.18); color: #c9b8f5; }
+.tag.tournament-status-cancelled,
+.tag.tournament-status-scheduled { background: rgba(255,255,255,0.08); color: var(--text-muted, #9c9c9c); }
+
+/* PvP rating section on trainer card */
+.pvp-trainer-card { /* shares .g-card baseline */ }

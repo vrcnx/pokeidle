@@ -304,6 +304,30 @@ model TournamentEntry {
   @@index([userId])
 }
 
+// ── PvP rating (ELO) ─────────────────────────────────────────────────────
+// Per-user competitive rating. Only random50 matches (matchmaking
+// queue) update this — friend invites are casual / unrated, and
+// tournaments have their own bracket-driven progression. K-factor is
+// 32 (standard chess); starting rating is 1000. peakRating tracks
+// the all-time high so the trainer card can show a "best ever".
+//
+// Stats columns are denormalised for cheap leaderboard reads — we
+// could derive them from PvpMatch but this avoids a count-aggregate
+// every time the trainer card opens.
+model PlayerRating {
+  userId         String   @id
+  rating         Int      @default(1000)
+  peakRating     Int      @default(1000)
+  matchesPlayed  Int      @default(0)
+  wins           Int      @default(0)
+  losses         Int      @default(0)
+  forfeits       Int      @default(0)
+  lastMatchAt    DateTime?
+  updatedAt      DateTime @updatedAt
+
+  @@index([rating])
+}
+
 // ── Trade history ────────────────────────────────────────────────────────
 // Append-only record of every completed trade. The live trade flow lives
 // entirely in memory (server/src/socket.ts) so a successful swap normally

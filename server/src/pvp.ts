@@ -318,7 +318,7 @@ export function applyChoice(
   return { ok: true };
 }
 
-// ─── End the battle: persist + clean up ──────────────────────────────
+// ─── End the battle: persist + clean up + apply rating ─────────────
 export async function endBattle(
   room: BattleRoom,
   sendToUser:
@@ -333,6 +333,30 @@ export async function endBattle(
   if (room.stream) {
     try { room.stream.destroy(); } catch { /* */ }
     room.stream = null;
+  }
+
+  // Apply rating BEFORE persisting the match so the post-match payload
+  // can include the rating delta. We only rate matchmaking battles
+  // (random50) and only when the result is decisive (ko / forfeit /
+  // timeout — i.e. someone won). Cancellations don't count toward W/L
+  // and don't move the needle.
+  let ratingDelta: { aDelta: number; bDelta: number; aRating: number; bRating: number } | null = null;
+  if (
+    room.format === "random50"
+    && room.status === "completed"
+    && room.winnerId
+    && room.loserId
+    && reason !== "cancelled"
+  ) {
+    try {
+      ratingDelta = await applyEloUpdate(
+        room.winnerId,
+        room.loserId,
+        reason === "forfeit" || reason === "timeout" ? "forfeit" : "ko",
+      );
+    } catch (e) {
+      console.error("[pvp] failed to apply ELO", { battleId: room.id, err: String(e) });
+    }
   }
 
   // Persist the match. Fire-and-forget — the swap result already
@@ -367,6 +391,7 @@ export async function endBattle(
       winnerId: room.winnerId ?? null,
       loserId: room.loserId ?? null,
       reason,
+      ratingDelta,
     };
     sendToUser(room.a.userId, "battle:complete", payload);
     sendToUser(room.b.userId, "battle:complete", payload);
@@ -374,6 +399,85 @@ export async function endBattle(
 
   // Drop after a beat so any in-flight state events are delivered.
   setTimeout(() => battleRooms.delete(room.id), 5_000);
+}
+
+// ─── ELO rating ─────────────────────────────────────────────────────
+// Standard chess Elo with K=32 and base rating 1000.
+//
+//   expected = 1 / (1 + 10^((opp - me) / 400))
+//   delta    = round(K * (actual - expected))
+//
+// Atomicity: we read both ratings in one transaction, compute deltas,
+// and write both back. If either read or write fails we abort with no
+// partial update. Because each player can only be in one battle at a
+// time (room guards in socket.ts enforce it), there's no concurrent
+// double-update risk for the same user — but we still serialise via
+// a transaction for safety.
+const K_FACTOR = 32;
+const STARTING_RATING = 1000;
+
+export async function applyEloUpdate(
+  winnerId: string,
+  loserId: string,
+  endKind: "ko" | "forfeit",
+): Promise<{ aDelta: number; bDelta: number; aRating: number; bRating: number }> {
+  return prisma.$transaction(async (tx) => {
+    // Upsert both rows so missing rows default to STARTING_RATING.
+    // We do two upserts (rather than findMany + create-each-missing)
+    // because Prisma's upsert is single-statement and avoids races
+    // with another transaction that might also be initialising the
+    // same row. Within a transaction these still serialise.
+    const winnerRow = await tx.playerRating.upsert({
+      where: { userId: winnerId },
+      update: {},
+      create: { userId: winnerId, rating: STARTING_RATING, peakRating: STARTING_RATING },
+    });
+    const loserRow = await tx.playerRating.upsert({
+      where: { userId: loserId },
+      update: {},
+      create: { userId: loserId, rating: STARTING_RATING, peakRating: STARTING_RATING },
+    });
+
+    const expectedWinner = 1 / (1 + Math.pow(10, (loserRow.rating - winnerRow.rating) / 400));
+    const winnerDelta = Math.round(K_FACTOR * (1 - expectedWinner));
+    const loserDelta = -winnerDelta;
+    const newWinnerRating = winnerRow.rating + winnerDelta;
+    const newLoserRating = Math.max(0, loserRow.rating + loserDelta);  // never negative
+
+    // Winner always gets a `wins` credit regardless of how the loss
+    // came about (KO vs. forfeit). Loser gets `losses` for a KO or
+    // `forfeits` for a disconnect / quit / timeout — the latter is
+    // tracked separately so a player's W/L history can distinguish
+    // genuine losses from rage-quits.
+    await tx.playerRating.update({
+      where: { userId: winnerId },
+      data: {
+        rating: newWinnerRating,
+        peakRating: Math.max(winnerRow.peakRating, newWinnerRating),
+        matchesPlayed: { increment: 1 },
+        wins: { increment: 1 },
+        lastMatchAt: new Date(),
+      },
+    });
+    await tx.playerRating.update({
+      where: { userId: loserId },
+      data: {
+        rating: newLoserRating,
+        matchesPlayed: { increment: 1 },
+        ...(endKind === "forfeit"
+          ? { forfeits: { increment: 1 } }
+          : { losses: { increment: 1 } }),
+        lastMatchAt: new Date(),
+      },
+    });
+
+    return {
+      aDelta: winnerDelta,
+      bDelta: loserDelta,
+      aRating: newWinnerRating,
+      bRating: newLoserRating,
+    };
+  });
 }
 
 // ─── Invite TTL ──────────────────────────────────────────────────────

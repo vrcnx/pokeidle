@@ -318,7 +318,203 @@ function TournamentDetail({
         </div>
       </section>
 
+      <BracketSection tournament={tournament} onChange={onChange} />
+
       {msg && <p className="profile-msg dim small">{msg}</p>}
     </div>
   );
+}
+
+// ─── Bracket section ────────────────────────────────────────────────
+// Three states:
+//   1. open + ≥2 entries → "Generate bracket" button
+//   2. live + bracket → render rounds + per-match controls
+//   3. completed → render final-state bracket read-only with champion
+function BracketSection({
+  tournament, onChange,
+}: {
+  tournament: AdminTournament;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const bracket = tournament.bracket
+    ? safeParseBracket(tournament.bracket)
+    : null;
+
+  const generate = async () => {
+    if (!window.confirm(`Generate bracket from ${tournament.entries.length} participants? Status flips to 'live'.`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.generateBracket(tournament.id);
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not generate.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const advance = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.advanceBracket(tournament.id);
+      if (res.championId) setMsg(`🏆 Tournament complete — champion: ${res.championId}`);
+      else setMsg("Bracket advanced.");
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not advance.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const startMatch = async (matchId: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.startBracketMatch(tournament.id, matchId);
+      setMsg(`Match started: ${res.battleId}`);
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not start match.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (tournament.status === "open") {
+    return (
+      <section className="profile-section">
+        <h3>Bracket</h3>
+        <p className="dim small" style={{ marginTop: 0 }}>
+          {tournament.entries.length < 2
+            ? "Need at least 2 participants to generate a bracket."
+            : "Once you generate the bracket, no further entries can be added (without delete + re-create)."}
+        </p>
+        <button
+          className="btn-primary btn-small"
+          onClick={generate}
+          disabled={busy || tournament.entries.length < 2}
+        >
+          Generate bracket
+        </button>
+        {msg && <p className="profile-msg dim small">{msg}</p>}
+      </section>
+    );
+  }
+
+  if (!bracket) {
+    return (
+      <section className="profile-section">
+        <h3>Bracket</h3>
+        <p className="dim small">No bracket data.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="profile-section">
+      <header className="bracket-section-head">
+        <h3>Bracket</h3>
+        {tournament.status === "live" && (
+          <div className="profile-actions">
+            <button className="btn-secondary btn-small" onClick={advance} disabled={busy}>
+              Advance bracket
+            </button>
+          </div>
+        )}
+      </header>
+      <div className="bracket-grid">
+        {bracket.rounds.map((round) => (
+          <div className="bracket-round" key={round.index}>
+            <header>Round {round.index + 1}</header>
+            {round.matches.map((m) => (
+              <BracketMatchCard
+                key={m.id}
+                match={m}
+                tournamentStatus={tournament.status}
+                busy={busy}
+                onStart={() => startMatch(m.id)}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      {msg && <p className="profile-msg dim small">{msg}</p>}
+    </section>
+  );
+}
+
+// ─── Bracket match card ─────────────────────────────────────────────
+function BracketMatchCard({
+  match, tournamentStatus, busy, onStart,
+}: {
+  match: BracketMatch;
+  tournamentStatus: string;
+  busy: boolean;
+  onStart: () => void;
+}) {
+  const aLabel = slotLabel(match.a);
+  const bLabel = slotLabel(match.b);
+  const ready =
+    match.a.kind === "player" && match.b.kind === "player"
+    && !match.battleId && !match.winnerId
+    && tournamentStatus === "live";
+  const inProgress = !!match.battleId && !match.winnerId;
+  const winnerLabel =
+    match.winnerId
+      ? (match.a.kind === "player" && match.a.userId === match.winnerId ? aLabel
+       : match.b.kind === "player" && match.b.userId === match.winnerId ? bLabel
+       : "(winner)")
+      : null;
+
+  return (
+    <div className={`bracket-match ${match.winnerId ? "resolved" : ""} ${inProgress ? "in-progress" : ""}`}>
+      <div className={`bracket-slot ${winnerLabel === aLabel ? "winner" : ""}`}>{aLabel}</div>
+      <div className={`bracket-slot ${winnerLabel === bLabel ? "winner" : ""}`}>{bLabel}</div>
+      {ready && (
+        <button className="btn-primary btn-tiny bracket-start" onClick={onStart} disabled={busy}>
+          Start match
+        </button>
+      )}
+      {inProgress && <div className="bracket-status dim small">In progress</div>}
+      {match.winnerId && winnerLabel && (
+        <div className="bracket-status">→ {winnerLabel}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Bracket types (mirror of server/src/lib/bracket.ts) ───────────
+type BracketSlot =
+  | { kind: "player"; userId: string; username: string }
+  | { kind: "bye" }
+  | { kind: "winnerOf"; matchId: string }
+  | { kind: "tbd" };
+interface BracketMatch {
+  id: string;
+  a: BracketSlot;
+  b: BracketSlot;
+  battleId?: string | null;
+  winnerId?: string | null;
+}
+interface Bracket {
+  rounds: { index: number; matches: BracketMatch[] }[];
+}
+
+function safeParseBracket(s: string): Bracket | null {
+  try {
+    const v = JSON.parse(s);
+    if (v && typeof v === "object" && Array.isArray(v.rounds)) return v as Bracket;
+  } catch { /* */ }
+  return null;
+}
+
+function slotLabel(s: BracketSlot): string {
+  if (s.kind === "player") return s.username || s.userId;
+  if (s.kind === "bye") return "(bye)";
+  if (s.kind === "winnerOf") return "TBD";
+  return "—";
 }

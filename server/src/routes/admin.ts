@@ -13,6 +13,7 @@ import {
   startBattle,
   type BattleRoom,
 } from "../pvp.js";
+import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
 
 const app = new Hono();
 
@@ -961,6 +962,219 @@ app.delete("/tournaments/:id/entries/:entryId", async (c) => {
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "entry not found" }, 404);
+  }
+});
+
+// ── Generate the bracket ────────────────────────────────────────────
+// Seeds a single-elimination bracket from the registered entries. Only
+// allowed while status="open"; flips status to "live" on success.
+// Idempotent in the sense that a re-call with status="live" returns
+// 409 — bracket must be regenerated only after delete + re-create.
+app.post("/tournaments/:id/generate-bracket", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const t = await prisma.tournament.findUnique({
+    where: { id },
+    include: { entries: true },
+  });
+  if (!t) return c.json({ error: "tournament not found" }, 404);
+  if (t.status !== "open") {
+    return c.json({ error: "tournament must be 'open' to generate a bracket" }, 409);
+  }
+  if (t.entries.length < 2) {
+    return c.json({ error: "need at least 2 participants" }, 400);
+  }
+  const bracket = generateBracket(
+    t.entries.map((e) => ({ userId: e.userId, username: e.username, seed: e.seed })),
+  );
+  const updated = await prisma.tournament.update({
+    where: { id },
+    data: { bracket: JSON.stringify(bracket), status: "live", startsAt: new Date() },
+  });
+  void audit(me.id, "tournament.generate_bracket", id, {
+    rounds: bracket.rounds.length,
+    entries: t.entries.length,
+  });
+  return c.json({ tournament: updated });
+});
+
+// ── Advance the bracket ────────────────────────────────────────────
+// Reads the bracket + every linked PvpMatch, copies in any newly-
+// resolved winners, marks losers as eliminated, propagates winnerOf
+// placeholders forward. Marks the tournament completed when the
+// final match has a winner. Idempotent: call as often as you want;
+// no-ops when nothing has resolved since the last call.
+app.post("/tournaments/:id/advance-bracket", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const t = await prisma.tournament.findUnique({ where: { id } });
+  if (!t || !t.bracket) return c.json({ error: "tournament has no bracket" }, 400);
+  if (t.status !== "live") return c.json({ error: "tournament not live" }, 409);
+
+  let bracket: Bracket;
+  try { bracket = JSON.parse(t.bracket) as Bracket; }
+  catch { return c.json({ error: "bracket JSON is corrupt" }, 500); }
+
+  // Build the matchResults map by joining every match with a battleId
+  // against PvpMatch.winnerId. Matches without a battleId are skipped
+  // (haven't been started yet).
+  const battleIds = bracket.rounds
+    .flatMap((r) => r.matches)
+    .filter((m): m is typeof m & { battleId: string } => !!m.battleId && !m.winnerId)
+    .map((m) => m.battleId);
+  const pvpMatches = battleIds.length > 0
+    ? await prisma.pvpMatch.findMany({
+        where: { id: { in: battleIds } },
+        select: { id: true, winnerId: true, status: true },
+      })
+    : [];
+  const matchResults: Record<string, string | null> = {};
+  for (const r of bracket.rounds) {
+    for (const m of r.matches) {
+      if (!m.battleId || m.winnerId) continue;
+      const pm = pvpMatches.find((x) => x.id === m.battleId);
+      if (pm && pm.status === "completed" && pm.winnerId) {
+        matchResults[m.id] = pm.winnerId;
+      }
+    }
+  }
+
+  const advanced = advanceBracket(bracket, matchResults);
+  // Mark losers as eliminated in TournamentEntry. We use updateMany
+  // so it's a single round-trip for all losers.
+  if (advanced.eliminatedUserIds.length > 0) {
+    await prisma.tournamentEntry.updateMany({
+      where: { tournamentId: id, userId: { in: advanced.eliminatedUserIds } },
+      data: { eliminated: true },
+    });
+  }
+  const data: { bracket: string; status?: string; finishedAt?: Date } = {
+    bracket: JSON.stringify(advanced.bracket),
+  };
+  if (advanced.complete) {
+    data.status = "completed";
+    data.finishedAt = new Date();
+  }
+  const updated = await prisma.tournament.update({ where: { id }, data });
+  void audit(me.id, "tournament.advance_bracket", id, {
+    eliminated: advanced.eliminatedUserIds.length,
+    complete: advanced.complete,
+    championId: advanced.championId,
+  });
+  return c.json({ tournament: updated, championId: advanced.championId });
+});
+
+// ── Start a specific bracket-match ──────────────────────────────────
+// Like /tournaments/:id/match but works against a bracket-match-id
+// (e.g. "r1.m0") rather than two raw user ids — server resolves the
+// concrete users from the bracket, refuses if the match's slots are
+// still placeholders, and writes the resulting battleId back into
+// the bracket JSON so advance-bracket can find it later.
+app.post("/tournaments/:id/start-bracket-match", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as { matchId?: string } | null;
+  const matchId = String(body?.matchId ?? "");
+  if (!matchId) return c.json({ error: "matchId required" }, 400);
+  const t = await prisma.tournament.findUnique({ where: { id } });
+  if (!t || !t.bracket) return c.json({ error: "tournament has no bracket" }, 400);
+  if (t.status !== "live") return c.json({ error: "tournament not live" }, 409);
+  let bracket: Bracket;
+  try { bracket = JSON.parse(t.bracket) as Bracket; }
+  catch { return c.json({ error: "bracket JSON is corrupt" }, 500); }
+
+  // Locate the match.
+  let target: { match: Bracket["rounds"][number]["matches"][number] } | null = null;
+  for (const r of bracket.rounds) {
+    for (const m of r.matches) {
+      if (m.id === matchId) { target = { match: m }; break; }
+    }
+    if (target) break;
+  }
+  if (!target) return c.json({ error: "match not in bracket" }, 404);
+  if (target.match.battleId) {
+    return c.json({ error: "match already started", battleId: target.match.battleId }, 409);
+  }
+  if (target.match.winnerId) {
+    return c.json({ error: "match already resolved" }, 409);
+  }
+  if (target.match.a.kind !== "player" || target.match.b.kind !== "player") {
+    return c.json({ error: "match has unresolved placeholders — advance the bracket first" }, 400);
+  }
+  const aUserId = target.match.a.userId;
+  const bUserId = target.match.b.userId;
+
+  // Pull both players' parties + verify they're online.
+  const [aUser, bUser] = await Promise.all([
+    prisma.user.findUnique({ where: { id: aUserId }, select: { id: true, username: true, saveData: true } }),
+    prisma.user.findUnique({ where: { id: bUserId }, select: { id: true, username: true, saveData: true } }),
+  ]);
+  if (!aUser || !bUser) return c.json({ error: "user not found" }, 404);
+  const partyOf = (saveJson: string | null): unknown[] => {
+    if (!saveJson) return [];
+    try {
+      const s = JSON.parse(saveJson);
+      return Array.isArray(s?.party) ? s.party : [];
+    } catch { return []; }
+  };
+  const teamA = partyOf(aUser.saveData);
+  const teamB = partyOf(bUser.saveData);
+  if (teamA.length < 1 || teamB.length < 1) {
+    return c.json({ error: "one or both participants have no party" }, 400);
+  }
+  if (!getIo()) return c.json({ error: "socket server not ready" }, 500);
+
+  const battleId = newBattleId();
+  const room: BattleRoom = {
+    id: battleId,
+    status: "invited",
+    format: "tournament",
+    createdAt: Date.now(),
+    lastChoiceAt: Date.now(),
+    a: { userId: aUser.id, username: aUser.username, team: teamA as never, stream: null, request: null, connected: true },
+    b: { userId: bUser.id, username: bUser.username, team: teamB as never, stream: null, request: null, connected: true },
+    log: [],
+    stream: null,
+    expiryTimer: null,
+    tournamentId: t.id,
+    levelCap: t.levelCap ?? undefined,
+  };
+  battleRooms.set(battleId, room);
+
+  // Save the battleId into the bracket BEFORE starting the simulator
+  // — that way if the simulator throws or the server crashes, the
+  // next advance-bracket call will see the half-state and flag it.
+  target.match.battleId = battleId;
+  await prisma.tournament.update({
+    where: { id },
+    data: { bracket: JSON.stringify(bracket) },
+  });
+
+  sendToUserGlobal(aUser.id, "battle:start", {
+    battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
+    levelCap: t.levelCap ?? null,
+  });
+  sendToUserGlobal(bUser.id, "battle:start", {
+    battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
+    levelCap: t.levelCap ?? null,
+  });
+  try {
+    await startBattle(getIo()!, room, sendToUserGlobal);
+    void audit(me.id, "tournament.start_bracket_match", t.id, { battleId, matchId, aUserId, bUserId });
+    return c.json({ ok: true, battleId });
+  } catch (e) {
+    room.status = "cancelled";
+    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    battleRooms.delete(battleId);
+    // Roll back the bracket battleId so the admin can retry without
+    // the bracket thinking the match has already started.
+    target.match.battleId = null;
+    await prisma.tournament.update({
+      where: { id },
+      data: { bracket: JSON.stringify(bracket) },
+    });
+    return c.json({ error: "engine refused", detail: String(e) }, 500);
   }
 });
 

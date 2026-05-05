@@ -90,6 +90,25 @@ export const api = {
   publicProfile: (username: string) =>
     request<PublicProfile>("GET", `/api/profile/${encodeURIComponent(username)}`),
 
+  // PvP — rating, history, leaderboard, tournaments
+  myRating: () => request<RatingRow>("GET", "/api/pvp/me/rating"),
+  ratingFor: (userId: string) => request<RatingRow>("GET", `/api/pvp/rating/${encodeURIComponent(userId)}`),
+  pvpLeaderboard: (limit = 50, minMatches = 5) =>
+    request<{ leaderboard: LeaderboardRow[] }>(
+      "GET",
+      `/api/pvp/leaderboard?limit=${limit}&minMatches=${minMatches}`,
+    ),
+  myPvpHistory: (limit = 20) =>
+    request<{ matches: PvpHistoryRow[] }>("GET", `/api/pvp/me/history?limit=${limit}`),
+  listTournaments: () =>
+    request<{ tournaments: PublicTournament[] }>("GET", "/api/pvp/tournaments"),
+  tournamentDetail: (id: string) =>
+    request<{ tournament: PublicTournament }>("GET", `/api/pvp/tournaments/${id}`),
+  joinTournament: (id: string) =>
+    request<{ entry: PublicTournamentEntry }>("POST", `/api/pvp/tournaments/${id}/join`),
+  leaveTournament: (id: string) =>
+    request<{ ok: true }>("DELETE", `/api/pvp/tournaments/${id}/leave`),
+
   // Saves
   getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string }>(
     "GET",
@@ -154,6 +173,64 @@ export const api = {
     meta?: Record<string, unknown>;
   }) => request<{ ok: true }>("POST", "/api/bug-reports/client-error", input),
 };
+
+export interface RatingRow {
+  userId: string;
+  rating: number;
+  peakRating: number;
+  matchesPlayed: number;
+  wins: number;
+  losses: number;
+  forfeits: number;
+  unranked: boolean;
+  lastMatchAt?: string | null;
+  updatedAt?: string;
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  userId: string;
+  username: string;
+  name: string | null;
+  accountLevel: number;
+  rating: number;
+  peakRating: number;
+  matchesPlayed: number;
+  wins: number;
+  losses: number;
+  forfeits: number;
+}
+
+export interface PvpHistoryRow {
+  id: string;
+  createdAt: string;
+  finishedAt: string | null;
+  format: string;
+  opponent: { id: string; username: string };
+  result: "win" | "loss" | "forfeit" | "draw";
+  endReason: string | null;
+}
+
+export interface PublicTournamentEntry {
+  userId: string;
+  username: string;
+  eliminated: boolean;
+  seed: number | null;
+}
+
+export interface PublicTournament {
+  id: string;
+  createdAt: string;
+  startsAt: string | null;
+  finishedAt: string | null;
+  name: string;
+  format: string;
+  levelCap: number | null;
+  status: string;
+  bracket: string | null;
+  ownerId: string;
+  entries: PublicTournamentEntry[];
+}
 
 export interface ProfileUser {
   id: string;
