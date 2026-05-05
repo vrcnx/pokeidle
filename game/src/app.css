@@ -12415,8 +12415,34 @@ html, body {
 
 /* ─── Random Battle Queue Toast ──────────────────────────────────── */
 .battle-queue-toast {
-  border-color: rgba(96, 165, 250, 0.32);
-  background: linear-gradient(180deg, rgba(96, 165, 250, 0.06), rgba(96, 165, 250, 0.02));
+  border-color: rgba(96, 165, 250, 0.5);
+  /* Layer the blue tint OVER the solid panel — the previous rule
+     replaced the panel background entirely with a near-transparent
+     gradient, which let the dock and chat behind it bleed through.
+     The toast looked dim and clipped. Using linear-gradient on top
+     of the panel keeps the readable solid base. */
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(96, 165, 250, 0.04)),
+    var(--panel, #1a1d24);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(96, 165, 250, 0.12);
+}
+/* Bump action buttons inside toasts so they don't get lost on the
+   tinted background. The default ghost button is nearly transparent
+   which blends into the toast surface — ghost-on-tinted reads as
+   "disabled". This keeps the ghost shape (border + transparent fill)
+   but adds a subtle backing so the click target is unambiguous. */
+.battle-queue-toast .g-btn-ghost,
+.battle-toast .g-btn-ghost,
+.trade-toast .g-btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text, #f0f0f0);
+}
+.battle-queue-toast .g-btn-ghost:hover,
+.battle-toast .g-btn-ghost:hover,
+.trade-toast .g-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 /* ─── PvP Dock Popup ─────────────────────────────────────────────── */

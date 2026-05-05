@@ -114,6 +114,13 @@ function BattleTab() {
 
   const startRandom = () => {
     if (noTeam) return;
+    // Close the hub BEFORE opening the team builder. Both modals use
+    // the same overlay z-index, so without this the team builder
+    // mounts beneath the hub and the user can't see / interact with
+    // it. Closing first means the team builder takes centre stage,
+    // and if the user cancels we don't auto-reopen the hub — they
+    // can press the dock button again.
+    closePvpHub();
     openTeamBuilder({
       mode: "queue",
       levelCap: 50,
@@ -124,7 +131,6 @@ function BattleTab() {
             leaveRandomQueue();
           }
         });
-        closePvpHub();
       },
     });
   };

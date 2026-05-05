@@ -17,6 +17,7 @@ import {
   popQueuePair,
   queueIndexOf,
   matchmakingQueue,
+  startMatchmakingTicker,
   type BattleRoom,
   type BattleFormat,
 } from "./pvp.js";
@@ -254,6 +255,78 @@ export function attachSocketServer(httpServer: HttpServer): Server {
   const broadcastOnlineCount = () => {
     io.emit("presence:count", { count: online.size });
   };
+
+  // Per-room sendToUser helper at the module level — needed by the
+  // matchmaking ticker which doesn't have a per-connection scope.
+  const sendToAnyUser = (userId: string, event: string, payload: unknown) => {
+    const sockets = online.get(userId);
+    if (!sockets) return;
+    for (const sid of sockets) io.to(sid).emit(event, payload);
+  };
+
+  // Pair anyone waiting in the matchmaking queue with the next
+  // available opponent and spawn a room. Called both as a side effect
+  // of battle:queue (so the second-to-arrive player triggers an
+  // instant match) and from a periodic ticker (so a missed trigger
+  // doesn't strand both players staring at "Searching for opponent...").
+  // Idempotent — no-ops when there aren't ≥2 queued.
+  const tryPairAndSpawnRoom = async (): Promise<void> => {
+    const pair = popQueuePair();
+    if (!pair) return;
+    const [aEntry, bEntry] = pair;
+    // If either side dropped out between joining the queue and the
+    // pair pop, requeue the survivor and bail. The next tick (or the
+    // next join) re-attempts.
+    if (!online.has(aEntry.userId)) {
+      if (online.has(bEntry.userId)) joinQueue(bEntry);
+      return;
+    }
+    if (!online.has(bEntry.userId)) {
+      joinQueue(aEntry);
+      return;
+    }
+    const battleId = newBattleId();
+    const room: BattleRoom = {
+      id: battleId,
+      status: "invited",  // immediately upgraded to "active" by startBattle
+      format: "random50",
+      createdAt: Date.now(),
+      lastChoiceAt: Date.now(),
+      a: { userId: aEntry.userId, username: aEntry.username, team: aEntry.team, stream: null, request: null, connected: true },
+      b: { userId: bEntry.userId, username: bEntry.username, team: bEntry.team, stream: null, request: null, connected: true },
+      log: [],
+      stream: null,
+      expiryTimer: null,
+      spectators: new Set(),
+    };
+    battleRooms.set(battleId, room);
+    sendToAnyUser(aEntry.userId, "battle:start", {
+      battleId, format: room.format,
+      opponent: { id: bEntry.userId, username: bEntry.username },
+      you: "a",
+    });
+    sendToAnyUser(bEntry.userId, "battle:start", {
+      battleId, format: room.format,
+      opponent: { id: aEntry.userId, username: aEntry.username },
+      you: "b",
+    });
+    try {
+      await startBattle(io, room, sendToAnyUser);
+      console.log("[pvp] matchmaking spawned battle", { battleId, a: aEntry.username, b: bEntry.username });
+    } catch (e) {
+      room.status = "cancelled";
+      const reason = `Engine refused the matchup: ${String(e)}`;
+      sendToAnyUser(aEntry.userId, "battle:cancelled", { battleId, reason });
+      sendToAnyUser(bEntry.userId, "battle:cancelled", { battleId, reason });
+      battleRooms.delete(battleId);
+      console.error("[pvp] matchmaking startBattle failed", { battleId, err: String(e) });
+    }
+  };
+
+  // Defense-in-depth ticker. Fires every 3s; if anyone is queued and
+  // a pair is available, this guarantees a battle starts even if the
+  // join-time trigger was missed (race, transient socket hiccup, etc.).
+  startMatchmakingTicker(() => { void tryPairAndSpawnRoom(); }, 3_000);
   io.on("connection", async (socket) => {
     const user = socket.data.user!;
     const wasFirst = addPresence(user.id, socket.id);
@@ -880,57 +953,17 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           joinedAt: Date.now(),
         });
         if (!added) { ack?.({ ok: false, error: "already queued" }); return; }
-        sendToUser(user.id, "battle:queue:joined", { position: queueIndexOf(user.id) + 1, queueSize: matchmakingQueue.length });
+        sendToUser(user.id, "battle:queue:joined", {
+          position: queueIndexOf(user.id) + 1,
+          queueSize: matchmakingQueue.length,
+        });
+        console.log("[pvp] queued", { user: user.username, queueSize: matchmakingQueue.length });
 
-        // Try to pair. If we found a pair, kick off a battle right away.
-        const pair = popQueuePair();
-        if (!pair) { ack?.({ ok: true }); return; }
-        const [aEntry, bEntry] = pair;
-        // Make sure both are still online — if either dropped out
-        // while waiting, requeue the survivor (rare but possible).
-        if (!online.has(aEntry.userId)) {
-          if (online.has(bEntry.userId)) joinQueue(bEntry);
-          ack?.({ ok: true }); return;
-        }
-        if (!online.has(bEntry.userId)) {
-          joinQueue(aEntry);
-          ack?.({ ok: true }); return;
-        }
-        const battleId = newBattleId();
-        const room: BattleRoom = {
-          id: battleId,
-          status: "invited",  // immediately upgraded to "active" by startBattle
-          format: "random50",
-          createdAt: Date.now(),
-          lastChoiceAt: Date.now(),
-          a: { userId: aEntry.userId, username: aEntry.username, team: aEntry.team, stream: null, request: null, connected: true },
-          b: { userId: bEntry.userId, username: bEntry.username, team: bEntry.team, stream: null, request: null, connected: true },
-          log: [],
-          stream: null,
-          expiryTimer: null,
-          spectators: new Set(),
-        };
-        battleRooms.set(battleId, room);
-        sendToUser(aEntry.userId, "battle:start", {
-          battleId, format: room.format,
-          opponent: { id: bEntry.userId, username: bEntry.username },
-          you: "a",
-        });
-        sendToUser(bEntry.userId, "battle:start", {
-          battleId, format: room.format,
-          opponent: { id: aEntry.userId, username: aEntry.username },
-          you: "b",
-        });
-        try {
-          await startBattle(io, room, sendToUser);
-        } catch (e) {
-          room.status = "cancelled";
-          sendToUser(aEntry.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-          sendToUser(bEntry.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-          battleRooms.delete(battleId);
-          console.error("[pvp] random startBattle failed", { battleId, err: String(e) });
-        }
+        // Try to pair via the shared helper (also called by the
+        // periodic ticker). The helper handles room spawn + start +
+        // error reporting; we just ack the queue-join here.
         ack?.({ ok: true });
+        void tryPairAndSpawnRoom();
       },
     );
 

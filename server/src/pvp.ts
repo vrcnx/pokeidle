@@ -39,6 +39,19 @@ interface GamePokemonShape {
   isShiny?: boolean;
 }
 
+// Convert any of our internal slugs (camelCase species like `mrMime`,
+// camelCase move ids like `shadowBall`, dashed item ids like
+// `master-ball`) to Showdown's canonical id format: lowercase, ASCII
+// alphanumerics only. Showdown internally normalizes the same way for
+// lookups, but @pkmn/sim's `Teams.pack` and `>player` payloads expect
+// us to hand it ids in this form — without this, every team comes out
+// as "(Unknown Pokémon)" and the simulator crashes on the first
+// `>start`. This was the root cause of PvP battles silently failing
+// to start in production.
+function toShowdownId(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export function pokemonToShowdownSet(p: GamePokemonShape): {
   name: string;
   species: string;
@@ -52,18 +65,20 @@ export function pokemonToShowdownSet(p: GamePokemonShape): {
   shiny: boolean;
   gender: string;
 } {
-  // Showdown move ids are de-hyphenated lowercase ids ("u-turn" → "uturn").
-  // Our move ids match, so we just pass them through. Empty moveset
-  // (admin-granted mons) gets a Tackle fallback so the simulator
-  // doesn't reject the team for "no moves".
-  const moveIds = (p.moves ?? []).map((m) => m.id).filter(Boolean);
+  // Normalize every id to Showdown format. Empty moveset (admin-
+  // granted mons, or a Pokémon that hasn't learned anything yet) gets
+  // a Tackle fallback so the simulator doesn't reject the team for
+  // "no moves" — better to ship a degraded battle than no battle.
+  const moveIds = (p.moves ?? [])
+    .map((m) => toShowdownId(m.id))
+    .filter(Boolean);
   const moves = moveIds.length > 0 ? moveIds : ["tackle"];
 
   return {
     name: p.nickname ?? p.name ?? p.speciesKey,
-    species: p.speciesKey,
-    item: p.heldItem ?? "",
-    ability: p.ability ?? "",
+    species: toShowdownId(p.speciesKey),
+    item: p.heldItem ? toShowdownId(p.heldItem) : "",
+    ability: p.ability ? toShowdownId(p.ability) : "",
     moves,
     nature: p.nature ?? "Hardy",
     evs: {
@@ -191,8 +206,24 @@ export async function startBattle(
   const cap = levelCapForFormat(room.format as BattleFormat, room);
   const teamA = applyLevelCap(room.a.team, cap).map(pokemonToShowdownSet);
   const teamB = applyLevelCap(room.b.team, cap).map(pokemonToShowdownSet);
-  const packedA = Teams.pack(teamA as never);
-  const packedB = Teams.pack(teamB as never);
+  // Teams.pack throws if any PokemonSet has an unknown species / move /
+  // item id — we want that error to surface (rather than crash inside
+  // the stream pump where it's harder to debug). Logging the team on
+  // failure lets us see exactly which entry the dex rejected.
+  let packedA: string;
+  let packedB: string;
+  try {
+    packedA = Teams.pack(teamA as never);
+    packedB = Teams.pack(teamB as never);
+  } catch (e) {
+    console.error("[pvp] Teams.pack failed", {
+      battleId: room.id,
+      err: String(e),
+      teamA: JSON.stringify(teamA),
+      teamB: JSON.stringify(teamB),
+    });
+    throw new Error(`team validation failed: ${String(e)}`);
+  }
 
   // Build the simulator stream + per-player views. The omniscient
   // stream sees both sides; player streams are scoped to "what would
@@ -217,6 +248,13 @@ export async function startBattle(
     `>player p2 {"name":${JSON.stringify(room.b.username)},"team":${JSON.stringify(packedB)}}`,
   ].join("\n");
   omni.write(startCmd);
+  console.log("[pvp] battle started", {
+    battleId: room.id,
+    format: room.format,
+    a: room.a.username,
+    b: room.b.username,
+    teamSize: { a: teamA.length, b: teamB.length },
+  });
 
   // Per-turn timeout watchdog.
   room.lastChoiceAt = Date.now();
@@ -574,4 +612,26 @@ export function popQueuePair(): [QueueEntry, QueueEntry] | null {
   const a = matchmakingQueue.shift()!;
   const b = matchmakingQueue.shift()!;
   return [a, b];
+}
+
+// Defense-in-depth: a periodic ticker that re-attempts pairing every
+// few seconds. Catches cases the only-on-join trigger might miss —
+// e.g., a queue:join handler that early-returned before reaching
+// popQueuePair, or a transient socket hiccup that suppressed the
+// trigger. Idempotent; if no pair is found, no-op.
+//
+// The pairing logic itself lives in socket.ts (it needs access to
+// the io instance for sendToUser, plus the room-spawn boilerplate).
+// startMatchmakingTicker takes a callback so we don't pull socket
+// dependencies into this module.
+let _matchmakingInterval: NodeJS.Timeout | null = null;
+export function startMatchmakingTicker(onTick: () => void, intervalMs = 3_000): void {
+  if (_matchmakingInterval) return;
+  _matchmakingInterval = setInterval(onTick, intervalMs);
+}
+export function stopMatchmakingTicker(): void {
+  if (_matchmakingInterval) {
+    clearInterval(_matchmakingInterval);
+    _matchmakingInterval = null;
+  }
 }
