@@ -127,6 +127,10 @@ export interface BattleRoom {
   /** Optional tournament linkage — set by the bracket runner when the
    *  match was created from a tournament round. */
   tournamentId?: string;
+  /** Tournament-format level cap. Ignored for anything-goes / random50
+   *  (those use the format default). Only meaningful when format ===
+   *  "tournament" and a cap was set on the source Tournament row. */
+  levelCap?: number;
 }
 
 export const battleRooms = new Map<string, BattleRoom>();
@@ -135,6 +139,27 @@ const TURN_TIMEOUT_MS = 5 * 60_000;
 
 export function newBattleId(): string {
   return `b_${Math.random().toString(16).slice(2, 11)}`;
+}
+
+// ─── Format → level-cap rules ────────────────────────────────────────
+// The simulator accepts any level we hand it; the original Pokémon in
+// the user's save aren't touched. So a "level cap" is just clamping the
+// level field on each PokemonSet before passing it to @pkmn/sim.
+//
+//   anything-goes : no cap, ship the team as-is
+//   random50      : every mon clamped to Lv 50 (matchmaking default)
+//   tournament    : tournament-specific cap on the room (see room.levelCap)
+export type BattleFormat = "anything-goes" | "random50" | "tournament";
+
+export function levelCapForFormat(format: BattleFormat, room?: BattleRoom): number | null {
+  if (format === "random50") return 50;
+  if (format === "tournament") return room?.levelCap ?? null;
+  return null;
+}
+
+function applyLevelCap(team: GamePokemonShape[], cap: number | null): GamePokemonShape[] {
+  if (cap == null) return team;
+  return team.map((p) => p.level > cap ? { ...p, level: cap } : p);
 }
 
 // ─── Start a battle: spin up the simulator ──────────────────────────
@@ -155,11 +180,13 @@ export async function startBattle(
   room.status = "active";
   if (room.expiryTimer) clearTimeout(room.expiryTimer);
 
-  // Pack each team into the format @pkmn/sim expects. `Teams.pack`
-  // converts an array of PokemonSets into Showdown's compact packed
-  // string. The simulator will unpack it internally.
-  const teamA = room.a.team.map(pokemonToShowdownSet);
-  const teamB = room.b.team.map(pokemonToShowdownSet);
+  // Apply the format's level cap before adapting to PokemonSet — the
+  // adapter just passes `level` through, and @pkmn/sim re-derives stats
+  // internally from base + IVs + EVs + level, so capping here means
+  // every battle mechanic uses the capped level.
+  const cap = levelCapForFormat(room.format as BattleFormat, room);
+  const teamA = applyLevelCap(room.a.team, cap).map(pokemonToShowdownSet);
+  const teamB = applyLevelCap(room.b.team, cap).map(pokemonToShowdownSet);
   const packedA = Teams.pack(teamA as never);
   const packedB = Teams.pack(teamB as never);
 
@@ -355,4 +382,50 @@ export function startInviteExpiry(room: BattleRoom, onExpire: () => void): void 
   room.expiryTimer = setTimeout(() => {
     if (room.status === "invited") onExpire();
   }, INVITE_TTL_MS);
+}
+
+// ─── Random matchmaking queue ────────────────────────────────────────
+// Tiny FIFO queue of (userId, username, team) entries waiting for a
+// random opponent. When the queue has at least 2 entries we pop the
+// oldest two and spawn an "active" room with format: "random50" so
+// the level cap kicks in. Memory-only — disconnects flush a user out
+// of the queue (see socket.ts disconnect handler).
+
+export interface QueueEntry {
+  userId: string;
+  username: string;
+  team: GamePokemonShape[];
+  joinedAt: number;
+}
+
+export const matchmakingQueue: QueueEntry[] = [];
+
+/** Returns the index in the queue, or -1 if not queued. */
+export function queueIndexOf(userId: string): number {
+  return matchmakingQueue.findIndex((e) => e.userId === userId);
+}
+
+export function leaveQueue(userId: string): boolean {
+  const i = queueIndexOf(userId);
+  if (i < 0) return false;
+  matchmakingQueue.splice(i, 1);
+  return true;
+}
+
+/** Drop in a queue entry. Returns true if added, false if the same
+ *  user was already queued (we keep the original to prevent silent
+ *  team switching while waiting). */
+export function joinQueue(entry: QueueEntry): boolean {
+  if (queueIndexOf(entry.userId) >= 0) return false;
+  matchmakingQueue.push(entry);
+  return true;
+}
+
+/** If at least two players are queued, pop the oldest two and return
+ *  them in [a, b] order so the caller can spin up a room. */
+export function popQueuePair(): [QueueEntry, QueueEntry] | null {
+  if (matchmakingQueue.length < 2) return null;
+  const a = matchmakingQueue.shift()!;
+  const b = matchmakingQueue.shift()!;
+  return [a, b];
 }

@@ -1,11 +1,18 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { broadcastChatCleared } from "../socket.js";
+import { broadcastChatCleared, sendToUserGlobal, getIo } from "../socket.js";
 import { auth } from "../auth.js";
+import {
+  battleRooms,
+  newBattleId,
+  startBattle,
+  type BattleRoom,
+} from "../pvp.js";
 
 const app = new Hono();
 
@@ -836,6 +843,211 @@ app.get("/errors", async (c) => {
       meta: r.meta ? safeJson(r.meta) : null,
     })),
   });
+});
+
+// ── Tournaments ────────────────────────────────────────────────────────
+// Admin-managed brackets. v1 ships:
+//   - Create + list + delete tournaments with optional level cap
+//   - Add / remove participants (manual seeding by the admin)
+//   - "Run match" — given two participant ids, spawn a server-side
+//     PvP battle room with format=tournament + the tournament's
+//     levelCap. Both participants must be online + provide teams.
+//
+// Player-facing tournament UI (browse, sign up, watch bracket) is a
+// follow-up. For v1 the admin DMs participants to coordinate.
+
+const TournamentCreateBody = z.object({
+  name: z.string().min(1).max(80),
+  levelCap: z.number().int().min(1).max(100).nullable().optional(),
+  format: z.string().max(40).optional(),
+});
+
+app.get("/tournaments", async (c) => {
+  const tournaments = await prisma.tournament.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      entries: {
+        select: { id: true, userId: true, username: true, eliminated: true, seed: true },
+      },
+    },
+  });
+  return c.json({ tournaments });
+});
+
+app.post("/tournaments", async (c) => {
+  const me = c.get("user");
+  const parsed = TournamentCreateBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const t = await prisma.tournament.create({
+    data: {
+      name: parsed.data.name,
+      levelCap: parsed.data.levelCap ?? null,
+      format: parsed.data.format ?? "tournament",
+      status: "open",
+      ownerId: me.id,
+    },
+  });
+  void audit(me.id, "tournament.create", t.id, { name: t.name, levelCap: t.levelCap });
+  return c.json({ tournament: t });
+});
+
+app.delete("/tournaments/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  try {
+    await prisma.tournament.delete({ where: { id } });
+    void audit(me.id, "tournament.delete", id);
+    return c.json({ ok: true });
+  } catch {
+    return c.json({ error: "tournament not found" }, 404);
+  }
+});
+
+// Update level cap / status / name post-creation.
+app.patch("/tournaments/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { name?: string; levelCap?: number | null; status?: string }
+    | null;
+  if (!body) return c.json({ error: "invalid body" }, 400);
+  const data: Record<string, unknown> = {};
+  if (typeof body.name === "string" && body.name.length <= 80) data.name = body.name;
+  if (body.levelCap === null || (typeof body.levelCap === "number" && body.levelCap >= 1 && body.levelCap <= 100)) {
+    data.levelCap = body.levelCap;
+  }
+  if (typeof body.status === "string") data.status = body.status;
+  try {
+    const t = await prisma.tournament.update({ where: { id }, data });
+    void audit(me.id, "tournament.update", id, data);
+    return c.json({ tournament: t });
+  } catch {
+    return c.json({ error: "tournament not found" }, 404);
+  }
+});
+
+// Add participant by username — looks up the user and creates a
+// TournamentEntry. The compound unique on (tournamentId, userId)
+// prevents duplicate registrations.
+app.post("/tournaments/:id/entries", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as { username?: string } | null;
+  const uname = String(body?.username ?? "").trim();
+  if (!uname) return c.json({ error: "username required" }, 400);
+  const u = await prisma.user.findUnique({ where: { username: uname }, select: { id: true, username: true } });
+  if (!u) return c.json({ error: "user not found" }, 404);
+  try {
+    const entry = await prisma.tournamentEntry.create({
+      data: { tournamentId: id, userId: u.id, username: u.username },
+    });
+    void audit(me.id, "tournament.add_entry", id, { userId: u.id });
+    return c.json({ entry });
+  } catch {
+    return c.json({ error: "user already registered or tournament missing" }, 400);
+  }
+});
+
+app.delete("/tournaments/:id/entries/:entryId", async (c) => {
+  const me = c.get("user");
+  const tid = c.req.param("id");
+  const eid = c.req.param("entryId");
+  try {
+    await prisma.tournamentEntry.delete({ where: { id: eid } });
+    void audit(me.id, "tournament.remove_entry", tid, { entryId: eid });
+    return c.json({ ok: true });
+  } catch {
+    return c.json({ error: "entry not found" }, 404);
+  }
+});
+
+// Spawn a tournament match between two registered participants. Both
+// must be online; both will see a battle:invite-style start event and
+// the server-side room is created with format="tournament" so the
+// tournament's levelCap is applied. Teams are pulled from each
+// participant's current party (admin's responsibility to confirm
+// they're ready before triggering).
+app.post("/tournaments/:id/match", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { aUserId?: string; bUserId?: string }
+    | null;
+  const aUserId = String(body?.aUserId ?? "");
+  const bUserId = String(body?.bUserId ?? "");
+  if (!aUserId || !bUserId || aUserId === bUserId) {
+    return c.json({ error: "two distinct participant ids required" }, 400);
+  }
+  const t = await prisma.tournament.findUnique({
+    where: { id },
+    include: { entries: { where: { userId: { in: [aUserId, bUserId] } } } },
+  });
+  if (!t) return c.json({ error: "tournament not found" }, 404);
+  if (t.entries.length !== 2) return c.json({ error: "both users must be registered participants" }, 400);
+
+  const [aUser, bUser] = await Promise.all([
+    prisma.user.findUnique({ where: { id: aUserId }, select: { id: true, username: true, saveData: true } }),
+    prisma.user.findUnique({ where: { id: bUserId }, select: { id: true, username: true, saveData: true } }),
+  ]);
+  if (!aUser || !bUser) return c.json({ error: "user not found" }, 404);
+
+  // Pull teams from each user's saved party. Admin should ensure both
+  // sides have a party set — if either is empty, the simulator will
+  // refuse to start. We surface that as a 400 here rather than the
+  // raw engine error.
+  const partyOf = (saveJson: string | null): unknown[] => {
+    if (!saveJson) return [];
+    try {
+      const s = JSON.parse(saveJson);
+      return Array.isArray(s?.party) ? s.party : [];
+    } catch { return []; }
+  };
+  const teamA = partyOf(aUser.saveData);
+  const teamB = partyOf(bUser.saveData);
+  if (teamA.length < 1 || teamB.length < 1) {
+    return c.json({ error: "one or both participants have no party" }, 400);
+  }
+
+  if (!getIo()) return c.json({ error: "socket server not ready" }, 500);
+
+  const battleId = newBattleId();
+  const room: BattleRoom = {
+    id: battleId,
+    status: "invited",
+    format: "tournament",
+    createdAt: Date.now(),
+    lastChoiceAt: Date.now(),
+    a: { userId: aUser.id, username: aUser.username, team: teamA as never, stream: null, request: null, connected: true },
+    b: { userId: bUser.id, username: bUser.username, team: teamB as never, stream: null, request: null, connected: true },
+    log: [],
+    stream: null,
+    expiryTimer: null,
+    tournamentId: t.id,
+    levelCap: t.levelCap ?? undefined,
+  };
+  battleRooms.set(battleId, room);
+  sendToUserGlobal(aUser.id, "battle:start", {
+    battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
+    levelCap: t.levelCap ?? null,
+  });
+  sendToUserGlobal(bUser.id, "battle:start", {
+    battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
+    levelCap: t.levelCap ?? null,
+  });
+  try {
+    await startBattle(getIo()!, room, sendToUserGlobal);
+    void audit(me.id, "tournament.start_match", t.id, { battleId, aUserId, bUserId });
+    return c.json({ ok: true, battleId });
+  } catch (e) {
+    room.status = "cancelled";
+    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    battleRooms.delete(battleId);
+    return c.json({ error: "engine refused", detail: String(e) }, 500);
+  }
 });
 
 export default app;

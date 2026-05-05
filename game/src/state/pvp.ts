@@ -7,10 +7,19 @@ import type { Pokemon } from "../types";
 // any component can render off the live battle without prop-drilling
 // through the dashboard.
 
+export type BattleFormat = "anything-goes" | "random50" | "tournament";
+
 export interface BattleInvite {
   battleId: string;
   from: { id: string; username: string };
+  format: BattleFormat;
   expiresAt: number;
+}
+
+export interface QueueState {
+  position: number;
+  queueSize: number;
+  joinedAt: number;
 }
 
 export interface BattleRoom {
@@ -67,10 +76,11 @@ export interface BattleLogEntry {
 interface PvpState {
   invite: BattleInvite | null;
   room: BattleRoom | null;
+  queue: QueueState | null;
   cancelMessage: string | null;
 }
 
-const _state: PvpState = { invite: null, room: null, cancelMessage: null };
+const _state: PvpState = { invite: null, room: null, queue: null, cancelMessage: null };
 const _listeners = new Set<(s: PvpState) => void>();
 
 function emit() {
@@ -92,9 +102,21 @@ export function usePvpState(): PvpState {
 export function sendBattleInvite(
   toUserId: string,
   team: Pokemon[],
+  format: BattleFormat = "anything-goes",
   ack?: (r: { ok: boolean; error?: string; battleId?: string }) => void,
 ) {
-  getSocket().emit("battle:invite", { toUserId, team }, ack);
+  getSocket().emit("battle:invite", { toUserId, team, format }, ack);
+}
+
+export function joinRandomQueue(
+  team: Pokemon[],
+  ack?: (r: { ok: boolean; error?: string }) => void,
+) {
+  getSocket().emit("battle:queue", { team }, ack);
+}
+
+export function leaveRandomQueue(ack?: (r: { ok: boolean }) => void) {
+  getSocket().emit("battle:dequeue", {}, ack);
 }
 export function respondToBattleInvite(
   battleId: string,
@@ -150,6 +172,7 @@ export function bindPvpSocket() {
     "battle:start",
     (payload: { battleId: string; format: string; opponent: { id: string; username: string }; you: "a" | "b" }) => {
       _state.invite = null;
+      _state.queue = null;  // matchmaking landed us here
       _state.room = {
         battleId: payload.battleId,
         format: payload.format,
@@ -196,6 +219,20 @@ export function bindPvpSocket() {
       emit();
     },
   );
+
+  sock.on("battle:queue:joined", (payload: { position: number; queueSize: number }) => {
+    _state.queue = {
+      position: payload.position,
+      queueSize: payload.queueSize,
+      joinedAt: Date.now(),
+    };
+    emit();
+  });
+
+  sock.on("battle:queue:left", () => {
+    _state.queue = null;
+    emit();
+  });
 
   sock.on("battle:cancelled", (payload: { battleId: string; reason: string }) => {
     const affected = _state.invite?.battleId === payload.battleId

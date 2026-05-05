@@ -12317,3 +12317,135 @@ html, body {
   text-align: right;
   color: var(--text-muted, #9c9c9c);
 }
+
+/* ─── Team Builder Modal ─────────────────────────────────────────── */
+.team-builder-modal { max-width: min(94vw, 720px); width: 100%; }
+.team-builder-cap {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: rgba(96, 165, 250, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  border-radius: 4px;
+}
+.team-builder-strip { padding: 10px 14px; }
+.team-builder-empty { margin: 4px 0 0; }
+.team-builder-strip-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.team-builder-strip-item {
+  display: grid;
+  grid-template-columns: 22px 40px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+}
+.team-builder-slot {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold, #f6c84a);
+  text-align: center;
+}
+.team-builder-strip-info {
+  display: flex; flex-direction: column; min-width: 0;
+}
+.team-builder-strip-info strong { font-size: 13px; }
+.team-builder-strip-info small { font-size: 10px; }
+.team-builder-strip-actions { display: inline-flex; gap: 2px; }
+
+.team-builder-pool { padding: 10px 14px; }
+.team-builder-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.team-builder-pool-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text, #f5f5f5);
+  text-align: center;
+  transition: background 100ms ease, border-color 100ms ease, transform 80ms ease;
+}
+.team-builder-pool-card:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); }
+.team-builder-pool-card.selected {
+  background: rgba(246, 200, 74, 0.10);
+  border-color: var(--gold, #f6c84a);
+}
+.team-builder-pool-card strong { font-size: 11px; line-height: 1.2; }
+.team-builder-pool-card small { font-size: 10px; }
+.team-builder-pool-slot {
+  position: absolute;
+  top: 4px; right: 6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--gold, #f6c84a);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Random Battle Queue Toast ──────────────────────────────────── */
+.battle-queue-toast {
+  border-color: rgba(96, 165, 250, 0.32);
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.06), rgba(96, 165, 250, 0.02));
+}
+
+/* ─── PvP Dock Popup ─────────────────────────────────────────────── */
+.dock-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  background: var(--panel, #131313);
+  border: 1px solid var(--border, #1f1f1f);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 240px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dock-popup header { font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted, #9c9c9c); padding-bottom: 4px; border-bottom: 1px solid var(--border, #1f1f1f); }
+.pvp-dock-action {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(96, 165, 250, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text, #f5f5f5);
+  text-align: left;
+  transition: background 80ms ease;
+}
+.pvp-dock-action:hover { background: rgba(96, 165, 250, 0.16); }
+.pvp-dock-action strong { font-size: 12px; }
+.pvp-dock-action small { font-size: 10px; color: var(--text-muted, #9c9c9c); }
+.pvp-dock-hint { padding: 2px 4px; }

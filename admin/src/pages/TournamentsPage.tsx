@@ -1,0 +1,324 @@
+import { useEffect, useState } from "react";
+import { api, type AdminTournament } from "../api";
+
+// Tournament admin page — v1 capabilities:
+//   - Create a tournament (name + optional level cap + format)
+//   - List existing tournaments + delete
+//   - Add / remove participants by username
+//   - Start a one-off match between two registered participants
+//     (server spawns a server-authoritative @pkmn/sim battle room
+//     with format=tournament + the tournament's level cap)
+//
+// Bracket auto-pairing / seeding / round advancement is a follow-up.
+// For v1 the admin manually triggers each match — the server's
+// PvpMatch table records winners so a future bracket runner can
+// read history to advance.
+export function TournamentsPage() {
+  const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const reload = () => {
+    setBusy(true);
+    setErr(null);
+    api.listTournaments()
+      .then((d) => setTournaments(d.tournaments))
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false));
+  };
+  useEffect(reload, []);
+
+  const sel = tournaments.find((t) => t.id === selected) ?? null;
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <h1>Tournaments</h1>
+        <p className="dim">
+          Create bracket-style PvP events with optional level caps. Participants' Pokémon
+          are temporarily clamped to the cap during matches; their real saves are unchanged.
+        </p>
+      </header>
+
+      <div className="users-toolbar">
+        <button className="btn-primary" onClick={reload} disabled={busy}>Refresh</button>
+        <CreateTournament onCreated={reload} />
+      </div>
+
+      {err && <div className="page-err">{err}</div>}
+
+      <div className="tournaments-grid">
+        <table className="users-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Format</th>
+              <th>Lv cap</th>
+              <th>Status</th>
+              <th>Entries</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tournaments.map((t) => (
+              <tr
+                key={t.id}
+                onClick={() => setSelected(t.id)}
+                className={selected === t.id ? "selected" : ""}
+                style={{ cursor: "pointer" }}
+              >
+                <td><strong>{t.name}</strong></td>
+                <td className="dim small">{t.format}</td>
+                <td>{t.levelCap ?? <span className="dim">—</span>}</td>
+                <td>
+                  <span className={`tag tournament-status-${t.status}`}>{t.status}</span>
+                </td>
+                <td>{t.entries.length}</td>
+                <td className="dim small">{new Date(t.createdAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {tournaments.length === 0 && !busy && (
+              <tr><td colSpan={6} className="dim center">No tournaments yet.</td></tr>
+            )}
+          </tbody>
+        </table>
+
+        {sel && <TournamentDetail tournament={sel} onChange={reload} onClose={() => setSelected(null)} />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Create form ─────────────────────────────────────────────────────
+function CreateTournament({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [levelCap, setLevelCap] = useState<number | "">(50);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!name.trim()) { setErr("Name required."); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.createTournament({
+        name: name.trim(),
+        levelCap: typeof levelCap === "number" ? levelCap : null,
+      });
+      setName("");
+      setLevelCap(50);
+      setOpen(false);
+      onCreated();
+    } catch (e: any) {
+      setErr(e?.message ?? "Could not create.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return <button className="btn-secondary" onClick={() => setOpen(true)}>+ New tournament</button>;
+  }
+  return (
+    <div className="tournament-create">
+      <input
+        className="search-input"
+        placeholder="Tournament name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+      />
+      <label className="tournament-cap-input">
+        Lv cap
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={levelCap}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLevelCap(v === "" ? "" : Math.max(1, Math.min(100, parseInt(v, 10) || 1)));
+          }}
+        />
+      </label>
+      <button className="btn-primary btn-small" onClick={submit} disabled={busy}>Create</button>
+      <button className="btn-ghost btn-small" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
+      {err && <span className="dim small" style={{ color: "#fca5a5" }}>{err}</span>}
+    </div>
+  );
+}
+
+// ─── Detail ──────────────────────────────────────────────────────────
+function TournamentDetail({
+  tournament, onChange, onClose,
+}: {
+  tournament: AdminTournament;
+  onChange: () => void;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pendingA, setPendingA] = useState<string | null>(null);
+  const [pendingB, setPendingB] = useState<string | null>(null);
+
+  const addEntry = async () => {
+    const username = window.prompt("Username to register:");
+    if (!username) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.addTournamentEntry(tournament.id, username.trim());
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not add entry.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeEntry = async (entryId: string) => {
+    if (!window.confirm("Remove this participant?")) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.removeTournamentEntry(tournament.id, entryId);
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not remove.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const startMatch = async () => {
+    if (!pendingA || !pendingB || pendingA === pendingB) {
+      setMsg("Pick two different participants.");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.startTournamentMatch(tournament.id, pendingA, pendingB);
+      setMsg(`Match started: ${res.battleId}`);
+      setPendingA(null);
+      setPendingB(null);
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Match failed to start.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    if (!window.confirm(`Delete tournament "${tournament.name}"? Cascades to entries.`)) return;
+    setBusy(true);
+    try {
+      await api.deleteTournament(tournament.id);
+      onChange();
+      onClose();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not delete.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const setStatus = async (status: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.patchTournament(tournament.id, { status });
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not update.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="tournament-detail">
+      <header className="tournament-detail-head">
+        <div>
+          <h2>{tournament.name}</h2>
+          <div className="dim small">
+            {tournament.format} · Lv cap {tournament.levelCap ?? "—"} · status <strong>{tournament.status}</strong>
+          </div>
+        </div>
+        <button className="btn-ghost" onClick={onClose}>×</button>
+      </header>
+
+      <section className="profile-section">
+        <h3>Status & lifecycle</h3>
+        <div className="profile-actions">
+          <button className="btn-secondary btn-small" onClick={() => setStatus("open")} disabled={busy}>Open</button>
+          <button className="btn-secondary btn-small" onClick={() => setStatus("live")} disabled={busy}>Live</button>
+          <button className="btn-secondary btn-small" onClick={() => setStatus("completed")} disabled={busy}>Completed</button>
+          <button className="btn-secondary btn-small" onClick={() => setStatus("cancelled")} disabled={busy}>Cancelled</button>
+          <span style={{ flex: 1 }} />
+          <button className="btn-danger btn-small" onClick={remove} disabled={busy}>Delete tournament</button>
+        </div>
+      </section>
+
+      <section className="profile-section">
+        <h3>Participants <span className="dim small">({tournament.entries.length})</span></h3>
+        <div className="profile-actions" style={{ marginBottom: 10 }}>
+          <button className="btn-primary btn-small" onClick={addEntry} disabled={busy}>+ Add by username</button>
+        </div>
+        {tournament.entries.length === 0 ? (
+          <p className="dim small">No participants yet.</p>
+        ) : (
+          <table className="users-table">
+            <thead><tr><th>Username</th><th>Seed</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {tournament.entries.map((e) => (
+                <tr key={e.id}>
+                  <td><strong>{e.username}</strong></td>
+                  <td>{e.seed ?? <span className="dim">—</span>}</td>
+                  <td>
+                    {e.eliminated
+                      ? <span className="tag banned">eliminated</span>
+                      : <span className="tag admin">active</span>}
+                  </td>
+                  <td><button className="btn-ghost btn-tiny" onClick={() => removeEntry(e.id)} disabled={busy}>×</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="profile-section">
+        <h3>Run a match</h3>
+        <p className="dim small" style={{ marginTop: 0 }}>
+          Pick two registered participants. The server spawns a battle room with this
+          tournament's level cap; both players see a battle:start event and play live.
+          Both must be online with non-empty parties.
+        </p>
+        <div className="tournament-match-row">
+          <select value={pendingA ?? ""} onChange={(e) => setPendingA(e.target.value || null)}>
+            <option value="">Player A…</option>
+            {tournament.entries.map((e) => (
+              <option key={e.id} value={e.userId}>{e.username}</option>
+            ))}
+          </select>
+          <span className="dim">vs</span>
+          <select value={pendingB ?? ""} onChange={(e) => setPendingB(e.target.value || null)}>
+            <option value="">Player B…</option>
+            {tournament.entries.map((e) => (
+              <option key={e.id} value={e.userId}>{e.username}</option>
+            ))}
+          </select>
+          <button
+            className="btn-primary btn-small"
+            onClick={startMatch}
+            disabled={busy || !pendingA || !pendingB || pendingA === pendingB}
+          >
+            Start match
+          </button>
+        </div>
+      </section>
+
+      {msg && <p className="profile-msg dim small">{msg}</p>}
+    </div>
+  );
+}

@@ -8,6 +8,7 @@ import { api, type PublicProfile } from "../net/api";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
 import { sendBattleInvite, usePvpState } from "../state/pvp";
+import { openTeamBuilder } from "./TeamBuilderModal";
 
 // Trainer card. Two modes:
 //   self    — full card with badges, sign-out, etc. (the one the
@@ -234,16 +235,23 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
 
   const requestBattle = () => {
     if (!profile || isSelf || inActiveBattle) return;
-    if (game.state.party.length < 1) {
+    if (game.state.party.length + game.state.box.length < 1) {
       setError("You need at least one Pokémon to battle.");
       return;
     }
-    setBusy(true);
-    setError(null);
-    sendBattleInvite(profile.id, game.state.party, (res) => {
-      setBusy(false);
-      if (res.ok) setBattleInviteSent(true);
-      else setError(res.error ?? "Could not send battle invite.");
+    // Open the team builder rather than auto-using the party — lets
+    // the player pick from their full party + box, set the lead, etc.
+    openTeamBuilder({
+      mode: "invite",
+      onConfirm: (team) => {
+        setBusy(true);
+        setError(null);
+        sendBattleInvite(profile.id, team, "anything-goes", (res) => {
+          setBusy(false);
+          if (res.ok) setBattleInviteSent(true);
+          else setError(res.error ?? "Could not send battle invite.");
+        });
+      },
     });
   };
 

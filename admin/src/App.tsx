@@ -7,9 +7,10 @@ import { MapEditorPage } from "./pages/MapEditorPage";
 import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { BugReportsPage } from "./pages/BugReportsPage";
 import { ErrorLogsPage } from "./pages/ErrorLogsPage";
+import { TournamentsPage } from "./pages/TournamentsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok";
-type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors";
+type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments";
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
@@ -78,6 +79,10 @@ export function App() {
             <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" icon={<IconBug />} />
           </div>
           <div className="admin-nav-group">
+            <span className="admin-nav-heading">Events</span>
+            <NavItem active={page === "tournaments"} onClick={() => setPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
+          </div>
+          <div className="admin-nav-group">
             <span className="admin-nav-heading">Diagnostics</span>
             <NavItem active={page === "errors"} onClick={() => setPage("errors")} label="Error log" icon={<IconAlert />} />
           </div>
@@ -100,6 +105,7 @@ export function App() {
         {page === "chat" && <ChatModerationPage />}
         {page === "bugs" && <BugReportsPage />}
         {page === "errors" && <ErrorLogsPage />}
+        {page === "tournaments" && <TournamentsPage />}
       </main>
     </div>
   );
@@ -163,6 +169,18 @@ function IconMap() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+function IconTrophy() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
     </svg>
   );
 }

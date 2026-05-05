@@ -12,7 +12,13 @@ import {
   applyChoice,
   endBattle,
   startInviteExpiry,
+  joinQueue,
+  leaveQueue,
+  popQueuePair,
+  queueIndexOf,
+  matchmakingQueue,
   type BattleRoom,
+  type BattleFormat,
 } from "./pvp.js";
 
 // ── Rate limits ──────────────────────────────────────────────────────────
@@ -187,6 +193,20 @@ function removePresence(userId: string, socketId: string): boolean {
 
 export function isOnline(userId: string): boolean {
   return online.has(userId);
+}
+
+// Cross-module helper: send `event` to every active socket of a user.
+// Used by admin routes (tournament bracket runner, etc.) that need to
+// reach players outside the socket-handler scope.
+export function sendToUserGlobal(userId: string, event: string, payload: unknown): void {
+  if (!ioInstance) return;
+  const sockets = online.get(userId);
+  if (!sockets) return;
+  for (const sid of sockets) ioInstance.to(sid).emit(event, payload);
+}
+
+export function getIo(): Server | null {
+  return ioInstance;
 }
 
 // Broadcast a "chat cleared" notification to every connected socket so
@@ -759,7 +779,10 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     // glue that does input validation + routing.
     socket.on(
       "battle:invite",
-      async ({ toUserId, team }: { toUserId: string; team: unknown[] }, ack?: (r: any) => void) => {
+      async (
+        { toUserId, team, format }: { toUserId: string; team: unknown[]; format?: BattleFormat },
+        ack?: (r: any) => void,
+      ) => {
         if (typeof toUserId !== "string" || !toUserId || toUserId === user.id) {
           ack?.({ ok: false, error: "bad target" }); return;
         }
@@ -769,6 +792,10 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (!battleInviteLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" }); return;
         }
+        // Whitelist formats — friend invites can be anything-goes or
+        // random50, but never tournament (those are server-spawned by
+        // the bracket runner). Default to anything-goes.
+        const fmt: BattleFormat = format === "random50" ? "random50" : "anything-goes";
         // One outstanding battle per user — same heuristic as trades.
         for (const room of battleRooms.values()) {
           if (
@@ -789,7 +816,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         const room: BattleRoom = {
           id,
           status: "invited",
-          format: "anything-goes",
+          format: fmt,
           createdAt: Date.now(),
           lastChoiceAt: Date.now(),
           a: { userId: user.id, username: user.username, team: team as never, stream: null, request: null, connected: true },
@@ -810,11 +837,101 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         sendToUser(recipient.id, "battle:invite", {
           battleId: id,
           from: { id: user.id, username: user.username },
+          format: fmt,
           expiresAt: Date.now() + 60_000,
         });
         ack?.({ ok: true, battleId: id });
       },
     );
+
+    // ── Random matchmaking queue ─────────────────────────────────
+    // Player joins the queue with a team; server pairs them up FIFO
+    // and spins up a "random50" room that auto-starts (no accept
+    // step — joining the queue IS the consent). Format-level cap
+    // (Lv 50) applies on simulator start.
+    socket.on(
+      "battle:queue",
+      async ({ team }: { team: unknown[] }, ack?: (r: any) => void) => {
+        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
+          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
+        }
+        if (!battleInviteLimiter.consume(user.id)) {
+          ack?.({ ok: false, error: "rate_limited" }); return;
+        }
+        // Don't queue if already in a battle.
+        for (const room of battleRooms.values()) {
+          if (
+            room.status !== "completed" && room.status !== "cancelled" &&
+            (room.a.userId === user.id || room.b.userId === user.id)
+          ) {
+            ack?.({ ok: false, error: "already in a battle" }); return;
+          }
+        }
+        const added = joinQueue({
+          userId: user.id,
+          username: user.username,
+          team: team as never,
+          joinedAt: Date.now(),
+        });
+        if (!added) { ack?.({ ok: false, error: "already queued" }); return; }
+        sendToUser(user.id, "battle:queue:joined", { position: queueIndexOf(user.id) + 1, queueSize: matchmakingQueue.length });
+
+        // Try to pair. If we found a pair, kick off a battle right away.
+        const pair = popQueuePair();
+        if (!pair) { ack?.({ ok: true }); return; }
+        const [aEntry, bEntry] = pair;
+        // Make sure both are still online — if either dropped out
+        // while waiting, requeue the survivor (rare but possible).
+        if (!online.has(aEntry.userId)) {
+          if (online.has(bEntry.userId)) joinQueue(bEntry);
+          ack?.({ ok: true }); return;
+        }
+        if (!online.has(bEntry.userId)) {
+          joinQueue(aEntry);
+          ack?.({ ok: true }); return;
+        }
+        const battleId = newBattleId();
+        const room: BattleRoom = {
+          id: battleId,
+          status: "invited",  // immediately upgraded to "active" by startBattle
+          format: "random50",
+          createdAt: Date.now(),
+          lastChoiceAt: Date.now(),
+          a: { userId: aEntry.userId, username: aEntry.username, team: aEntry.team, stream: null, request: null, connected: true },
+          b: { userId: bEntry.userId, username: bEntry.username, team: bEntry.team, stream: null, request: null, connected: true },
+          log: [],
+          stream: null,
+          expiryTimer: null,
+        };
+        battleRooms.set(battleId, room);
+        sendToUser(aEntry.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: bEntry.userId, username: bEntry.username },
+          you: "a",
+        });
+        sendToUser(bEntry.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: aEntry.userId, username: aEntry.username },
+          you: "b",
+        });
+        try {
+          await startBattle(io, room, sendToUser);
+        } catch (e) {
+          room.status = "cancelled";
+          sendToUser(aEntry.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+          sendToUser(bEntry.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+          battleRooms.delete(battleId);
+          console.error("[pvp] random startBattle failed", { battleId, err: String(e) });
+        }
+        ack?.({ ok: true });
+      },
+    );
+
+    socket.on("battle:dequeue", (_payload: unknown, ack?: (r: any) => void) => {
+      const removed = leaveQueue(user.id);
+      if (removed) sendToUser(user.id, "battle:queue:left", {});
+      ack?.({ ok: removed });
+    });
 
     socket.on(
       "battle:respond",
@@ -913,6 +1030,8 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // Last connection for this user is gone — broadcast updated
         // total to everyone.
         broadcastOnlineCount();
+        // Flush from random matchmaking queue if waiting.
+        leaveQueue(user.id);
         // Forfeit any active PvP battle. Disconnect = forfeit; the
         // other side gets the win instead of staring at a frozen
         // turn timer.

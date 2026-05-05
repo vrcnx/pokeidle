@@ -170,6 +170,28 @@ export const api = {
       "GET",
       `/api/admin/errors?kind=${encodeURIComponent(kind)}&limit=${limit}`,
     ),
+
+  // Tournaments — bracket-style PvP events. v1 admin tools only:
+  // create / list / delete / register / schedule a one-off match.
+  // Player-facing browse UI is a follow-up.
+  listTournaments: () =>
+    req<{ tournaments: AdminTournament[] }>("GET", "/api/admin/tournaments"),
+  createTournament: (input: { name: string; levelCap: number | null; format?: string }) =>
+    req<{ tournament: AdminTournament }>("POST", "/api/admin/tournaments", input),
+  deleteTournament: (id: string) =>
+    req<{ ok: true }>("DELETE", `/api/admin/tournaments/${id}`),
+  patchTournament: (id: string, body: { name?: string; levelCap?: number | null; status?: string }) =>
+    req<{ tournament: AdminTournament }>("PATCH", `/api/admin/tournaments/${id}`, body),
+  addTournamentEntry: (id: string, username: string) =>
+    req<{ entry: AdminTournamentEntry }>("POST", `/api/admin/tournaments/${id}/entries`, { username }),
+  removeTournamentEntry: (id: string, entryId: string) =>
+    req<{ ok: true }>("DELETE", `/api/admin/tournaments/${id}/entries/${entryId}`),
+  startTournamentMatch: (id: string, aUserId: string, bUserId: string) =>
+    req<{ ok: true; battleId: string }>(
+      "POST",
+      `/api/admin/tournaments/${id}/match`,
+      { aUserId, bUserId },
+    ),
 };
 
 export interface BugReport {
@@ -217,6 +239,28 @@ export interface UserTrade {
   userBSentMon: string;
   userBSentSpecies: string;
   userBSentLevel: number;
+}
+
+export interface AdminTournamentEntry {
+  id: string;
+  userId: string;
+  username: string;
+  eliminated: boolean;
+  seed: number | null;
+}
+
+export interface AdminTournament {
+  id: string;
+  createdAt: string;
+  startsAt: string | null;
+  finishedAt: string | null;
+  name: string;
+  format: string;
+  levelCap: number | null;
+  status: string;
+  bracket: string | null;
+  ownerId: string;
+  entries: AdminTournamentEntry[];
 }
 
 export interface ErrorEntry {

@@ -22,6 +22,8 @@ import { TradeInviteToast } from "./TradeInviteToast";
 import { TradeRoomModal } from "./TradeRoomModal";
 import { BattleInviteToast } from "./BattleInviteToast";
 import { PvpBattleModal } from "./PvpBattleModal";
+import { TeamBuilderModal } from "./TeamBuilderModal";
+import { RandomBattleQueueToast } from "./RandomBattleQueueToast";
 import { ReportBugModal } from "./ReportBugModal";
 
 // Three-column dashboard layout. A floating <GlobalDock> at the top-right
@@ -66,6 +68,8 @@ export function GameShell() {
       <TradeInviteToast />
       <PvpBattleModal />
       <BattleInviteToast />
+      <TeamBuilderModal />
+      <RandomBattleQueueToast />
       <ReportBugModal />
     </div>
   );

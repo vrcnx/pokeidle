@@ -274,6 +274,11 @@ model Tournament {
   finishedAt  DateTime?
   name        String
   format      String   // mirrors PvpMatch.format
+  // Optional level cap applied to every PokemonSet at battle-start
+  // time. Lets organisers run "Lv 50 only" or "Lv 100 cap" brackets
+  // without participants having to re-train mons. The original save
+  // is untouched — only the in-battle PokemonSet sees the cap.
+  levelCap    Int?
   status      String   // "scheduled" | "open" | "live" | "completed" | "cancelled"
   bracket     String?  // JSON tree of rounds → match slots
   ownerId     String   // admin who created it

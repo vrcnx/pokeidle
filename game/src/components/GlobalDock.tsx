@@ -8,7 +8,9 @@ import { useAuth } from "../auth/AuthContext";
 import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
-import { IconSettings, IconChat, IconHeart } from "./Icon";
+import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
+import { joinRandomQueue, leaveRandomQueue, usePvpState } from "../state/pvp";
+import { openTeamBuilder } from "./TeamBuilderModal";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
@@ -17,8 +19,8 @@ import type { ReactNode } from "react";
 
 // Action dock split across columns:
 //   Left  (gameplay):  Heal — instant party heal
-//   Right (meta):      Settings + Social
-type PopupId = null | "settings" | "social";
+//   Right (meta):      Settings + Social + PvP
+type PopupId = null | "settings" | "social" | "pvp";
 
 // Bus to coordinate state across the two dock components, since they're
 // rendered in different columns now.
@@ -52,12 +54,27 @@ export function GameplayDock() {
   );
 }
 
-// Right dock — Settings + Social. Mounts the modals/panels that those buttons open.
+// Right dock — Settings + Social + PvP. Mounts the modals/panels that those buttons open.
 export function MetaDock() {
   const [open, setOpen] = useOpen();
+  const pvp = usePvpState();
+  // The PvP button toggles a small popover. Mid-battle / mid-queue we
+  // disable the open behaviour — there's nothing to do from this menu
+  // while a battle's already running, and the toast covers queue state.
+  const pvpBusy = !!pvp.room || !!pvp.queue;
   return (
     <>
       <div className="dock dock-meta" role="toolbar" aria-label="Account actions">
+        <DockButton
+          icon={<IconSwords size={18} />}
+          label="PvP"
+          active={open === "pvp"}
+          title={pvpBusy ? "Already in a PvP battle" : "Battle other players"}
+          onClick={() => {
+            if (pvpBusy) return;
+            setOpen(open === "pvp" ? null : "pvp");
+          }}
+        />
         <DockButton
           icon={<IconSettings size={18} />}
           label="Settings"
@@ -72,9 +89,52 @@ export function MetaDock() {
           onClick={() => setOpen(open === "social" ? null : "social")}
         />
       </div>
+      {open === "pvp" && <PvpDockPopup onClose={() => setOpen(null)} />}
       {open === "settings" && <SettingsModal onClose={() => setOpen(null)} />}
       <SocialPanel open={open === "social"} onClose={() => setOpen(null)} />
     </>
+  );
+}
+
+// Tiny popover anchored to the PvP dock button — kept inline here
+// because it's small and only the dock uses it. Two actions:
+//   - Random Battle: opens team builder with a Lv 50 cap, then queues
+//   - Challenge a friend: nudges to the social panel (friends list)
+function PvpDockPopup({ onClose }: { onClose: () => void }) {
+  const game = useGame();
+  const startRandom = () => {
+    if (game.state.party.length + game.state.box.length < 1) {
+      window.alert("You need at least one Pokémon to battle.");
+      onClose();
+      return;
+    }
+    openTeamBuilder({
+      mode: "queue",
+      levelCap: 50,
+      onConfirm: (team) => {
+        joinRandomQueue(team, (res) => {
+          if (!res.ok) {
+            window.alert(res.error ? `Couldn't queue: ${res.error}` : "Couldn't queue.");
+            leaveRandomQueue();
+          }
+        });
+        onClose();
+      },
+    });
+  };
+  return (
+    <div className="dock-popup pvp-dock-popup" role="menu">
+      <header>
+        <strong>PvP battles</strong>
+      </header>
+      <button className="pvp-dock-action" onClick={startRandom}>
+        <strong>Random Battle</strong>
+        <small>Match a random opponent. All Pokémon clamped to Lv 50.</small>
+      </button>
+      <div className="pvp-dock-hint dim small">
+        To challenge a friend, open Social → click their name → "Battle".
+      </div>
+    </div>
   );
 }
 
