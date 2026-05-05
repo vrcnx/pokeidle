@@ -12588,3 +12588,87 @@ html, body {
 
 /* PvP rating section on trainer card */
 .pvp-trainer-card { /* shares .g-card baseline */ }
+
+/* ─── PvP Spectator / Replay Modals ──────────────────────────────── */
+.pvp-spectator-modal { max-width: min(94vw, 760px); width: 100%; }
+.pvp-replay-modal { max-width: min(94vw, 760px); width: 100%; }
+.pvp-replay-foot { gap: 6px; }
+.pvp-replay-foot select {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text, #f5f5f5);
+}
+
+/* Turn timer pill in the battle header */
+.pvp-turn-timer {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  margin: 0 12px;
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  color: #93c5fd;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.pvp-turn-timer.urgent {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.42);
+  color: #fca5a5;
+  animation: pvpTimerPulse 0.9s ease-in-out infinite;
+}
+@keyframes pvpTimerPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* Verdict rating delta pill */
+.pvp-verdict-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+}
+.pvp-verdict-delta {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pvp-verdict-delta.up   { color: #6ee7b7; background: rgba(52, 211, 153, 0.16); }
+.pvp-verdict-delta.down { color: #fca5a5; background: rgba(248, 113, 113, 0.16); }
+
+/* Live battles list (PvP hub Watch tab) */
+.pvp-live-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pvp-live-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+}
+.pvp-live-vs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.pvp-live-meta { grid-column: 1 / 2; }

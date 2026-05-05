@@ -90,6 +90,45 @@ app.get("/leaderboard", requireUser, async (c) => {
   });
 });
 
+// ── Replay: full log + both teams for a single completed match ────
+// Caller must have been a participant (no spectating completed matches
+// of strangers, for now — we can relax this if we add a public replay
+// surface). Returns the protocol log lines and both teams' JSON so
+// the client can re-derive sprites + names while playing back.
+app.get("/match/:id/replay", requireUser, async (c) => {
+  const user = c.get("user");
+  const id = c.req.param("id");
+  const m = await prisma.pvpMatch.findUnique({ where: { id } });
+  if (!m) return c.json({ error: "match not found" }, 404);
+  if (m.userAId !== user.id && m.userBId !== user.id) {
+    return c.json({ error: "not your match" }, 403);
+  }
+  return c.json({
+    match: {
+      id: m.id,
+      createdAt: m.createdAt,
+      finishedAt: m.finishedAt,
+      format: m.format,
+      status: m.status,
+      userAId: m.userAId,
+      userAUsername: m.userAUsername,
+      userATeam: safeJson(m.userATeam),
+      userBId: m.userBId,
+      userBUsername: m.userBUsername,
+      userBTeam: safeJson(m.userBTeam),
+      winnerId: m.winnerId,
+      loserId: m.loserId,
+      endReason: m.endReason,
+      log: (m.battleLog ?? "").split("\n").filter(Boolean),
+    },
+  });
+});
+
+function safeJson(s: string | null): unknown {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+}
+
 // ── My PvP match history ──────────────────────────────────────────
 // Returns the caller's recent PvP matches with both teams' species/
 // level summary (decoded from the PvpMatch.userATeam / userBTeam

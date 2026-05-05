@@ -812,6 +812,11 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           select: { id: true, username: true },
         });
         if (!recipient) { ack?.({ ok: false, error: "user not found" }); return; }
+        // Drop the inviter from the matchmaking queue if waiting —
+        // sending a friend invite implies they no longer want a
+        // random match (and would also collide if both fired at
+        // the same time).
+        leaveQueue(user.id);
         const id = newBattleId();
         const room: BattleRoom = {
           id,
@@ -824,6 +829,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           log: [],
           stream: null,
           expiryTimer: null,
+          spectators: new Set(),
         };
         battleRooms.set(id, room);
         startInviteExpiry(room, () => {
@@ -902,6 +908,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           log: [],
           stream: null,
           expiryTimer: null,
+          spectators: new Set(),
         };
         battleRooms.set(battleId, room);
         sendToUser(aEntry.userId, "battle:start", {
@@ -933,6 +940,72 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       ack?.({ ok: removed });
     });
 
+    // ── Spectator subscription ──────────────────────────────────
+    // List currently-live battles. Returns [{id, format, players,
+    // turnNumber, log size}] so the UI can show a live battles tab.
+    // No participants' parties are exposed here — that's per-spectator
+    // via battle:spectate:join.
+    socket.on("battle:list", (_payload: unknown, ack?: (r: any) => void) => {
+      const list = Array.from(battleRooms.values())
+        .filter((r) => r.status === "active")
+        .map((r) => ({
+          battleId: r.id,
+          format: r.format,
+          a: { userId: r.a.userId, username: r.a.username },
+          b: { userId: r.b.userId, username: r.b.username },
+          spectatorCount: r.spectators.size,
+          startedAt: r.createdAt,
+          tournamentId: r.tournamentId ?? null,
+        }));
+      ack?.({ ok: true, battles: list });
+    });
+
+    // Join as a spectator. Server replays the entire log so far so
+    // the spectator sees the full battle from the beginning, then
+    // the omni-stream pump forwards new lines as they happen.
+    socket.on(
+      "battle:spectate:join",
+      ({ battleId }: { battleId: string }, ack?: (r: any) => void) => {
+        const room = battleRooms.get(battleId);
+        if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
+        if (room.status !== "active") { ack?.({ ok: false, error: "battle not active" }); return; }
+        // Players can't spectate their own battles — they're already
+        // participants. (Their UI shouldn't expose this option, but
+        // guard server-side anyway.)
+        if (user.id === room.a.userId || user.id === room.b.userId) {
+          ack?.({ ok: false, error: "you're a participant — open your battle modal instead" }); return;
+        }
+        room.spectators.add(user.id);
+        // Replay the log we have so far so the spectator joins
+        // cleanly mid-battle.
+        sendToUser(user.id, "battle:spectate:start", {
+          battleId: room.id,
+          format: room.format,
+          a: { userId: room.a.userId, username: room.a.username },
+          b: { userId: room.b.userId, username: room.b.username },
+          tournamentId: room.tournamentId ?? null,
+        });
+        if (room.log.length > 0) {
+          sendToUser(user.id, "battle:spectate:state", {
+            battleId: room.id,
+            chunk: room.log.join("\n"),
+          });
+        }
+        ack?.({ ok: true });
+      },
+    );
+
+    socket.on(
+      "battle:spectate:leave",
+      ({ battleId }: { battleId: string }, ack?: (r: any) => void) => {
+        const room = battleRooms.get(battleId);
+        if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
+        room.spectators.delete(user.id);
+        sendToUser(user.id, "battle:spectate:end", { battleId, reason: "left" });
+        ack?.({ ok: true });
+      },
+    );
+
     socket.on(
       "battle:respond",
       async (
@@ -954,6 +1027,11 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
           ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
         }
+        // Drop them from the matchmaking queue if waiting — accepting
+        // a friend invite implies they're no longer looking for a
+        // random match. Without this, the queue could pair them with
+        // someone else mid-friend-battle.
+        leaveQueue(user.id);
         room.b.team = team as never;
         room.b.connected = true;
         sendToUser(room.a.userId, "battle:start", {
@@ -1032,6 +1110,11 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         broadcastOnlineCount();
         // Flush from random matchmaking queue if waiting.
         leaveQueue(user.id);
+        // Drop from any spectator sets — no-op if they weren't
+        // watching anything. Cheap O(rooms) walk.
+        for (const room of battleRooms.values()) {
+          room.spectators.delete(user.id);
+        }
         // Forfeit any active PvP battle. Disconnect = forfeit; the
         // other side gets the win instead of staring at a frozen
         // turn timer.

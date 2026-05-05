@@ -76,6 +76,7 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
           <h2>
             Battle vs <strong>{room.opponent.username}</strong>
           </h2>
+          {!room.result && room.turnDeadlineAt && <TurnTimer deadline={room.turnDeadlineAt} />}
           <button
             className="g-modal-close"
             onClick={() => setConfirmingForfeit(true)}
@@ -161,6 +162,9 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
               <strong>{verdict}</strong>
               {room.result?.reason === "forfeit" && <span className="dim small"> (forfeit)</span>}
               {room.result?.reason === "timeout" && <span className="dim small"> (timeout)</span>}
+              {room.result?.ratingDelta && (
+                <RatingDeltaPill room={room} verdict={verdict} />
+              )}
             </div>
           )}
         </div>
@@ -276,6 +280,51 @@ function PvpFighter({
         </div>
         {status && <span className={`pvp-fighter-status status-${status}`}>{status.toUpperCase()}</span>}
       </div>
+    </div>
+  );
+}
+
+// Per-turn countdown badge. Reads the server-supplied deadline + ticks
+// every second. Goes red in the last 30 seconds. The server still owns
+// enforcement — this is purely UX; we never short-circuit a choice
+// based on the local timer reaching zero.
+function TurnTimer({ deadline }: { deadline: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+  const remainingMs = Math.max(0, deadline - now);
+  const seconds = Math.ceil(remainingMs / 1000);
+  const min = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  const urgent = remainingMs < 30_000;
+  return (
+    <span
+      className={`pvp-turn-timer ${urgent ? "urgent" : ""}`}
+      title={`Take a turn within ${seconds}s — afterwards you forfeit.`}
+    >
+      {min}:{sec.toString().padStart(2, "0")}
+    </span>
+  );
+}
+
+function RatingDeltaPill({ room, verdict }: { room: BattleRoom; verdict: string }) {
+  const delta = room.result?.ratingDelta;
+  if (!delta) return null;
+  // Both sides see the SAME ratingDelta payload. Pick which delta is
+  // mine: the winner gets aDelta (server-side aDelta is always the
+  // positive winner delta — see endBattle's applyEloUpdate call).
+  const youWon = verdict === "You win!";
+  const myDelta = youWon ? delta.aDelta : delta.bDelta;
+  const myRating = youWon ? delta.aRating : delta.bRating;
+  const sign = myDelta >= 0 ? "+" : "";
+  return (
+    <div className="pvp-verdict-rating">
+      <span className={`pvp-verdict-delta ${myDelta >= 0 ? "up" : "down"}`}>
+        {sign}{myDelta}
+      </span>
+      <small className="dim">→ {myRating}</small>
     </div>
   );
 }

@@ -1122,6 +1122,17 @@ app.post("/tournaments/:id/start-bracket-match", async (c) => {
   if (teamA.length < 1 || teamB.length < 1) {
     return c.json({ error: "one or both participants have no party" }, 400);
   }
+  // Refuse if either user is already in another in-flight battle —
+  // see /tournaments/:id/match for rationale.
+  for (const room of battleRooms.values()) {
+    if (room.status !== "active" && room.status !== "invited") continue;
+    if (
+      room.a.userId === aUser.id || room.b.userId === aUser.id
+      || room.a.userId === bUser.id || room.b.userId === bUser.id
+    ) {
+      return c.json({ error: "one or both participants are already in a battle" }, 409);
+    }
+  }
   if (!getIo()) return c.json({ error: "socket server not ready" }, 500);
 
   const battleId = newBattleId();
@@ -1136,6 +1147,7 @@ app.post("/tournaments/:id/start-bracket-match", async (c) => {
     log: [],
     stream: null,
     expiryTimer: null,
+    spectators: new Set(),
     tournamentId: t.id,
     levelCap: t.levelCap ?? undefined,
   };
@@ -1208,6 +1220,20 @@ app.post("/tournaments/:id/match", async (c) => {
   ]);
   if (!aUser || !bUser) return c.json({ error: "user not found" }, 404);
 
+  // Refuse if either side is already in an active or pending battle.
+  // Without this, the admin could clobber a user's in-progress
+  // friend battle with a tournament match — the client UI doesn't
+  // multiplex two PvP rooms.
+  for (const room of battleRooms.values()) {
+    if (room.status !== "active" && room.status !== "invited") continue;
+    if (
+      room.a.userId === aUser.id || room.b.userId === aUser.id
+      || room.a.userId === bUser.id || room.b.userId === bUser.id
+    ) {
+      return c.json({ error: "one or both participants are already in a battle" }, 409);
+    }
+  }
+
   // Pull teams from each user's saved party. Admin should ensure both
   // sides have a party set — if either is empty, the simulator will
   // refuse to start. We surface that as a 400 here rather than the
@@ -1239,6 +1265,7 @@ app.post("/tournaments/:id/match", async (c) => {
     log: [],
     stream: null,
     expiryTimer: null,
+    spectators: new Set(),
     tournamentId: t.id,
     levelCap: t.levelCap ?? undefined,
   };

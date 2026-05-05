@@ -131,6 +131,10 @@ export interface BattleRoom {
    *  (those use the format default). Only meaningful when format ===
    *  "tournament" and a cap was set on the source Tournament row. */
   levelCap?: number;
+  /** Set of userIds currently watching as spectators. Tracked so we
+   *  can broadcast the omniscient log + state events to them on every
+   *  turn, and clean up on disconnect. */
+  spectators: Set<string>;
 }
 
 export const battleRooms = new Map<string, BattleRoom>();
@@ -205,7 +209,7 @@ export async function startBattle(
   // spectators we'd subscribe to that one.
   pumpPlayerStream(playerStreams.p1, room, "a", sendToUser);
   pumpPlayerStream(playerStreams.p2, room, "b", sendToUser);
-  pumpOmniLog(playerStreams.omniscient, room);
+  pumpOmniLog(playerStreams.omniscient, room, sendToUser);
 
   const startCmd = [
     `>start {"formatid":"gen5customgame"}`,
@@ -236,23 +240,32 @@ async function pumpPlayerStream(
   const which = side === "a" ? room.a : room.b;
   try {
     for await (const chunk of stream) {
+      let sawRequest = false;
       // Each chunk is one or more `|`-delimited protocol lines. Split
       // them so the client gets discrete events. We also peek at
       // |request| so we can stash it for the chooser UI.
       for (const line of chunk.split("\n")) {
         if (!line) continue;
         if (line.startsWith("|request|")) {
+          sawRequest = true;
           try {
             const payload = JSON.parse(line.slice("|request|".length));
             which.request = payload;
           } catch { /* malformed request line — skip */ }
         }
       }
+      // When a new request comes in we reset the per-turn clock —
+      // the watchdog uses lastChoiceAt to enforce timeout, so we
+      // anchor the deadline relative to the request arrival.
+      if (sawRequest) {
+        room.lastChoiceAt = Date.now();
+      }
       sendToUser(which.userId, "battle:state", {
         battleId: room.id,
         side,
         chunk,
         request: which.request,
+        turnDeadlineAt: room.lastChoiceAt + TURN_TIMEOUT_MS,
       });
     }
   } catch (e) {
@@ -261,7 +274,18 @@ async function pumpPlayerStream(
 }
 
 // Forward the omniscient stream's log into the room's persisted log.
-async function pumpOmniLog(stream: AsyncIterable<string>, room: BattleRoom): Promise<void> {
+// Also fans the chunk out to every spectator currently subscribed —
+// they see everything (omniscient = both sides), unlike the
+// participants who only see their own |request| payload.
+//
+// Takes an optional sendToUser hook so we can broadcast to spectators
+// from this same function (we don't have access to the io instance
+// directly here). Caller passes it once at startBattle time.
+async function pumpOmniLog(
+  stream: AsyncIterable<string>,
+  room: BattleRoom,
+  sendToUser?: (userId: string, event: string, payload: unknown) => void,
+): Promise<void> {
   try {
     for await (const chunk of stream) {
       for (const line of chunk.split("\n")) {
@@ -284,7 +308,19 @@ async function pumpOmniLog(stream: AsyncIterable<string>, room: BattleRoom): Pro
           }
           // Don't await — endBattle is async but we want the log
           // pump to keep draining whatever else the stream emits.
-          void endBattle(room, undefined, room.endReason ?? "ko");
+          void endBattle(room, sendToUser, room.endReason ?? "ko");
+        }
+      }
+      // Spectator broadcast: replay the full chunk to every observer.
+      // Spectators get the omniscient view (both sides' switches +
+      // damage), but never the |request| payloads — those are private
+      // to the active players.
+      if (sendToUser && room.spectators.size > 0) {
+        for (const specId of room.spectators) {
+          sendToUser(specId, "battle:spectate:state", {
+            battleId: room.id,
+            chunk,
+          });
         }
       }
     }
@@ -395,6 +431,12 @@ export async function endBattle(
     };
     sendToUser(room.a.userId, "battle:complete", payload);
     sendToUser(room.b.userId, "battle:complete", payload);
+    // Notify every spectator that the battle they were watching has
+    // ended. They get the same outcome payload (rating delta is fine
+    // to leak — leaderboard is public).
+    for (const specId of room.spectators) {
+      sendToUser(specId, "battle:spectate:end", { battleId: room.id, reason, winnerId: room.winnerId ?? null });
+    }
   }
 
   // Drop after a beat so any in-flight state events are delivered.

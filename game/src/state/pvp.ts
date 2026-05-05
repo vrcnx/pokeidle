@@ -33,8 +33,25 @@ export interface BattleRoom {
   request: BattleRequest | null;
   /** Accumulated protocol lines for the battle log. */
   log: BattleLogEntry[];
+  /** Server-supplied per-turn deadline. The simulator resets this
+   *  whenever a fresh |request| arrives; the watchdog forfeits the
+   *  side that misses it. UI uses this for a countdown badge. */
+  turnDeadlineAt: number | null;
   /** Final outcome — null while battle is live. */
-  result: { winnerId: string | null; loserId: string | null; reason: string } | null;
+  result: {
+    winnerId: string | null;
+    loserId: string | null;
+    reason: string;
+    /** ELO delta when this was a rated match (random50 only). null
+     *  for casual / tournament / cancelled matches. The deltas are
+     *  signed for the winner (positive) and loser (negative), so the
+     *  client can render "+12" / "-12". */
+    ratingDelta: { aDelta: number; bDelta: number; aRating: number; bRating: number } | null;
+  } | null;
+  /** Server-side level cap on the team (only set for matchmaking /
+   *  tournament rooms). Used by the client to flag "Lv 50" in the
+   *  battle title. */
+  levelCap?: number | null;
 }
 
 export interface BattleRequest {
@@ -73,14 +90,34 @@ export interface BattleLogEntry {
   side?: "a" | "b";
 }
 
+/** Spectated battle — read-only view of an in-progress battle the
+ *  user joined as an observer. Distinct from `room` (the player's
+ *  own battle) so both can coexist (you can be a participant in one
+ *  battle and a spectator on another, in theory; in practice the UI
+ *  doesn't expose that). */
+export interface SpectateRoom {
+  battleId: string;
+  format: string;
+  a: { userId: string; username: string };
+  b: { userId: string; username: string };
+  tournamentId: string | null;
+  /** Cumulative omniscient log lines. */
+  log: BattleLogEntry[];
+  /** Set when the battle ends server-side. */
+  result: { winnerId: string | null; reason: string } | null;
+}
+
 interface PvpState {
   invite: BattleInvite | null;
   room: BattleRoom | null;
   queue: QueueState | null;
+  spectate: SpectateRoom | null;
   cancelMessage: string | null;
 }
 
-const _state: PvpState = { invite: null, room: null, queue: null, cancelMessage: null };
+const _state: PvpState = {
+  invite: null, room: null, queue: null, spectate: null, cancelMessage: null,
+};
 const _listeners = new Set<(s: PvpState) => void>();
 
 function emit() {
@@ -117,6 +154,42 @@ export function joinRandomQueue(
 
 export function leaveRandomQueue(ack?: (r: { ok: boolean }) => void) {
   getSocket().emit("battle:dequeue", {}, ack);
+}
+
+// ── Spectator helpers ──────────────────────────────────────────────
+export interface LiveBattleSummary {
+  battleId: string;
+  format: string;
+  a: { userId: string; username: string };
+  b: { userId: string; username: string };
+  spectatorCount: number;
+  startedAt: number;
+  tournamentId: string | null;
+}
+
+export function listLiveBattles(
+  ack: (r: { ok: boolean; battles?: LiveBattleSummary[] }) => void,
+) {
+  getSocket().emit("battle:list", {}, ack);
+}
+
+export function joinSpectator(
+  battleId: string,
+  ack?: (r: { ok: boolean; error?: string }) => void,
+) {
+  getSocket().emit("battle:spectate:join", { battleId }, ack);
+}
+
+export function leaveSpectator(
+  battleId: string,
+  ack?: (r: { ok: boolean }) => void,
+) {
+  getSocket().emit("battle:spectate:leave", { battleId }, ack);
+}
+
+export function clearSpectator() {
+  _state.spectate = null;
+  emit();
 }
 export function respondToBattleInvite(
   battleId: string,
@@ -180,6 +253,7 @@ export function bindPvpSocket() {
         side: payload.you,
         request: null,
         log: [],
+        turnDeadlineAt: null,
         result: null,
       };
       _state.cancelMessage = null;
@@ -189,7 +263,13 @@ export function bindPvpSocket() {
 
   sock.on(
     "battle:state",
-    (payload: { battleId: string; side: "a" | "b"; chunk: string; request: BattleRequest | null }) => {
+    (payload: {
+      battleId: string;
+      side: "a" | "b";
+      chunk: string;
+      request: BattleRequest | null;
+      turnDeadlineAt?: number | null;
+    }) => {
       const room = _state.room;
       if (!room || room.battleId !== payload.battleId) return;
       // The server forwards each side's PRIVATE stream to that side.
@@ -205,6 +285,7 @@ export function bindPvpSocket() {
         ...room,
         request: payload.request ?? room.request,
         log: [...room.log, ...newEntries].slice(-200),
+        turnDeadlineAt: payload.turnDeadlineAt ?? room.turnDeadlineAt,
       };
       emit();
     },
@@ -212,10 +293,24 @@ export function bindPvpSocket() {
 
   sock.on(
     "battle:complete",
-    (payload: { battleId: string; winnerId: string | null; loserId: string | null; reason: string }) => {
+    (payload: {
+      battleId: string;
+      winnerId: string | null;
+      loserId: string | null;
+      reason: string;
+      ratingDelta?: { aDelta: number; bDelta: number; aRating: number; bRating: number } | null;
+    }) => {
       const room = _state.room;
       if (!room || room.battleId !== payload.battleId) return;
-      _state.room = { ...room, result: payload };
+      _state.room = {
+        ...room,
+        result: {
+          winnerId: payload.winnerId,
+          loserId: payload.loserId,
+          reason: payload.reason,
+          ratingDelta: payload.ratingDelta ?? null,
+        },
+      };
       emit();
     },
   );
@@ -233,6 +328,67 @@ export function bindPvpSocket() {
     _state.queue = null;
     emit();
   });
+
+  // ── Spectator events ──────────────────────────────────────────
+  sock.on(
+    "battle:spectate:start",
+    (payload: {
+      battleId: string;
+      format: string;
+      a: { userId: string; username: string };
+      b: { userId: string; username: string };
+      tournamentId: string | null;
+    }) => {
+      _state.spectate = {
+        battleId: payload.battleId,
+        format: payload.format,
+        a: payload.a,
+        b: payload.b,
+        tournamentId: payload.tournamentId,
+        log: [],
+        result: null,
+      };
+      emit();
+    },
+  );
+
+  sock.on(
+    "battle:spectate:state",
+    (payload: { battleId: string; chunk: string }) => {
+      const s = _state.spectate;
+      if (!s || s.battleId !== payload.battleId) return;
+      const entries: BattleLogEntry[] = [];
+      for (const line of payload.chunk.split("\n")) {
+        if (!line) continue;
+        // Decode using "a" as the user's anchor — spectators don't
+        // have a side, so "a" gives a neutral-but-consistent
+        // "your/their" framing in the log strings. The fighter
+        // cards in the spectator UI use absolute side names.
+        entries.push(decodeProtocolLine(line, "a"));
+      }
+      _state.spectate = {
+        ...s,
+        log: [...s.log, ...entries].slice(-400),
+      };
+      emit();
+    },
+  );
+
+  sock.on(
+    "battle:spectate:end",
+    (payload: { battleId: string; reason?: string; winnerId?: string | null }) => {
+      const s = _state.spectate;
+      if (!s || s.battleId !== payload.battleId) return;
+      _state.spectate = {
+        ...s,
+        result: {
+          winnerId: payload.winnerId ?? null,
+          reason: payload.reason ?? "ended",
+        },
+      };
+      emit();
+    },
+  );
 
   sock.on("battle:cancelled", (payload: { battleId: string; reason: string }) => {
     const affected = _state.invite?.battleId === payload.battleId

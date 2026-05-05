@@ -100,6 +100,8 @@ export const api = {
     ),
   myPvpHistory: (limit = 20) =>
     request<{ matches: PvpHistoryRow[] }>("GET", `/api/pvp/me/history?limit=${limit}`),
+  matchReplay: (id: string) =>
+    request<{ match: PvpReplayMatch }>("GET", `/api/pvp/match/${id}/replay`),
   listTournaments: () =>
     request<{ tournaments: PublicTournament[] }>("GET", "/api/pvp/tournaments"),
   tournamentDetail: (id: string) =>
@@ -199,6 +201,24 @@ export interface LeaderboardRow {
   wins: number;
   losses: number;
   forfeits: number;
+}
+
+export interface PvpReplayMatch {
+  id: string;
+  createdAt: string;
+  finishedAt: string | null;
+  format: string;
+  status: string;
+  userAId: string;
+  userAUsername: string;
+  userATeam: unknown;        // JSON array of Pokémon (the snapshot at trade time)
+  userBId: string;
+  userBUsername: string;
+  userBTeam: unknown;
+  winnerId: string | null;
+  loserId: string | null;
+  endReason: string | null;
+  log: string[];             // Showdown protocol lines
 }
 
 export interface PvpHistoryRow {

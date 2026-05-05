@@ -7,8 +7,12 @@ import {
   joinRandomQueue,
   leaveRandomQueue,
   usePvpState,
+  listLiveBattles,
+  joinSpectator,
+  type LiveBattleSummary,
 } from "../state/pvp";
 import { openTeamBuilder } from "./TeamBuilderModal";
+import { openReplay } from "./PvpReplayModal";
 
 // Player-facing PvP hub. Tabs:
 //   Battle      — quick-action card to queue for random or
@@ -18,7 +22,7 @@ import { openTeamBuilder } from "./TeamBuilderModal";
 //   Tournaments — list of open / live tournaments + sign-up
 //
 // Module-scoped open() so the dock button can launch it.
-type Tab = "battle" | "me" | "leaderboard" | "tournaments";
+type Tab = "battle" | "me" | "leaderboard" | "tournaments" | "live";
 
 let _open = false;
 const _listeners = new Set<(o: boolean) => void>();
@@ -71,7 +75,7 @@ export function PvpHubModal() {
         </header>
 
         <nav className="pvp-hub-tabs" role="tablist">
-          {(["battle", "me", "leaderboard", "tournaments"] as Tab[]).map((t) => (
+          {(["battle", "live", "me", "leaderboard", "tournaments"] as Tab[]).map((t) => (
             <button
               key={t}
               role="tab"
@@ -80,6 +84,7 @@ export function PvpHubModal() {
               onClick={() => setTab(t)}
             >
               {t === "battle"      ? "Battle"
+                : t === "live"        ? "Watch"
                 : t === "me"          ? "My PvP"
                 : t === "leaderboard" ? "Leaderboard"
                 :                       "Tournaments"}
@@ -89,6 +94,7 @@ export function PvpHubModal() {
 
         <div className="g-modal-body">
           {tab === "battle"      && <BattleTab />}
+          {tab === "live"        && <LiveBattlesTab />}
           {tab === "me"          && <MyPvpTab />}
           {tab === "leaderboard" && <LeaderboardTab />}
           {tab === "tournaments" && <TournamentsTab />}
@@ -159,6 +165,80 @@ function BattleTab() {
   );
 }
 
+// ─── Live battles tab (spectator) ─────────────────────────────────
+function LiveBattlesTab() {
+  const { me } = useAuth();
+  const [list, setList] = useState<LiveBattleSummary[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const reload = () => {
+    setBusy(true);
+    setErr(null);
+    listLiveBattles((res) => {
+      setBusy(false);
+      if (!res.ok) { setErr("Could not load."); return; }
+      setList(res.battles ?? []);
+    });
+  };
+  useEffect(reload, []);
+
+  const watch = (battleId: string) => {
+    joinSpectator(battleId, (res) => {
+      if (!res.ok) {
+        window.alert(res.error ? `Couldn't watch: ${res.error}` : "Couldn't watch.");
+        return;
+      }
+      // The spectate modal mounts off the pvp store automatically
+      // when battle:spectate:start arrives. Close the hub so the
+      // spectator UI can take centre stage.
+      closePvpHub();
+    });
+  };
+
+  return (
+    <div className="pvp-hub-tab-body">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="dim small">{list.length} live battle{list.length === 1 ? "" : "s"}</span>
+        <button className="g-btn-ghost g-btn-small" onClick={reload} disabled={busy}>Refresh</button>
+      </div>
+      {err && <p className="dim" style={{ color: "#fca5a5" }}>{err}</p>}
+      {!busy && !err && list.length === 0 && (
+        <p className="dim">No live battles right now. Check back during peak hours.</p>
+      )}
+      <ul className="pvp-live-list">
+        {list.map((b) => {
+          const isParticipant = !!me && (me.id === b.a.userId || me.id === b.b.userId);
+          return (
+            <li key={b.battleId} className="pvp-live-row">
+              <div className="pvp-live-vs">
+                <strong>{b.a.username}</strong>
+                <span className="dim small">vs</span>
+                <strong>{b.b.username}</strong>
+              </div>
+              <div className="dim small pvp-live-meta">
+                {formatLabel(b.format)}
+                {b.tournamentId && <> · tournament</>}
+                {" · "}{b.spectatorCount} watching
+              </div>
+              <div>
+                <button
+                  className="g-btn-primary g-btn-small"
+                  onClick={() => watch(b.battleId)}
+                  disabled={isParticipant}
+                  title={isParticipant ? "You're in this battle — open your battle modal" : "Watch live"}
+                >
+                  Watch
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 // ─── My PvP (rating + history) tab ─────────────────────────────────
 function MyPvpTab() {
   const [rating, setRating] = useState<RatingRow | null>(null);
@@ -207,7 +287,13 @@ function MyPvpTab() {
         ) : (
           <ul className="pvp-history-list">
             {history.map((m) => (
-              <li key={m.id} className={`pvp-history-row pvp-history-${m.result}`}>
+              <li
+                key={m.id}
+                className={`pvp-history-row pvp-history-${m.result}`}
+                onClick={() => { closePvpHub(); openReplay(m.id); }}
+                style={{ cursor: "pointer" }}
+                title="Click to watch replay"
+              >
                 <span className="pvp-history-result">{m.result.toUpperCase()}</span>
                 <span className="pvp-history-vs">vs <strong>{m.opponent.username}</strong></span>
                 <span className="dim small">{formatLabel(m.format)}</span>

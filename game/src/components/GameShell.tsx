@@ -25,6 +25,8 @@ import { PvpBattleModal } from "./PvpBattleModal";
 import { TeamBuilderModal } from "./TeamBuilderModal";
 import { RandomBattleQueueToast } from "./RandomBattleQueueToast";
 import { PvpHubModal } from "./PvpHubModal";
+import { PvpReplayModal } from "./PvpReplayModal";
+import { PvpSpectatorModal } from "./PvpSpectatorModal";
 import { ReportBugModal } from "./ReportBugModal";
 
 // Three-column dashboard layout. A floating <GlobalDock> at the top-right
@@ -72,6 +74,8 @@ export function GameShell() {
       <TeamBuilderModal />
       <RandomBattleQueueToast />
       <PvpHubModal />
+      <PvpReplayModal />
+      <PvpSpectatorModal />
       <ReportBugModal />
     </div>
   );
