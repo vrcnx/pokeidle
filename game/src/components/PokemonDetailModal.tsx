@@ -145,6 +145,18 @@ export function PokemonDetailModal() {
   const { state, dispatch } = useGame();
   const selected = useSelected();
 
+  // Escape closes the modal — matches the rest of the modal surfaces
+  // (PvP hub, replay, etc.). The hook always runs (no early return)
+  // so React doesn't error out on the conditional.
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closePokemonDetail();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
+
   if (!selected) return null;
   const p: Pokemon | undefined =
     selected.type === "party" ? state.party[selected.index] : state.box[selected.index];

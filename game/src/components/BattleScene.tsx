@@ -162,9 +162,53 @@ export function BattleScene() {
         </div>
       )}
       <ExpGainFlash />
+      <DamageFlash side="player" />
+      <DamageFlash side="enemy" />
       </div>
       <WhiteoutOverlay />
       <HealOverlay />
+    </div>
+  );
+}
+
+// Floating damage popup over a fighter's slot. Watches that side's
+// currentHp; when it drops, paints a "-N" in red rising up from the
+// HP card. When it rises (heal / Sitrus berry / drain), paints "+N"
+// in green. Decoupled from the battle log so it triggers regardless
+// of whether the log line was emitted (covers passive damage like
+// Leftovers / Toxic / hail). Scales to game speed like ExpGainFlash.
+function DamageFlash({ side }: { side: "player" | "enemy" }) {
+  const { state } = useGame();
+  const mon = side === "player" ? state.playerPokemon : state.enemyPokemon;
+  const id = mon?.id ?? null;
+  const hp = mon?.currentHp ?? null;
+  const prev = useRef<{ id: string | null; hp: number | null }>({ id: null, hp: null });
+  const [pop, setPop] = useState<{ key: number; delta: number } | null>(null);
+  useEffect(() => {
+    const last = prev.current;
+    prev.current = { id, hp };
+    // Reset on switch (mon changed) — different mon, no comparison.
+    if (last.id !== id) return;
+    if (last.hp == null || hp == null) return;
+    const delta = hp - last.hp;
+    if (delta === 0) return;
+    setPop({ key: Date.now() + (side === "player" ? 0 : 1), delta });
+    const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+    const t = setTimeout(() => setPop(null), ms);
+    return () => clearTimeout(t);
+  }, [id, hp, side, state.speed]);
+  if (!pop) return null;
+  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+  const isHeal = pop.delta > 0;
+  const sign = isHeal ? "+" : "";
+  return (
+    <div
+      key={pop.key}
+      className={`damage-flash side-${side} ${isHeal ? "heal" : "hit"}`}
+      style={{ animationDuration: `${animMs}ms` }}
+      aria-hidden
+    >
+      {sign}{pop.delta}
     </div>
   );
 }
@@ -392,11 +436,17 @@ function statusBadgeLabel(status: string): string {
 }
 
 // The status bar doubles as the battle ticker. We surface the most recent
+// Boot / restore log lines that we don't want lingering as the
+// battle-scene status line. They're useful in the scrollable log
+// panel but feel stale on the headline once the player is back in
+// the world.
+const BOOT_LOG_LINES = new Set(["Game loaded!", "Welcome back!"]);
+
 // battle-log line whenever there is one, falling back to a contextual phase
 // message when the log is empty (e.g. just-started game).
 function statusLine(state: ReturnType<typeof useGame>["state"]): string {
   const last = state.battleLog[state.battleLog.length - 1];
-  if (last) return last;
+  if (last && !BOOT_LOG_LINES.has(last)) return last;
   if (state.awaitingSwitch) return "Choose your next Pokémon!";
   if (state.paused) return "Paused.";
   if (state.phase === "evolution") return "Evolving…";

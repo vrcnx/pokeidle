@@ -6,6 +6,8 @@ import { ControlsPopover } from "./ControlsPopover";
 import { openCatchSettings } from "./CatchSettingsModal";
 import { IconPlus, IconEdit, IconTarget } from "./Icon";
 import { animatePop } from "../utils/animate";
+import { typeEffectiveness } from "../utils/typing";
+import { pokemonTable } from "../data/pokemon";
 import type { PokemonType } from "../types";
 
 // Manual-mode predicate. When the player needs to pick a move to advance the
@@ -177,6 +179,10 @@ export function MovesToolbar() {
 // 2x2 moves grid. In manual mode each slot is clickable to fire EXECUTE_TURN;
 // otherwise the slot opens Manage Moves. The toolbar above is rendered as a
 // separate bar (see MovesToolbar) so this card is purely the moveset.
+//
+// Each tile shows: name, category icon (physical/special/status), power, type,
+// PP / max PP, and — when there's an active enemy — a type-effectiveness
+// badge ("2×", "½×", "Immune") computed against the opponent's typing.
 export function MovesPanel() {
   const { state, dispatch } = useGame();
   const player = state.playerPokemon;
@@ -185,6 +191,14 @@ export function MovesPanel() {
 
   const activeIdx = state.activePlayerPokemonIndex;
   const pickable = canPickMove(state);
+
+  // Defender type lookup — used for type-effectiveness preview on each
+  // tile. Status moves don't deal type-affected damage so we skip the
+  // badge for them. Pulled from the species table because the enemy
+  // Pokemon shape only carries its species key.
+  const enemyTypes: PokemonType[] = state.enemyPokemon
+    ? (pokemonTable[state.enemyPokemon.speciesKey]?.types ?? []) as PokemonType[]
+    : [];
 
   const onSlotClick = (moveId: string | null, hasPP: boolean) => {
     if (pickable && moveId && hasPP) {
@@ -203,12 +217,30 @@ export function MovesPanel() {
         const color = TYPE_COLOR[def.type] ?? "#888";
         const icon = CATEGORY_ICON[def.category] ?? "✴";
         const hasPP = m.pp > 0;
+        const ppLow = hasPP && m.pp <= Math.max(1, Math.ceil(m.maxPp * 0.25));
         const disabled = pickable && !hasPP;
+        // Effectiveness badge — only meaningful for damaging moves
+        // when the enemy is on-screen. Status moves and "no enemy"
+        // skip the chip so we don't mislead.
+        const showEff = def.category !== "status" && enemyTypes.length > 0;
+        const effMult = showEff ? typeEffectiveness(def.type, enemyTypes) : 1;
+        const effClass = !showEff ? ""
+          : effMult === 0 ? "eff-immune"
+          : effMult >= 2 ? "eff-super"
+          : effMult <= 0.5 ? "eff-resist"
+          : "eff-neutral";
+        const effLabel =
+          effMult === 0 ? "Immune"
+          : effMult >= 4 ? "4×"
+          : effMult >= 2 ? "2×"
+          : effMult === 0.25 ? "¼×"
+          : effMult <= 0.5 ? "½×"
+          : "";
         return (
           <button
             type="button"
             key={i}
-            className={`move-slot ${disabled ? "no-pp" : ""} ${pickable ? "is-pickable" : ""}`}
+            className={`move-slot ${disabled ? "no-pp" : ""} ${pickable ? "is-pickable" : ""} ${effClass}`}
             style={{ background: color }}
             disabled={disabled}
             onClick={() => onSlotClick(m.id, hasPP)}
@@ -216,10 +248,18 @@ export function MovesPanel() {
           >
             <div className="move-slot-name">
               <span className="move-cat">{icon}</span> {def.name}
+              {showEff && effLabel && (
+                <span className="move-eff-chip" aria-label={`${effMult}× damage vs opponent`}>
+                  {effLabel}
+                </span>
+              )}
             </div>
             <div className="move-slot-stats">
               <span>Pow {def.power || "—"}</span>
               <span>{def.type}</span>
+              <span className={`move-pp ${ppLow ? "low" : ""} ${!hasPP ? "out" : ""}`}>
+                PP {m.pp}/{m.maxPp}
+              </span>
             </div>
           </button>
         );

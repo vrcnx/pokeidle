@@ -10,7 +10,7 @@ import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
 import { useDragAndDrop } from "../hooks/useDrag";
-import type { Pokemon, GameState } from "../types";
+import type { Pokemon, GameState, StatusCondition } from "../types";
 
 // Returns true when this party member can evolve right now — either
 // it has reached the level threshold, or it has a stone-evolution
@@ -24,6 +24,32 @@ function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
     if ("item" in t && (inventory[t.item] ?? 0) > 0) return true;
   }
   return false;
+}
+
+// 3-letter abbreviations for the major status conditions, used by
+// the party-row badge. Mirrors the in-battle HP-card abbreviations
+// for consistency (PAR/SLP/BRN/FRZ/PSN/TOX) so a player learns one
+// vocabulary across both surfaces.
+const STATUS_ABBREV: Record<StatusCondition, string> = {
+  paralyzed: "PAR",
+  asleep: "SLP",
+  burned: "BRN",
+  frozen: "FRZ",
+  poisoned: "PSN",
+  badlyPoisoned: "TOX",
+};
+function statusBadgeClass(s: StatusCondition): string {
+  // Class names match the in-battle HP-card status-badge styles in
+  // app.css so we don't duplicate colour rules — see hp-status-badge
+  // *.par/*.slp/*.brn/etc.
+  switch (s) {
+    case "paralyzed":     return "par";
+    case "asleep":        return "slp";
+    case "burned":        return "brn";
+    case "frozen":        return "frz";
+    case "poisoned":      return "psn";
+    case "badlyPoisoned": return "tox";
+  }
 }
 
 // Left column: Party list on top, footer with Settings + Heal at the
@@ -173,13 +199,19 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
       <div className="party-row-info">
         <div className="party-row-name">
           <strong>{p.name}{p.isShiny ? " ✨" : ""}</strong>
-          <span>Lv{p.level}</span>
+          <span className="party-row-types">
+            {sp?.types.map((t) => (
+              <span key={t} className={`party-type-chip type-${t.toLowerCase()}`}>{t}</span>
+            ))}
+          </span>
+          <span className="party-row-level">Lv{p.level}</span>
         </div>
         <div className="party-bar-wrap">
           <span className="party-bar-label">HP</span>
           <div className={`party-bar hp ${hpClass}`}>
             <div className="party-bar-fill" style={{ width: `${hpPct}%` }} />
           </div>
+          <span className="party-bar-num">{p.currentHp}/{p.maxHp}</span>
         </div>
         <div className="party-bar-wrap">
           <span className="party-bar-label">EXP</span>
@@ -190,6 +222,14 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
               title={`${expIntoLevel} / ${expSpan} exp to next level`}
             />
           </div>
+          {p.status && (
+            <span
+              className={`party-status-badge hp-status-badge ${statusBadgeClass(p.status)}`}
+              title={p.status}
+            >
+              {STATUS_ABBREV[p.status]}
+            </span>
+          )}
         </div>
       </div>
     </li>

@@ -30,30 +30,13 @@ export function App() {
   if (status === "loading") {
     return <div className="admin-shell"><p className="dim">Loading…</p></div>;
   }
-  if (status === "anon") {
-    return (
-      <div className="admin-shell auth-prompt">
-        <div className="auth-card">
-          <h1>Pokémon Admin</h1>
-          <p>You need to sign in as an admin to access this dashboard.</p>
-          <p className="dim small">
-            Sign in via the game first (
-            <a href="http://localhost:5173" target="_blank" rel="noreferrer">localhost:5173</a>
-            ) using the bootstrap admin email, then come back here.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  if (status === "forbidden") {
-    return (
-      <div className="admin-shell auth-prompt">
-        <div className="auth-card">
-          <h1>Forbidden</h1>
-          <p>Your account doesn't have admin privileges.</p>
-        </div>
-      </div>
-    );
+  // Anonymous (not signed in) and Forbidden (signed in but not admin)
+  // share an outcome: bounce them to the live game. We countdown
+  // visibly so it doesn't feel like a flash-redirect, and offer the
+  // link as a manual fallback in case the auto-redirect is blocked
+  // (popup blockers / iframe / etc.).
+  if (status === "anon" || status === "forbidden") {
+    return <NotAuthorized kind={status} />;
   }
 
   return (
@@ -107,6 +90,58 @@ export function App() {
         {page === "errors" && <ErrorLogsPage />}
         {page === "tournaments" && <TournamentsPage />}
       </main>
+    </div>
+  );
+}
+
+// Friendly "you can't be here" landing for non-admins. Counts down
+// from 5 seconds and bounces to the live game; surfaces a manual link
+// in case the auto-redirect is blocked. We don't differentiate the
+// final destination between "anon" and "forbidden" — both go to the
+// game's home page where they can sign in / play normally — but we
+// DO surface a different headline so a forbidden admin knows their
+// session worked, just without the privilege.
+function NotAuthorized({ kind }: { kind: "anon" | "forbidden" }) {
+  // Where do we send them? In production this is the public game URL.
+  // For local development we fall back to the dev server. Override at
+  // build time via VITE_GAME_URL if you're running on a different host.
+  const gameUrl =
+    (import.meta as any).env?.VITE_GAME_URL
+    ?? (typeof window !== "undefined" && window.location.hostname !== "localhost"
+      ? "https://pokeidle.com"
+      : "http://localhost:5173");
+
+  const [secondsLeft, setSecondsLeft] = useState(5);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(t);
+          window.location.replace(gameUrl);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [gameUrl]);
+
+  return (
+    <div className="admin-shell auth-prompt">
+      <div className="auth-card">
+        <h1>{kind === "forbidden" ? "Admin only" : "Pokémon Admin"}</h1>
+        <p>
+          {kind === "forbidden"
+            ? "Your account doesn't have admin privileges."
+            : "You need to sign in as an admin to access this dashboard."}
+        </p>
+        <p className="dim small">
+          Redirecting to <a href={gameUrl}>{gameUrl.replace(/^https?:\/\//, "")}</a> in {secondsLeft}s…
+        </p>
+        <p className="dim small">
+          <a href={gameUrl}>Go now</a>
+        </p>
+      </div>
     </div>
   );
 }
