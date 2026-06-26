@@ -499,10 +499,19 @@ app.get("/analytics", async (c) => {
     bannedUsers,
     admins,
     signups7d,
+    signups30d,
     chatMessagesTotal,
     chatMessages7d,
     friendships,
     pokedexAvg,
+    pvpMatchesTotal,
+    pvpMatches7d,
+    tradesTotal,
+    trades7d,
+    bugReportsOpen,
+    errorsLast24h,
+    pokedexSum,
+    accountLevelSum,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { lastSeenAt: { gte: oneDayAgo } } }),
@@ -511,10 +520,19 @@ app.get("/analytics", async (c) => {
     prisma.user.count({ where: { bannedUntil: { gt: now } } }),
     prisma.user.count({ where: { isAdmin: true } }),
     prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
     prisma.chatMessage.count(),
     prisma.chatMessage.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     prisma.friend.count({ where: { status: "accepted" } }),
     prisma.user.aggregate({ _avg: { pokedexCaughtCount: true, accountLevel: true } }),
+    prisma.pvpMatch.count().catch(() => 0),
+    prisma.pvpMatch.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
+    prisma.tradeRecord.count().catch(() => 0),
+    prisma.tradeRecord.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
+    prisma.bugReport.count({ where: { status: "open" } }).catch(() => 0),
+    prisma.errorLog.count({ where: { createdAt: { gte: oneDayAgo } } }).catch(() => 0),
+    prisma.user.aggregate({ _sum: { pokedexCaughtCount: true } }),
+    prisma.user.aggregate({ _sum: { totalCaughtLevels: true } }),
   ]);
 
   // Signup buckets by day for the last 30 days.
@@ -572,15 +590,57 @@ app.get("/analytics", async (c) => {
     levelBuckets[idx].count += 1;
   }
 
-  // Top 10 by pokedex completion.
-  const topByDex = await prisma.user.findMany({
-    orderBy: { pokedexCaughtCount: "desc" },
-    take: 10,
-    select: {
-      id: true, username: true, name: true,
-      accountLevel: true, pokedexCaughtCount: true,
-    },
-  });
+  // PvP matches per day for the last 30 days. Mirrors the signupSeries
+  // shape so the chart helpers don't need to know the difference.
+  const pvpRows = await prisma.pvpMatch.findMany({
+    where: { createdAt: { gte: thirtyDaysAgo } },
+    select: { createdAt: true },
+  }).catch(() => [] as { createdAt: Date }[]);
+  const pvpSeries: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now.getTime() - i * day);
+    pvpSeries[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const row of pvpRows) {
+    const k = row.createdAt.toISOString().slice(0, 10);
+    if (k in pvpSeries) pvpSeries[k]++;
+  }
+
+  // Trades per day for the last 30 days.
+  const tradeRows = await prisma.tradeRecord.findMany({
+    where: { createdAt: { gte: thirtyDaysAgo } },
+    select: { createdAt: true },
+  }).catch(() => [] as { createdAt: Date }[]);
+  const tradeSeries: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now.getTime() - i * day);
+    tradeSeries[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const row of tradeRows) {
+    const k = row.createdAt.toISOString().slice(0, 10);
+    if (k in tradeSeries) tradeSeries[k]++;
+  }
+
+  // Top 10 by pokedex completion + top 10 by total caught levels (the
+  // grindiest players) so the CRM has two leaderboards to look at.
+  const [topByDex, topByLevels] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { pokedexCaughtCount: "desc" },
+      take: 10,
+      select: {
+        id: true, username: true, name: true,
+        accountLevel: true, pokedexCaughtCount: true,
+      },
+    }),
+    prisma.user.findMany({
+      orderBy: { totalCaughtLevels: "desc" },
+      take: 10,
+      select: {
+        id: true, username: true, name: true,
+        accountLevel: true, totalCaughtLevels: true,
+      },
+    }),
+  ]);
 
   return c.json({
     totals: {
@@ -590,12 +650,21 @@ app.get("/analytics", async (c) => {
       friendships,
       chatMessagesTotal,
       chatMessages7d,
+      pvpMatchesTotal,
+      pvpMatches7d,
+      tradesTotal,
+      trades7d,
+      bugReportsOpen,
+      errorsLast24h,
+      pokemonCaughtSum: pokedexSum._sum.pokedexCaughtCount ?? 0,
+      pokemonLevelsSum: accountLevelSum._sum.totalCaughtLevels ?? 0,
     },
     activity: {
       activeDay,
       activeWeek,
       activeMonth,
       signups7d,
+      signups30d,
     },
     averages: {
       pokedexCaught: Math.round((pokedexAvg._avg.pokedexCaughtCount ?? 0) * 10) / 10,
@@ -603,9 +672,12 @@ app.get("/analytics", async (c) => {
     },
     signupSeries,
     dauSeries,
+    pvpSeries,
+    tradeSeries,
     levelBuckets,
     leaderboards: {
       pokedex: topByDex,
+      sigmaLevels: topByLevels,
     },
   });
 });

@@ -50,12 +50,21 @@ export interface Analytics {
     friendships: number;
     chatMessagesTotal: number;
     chatMessages7d: number;
+    pvpMatchesTotal: number;
+    pvpMatches7d: number;
+    tradesTotal: number;
+    trades7d: number;
+    bugReportsOpen: number;
+    errorsLast24h: number;
+    pokemonCaughtSum: number;
+    pokemonLevelsSum: number;
   };
   activity: {
     activeDay: number;
     activeWeek: number;
     activeMonth: number;
     signups7d: number;
+    signups30d: number;
   };
   averages: {
     pokedexCaught: number;
@@ -63,9 +72,12 @@ export interface Analytics {
   };
   signupSeries: Record<string, number>;
   dauSeries: Record<string, number>;
+  pvpSeries: Record<string, number>;
+  tradeSeries: Record<string, number>;
   levelBuckets: { label: string; count: number }[];
   leaderboards: {
     pokedex: { id: string; username: string; name: string | null; accountLevel: number; pokedexCaughtCount: number }[];
+    sigmaLevels: { id: string; username: string; name: string | null; accountLevel: number; totalCaughtLevels: number }[];
   };
 }
 
