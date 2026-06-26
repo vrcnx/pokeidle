@@ -19,8 +19,12 @@
 
   --text:          #f5f5f5;
   --text-muted:    #9c9c9c;
-  --text-dim:      #6f6f6f;
-  --text-faint:    #4a4a4a;
+  /* Bumped to clear WCAG AA on the panel surfaces — was #6f6f6f (4.0:1)
+     and #4a4a4a (2.5:1), both failed for normal text. New values clear
+     4.5:1 against --panel #131313. Hundreds of `.dim` / column headers
+     / status labels inherit through these tokens. */
+  --text-dim:      #888888;
+  --text-faint:    #757575;
   --ink:           #f5f5f5;
   --ink-soft:      #d6d6d6;
 
@@ -5321,27 +5325,27 @@ body.dnd-active {
     grid-template-columns: none;
     gap: 4px;
   }
-  /* Icon-only square buttons — drop the label, shrink the padding,
-     so the header reads as a tight 28px control row. `!important` is
-     load-bearing here: an un-namespaced `.dock-btn { padding: 12px 8px
-     !important; }` later in the cascade otherwise wins, leaving the
-     icon visually pinned to the top-left of the box. */
+  /* Icon-only square buttons sized to the WCAG 2.5.5 minimum touch
+     target (44×44). `!important` is load-bearing here: an un-
+     namespaced `.dock-btn { padding: 12px 8px !important; }` later
+     in the cascade otherwise wins, leaving the icon visually
+     pinned to the top-left of the box. */
   .mobile-meta-buttons .dock-btn {
     padding: 0 !important;
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     min-width: 0;
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
     flex-direction: row !important;
     gap: 0 !important;
-    border-radius: 7px;
+    border-radius: 8px;
     line-height: 0;
   }
   .mobile-meta-buttons .dock-btn svg {
-    width: 15px;
-    height: 15px;
+    width: 18px;
+    height: 18px;
     display: block;
   }
   .mobile-meta-buttons .dock-btn-label { display: none; }
@@ -5383,13 +5387,13 @@ body.dnd-active {
     min-width: 44px;
   }
   .moves-toolbar .toolbar-btn svg { width: 14px; height: 14px; }
-  /* Settings / Social meta buttons stay at 28px on mobile — tight
-     enough that the header is a thin status strip, big enough to be
-     a reliable tap target since they sit at the edge of the viewport
-     where the thumb naturally lands. */
+  /* Mobile meta buttons (Settings / Social / etc.) — sized to the
+     WCAG 2.5.5 minimum touch target (44×44). They previously sat at
+     28×28 which was unreliable to tap, especially at the viewport
+     edge where thumbs wrap around. */
   .mobile-meta-buttons .dock-btn {
-    width: 28px !important;
-    height: 28px !important;
+    width: 44px !important;
+    height: 44px !important;
   }
   /* Mobile content: bottom tabs already render at full width. Drop any
      center-column wrappers that don't apply here. */
@@ -9428,7 +9432,10 @@ input:focus, textarea:focus, select:focus {
   text-transform: none;
 }
 .g-modal-close {
-  width: 28px; height: 28px;
+  /* Touch-target floor: 36×36 desktop, 44×44 on coarse pointers
+     (touch screens). Was 28×28 — well below WCAG 2.5.5's 44×44 and
+     unreliable to tap on phones. */
+  width: 36px; height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9440,6 +9447,9 @@ input:focus, textarea:focus, select:focus {
   color: var(--text-muted);
   cursor: pointer;
   padding: 0;
+}
+@media (pointer: coarse), (max-width: 600px) {
+  .g-modal-close { width: 44px; height: 44px; font-size: 20px; }
 }
 .g-modal-close:hover {
   background: var(--panel-3, #222);
@@ -12896,4 +12906,133 @@ html, body {
   18%  { opacity: 1; transform: translateY(0) scale(1.12); }
   35%  { transform: translateY(-6px) scale(1); }
   100% { opacity: 0; transform: translateY(-44px) scale(0.96); }
+}
+
+/* =================================================================== */
+/* ===          MOBILE TOUCH-TARGET + RESPONSIVE REFLOW           === */
+/* =================================================================== */
+/* Address the WCAG 2.5.5 touch-target audit + mobile-specific reflow
+   gaps surfaced by the UI audit. Single-pass: every change here is
+   scoped to coarse pointers (touch devices) or narrow viewports so
+   desktop layouts are unaffected. */
+
+/* ── Touch targets — every common interactive widget below 44×44 ─── */
+@media (pointer: coarse) {
+  /* Generic <button> floor inside modals + toolbars. Doesn't override
+     widgets that explicitly need to be smaller (move tiles, dock pills)
+     because those have their own sized rules later in the cascade. */
+  .g-modal button,
+  .moves-toolbar button,
+  .moves-panel button {
+    min-height: 44px;
+  }
+  /* Mobile + small-screen close buttons across every modal variant. */
+  .g-modal-close,
+  .modal-close,
+  .login-tab,
+  .auth-tab {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+  /* Auth submit button. */
+  .login-submit,
+  .auth-submit,
+  .g-btn-primary {
+    min-height: 44px;
+  }
+  /* Auth inputs need a comfortable tap area too. */
+  .auth-form input,
+  .login-form input {
+    min-height: 44px;
+  }
+}
+
+/* ── Trade room mobile reflow ─────────────────────────────────────── */
+/* The 3-column board (1fr auto 1fr) crushes both sides into ~100px on
+   a 375px phone and the centre arrow column overlaps. Below 600px we
+   stack the two side cards vertically so each gets the full width
+   and the offer panels are actually readable. */
+@media (max-width: 600px) {
+  .trade-room-board {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .trade-room-board > .trade-side-card-divider,
+  .trade-room-board > .trade-arrows {
+    display: none;
+  }
+  .trade-side-body {
+    flex-wrap: wrap;
+  }
+  .trade-side-info { flex: 1 1 60%; }
+}
+
+/* ── Team builder mobile reflow ───────────────────────────────────── */
+/* The pool's auto-fill minmax(120px, 1fr) packs 2-3 narrow cards
+   per 375px row and the strip action buttons collapse to ~22px. */
+@media (max-width: 600px) {
+  .team-builder-pool-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)) !important;
+    max-height: 50vh !important;
+    gap: 8px !important;
+  }
+  .team-builder-pool-card {
+    padding: 10px 6px !important;
+    min-height: 88px;
+  }
+  .team-builder-strip-actions button {
+    min-width: 44px !important;
+    min-height: 36px !important;
+    padding: 4px 8px !important;
+  }
+  .team-builder-strip-item {
+    padding: 8px !important;
+  }
+}
+
+/* ── Mobile narrow-viewport polish (320–360px) ────────────────────── */
+@media (max-width: 360px) {
+  /* The four-stat header (money, badges, tokens, champion) overflows.
+     Drop the gap and shrink the icon glyphs so all four fit. */
+  .mobile-stats {
+    gap: 4px !important;
+    font-size: 10.5px !important;
+  }
+  .mobile-stat-icon {
+    font-size: 10px !important;
+  }
+  /* Tab labels at 8px were below the visual-noise floor; bump to 9px
+     and tighten the icon so the bar's vertical budget is unchanged. */
+  .mobile-tabbar .tab-label { font-size: 9px !important; }
+  .mobile-tabbar .tab-icon { font-size: 16px !important; }
+}
+
+/* ── Sub-44 buttons that still appear inside complex panels ───────── */
+@media (pointer: coarse) {
+  /* Held item picker (Pokémon detail) — small chips with 24px buttons. */
+  .held-item-picker button,
+  .held-item-pick-list button {
+    min-height: 44px !important;
+  }
+  /* Mart row buttons. */
+  .mart-buy-btn,
+  .mart-qty-step {
+    min-height: 44px !important;
+    min-width: 36px;
+  }
+  /* PC pagination chevrons. */
+  .pc-pager button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  /* Catch settings + manage moves row buttons. */
+  .catch-settings-modal button,
+  .manage-moves-modal button {
+    min-height: 44px;
+  }
+  /* Friend row actions (Chat / Remove / etc.). */
+  .friend-row button {
+    min-height: 44px;
+    min-width: 56px;
+  }
 }

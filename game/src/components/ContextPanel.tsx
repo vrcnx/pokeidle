@@ -690,11 +690,26 @@ export function UnlockHint() {
         <h4>Goal</h4>
         <strong>All locations unlocked!</strong>
         {state.championDefeated ? (
-          <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
-            <li>Battle legendaries at <strong>Raid Island</strong> (top-right of the map).</li>
-            <li>Spend Victory Tokens at the <strong>Reward Shop</strong> on Indigo Plateau.</li>
-            <li>Finish the Pokédex — every species still counts toward the Shiny Charm.</li>
-          </ul>
+          <>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
+              <li>Battle legendaries at <strong>Raid Island</strong> (top-right of the map).</li>
+              <li>Spend Victory Tokens at the <strong>Reward Shop</strong>.</li>
+              <li>Finish the Pokédex — every species still counts toward the Shiny Charm.</li>
+            </ul>
+            {/* Direct affordance — the Reward Shop was previously
+                reachable only via the LeagueCard at Indigo Plateau.
+                Surfacing it inline here closes the discoverability
+                gap surfaced in player feedback. */}
+            <button
+              type="button"
+              className="ctx-link"
+              onClick={openRewardShop}
+              style={{ marginTop: 8, fontSize: 11 }}
+              title="Spend Victory Tokens on stones, items, and tokens"
+            >
+              Open Reward Shop · {state.victoryTokens} 🎟 →
+            </button>
+          </>
         ) : (
           <p className="dim small" style={{ margin: "4px 0 0" }}>
             Defeat the Elite Four and become Champion.

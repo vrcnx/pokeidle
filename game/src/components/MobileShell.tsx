@@ -5,7 +5,7 @@ import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { TownMap } from "./TownMap";
 import { PartyColumn } from "./PartyColumn";
-import { ContextPanel } from "./ContextPanel";
+import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
 import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
@@ -129,7 +129,19 @@ export function MobileShell() {
               </button>
             </div>
             <div className="mobile-world-body">
-              {worldView === "here" ? <ContextPanel /> : <TownMap />}
+              {worldView === "here" ? (
+                <>
+                  {/* Next-goal tracker — surfaces post-Champion endgame
+                      content (Raid Island, Reward Shop) + visible
+                      unlock requirements for the next route. Was
+                      previously desktop-only; player feedback was
+                      "lost on what to do after Elite 4". */}
+                  <UnlockHint />
+                  <ContextPanel />
+                </>
+              ) : (
+                <TownMap />
+              )}
             </div>
           </div>
         )}
