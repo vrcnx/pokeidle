@@ -8,9 +8,11 @@ import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { BugReportsPage } from "./pages/BugReportsPage";
 import { ErrorLogsPage } from "./pages/ErrorLogsPage";
 import { TournamentsPage } from "./pages/TournamentsPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
+import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok";
-type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments";
+type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
@@ -60,10 +62,12 @@ export function App() {
             <span className="admin-nav-heading">Moderation</span>
             <NavItem active={page === "chat"} onClick={() => setPage("chat")} label="Chat" icon={<IconChat />} />
             <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" icon={<IconBug />} />
+            <NavItem active={page === "audit"} onClick={() => setPage("audit")} label="Audit log" icon={<IconHistory />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Events</span>
             <NavItem active={page === "tournaments"} onClick={() => setPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
+            <NavItem active={page === "announcements"} onClick={() => setPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Diagnostics</span>
@@ -89,6 +93,8 @@ export function App() {
         {page === "bugs" && <BugReportsPage />}
         {page === "errors" && <ErrorLogsPage />}
         {page === "tournaments" && <TournamentsPage />}
+        {page === "audit" && <AuditLogPage />}
+        {page === "announcements" && <AnnouncementsPage />}
       </main>
     </div>
   );
@@ -172,6 +178,23 @@ function IconMap() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+function IconHistory() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+function IconMegaphone() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l18-8v18l-18-8" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
     </svg>
   );
 }

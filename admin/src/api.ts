@@ -27,6 +27,15 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+export interface AuditEntry {
+  id: string;
+  action: string;
+  createdAt: string;
+  admin: { id: string; username: string };
+  target: { id: string; username: string } | null;
+  meta: unknown;
+}
+
 export interface ChatMessage {
   id: string;
   channelId: string;
@@ -183,6 +192,24 @@ export const api = {
   // clients flush their cached messages immediately.
   clearAllChat: () =>
     req<{ ok: true; deleted: number }>("DELETE", `/api/admin/chat/clear`),
+
+  // Server-wide announcement broadcast — lands as a real ChatMessage on
+  // the global channel with a 📢 prefix. Returns the stored message
+  // payload so the UI can append it locally without another fetch.
+  announce: (content: string) =>
+    req<{ ok: true; message: ChatMessage }>(
+      "POST",
+      `/api/admin/announce`,
+      { content },
+    ),
+
+  // Audit log — every admin action that touches another user lands
+  // here. Newest-first, capped at 200 rows server-side.
+  listAudit: (limit = 100) =>
+    req<{ entries: AuditEntry[] }>(
+      "GET",
+      `/api/admin/audit?limit=${limit}`,
+    ),
 
   // Bug reports — list + status update
   listBugReports: (status = "", limit = 50, offset = 0) =>

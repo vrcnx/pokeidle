@@ -845,6 +845,39 @@ app.delete("/chat/clear", async (c) => {
   return c.json({ ok: true, deleted: result.count });
 });
 
+// Server-wide announcement. Lands in the global chat as a real
+// ChatMessage authored by the admin who triggered it, but the body is
+// stamped with a "📢 SERVER ANNOUNCEMENT — " prefix so the in-game
+// chat client can pick it up and render it with the system-message
+// style. The message persists in the DB so it shows up in chat
+// history, audit log, and the moderation page just like any other.
+app.post("/announce", async (c) => {
+  const me = c.get("user");
+  const body = await c.req.json<{ content?: string }>().catch(() => ({} as { content?: string }));
+  const content = (body.content ?? "").trim();
+  if (!content) return c.json({ error: "content required" }, 400);
+  if (content.length > 500) return c.json({ error: "content too long (max 500)" }, 400);
+
+  const prefixed = `📢 SERVER ANNOUNCEMENT — ${content}`;
+  const stored = await prisma.chatMessage.create({
+    data: { channelId: "global", userId: me.id, content: prefixed },
+    include: {
+      user: { select: { id: true, username: true, name: true, accountLevel: true } },
+    },
+  });
+  const payload = {
+    id: stored.id,
+    channelId: stored.channelId,
+    content: stored.content,
+    createdAt: stored.createdAt,
+    user: stored.user,
+  };
+  const io = getIo();
+  if (io) io.to("global").emit("chat:message", payload);
+  void audit(me.id, "chat.announce", null, { length: content.length });
+  return c.json({ ok: true, message: payload });
+});
+
 app.delete("/chat/:id", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
