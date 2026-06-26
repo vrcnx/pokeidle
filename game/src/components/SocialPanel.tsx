@@ -24,6 +24,11 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
   const [activeChannel, setActiveChannel] = useState<ChannelKey>("global");
   const [messagesByChannel, setMessagesByChannel] = useState<Record<ChannelKey, ChatMessage[]>>({});
   const [presence, setPresence] = useState<Record<string, boolean>>({});
+  // Last-seen index per channel — anything past it counts as unread.
+  // Channels the player has never opened during this session start at 0
+  // so any incoming message is flagged. The Global channel is auto-marked
+  // read on mount since that's the default landing channel.
+  const [lastReadByChannel, setLastReadByChannel] = useState<Record<ChannelKey, number>>({});
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
   const refreshFriends = async () => {
@@ -91,6 +96,17 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
     messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
   }, [messagesByChannel, activeChannel]);
 
+  // Mark the active channel read whenever its message list grows OR the
+  // user switches to it. Setting lastRead = list.length means every new
+  // message lands as unread for ONE render, then we update it on the
+  // next pass — which is fine because the channel is visibly open.
+  useEffect(() => {
+    const len = (messagesByChannel[activeChannel] ?? []).length;
+    setLastReadByChannel((prev) =>
+      prev[activeChannel] === len ? prev : { ...prev, [activeChannel]: len }
+    );
+  }, [activeChannel, messagesByChannel]);
+
   // Hooks have to be called unconditionally — keep the early-return below
   // the hook so opening/closing the panel re-runs the entrance.
   const dialogRef = useModalEnter(undefined, open);
@@ -143,6 +159,11 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
             messages={messagesByChannel[activeChannel] ?? []}
             messagesRef={messagesRef}
             presence={presence}
+            unreadFor={(key) => {
+              const total = (messagesByChannel[key] ?? []).length;
+              const seen = lastReadByChannel[key] ?? 0;
+              return Math.max(0, total - seen);
+            }}
           />
         )}
         {tab === "friends" && (
@@ -162,7 +183,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 function ChatTab({
-  me, friends, activeChannel, setActiveChannel, messages, messagesRef, presence,
+  me, friends, activeChannel, setActiveChannel, messages, messagesRef, presence, unreadFor,
 }: {
   me: MeProfile;
   friends: FriendList | null;
@@ -171,6 +192,7 @@ function ChatTab({
   messages: ChatMessage[];
   messagesRef: React.MutableRefObject<HTMLDivElement | null>;
   presence: Record<string, boolean>;
+  unreadFor: (key: ChannelKey) => number;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -209,19 +231,30 @@ function ChatTab({
     <div className="g-chat-shell">
       <aside className="g-chat-sidebar">
         <div className="g-chat-sidebar-head">Channels</div>
-        {channels.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            className={`g-chat-channel ${c.key === activeChannel ? "active" : ""}`}
-            onClick={() => setActiveChannel(c.key)}
-          >
-            <span className="g-chat-channel-label">{c.label}</span>
-            {c.sub && (
-              <span className={`g-chat-channel-dot ${c.sub === "online" ? "on" : "off"}`} />
-            )}
-          </button>
-        ))}
+        {channels.map((c) => {
+          const unread = c.key === activeChannel ? 0 : unreadFor(c.key);
+          return (
+            <button
+              key={c.key}
+              type="button"
+              className={`g-chat-channel ${c.key === activeChannel ? "active" : ""}`}
+              onClick={() => setActiveChannel(c.key)}
+            >
+              <span className="g-chat-channel-label">{c.label}</span>
+              {unread > 0 && (
+                <span
+                  className="g-chat-unread-badge"
+                  aria-label={`${unread} unread message${unread === 1 ? "" : "s"}`}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+              {c.sub && (
+                <span className={`g-chat-channel-dot ${c.sub === "online" ? "on" : "off"}`} />
+              )}
+            </button>
+          );
+        })}
       </aside>
       <main className="g-chat-main">
         <div className="g-chat-thread-head">

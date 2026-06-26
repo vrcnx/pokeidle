@@ -168,6 +168,7 @@ export function BattleScene() {
       <ExpGainFlash />
       <DamageFlash side="player" />
       <DamageFlash side="enemy" />
+      <EffectivenessFlash />
       </div>
       <WhiteoutOverlay />
       <HealOverlay />
@@ -271,6 +272,61 @@ function ExpGainFlash() {
       aria-hidden
     >
       +{pop.amount} EXP
+    </div>
+  );
+}
+
+// Inline floating caption for super-effective / not-very-effective /
+// no-effect / critical-hit hits. Scans the battle log for the
+// canonical message lines and overlays a tinted banner above the
+// arena. Reinforces the log message at the action site so the player
+// doesn't have to flick their eyes to the log to know how their
+// move landed.
+type EffPop =
+  | { key: number; kind: "se"; text: string }
+  | { key: number; kind: "nve"; text: string }
+  | { key: number; kind: "none"; text: string }
+  | { key: number; kind: "crit"; text: string };
+
+function EffectivenessFlash() {
+  const { state } = useGame();
+  const prevLen = useRef(state.battleLog.length);
+  const [pop, setPop] = useState<EffPop | null>(null);
+  useEffect(() => {
+    const start = prevLen.current;
+    const end = state.battleLog.length;
+    prevLen.current = end;
+    if (end <= start) return;
+    // Crits and effectiveness can both fire in the same turn — crit
+    // wins the headline since it's the rarer / louder event.
+    let crit = false;
+    let eff: { kind: "se" | "nve" | "none"; text: string } | null = null;
+    for (let i = start; i < end; i++) {
+      const line = state.battleLog[i] ?? "";
+      if (line === "A critical hit!") crit = true;
+      else if (line === "It's super effective!")     eff = { kind: "se",   text: "Super effective!" };
+      else if (line === "It's not very effective...") eff = { kind: "nve",  text: "Not very effective" };
+      else if (line === "It had no effect!")          eff = { kind: "none", text: "No effect" };
+    }
+    if (!crit && !eff) return;
+    const next: EffPop = crit
+      ? { key: Date.now(), kind: "crit", text: "Critical hit!" }
+      : { key: Date.now(), kind: eff!.kind, text: eff!.text };
+    setPop(next);
+    const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+    const t = setTimeout(() => setPop(null), ms);
+    return () => clearTimeout(t);
+  }, [state.battleLog, state.speed]);
+  if (!pop) return null;
+  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+  return (
+    <div
+      key={pop.key}
+      className={`effectiveness-flash effectiveness-${pop.kind}`}
+      style={{ animationDuration: `${animMs}ms` }}
+      aria-live="polite"
+    >
+      {pop.text}
     </div>
   );
 }

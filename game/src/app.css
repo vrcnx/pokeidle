@@ -13117,6 +13117,92 @@ html, body {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
 }
 
+/* ── Trade history list (inside trainer card) ─────────────────────── */
+.trade-history-section ul.trade-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.trade-history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+.trade-history-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.trade-history-mon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.trade-history-mon img { flex-shrink: 0; }
+.trade-history-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 96px;
+}
+.trade-history-arrow {
+  font-size: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.trade-history-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 540px) {
+  .trade-history-row { flex-direction: column; align-items: stretch; }
+  .trade-history-meta { flex-direction: row; justify-content: space-between; align-items: baseline; }
+  .trade-history-name { max-width: 76px; }
+}
+
+/* ── DM unread badge ──────────────────────────────────────────────── */
+/* Small numbered pill next to the channel name when there are unseen
+   messages. Hidden on the active channel since you are already
+   reading it. */
+.g-chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+  margin-left: auto;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
 /* ── Opponent name → trainer card affordance ─────────────────────── */
 /* Used in the PvP battle modal header. Inline link-styled button so
    the player can click their opponent to see who they're up against
@@ -13278,4 +13364,57 @@ html, body {
 @keyframes spriteStatusPulse {
   0%, 100% { transform: scale(1);    opacity: 0.95; }
   50%      { transform: scale(1.08); opacity: 1; }
+}
+
+/* ── Inline effectiveness / critical caption ──────────────────────── */
+/* Floating banner above the arena that surfaces the move outcome at
+   the action site instead of forcing the player to scan the log line.
+   Per-kind tinting matches canonical Pokémon colour language: gold
+   for crits, green for SE, slate for NVE, dim grey for no-effect. */
+.effectiveness-flash {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: 7;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  pointer-events: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  animation: effectivenessRise 1400ms cubic-bezier(0.25, 0.85, 0.35, 1) forwards;
+}
+.effectiveness-crit {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.9), rgba(245, 158, 11, 0.7));
+  border: 1px solid rgba(255, 220, 130, 0.8);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.55);
+}
+.effectiveness-se {
+  color: #052e16;
+  background: linear-gradient(180deg, rgba(134, 239, 172, 0.95), rgba(74, 222, 128, 0.85));
+  border: 1px solid rgba(187, 247, 208, 0.8);
+  box-shadow: 0 0 16px rgba(74, 222, 128, 0.5);
+}
+.effectiveness-nve {
+  color: #f1f5f9;
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.92), rgba(71, 85, 105, 0.82));
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+.effectiveness-none {
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(20, 20, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+@keyframes effectivenessRise {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.85); }
+  18%  { opacity: 1; transform: translate(-50%, 0)    scale(1.05); }
+  35%  { transform: translate(-50%, -4px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -28px) scale(0.96); }
+}
+@media (max-width: 600px) {
+  .effectiveness-flash { font-size: 12px; padding: 5px 10px; top: 14%; }
 }

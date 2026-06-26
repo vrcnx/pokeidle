@@ -4,7 +4,8 @@ import { useAuth } from "../auth/AuthContext";
 import { gymLeaders } from "../data/gymLeaders";
 import { eliteFour } from "../data/eliteFour";
 import { pokemonTable } from "../data/pokemon";
-import { api, type PublicProfile } from "../net/api";
+import { api, type PublicProfile, type TradeHistoryRow } from "../net/api";
+import { pokemonSpriteUrl } from "../utils/sprites";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
 import { sendBattleInvite, usePvpState } from "../state/pvp";
@@ -180,6 +181,8 @@ function SelfCard({ onClose }: { onClose: () => void }) {
               })}
             </div>
           </section>
+
+          <TradeHistorySection />
         </div>
 
         <footer className="g-modal-foot">
@@ -187,6 +190,75 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+// Trade history — fetched lazily on mount because most players won't
+// open the trainer card to look at it and we want to keep the modal
+// open instant for the common case (read stats + close). Empty state
+// is intentional, not an error.
+function TradeHistorySection() {
+  const [trades, setTrades] = useState<TradeHistoryRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.myTradeHistory()
+      .then((r) => { if (!cancelled) setTrades(r.trades); })
+      .catch((e) => { if (!cancelled) setErr(String(e?.message ?? e)); });
+    return () => { cancelled = true; };
+  }, []);
+  return (
+    <section className="g-card g-card-full trade-history-section">
+      <h3>Trade History</h3>
+      {trades === null && !err && (
+        <p className="dim small" style={{ margin: 0 }}>Loading recent trades…</p>
+      )}
+      {err && (
+        <p className="dim small" style={{ margin: 0 }}>Couldn't load trade history.</p>
+      )}
+      {trades && trades.length === 0 && (
+        <p className="dim small" style={{ margin: 0 }}>
+          No trades yet — invite a friend from the Social panel and offer a Pokémon.
+        </p>
+      )}
+      {trades && trades.length > 0 && (
+        <ul className="trade-history-list">
+          {trades.map((t) => (
+            <li key={t.id} className="trade-history-row">
+              <div className="trade-history-pair">
+                <span className="trade-history-mon" title={`Gave ${t.sent.nickname} · Lv ${t.sent.level}`}>
+                  <img
+                    src={pokemonSpriteUrl(t.sent.speciesKey)}
+                    alt={t.sent.nickname}
+                    width={28}
+                    height={28}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                  <span className="trade-history-name">{t.sent.nickname}</span>
+                  <small className="dim">Lv {t.sent.level}</small>
+                </span>
+                <span className="trade-history-arrow" aria-hidden>⇄</span>
+                <span className="trade-history-mon" title={`Got ${t.received.nickname} · Lv ${t.received.level}`}>
+                  <img
+                    src={pokemonSpriteUrl(t.received.speciesKey)}
+                    alt={t.received.nickname}
+                    width={28}
+                    height={28}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                  <span className="trade-history-name">{t.received.nickname}</span>
+                  <small className="dim">Lv {t.received.level}</small>
+                </span>
+              </div>
+              <div className="trade-history-meta">
+                <span>w/ {t.partnerUsername}</span>
+                <small className="dim">{new Date(t.at).toLocaleDateString()}</small>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

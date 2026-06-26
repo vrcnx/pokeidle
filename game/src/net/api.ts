@@ -89,6 +89,9 @@ export const api = {
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),
   publicProfile: (username: string) =>
     request<PublicProfile>("GET", `/api/profile/${encodeURIComponent(username)}`),
+  // Trade history — caller-scoped, returns the last 50 trades with a
+  // normalised {sent, received, partner} shape.
+  myTradeHistory: () => request<{ trades: TradeHistoryRow[] }>("GET", "/api/profile/me/trades"),
 
   // PvP — rating, history, leaderboard, tournaments
   myRating: () => request<RatingRow>("GET", "/api/pvp/me/rating"),
@@ -229,6 +232,21 @@ export interface PvpHistoryRow {
   opponent: { id: string; username: string };
   result: "win" | "loss" | "forfeit" | "draw";
   endReason: string | null;
+}
+
+export interface TradeHistoryMon {
+  speciesKey: string;
+  nickname: string;
+  level: number;
+}
+
+export interface TradeHistoryRow {
+  id: string;
+  at: string;
+  partnerUsername: string;
+  partnerUserId: string | null;
+  sent: TradeHistoryMon;
+  received: TradeHistoryMon;
 }
 
 export interface PublicTournamentEntry {
