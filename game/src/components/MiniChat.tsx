@@ -7,6 +7,7 @@ import { routes } from "../data/routes";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import { useOnlineCount } from "../state/presence";
 import { censor, hasProfanity, isProfanityFilterOn, subscribeProfanityFilter } from "../utils/profanity";
+import { useMuteList } from "../utils/mute";
 
 // Compact chat panel for the left column. Two tabs:
 //   Global — server-wide chat (channelId = "global")
@@ -42,6 +43,8 @@ export function MiniChat() {
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
   const onlineCount = useOnlineCount();
+  const mute = useMuteList();
+  void mute.version; // re-render when mute list changes
 
   // Wire the global channel once.
   useEffect(() => {
@@ -163,6 +166,7 @@ export function MiniChat() {
         {messages.length === 0 && <div className="dim small mini-chat-empty">No messages yet.</div>}
         {messages.map((m) => {
           const mine = m.user.id === me.id;
+          if (!mine && mute.isMuted(m.user.username)) return null;
           return (
             <div key={m.id} className={`mini-chat-msg ${mine ? "mine" : ""}`}>
               <button

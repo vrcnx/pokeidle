@@ -13117,6 +13117,25 @@ html, body {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
 }
 
+/* ── Chat message author → trainer card link ─────────────────────── */
+.g-chat-msg-name-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.g-chat-msg-name-btn:hover strong {
+  text-decoration: underline dotted rgba(255, 255, 255, 0.3);
+  text-underline-offset: 2px;
+}
+.g-chat-msg-name-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ── Trainer directory (Social panel Trainers tab) ────────────────── */
 .trainer-directory {
   display: flex;

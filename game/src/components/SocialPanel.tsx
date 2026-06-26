@@ -4,6 +4,7 @@ import { getSocket } from "../net/socket";
 import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
 import { openPublicTrainerCard } from "./TrainerCardModal";
+import { useMuteList } from "../utils/mute";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -206,6 +207,8 @@ function ChatTab({
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const mute = useMuteList();
+  void mute.version; // re-renders when mute list changes
 
   const channels = useMemo(() => {
     const list: { key: ChannelKey; label: string; sub?: "online" | "offline"; userId?: string }[] = [
@@ -279,10 +282,19 @@ function ChatTab({
           )}
           {messages.map((m) => {
             const mine = m.user.id === me.id;
+            const muted = !mine && mute.isMuted(m.user.username);
+            if (muted) return null;
             return (
               <div key={m.id} className={`g-chat-msg ${mine ? "mine" : ""}`}>
                 <div className="g-chat-msg-head">
-                  <strong>{m.user.name ?? m.user.username}</strong>
+                  <button
+                    type="button"
+                    className="g-chat-msg-name-btn"
+                    onClick={() => openPublicTrainerCard(m.user.username)}
+                    title={`View ${m.user.username}'s trainer card`}
+                  >
+                    <strong>{m.user.name ?? m.user.username}</strong>
+                  </button>
                   <span className="g-chat-msg-lv">Lv {m.user.accountLevel}</span>
                   <span className="g-chat-msg-time">{new Date(m.createdAt).toLocaleTimeString()}</span>
                 </div>

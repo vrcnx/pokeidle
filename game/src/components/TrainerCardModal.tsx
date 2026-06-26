@@ -10,6 +10,7 @@ import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
 import { sendBattleInvite, usePvpState } from "../state/pvp";
 import { openTeamBuilder } from "./TeamBuilderModal";
+import { useMuteList } from "../utils/mute";
 
 // Trainer card. Two modes:
 //   self    — full card with badges, sign-out, etc. (the one the
@@ -506,6 +507,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
               >
                 {battleInviteSent ? "Battle sent ✓" : "Battle"}
               </button>
+              <MuteButton username={profile.username} />
             </>
           )}
           <span style={{ flex: 1 }} />
@@ -513,5 +515,25 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         </footer>
       </div>
     </div>
+  );
+}
+
+// Local mute toggle — hides this player's chat messages on the
+// caller's client. Doesn't reach the server (their messages still
+// flow to everyone else); it's a personal noise filter, not a
+// moderation tool. See utils/mute.ts.
+function MuteButton({ username }: { username: string }) {
+  const mute = useMuteList();
+  const muted = mute.isMuted(username);
+  return (
+    <button
+      className={muted ? "g-btn-ghost" : "g-btn-danger-ghost"}
+      onClick={() => muted ? mute.unmute(username) : mute.mute(username)}
+      title={muted
+        ? `Unmute ${username} — their chat messages will reappear`
+        : `Mute ${username} — hides their chat messages on your client`}
+    >
+      {muted ? "Unmute" : "Mute"}
+    </button>
   );
 }
