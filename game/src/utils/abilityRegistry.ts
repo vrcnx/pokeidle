@@ -240,6 +240,17 @@ export const abilities: Record<string, AbilityHooks> = {
       return [{ type: "weatherSet", message: `${user.name}'s Sand Stream kicked up a sandstorm!` }];
     },
   },
+  // Snow Warning — Gen 5 weather-setter ability. Mirrors Drought /
+  // Drizzle / Sand Stream but sets hail. The hail damage / Ice-type
+  // immunity / "buffeted by hail" tick logic is already wired
+  // downstream in battle.ts end-of-turn so this just needs to install
+  // the weather state on switch-in.
+  snowWarning: {
+    onSwitchIn: ({ user, weather }) => {
+      weather.current = { type: "hail", turnsRemaining: 5 };
+      return [{ type: "weatherSet", message: `${user.name}'s Snow Warning whipped up a hailstorm!` }];
+    },
+  },
 };
 
 // Convenience: returns the active hooks for a side, or an empty object

@@ -668,6 +668,9 @@ export const moves: Record<string, MoveDef> = {
       accuracy: 80,
       pp: 15,
       priority: 0,
+      // Canonical 2-5 hit multi-strike — the engine routes this through
+      // the weighted 35/35/15/15 distribution and Skill Link forces 5.
+      effect: { type: "multiHit", minHits: 2, maxHits: 5 },
     },
     hyperBeam: {
       name: "Hyper Beam",

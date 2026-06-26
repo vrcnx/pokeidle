@@ -21,7 +21,10 @@ function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
   const triggers = evolutions[p.speciesKey] ?? [];
   for (const t of triggers) {
     if ("level" in t && p.level >= t.level) return true;
-    if ("item" in t && (inventory[t.item] ?? 0) > 0) return true;
+    // Stone-style item evolution (use from bag). Exclude trade+item
+    // triggers — those only fire during a trade, not by using the
+    // catalyst item out of your inventory.
+    if ("item" in t && !("trade" in t) && (inventory[t.item] ?? 0) > 0) return true;
   }
   return false;
 }

@@ -39,7 +39,10 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     goldeen: [{ into: "seaking", level: 33 }],
     krabby: [{ into: "kingler", level: 28 }],
     seel: [{ into: "dewgong", level: 34 }],
-    slowpoke: [{ into: "slowbro", level: 37 }],
+    slowpoke: [
+      { into: "slowbro", level: 37 },
+      { into: "slowking", trade: true, item: "kingsrock" },
+    ],
     magikarp: [{ into: "gyarados", level: 20 }],
     rattata: [{ into: "raticate", level: 20 }],
     meowth: [{ into: "persian", level: 28 }],
@@ -62,7 +65,10 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     growlithe: [{ into: "arcanine", item: "firestone" }],
     gloom: [{ into: "vileplume", item: "leafstone" }],
     weepinbell: [{ into: "victreebel", item: "leafstone" }],
-    poliwhirl: [{ into: "poliwrath", item: "waterstone" }],
+    poliwhirl: [
+      { into: "poliwrath", item: "waterstone" },
+      { into: "politoed",  trade: true, item: "kingsrock" },
+    ],
     shellder: [{ into: "cloyster", item: "waterstone" }],
     exeggcute: [{ into: "exeggutor", item: "leafstone" }],
     staryu: [{ into: "starmie", item: "waterstone" }],
@@ -79,4 +85,18 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     machoke:  [{ into: "machamp",  trade: true }],
     graveler: [{ into: "golem",    trade: true }],
     haunter:  [{ into: "gengar",   trade: true }],
+
+    // ── Trade+item evolutions (Gen 4+, still canonical in Gen 5) ─────
+    // The mon must be traded while holding the named item; on receipt
+    // it evolves into the listed species and the held catalyst is
+    // consumed (see TRADE_COMPLETE reducer). Slowpoke / Poliwhirl
+    // join their existing entries above to avoid duplicate keys.
+    onix:        [{ into: "steelix",   trade: true, item: "metalcoat" }],
+    scyther:     [{ into: "scizor",    trade: true, item: "metalcoat" }],
+    porygon:     [{ into: "porygon2",  trade: true, item: "upgrade" }],
+    porygon2:    [{ into: "porygonZ",  trade: true, item: "dubiousdisc" }],
+    seadra:      [{ into: "kingdra",   trade: true, item: "dragonscale" }],
+    rhydon:      [{ into: "rhyperior", trade: true, item: "protector" }],
+    electabuzz:  [{ into: "electivire", trade: true, item: "electirizer" }],
+    magmar:      [{ into: "magmortar", trade: true, item: "magmarizer" }],
   };

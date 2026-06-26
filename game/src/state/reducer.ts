@@ -951,10 +951,28 @@ export function reducer(state: GameState, action: Action): GameState {
       // Trade-evolution rider — if the received species has a `{ trade: true }`
       // entry, kick off the evolution sequence right away. Only fires for
       // a party-side trade (you can't evolve a boxed mon mid-flight).
+      //
+      // Two flavours:
+      //   - { trade: true }            → pure trade (Kadabra→Alakazam, etc.)
+      //   - { trade: true, item: "x" } → trade WITH held item (Onix+
+      //     Metal Coat → Steelix). Item is canonically consumed on
+      //     evolution, so we null heldItem in the party slot before
+      //     handing off to START_EVOLUTION.
       if (where === "party") {
         const evos = evolutions[fresh.speciesKey] ?? [];
-        const tradeEvo = evos.find((e) => "trade" in e);
+        const tradeEvo = evos.find(
+          (e) =>
+            "trade" in e &&
+            (!("item" in e) || (e as any).item === fresh.heldItem)
+        );
         if (tradeEvo) {
+          // If the evolution requires a held item, consume it now so
+          // the post-evolution Pokemon doesn't keep the catalyst.
+          if ("item" in tradeEvo) {
+            const party = [...next.party];
+            party[idx] = { ...party[idx], heldItem: undefined };
+            next = { ...next, party };
+          }
           next = {
             ...next,
             phase: "evolution",

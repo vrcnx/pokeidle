@@ -242,8 +242,11 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
 
 function evolutionLabel(trig: EvolutionTrigger): string {
   if ("level" in trig) return `Lv ${trig.level}`;
+  // Trade-checks before pure item because trade+item has both.
+  if ("trade" in trig) {
+    return "item" in trig ? `Trade w/ ${prettyItem((trig as any).item)}` : "Trade";
+  }
   if ("item" in trig) return prettyItem(trig.item);
-  if ("trade" in trig) return "Trade";
   return "—";
 }
 

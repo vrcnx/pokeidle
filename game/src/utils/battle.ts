@@ -100,7 +100,62 @@ function tryInflictStatus(
     message: statusInflictMessage(target.name, status),
     payload: { status },
   });
+
+  // Status-cure berries — fire as soon as the matching status lands.
+  // Lum cures any major status; specific berries cure their named
+  // status. Consumed on trigger. We re-emit a statusCure event so the
+  // UI HP card status badge clears cleanly.
+  consumeStatusCureBerry(target, status, events);
   return true;
+}
+
+// Cure-berry trigger. Inspects target.heldItem and clears the matching
+// status if it matches. Returns true if a berry was consumed.
+function consumeStatusCureBerry(
+  target: BattleSide,
+  status: StatusCondition | "confused",
+  events: BattleEvent[]
+): boolean {
+  const item = target.heldItem;
+  if (!item) return false;
+  const cures: Record<string, true> | null =
+    item === "lumberry"    ? { paralyzed: true, asleep: true, burned: true, frozen: true, poisoned: true, badlyPoisoned: true, confused: true } as any
+    : item === "cheriberry"  ? { paralyzed: true } as any
+    : item === "chestoberry" ? { asleep: true } as any
+    : item === "pechaberry"  ? { poisoned: true, badlyPoisoned: true } as any
+    : item === "rawstberry"  ? { burned: true } as any
+    : item === "aspearberry" ? { frozen: true } as any
+    : item === "persimberry" ? { confused: true } as any
+    : null;
+  if (!cures || !(cures as any)[status]) return false;
+  target.heldItem = undefined;
+  if (status === "confused") {
+    target.confusedTurns = 0;
+    events.push({
+      type: "statusCure",
+      message: `${target.name} snapped out of confusion with its berry!`,
+    });
+  } else {
+    target.status = undefined;
+    target.sleepTurns = undefined;
+    target.toxicTurns = undefined;
+    events.push({
+      type: "statusCure",
+      message: `${target.name}'s berry cured its ${statusWord(status)}!`,
+    });
+  }
+  return true;
+}
+
+function statusWord(s: StatusCondition): string {
+  switch (s) {
+    case "paralyzed":     return "paralysis";
+    case "asleep":        return "sleep";
+    case "burned":        return "burn";
+    case "frozen":        return "freeze";
+    case "poisoned":      return "poison";
+    case "badlyPoisoned": return "toxic";
+  }
 }
 
 function weatherSetMessage(w: WeatherCondition): string {
@@ -439,7 +494,9 @@ export function executeTurn(
     const w = weatherCtx.current?.type;
     function effSpeed(side: BattleSide): number {
       let s = side.speed;
-      if (side.status === "paralyzed") s = Math.floor(s / 2);
+      // Gen 5 paralyzes to QUARTER speed (Gen 6+ changed to half).
+      // Target era is Gen 5 to match the PvP simulator.
+      if (side.status === "paralyzed") s = Math.floor(s / 4);
       if (side.ability === "chlorophyll" && w === "sun") s = s * 2;
       if (side.ability === "swiftSwim" && w === "rain") s = s * 2;
       return s;
@@ -634,7 +691,9 @@ export function executeTurn(
         if (Math.random() < (eff.chance ?? 1)) {
           const tgt: BattleSide = eff.target === "self" ? step.attacker : step.defender;
           if ((tgt.confusedTurns ?? 0) === 0) {
-            tgt.confusedTurns = 2 + Math.floor(Math.random() * 3); // 2-4 turns
+            tgt.confusedTurns = 2 + Math.floor(Math.random() * 4); // 2-5 turns (Gen 5)
+            // Persim Berry / Lum Berry cure confusion as soon as it lands.
+            consumeStatusCureBerry(tgt, "confused", events);
             events.push({
               type: "confuse",
               message: `${tgt.name} became confused!`,
@@ -714,13 +773,27 @@ export function executeTurn(
 
     // Multi-hit: if the move has a multiHit effect, roll the hit count
     // and multiply total damage. Skill Link forces max hits.
+    // For the canonical 2-5 hit family (Fury Swipes, Double Slap, Pin
+    // Missile, Bullet Seed, etc.), Gen 5 uses a WEIGHTED distribution:
+    // 2 hits 35%, 3 hits 35%, 4 hits 15%, 5 hits 15% — uniform would
+    // give 5-hit results 25% of the time (10% too often) and skew the
+    // long-run damage ~18% higher than canonical.
     let multiHitCount = 1;
     {
       const mEff = (move as any).effect;
       if (mEff?.type === "multiHit") {
         if (step.attacker.ability === "skillLink") {
           multiHitCount = mEff.maxHits;
+        } else if (mEff.minHits === 2 && mEff.maxHits === 5) {
+          // The canonical 2-5 hit family.
+          const r = Math.random();
+          if (r < 0.35)      multiHitCount = 2;
+          else if (r < 0.70) multiHitCount = 3;
+          else if (r < 0.85) multiHitCount = 4;
+          else               multiHitCount = 5;
         } else {
+          // Other multi-hit shapes (Bonemerang = always 2, Double Hit =
+          // always 2, etc.) stay uniform across their min..max range.
           multiHitCount = mEff.minHits + Math.floor(Math.random() * (mEff.maxHits - mEff.minHits + 1));
         }
         appliedDamage = appliedDamage * multiHitCount;
@@ -945,20 +1018,24 @@ export function executeTurn(
             step.attacker.lockedMove = null;
             step.attacker.lockTurnsRemaining = 0;
             // Outrage / Petal Dance / Thrash become confused after lock ends.
+            // Gen 5 confusion lasts 2-5 turns.
             if ((step.attacker.confusedTurns ?? 0) === 0) {
-              step.attacker.confusedTurns = 2 + Math.floor(Math.random() * 3);
+              step.attacker.confusedTurns = 2 + Math.floor(Math.random() * 4);
               events.push({
                 type: "confuse",
                 message: `${step.attacker.name} became confused due to fatigue!`,
               });
+              consumeStatusCureBerry(step.attacker, "confused", events);
             }
           }
           break;
         case "confuse":
           if (Math.random() < (eff.chance ?? 1) && step.defender.currentHp > 0) {
             const tgt: BattleSide = eff.target === "self" ? step.attacker : step.defender;
+            // Gen 5 confusion lasts 2-5 turns.
             if ((tgt.confusedTurns ?? 0) === 0) {
-              tgt.confusedTurns = 2 + Math.floor(Math.random() * 3);
+              tgt.confusedTurns = 2 + Math.floor(Math.random() * 4);
+              consumeStatusCureBerry(tgt, "confused", events);
               events.push({
                 type: "confuse",
                 message: `${tgt.name} became confused!`,
@@ -1095,6 +1172,43 @@ export function executeTurn(
           hpMax: side.maxHp,
         },
       });
+    }
+    // HP-restore berries — Sitrus (1/4 maxHP) and Oran (10 HP flat) pop
+    // when the holder is at or below half HP. Single-use; we null the
+    // heldItem on trigger. Sitrus prioritised over Oran in the (rare)
+    // case a holder somehow has both (only one slot exists, but defensive).
+    if (side.currentHp > 0 && side.currentHp <= Math.floor(side.maxHp / 2)) {
+      if (side.heldItem === "sitrusberry") {
+        const heal = Math.max(1, Math.floor(side.maxHp / 4));
+        side.currentHp = Math.min(side.maxHp, side.currentHp + heal);
+        side.heldItem = undefined;
+        events.push({
+          type: "itemTrigger",
+          message: `${side.name} ate its Sitrus Berry and restored HP!`,
+          payload: {
+            target: side === player ? "player" : "enemy",
+            heal,
+            hpAfter: side.currentHp,
+            hpMax: side.maxHp,
+          },
+        });
+      } else if (side.heldItem === "oranberry") {
+        const heal = Math.min(10, side.maxHp - side.currentHp);
+        if (heal > 0) {
+          side.currentHp = side.currentHp + heal;
+          side.heldItem = undefined;
+          events.push({
+            type: "itemTrigger",
+            message: `${side.name} ate its Oran Berry and restored 10 HP!`,
+            payload: {
+              target: side === player ? "player" : "enemy",
+              heal,
+              hpAfter: side.currentHp,
+              hpMax: side.maxHp,
+            },
+          });
+        }
+      }
     }
     if (side.ability === "magicGuard") continue;
     if (side.status === "burned") {

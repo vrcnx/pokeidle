@@ -191,6 +191,23 @@ export function PokemonDetailModal() {
         reason: eligible ? `Level ${t.level} reached` : `Reach Lv ${t.level}`,
         eligible,
       });
+    } else if ("trade" in t) {
+      // Trade-only evolutions (and trade+item variants) — listed for
+      // awareness but never eligible from the party menu. The actual
+      // evolution fires automatically after a successful trade with
+      // another player. Trade+item shape carries the catalyst name
+      // so the player knows what to equip before initiating the trade.
+      const itemName =
+        "item" in t
+          ? (evolutionStones[(t as any).item]?.name ?? (t as any).item)
+          : null;
+      allEvolutions.push({
+        trigger: t,
+        reason: itemName
+          ? `Trade while holding ${itemName}`
+          : "Trade with another player",
+        eligible: false,
+      });
     } else if ("item" in t) {
       const owned = state.inventory[t.item] ?? 0;
       const eligible = owned > 0;
@@ -200,22 +217,18 @@ export function PokemonDetailModal() {
         reason: eligible ? `Use ${itemName}` : `Needs ${itemName}`,
         eligible,
       });
-    } else if ("trade" in t) {
-      // Trade-only evolutions — listed for awareness but never
-      // eligible from the menu. The actual evolution fires
-      // automatically after a successful trade with another player.
-      allEvolutions.push({
-        trigger: t,
-        reason: "Trade with another player",
-        eligible: false,
-      });
     }
   }
   const isPartySelection = selected.type === "party";
 
   function evolveTo(trigger: EvolutionTrigger) {
     if (!selected || !isPartySelection) return;
-    if ("item" in trigger) {
+    // Stone-style item evolution consumes from bag inventory.
+    // Trade+item evolutions have an item too, but it's the catalyst
+    // held by the Pokemon and is consumed by the trade handler — not
+    // from the player's inventory. Guard so we don't accidentally
+    // burn a bag item that we never required.
+    if ("item" in trigger && !("trade" in trigger)) {
       dispatch({ type: "CONSUME_ITEM", payload: { itemId: trigger.item, quantity: 1 } });
     }
     dispatch({

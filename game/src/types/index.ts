@@ -132,7 +132,12 @@ export interface Pokemon {
 export type EvolutionTrigger =
   | { into: string; level: number }
   | { into: string; item: string }
-  | { into: string; trade: true };
+  | { into: string; trade: true }
+  // Gen 4+ trade-with-item evolutions: the Pokémon must be holding the
+  // named item at the moment it is traded. The item is consumed in
+  // canon — the receiver gets the evolved species without the held
+  // item. Example: Onix holding a Metal Coat → Steelix.
+  | { into: string; trade: true; item: string };
 
 export interface RouteEncounter {
   speciesKey: string;

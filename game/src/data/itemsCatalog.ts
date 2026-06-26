@@ -71,6 +71,31 @@ const items: CatalogItem[] = [
   { id: "blackglasses",   name: "Black Glasses",   description: "A held item that boosts Dark-type moves by 20%.", category: "held", buyPrice: 2000, sellPrice: 1000, spriteOverride: "black-glasses", implemented: true },
   { id: "silkscarf",      name: "Silk Scarf",      description: "A held item that boosts Normal-type moves by 20%.", category: "held", buyPrice: 2000, sellPrice: 1000, spriteOverride: "silk-scarf", implemented: true },
 
+  // ── Battle berries (held, auto-consumed in battle) ──────────────────────
+  // Status-cure berries cure their matching status as soon as it lands;
+  // HP-restore berries trigger at end-of-turn when the holder is at or
+  // below half HP. All are single-use — consumed on trigger.
+  { id: "lumberry",    name: "Lum Berry",    description: "Held item: cures any major status condition. Consumed on use.", category: "held", buyPrice: 3000, sellPrice: 1500, spriteOverride: "lum-berry", implemented: true },
+  { id: "cheriberry",  name: "Cheri Berry",  description: "Held item: cures paralysis. Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "cheri-berry", implemented: true },
+  { id: "chestoberry", name: "Chesto Berry", description: "Held item: wakes the holder from sleep. Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "chesto-berry", implemented: true },
+  { id: "pechaberry",  name: "Pecha Berry",  description: "Held item: cures poison (regular or toxic). Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "pecha-berry", implemented: true },
+  { id: "rawstberry",  name: "Rawst Berry",  description: "Held item: cures burn. Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "rawst-berry", implemented: true },
+  { id: "aspearberry", name: "Aspear Berry", description: "Held item: thaws the holder from freeze. Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "aspear-berry", implemented: true },
+  { id: "persimberry", name: "Persim Berry", description: "Held item: cures confusion. Consumed on use.", category: "held", buyPrice: 1000, sellPrice: 500, spriteOverride: "persim-berry", implemented: true },
+  { id: "sitrusberry", name: "Sitrus Berry", description: "Held item: restores 1/4 max HP when the holder drops to or below half HP. Consumed on use.", category: "held", buyPrice: 2000, sellPrice: 1000, spriteOverride: "sitrus-berry", implemented: true },
+  { id: "oranberry",   name: "Oran Berry",   description: "Held item: restores 10 HP when the holder drops to or below half HP. Consumed on use.", category: "held", buyPrice: 500,  sellPrice: 250,  spriteOverride: "oran-berry", implemented: true },
+
+  // ── Trade-evolution catalysts (held; consumed when the holder is
+  //    traded into its matching evolution) ─────────────────────────────
+  { id: "metalcoat",     name: "Metal Coat",     description: "A held item that triggers an evolution when its holder is traded. (Onix → Steelix, Scyther → Scizor)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "metal-coat", implemented: true },
+  { id: "kingsrock",     name: "King's Rock",    description: "A held item that triggers an evolution when its holder is traded. (Slowpoke → Slowking, Poliwhirl → Politoed)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "kings-rock", implemented: true },
+  { id: "dragonscale",   name: "Dragon Scale",   description: "A held item that triggers an evolution when its holder is traded. (Seadra → Kingdra)", category: "held", buyPrice: null, sellPrice: 2100, spriteOverride: "dragon-scale", implemented: true },
+  { id: "upgrade",       name: "Up-Grade",       description: "A held item that triggers an evolution when its holder is traded. (Porygon → Porygon2)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "up-grade", implemented: true },
+  { id: "dubiousdisc",   name: "Dubious Disc",   description: "A held item that triggers an evolution when its holder is traded. (Porygon2 → Porygon-Z)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "dubious-disc", implemented: true },
+  { id: "protector",     name: "Protector",      description: "A held item that triggers an evolution when its holder is traded. (Rhydon → Rhyperior)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "protector", implemented: true },
+  { id: "electirizer",   name: "Electirizer",    description: "A held item that triggers an evolution when its holder is traded. (Electabuzz → Electivire)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "electirizer", implemented: true },
+  { id: "magmarizer",    name: "Magmarizer",     description: "A held item that triggers an evolution when its holder is traded. (Magmar → Magmortar)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "magmarizer", implemented: true },
+
   // ── Evolution Stones (luxury items — extremely expensive) ────────────────
   { id: "firestone",    name: "Fire Stone",    description: "A rare stone that radiates heat. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "fire-stone", implemented: true },
   { id: "waterstone",   name: "Water Stone",   description: "A rare stone with a blue, watery appearance. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "water-stone", implemented: true },
