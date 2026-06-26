@@ -172,6 +172,26 @@ export function kickSession(userId: string, sessionId: string): void {
   socketsBySession.delete(sessionId);
 }
 
+// Force-disconnect every active socket for a user. Called by the
+// admin ban endpoint so a ban takes effect immediately rather than
+// at the next reconnect (a banned user with an open tab could
+// otherwise keep using chat / PvP / trades over the existing WS
+// even after their HTTP requests started 403-ing). Returns the
+// number of sockets actually kicked.
+export function kickUser(userId: string, reason: string): number {
+  const ids = online.get(userId);
+  if (!ids || !ioInstance) return 0;
+  let kicked = 0;
+  for (const sid of [...ids]) {
+    const s = ioInstance.sockets.sockets.get(sid);
+    if (!s) continue;
+    s.emit("session:banned", { reason });
+    s.disconnect(true);
+    kicked++;
+  }
+  return kicked;
+}
+
 function addPresence(userId: string, socketId: string) {
   let set = online.get(userId);
   if (!set) {
@@ -227,8 +247,14 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     },
   });
 
-  // Auth gate — extract Better Auth session cookie from the handshake and
-  // reject connections that aren't logged in.
+  // Auth gate — extract Better Auth session cookie from the handshake,
+  // reject anonymous connections, AND honour the user's banned-until
+  // window. The HTTP requireUser middleware already enforces the ban
+  // on REST endpoints; mirroring it here closes a ban-evasion gap
+  // where a banned user with an open tab could keep using chat, PvP
+  // matchmaking, and trades over the WebSocket after their HTTP
+  // requests started 403-ing. Schema.prisma's bannedUntil comment
+  // (`> now blocks login + socket connections`) is the source of truth.
   io.use(async (socket, next) => {
     try {
       const headers = new Headers();
@@ -237,9 +263,18 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       const session = await auth.api.getSession({ headers });
       if (!session?.user) return next(new Error("unauthorized"));
       const sessionId = (session as any).session?.id as string | undefined;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true, isAdmin: true, bannedUntil: true },
+      });
+      if (!dbUser) return next(new Error("unauthorized"));
+      if (dbUser.bannedUntil && dbUser.bannedUntil.getTime() > Date.now()) {
+        return next(new Error("banned"));
+      }
       socket.data.user = {
         id: session.user.id,
         username: (session.user as any).username ?? session.user.email.split("@")[0],
+        isAdmin: dbUser.isAdmin,
         sessionId,
       };
       next();

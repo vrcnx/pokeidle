@@ -40,7 +40,16 @@ function pushLog(state: GameState, ...lines: string[]): GameState {
 }
 
 function withTypes(p: Pokemon): BattleSide {
-  return { ...p, types: pokemonTable[p.speciesKey]?.types ?? [] };
+  // Deep-clone the moves array so executeTurn can decrement PP
+  // safely without mutating the original Pokemon's moves (which
+  // would silently mutate state and break React's render
+  // assumptions). The reducer reads back the cloned moves after
+  // executeTurn returns and dispatches the persisted PP values.
+  return {
+    ...p,
+    moves: p.moves.map((m) => ({ ...m })),
+    types: pokemonTable[p.speciesKey]?.types ?? [],
+  };
 }
 
 // Sync the active player Pokémon back into the party slot.
@@ -322,8 +331,23 @@ export function reducer(state: GameState, action: Action): GameState {
       const weatherCtx = { current: state.battleWeather ?? null };
       const events = executeTurn(player, enemy, smartEnemy, playerMoveId, weatherCtx);
 
+      // Read the post-turn PP back out of the (now-mutated) BattleSide
+      // clone and persist it to state.playerPokemon. executeTurn
+      // decrements pp on the move slot for any "fresh" pick (skipping
+      // recharge / continuing-lock turns to match canonical PP rules).
+      // Mirror to the party slot so the same Pokemon viewed from the
+      // party rail / Manage Moves modal reads the same PP values.
+      const updatedPlayer: Pokemon = { ...state.playerPokemon, moves: player.moves };
+      const partyIdx = state.activePlayerPokemonIndex;
+      const updatedParty =
+        partyIdx >= 0 && partyIdx < state.party.length && state.party[partyIdx]?.id === updatedPlayer.id
+          ? state.party.map((p, i) => (i === partyIdx ? updatedPlayer : p))
+          : state.party;
+
       return {
         ...state,
+        playerPokemon: updatedPlayer,
+        party: updatedParty,
         pendingEvents: events,
         battleWeather: weatherCtx.current,
         // Apply volatile (stat stages / locked move) immediately — these
@@ -713,7 +737,12 @@ export function reducer(state: GameState, action: Action): GameState {
       const old = party[partyIndex];
       if (!old) return { ...state, evolutionState: null, phase: "idle" };
       const sp = pokemonTable[toSpeciesKey];
-      const stats = calcAllStats(sp, old.level, old.ivs);
+      // Forward EVs + nature into the post-evolution stat recompute so
+      // hard-earned EV training and ±10% nature multipliers survive
+      // the species swap. The level-up and exp-share branches both
+      // already pass these; this one was an outlier that silently
+      // zeroed out evs and used a 1.0× nature multiplier.
+      const stats = calcAllStats(sp, old.level, old.ivs, old.evs, old.nature);
       const evolved: Pokemon = {
         ...old,
         speciesKey: toSpeciesKey,

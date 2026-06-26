@@ -138,7 +138,7 @@ export interface BattleRoom {
   /** Final outcome, set when status === "completed". */
   winnerId?: string;
   loserId?: string;
-  endReason?: "ko" | "forfeit" | "timeout" | "cancelled";
+  endReason?: "ko" | "tie" | "forfeit" | "timeout" | "cancelled";
   /** Optional tournament linkage — set by the bracket runner when the
    *  match was created from a tournament round. */
   tournamentId?: string;
@@ -343,6 +343,14 @@ async function pumpOmniLog(
               room.loserId = room.a.userId;
             }
             room.endReason = "ko";
+          } else {
+            // |tie line — both sides simultaneously fainted (mutual
+            // KO via Explosion, recoil, Struggle, etc.). winnerId /
+            // loserId stay unset; endBattle's ELO guard already
+            // skips rating updates when either is missing, so the
+            // only thing left to do is label the reason correctly
+            // for match history.
+            room.endReason = "tie";
           }
           // Don't await — endBattle is async but we want the log
           // pump to keep draining whatever else the stream emits.
@@ -398,7 +406,7 @@ export async function endBattle(
   sendToUser:
     | ((userId: string, event: string, payload: unknown) => void)
     | undefined,
-  reason: "ko" | "forfeit" | "timeout" | "cancelled",
+  reason: "ko" | "tie" | "forfeit" | "timeout" | "cancelled",
 ): Promise<void> {
   if (room.status === "completed" || room.status === "cancelled") return;
   room.status = reason === "cancelled" ? "cancelled" : "completed";

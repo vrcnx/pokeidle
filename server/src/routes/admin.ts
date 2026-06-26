@@ -5,7 +5,7 @@ import { requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { broadcastChatCleared, sendToUserGlobal, getIo } from "../socket.js";
+import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser } from "../socket.js";
 import { auth } from "../auth.js";
 import {
   battleRooms,
@@ -96,10 +96,14 @@ app.get("/users/:id", async (c) => {
   return c.json(u);
 });
 
-// Promote / demote.
+// Promote / demote. Refuses self-action so a sole admin can't lock
+// themselves (or the whole platform if they're the only one) out by
+// flipping their own flag — recovery would require direct DB access.
+// Mirrors the self-action guard in DELETE /users/:id.
 app.post("/users/:id/admin", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
+  if (id === me.id) return c.json({ error: "cannot change own admin status" }, 400);
   const { isAdmin } = (await c.req.json().catch(() => ({}))) as { isAdmin?: boolean };
   if (typeof isAdmin !== "boolean") {
     return c.json({ error: "isAdmin must be boolean" }, 400);
@@ -123,6 +127,11 @@ app.post("/users/:id/admin", async (c) => {
 app.post("/users/:id/ban", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
+  // Self-ban would 403 their next HTTP request via requireUser while
+  // leaving any open WebSockets connected — a confusing partial-state
+  // lockout. Just refuse, same shape as the self-delete / self-demote
+  // guards above.
+  if (id === me.id) return c.json({ error: "cannot ban yourself" }, 400);
   const body = (await c.req.json().catch(() => ({}))) as { until?: string | null; reason?: string | null };
   let until: Date | null;
   if (body.until === null) {
@@ -146,6 +155,12 @@ app.post("/users/:id/ban", async (c) => {
       until: until?.toISOString() ?? null,
       reason: body.reason ?? null,
     });
+    // Force-disconnect the banned user's live sockets so they can't
+    // keep chatting / queueing / trading on an open tab while the
+    // ban is in effect. No-op if they aren't currently connected.
+    if (until && until.getTime() > Date.now()) {
+      try { kickUser(id, body.reason ?? "banned"); } catch { /* socket layer may not be up */ }
+    }
     return c.json(u);
   } catch {
     return c.json({ error: "user not found" }, 404);

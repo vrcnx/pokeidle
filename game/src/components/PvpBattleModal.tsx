@@ -42,7 +42,18 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
     return () => clearTimeout(t);
   }, [room.result]);
 
-  const youAmI = (id: string | null) => id === null ? null : id === sideUserId(room, room.side);
+  // Verdict: the server sends winnerId as one side's real userId.
+  // The client doesn't keep its own userId in the room state, but it
+  // does keep the opponent's. So "did I win?" reduces to "is the
+  // winnerId NOT the opponent's id?". This is what the original
+  // `sideUserId` helper was supposed to express — its old "self"
+  // sentinel could never match a real userId, so EVERY winner saw
+  // "You lose.". Side-affinity comparison fixes both verdict text
+  // and the rating-delta pill that keys off it.
+  const youAmI = (id: string | null) => {
+    if (id === null) return null;
+    return id !== room.opponent.id;
+  };
   const verdict = room.result
     ? room.result.winnerId === null
       ? "Cancelled"
@@ -339,15 +350,6 @@ function LogLine({ entry }: { entry: BattleLogEntry }) {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
-function sideUserId(room: BattleRoom, side: "a" | "b"): string {
-  // We only know the opponent's id; ours is whatever the auth context
-  // says. Grab from the document if available; for now, deriving via
-  // exclusion: the room's `opponent` is the OTHER side, so if we are
-  // 'a' our id is whatever `room.opponent.id` is NOT. The easiest
-  // resolution: check the result by side affinity rather than ids.
-  return side === room.side ? "self" : room.opponent.id;
-}
-
 function cleanName(ident: string): string {
   // "p1a: Pikachu" or "p2a: Squirtle" → "Pikachu"
   const colon = ident.indexOf(":");

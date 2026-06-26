@@ -104,10 +104,34 @@ app.post("/api/auth/sign-out-all", async (c) => {
 // (a wrong password retry burst is well under that) but blocks volume
 // attacks. OAuth callbacks aren't gated — they're driven by the IDP.
 const authLimiter = makeRateLimiter({ tokens: 30, windowMs: 15 * 60_000 });
+// Resolve the client IP for rate-limiting. The naive `X-Forwarded-For
+// leftmost` approach is a classic pitfall: any client can send an
+// arbitrary header value and land in a fresh rate-limit bucket every
+// request, defeating the auth limiter and enabling brute-force
+// credential stuffing. We trust XFF (rightmost = closest proxy that
+// we control) ONLY when the deployment opts in via the
+// TRUSTED_PROXY env var, which should be set on Railway/Vercel/etc.
+// where the platform terminates TLS and appends a verified
+// client-IP hop. Otherwise we fall back to the socket address.
+const TRUST_PROXY = (process.env.TRUSTED_PROXY ?? "").toLowerCase() === "true";
 const clientIp = (c: any): string => {
-  const xff = c.req.header("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return c.req.header("x-real-ip") ?? "unknown";
+  if (TRUST_PROXY) {
+    const xff = c.req.header("x-forwarded-for");
+    if (xff) {
+      // Rightmost = the IP the trusted proxy actually saw; leftmost
+      // entries were claimed by the client and can't be trusted.
+      const hops = xff.split(",").map((s: string) => s.trim()).filter(Boolean);
+      const last = hops[hops.length - 1];
+      if (last) return last;
+    }
+    const real = c.req.header("x-real-ip");
+    if (real) return real.trim();
+  }
+  // Direct socket address — works when the server isn't behind a
+  // proxy. @hono/node-server exposes the raw connection on c.env.incoming.
+  const raw = (c.env as any)?.incoming;
+  const sock = raw?.socket?.remoteAddress ?? raw?.connection?.remoteAddress;
+  return sock || "unknown";
 };
 app.all("/api/auth/*", async (c) => {
   const path = new URL(c.req.url).pathname;

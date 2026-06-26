@@ -353,8 +353,15 @@ export function executeTurn(
   //   3. Manual override from the UI (only if it's actually one of this
   //      Pokémon's moves and has PP — otherwise fall through to AI/random)
   //   4. Smart AI pick
+  //
+  // pFreshPick: did we pick a NEW move this turn (= PP should be
+  // decremented), or are we continuing a previously-paid action?
+  // Recharge turns (Hyper Beam after-glow) and continuing lock-in
+  // moves (Outrage turns 2-3) both paid their PP when the move was
+  // originally chosen, so we don't double-charge them here.
   let pMoveId: string = "";
   let pMove: MoveDef | undefined;
+  let pFreshPick = false;
   if (!playerSkipped) {
     if (playerRecharge) {
       pMoveId = player.moves[0].id;
@@ -368,6 +375,7 @@ export function executeTurn(
     ) {
       pMoveId = playerMoveOverride;
       pMove = movesTable[pMoveId];
+      pFreshPick = true;
     } else {
       const pick = pickSmartMove(
         player.moves.map((m) => m.id),
@@ -378,12 +386,14 @@ export function executeTurn(
       );
       pMoveId = pick.moveId;
       pMove = pick.move;
+      pFreshPick = true;
     }
   }
 
   // Pick enemy's move
   let eMoveId: string;
   let eMove: MoveDef | undefined;
+  let eFreshPick = false;
   if (enemyRecharge) {
     eMoveId = enemy.moves[0].id;
     eMove = movesTable[eMoveId];
@@ -402,6 +412,7 @@ export function executeTurn(
       : pickRandomMove(enemy.moves.map((m) => m.id));
     eMoveId = pick.moveId;
     eMove = pick.move;
+    eFreshPick = true;
   }
 
   // Determine turn order (priority > priority, else speed)
@@ -552,6 +563,19 @@ export function executeTurn(
     }
     const move = movesTable[step.moveId];
     if (!move) continue;
+
+    // PP decrement — pre-move gates (sleep / freeze / paralysis-full)
+    // already `continue`d above without reaching here, so reaching
+    // this point means the move actually starts to execute, which is
+    // when canonical Pokémon mechanics charge PP (a miss still costs
+    // PP, but skipped pre-move turns don't). Only fresh picks pay:
+    // forced recharge and continuing lock-in turns already paid on
+    // the originating turn.
+    const fresh = step.isPlayer ? pFreshPick : eFreshPick;
+    if (fresh) {
+      const slot = step.attacker.moves.find((m) => m.id === step.moveId);
+      if (slot) slot.pp = Math.max(0, slot.pp - 1);
+    }
 
     if (
       step.attacker.lockedMove &&
