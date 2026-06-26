@@ -19,8 +19,10 @@
 
   --text:          #f5f5f5;
   --text-muted:    #9c9c9c;
-  --text-dim:      #6f6f6f;
-  --text-faint:    #4a4a4a;
+  /* Bumped to pass WCAG AA — was #6f6f6f (4.0:1) and #4a4a4a (2.4:1).
+     New values clear 4.5:1 against the panel surfaces. */
+  --text-dim:      #888888;
+  --text-faint:    #757575;
   --ink:           #f5f5f5;
   --ink-soft:      #d6d6d6;
 
@@ -6365,16 +6367,19 @@ body.dnd-active {
 
 .dashboard {
   display: grid;
-  /* Center column is locked narrow enough that the FULL 16:9 game scene
-     AND the FULL 16:9 town map both fit vertically without scaling. At
-     600px wide, each 16:9 element is 337.5px tall — together with the
-     moves panel and tab strip that's ~850px, fitting on a 1080p screen
-     with room to spare. Side columns flex between min/max so the layout
-     gracefully adapts to narrower viewports. */
-  grid-template-columns: minmax(220px, 280px) 520px minmax(240px, 320px);
+  /* The center column is the focal point — battle scene + moves
+     only, no longer carrying a bottom tab strip. We give it a
+     generous 720px so the 16:9 scene reads at 405px tall (good
+     for 1080p screens). The LEFT rail combines a 56px icon strip
+     with a content pane (~280px); the right column stays compact
+     for chat + dock. Total ≈ 1380px — wide enough to feel airy on
+     a typical desktop, tight enough that the eye doesn't have to
+     scan across a 16:10 widescreen. Side columns are minmax-flex
+     so the layout gracefully shrinks below 1280px. */
+  grid-template-columns: minmax(320px, 360px) minmax(560px, 720px) minmax(260px, 320px);
   gap: var(--sp-3);
   padding: 0 var(--sp-1);
-  max-width: 1160px;
+  max-width: 1440px;
   margin: 0 auto;
   justify-content: center;
 }
@@ -6392,6 +6397,7 @@ body.dnd-active {
 .town-map-header { padding: 4px 10px !important; }
 
 .party-column,
+.left-nav-column,
 .location-column {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -7531,10 +7537,13 @@ input, textarea, select {
   flex-direction: column;
   gap: var(--sp-2);
 }
-/* The dock in the right column should be a single pill row */
+/* The dock in the right column is a single 3-up row of action tiles
+   — three buttons (PvP / Settings / Social) fit evenly without an
+   awkward empty 4th cell, and the row stays a thin strip above the
+   chat panel rather than a chunky 2x2 block. */
 .dock-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 .dock-gameplay {
@@ -9160,6 +9169,10 @@ input:focus, textarea:focus, select:focus {
   padding: 12px !important;
 }
 .profile-strip { padding: 10px 14px !important; }
+/* Right-column dock buttons — tight 3-up row. Tighter than the desktop
+   default since they share their row with two siblings; the icon is
+   the dominant signal and the label sits close beneath it. */
+.dock-meta .dock-btn { padding: 10px 6px !important; }
 .dock-btn { padding: 12px 8px !important; }
 .party-row { padding: 10px 12px !important; }
 .friend-row { padding: 10px 12px !important; }
@@ -12821,14 +12834,6 @@ html, body {
 .party-bar-wrap {
   position: relative;
 }
-.party-bar-num {
-  font-family: ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.2px;
-  color: var(--text-muted);
-  margin-left: 6px;
-  white-space: nowrap;
-}
 .party-status-badge {
   margin-left: 6px;
   font-size: 8px;
@@ -12896,4 +12901,1571 @@ html, body {
   18%  { opacity: 1; transform: translateY(0) scale(1.12); }
   35%  { transform: translateY(-6px) scale(1); }
   100% { opacity: 0; transform: translateY(-44px) scale(0.96); }
+}
+
+/* =================================================================== */
+/* ===                   META DOCK — POLISH PASS                  === */
+/* =================================================================== */
+/* Right-column dock (PvP / Settings / Social) — three flat tiles in a
+   single row. Tightened proportions, refined hover, softer active
+   state so the row reads as a quiet utility strip rather than a
+   chunky 2x2 block of identical squares. Specific to .dock-meta to
+   avoid touching the desktop bottom dock or mobile header version. */
+.dock-meta .dock-btn {
+  position: relative;
+  gap: 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent), var(--panel) !important;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.dock-meta .dock-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel) !important;
+  border-color: var(--border-strong) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset !important;
+}
+.dock-meta .dock-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4) inset !important;
+}
+.dock-meta .dock-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Icon sits at a consistent visual size — the SVGs default to 18px
+   but render slightly differently across the three icons; lock a
+   24px square so the row reads as evenly weighted glyphs. */
+.dock-meta .dock-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text);
+  opacity: 0.92;
+}
+.dock-meta .dock-btn:hover .dock-btn-icon { opacity: 1; }
+.dock-meta .dock-btn-label {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.dock-meta .dock-btn:hover .dock-btn-label { color: var(--text); }
+/* Softer active state — keep the dark surface, add a subtle gold
+   accent stripe on top + warmed text. Less jarring than the full
+   white inversion. */
+.dock-meta .dock-btn.active {
+  background: linear-gradient(180deg, rgba(245,245,245,0.10), rgba(245,245,245,0.02)), var(--panel) !important;
+  border-color: var(--gold) !important;
+  color: var(--text) !important;
+}
+.dock-meta .dock-btn.active::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 8%; right: 8%;
+  height: 2px;
+  background: var(--gold);
+  border-radius: 0 0 2px 2px;
+}
+.dock-meta .dock-btn.active .dock-btn-icon,
+.dock-meta .dock-btn.active .dock-btn-label { color: var(--text); opacity: 1; }
+
+/* =================================================================== */
+/* ===          LEFT NAV — vertical tab rail (desktop)            === */
+/* =================================================================== */
+/* The desktop dashboard's left column is now a unified
+   icon-strip + content pane that switches between World / Party /
+   Mart / Bag / PC / Dex. Replaces the old fixed Party + ContextPanel
+   column AND the bottom-of-center BottomTabs strip — one nav, one
+   place to look. */
+
+/* The chrome rule earlier in the file gives this the same panel
+   background / border / radius / shadow as the right column. Here
+   we override the column layout to a horizontal split (icon rail
+   on the left, content on the right) and tighten padding so the
+   rail stays compact. */
+.left-nav-column {
+  flex-direction: row !important;
+  gap: var(--sp-2) !important;
+  padding: var(--sp-2) !important;
+  overflow: hidden;
+}
+
+/* Icon-only rail. Vertical column of compact 56px-wide tab buttons. */
+.left-nav-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 56px;
+  padding: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.left-nav-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 9px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  font-family: inherit;
+}
+.left-nav-tab:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+.left-nav-tab.active {
+  background: var(--panel-3);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+/* Subtle gold accent on the inner edge so the active state reads
+   without flooding the tile with a solid colour. */
+.left-nav-tab.active::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--gold);
+  border-radius: 0 3px 3px 0;
+}
+.left-nav-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+.left-nav-tab-label {
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Content pane — fills the rest of the column, scrolls internally
+   when the active tab's content overflows. */
+.left-nav-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.left-nav-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.left-nav-pane.bottom-tab-body {
+  /* Reuse the existing per-tab background (parchment for Mart,
+     CRT-monitor for PC, etc.) — they're scoped via :has() in the
+     existing stylesheet so we don't need to redefine them here. */
+  overflow: hidden;
+}
+.left-nav-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* Sub-tab pill row inside the World pane (Here / Map). Compact
+   pill toggles that share visual language with the desktop "tab"
+   chips so the player recognises the pattern. */
+.left-nav-subtabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.left-nav-subtabs button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.left-nav-subtabs button:hover { color: var(--text); }
+.left-nav-subtabs button.active {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Make the inner pane body scroll cleanly for tabs that have lots
+   of content (Bag / PC / Dex / ContextPanel). Cancel any inner
+   .context-panel padding since the tab already provides its own. */
+.left-nav-pane > .ctx-section,
+.left-nav-pane > .party-card,
+.left-nav-pane .context-panel,
+.left-nav-pane .context-panel-body {
+  width: 100%;
+}
+.left-nav-pane .context-panel {
+  padding: 0 !important;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.left-nav-pane .context-panel-body {
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* The party tab is just the party list + its own scroll. */
+.left-nav-pane.party-pane {
+  overflow: hidden;
+}
+.left-nav-pane.party-pane .party-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.left-nav-pane.party-pane .party-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Center column without the BottomTabs strip — let the BattleScene
+   grow to claim the freed vertical space, capped at 70vh so on
+   ultra-tall windows the moves panel still sits in the lower third
+   where the player's eye is used to it. */
+.dashboard .center-column > .battle-area {
+  flex: 1 1 auto;
+  max-height: 70vh;
+  min-height: 320px;
+}
+.dashboard .center-column > .moves-panel-wrap {
+  flex: 0 0 auto;
+}
+
+/* =================================================================== */
+/* ===              MINIMAL SHELL — fullscreen overlay              === */
+/* =================================================================== */
+/* The battle scene IS the background. Every UI affordance floats over
+   it as a transparent layer. Everything is positioned absolute against
+   .ms-shell so the game-view itself never has to make room for chrome. */
+
+/* Shell is a CSS grid that carves the viewport into named regions —
+   a top strip for the bar, a centre row split between the party
+   rail / game view / chat hint, and a bottom strip for the action
+   bar. The game view is BOUNDED to the centre cell rather than
+   bleeding edge-to-edge behind the UI; everything else sits in its
+   own region with its own background. */
+.ms-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #0a0a0c;
+  color: var(--text);
+  font-family: var(--font-body);
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-rows: 60px 1fr auto;
+  grid-template-areas:
+    "topbar topbar topbar"
+    "party  game   right"
+    "party  action right";
+  gap: 10px;
+  padding: 10px;
+}
+
+/* Game scene — bounded centre cell, locked to a strict 16:9 frame.
+   The outer .ms-game-bg becomes a CSS containment context so the
+   inner frame can compute its size with container query units —
+   `min(100cqw, 100cqh * 16/9)` picks whichever of the cell's
+   dimensions limits the 16:9 fit and lets the other dimension
+   letterbox. This is the only CSS-only idiom that handles BOTH
+   wide and tall cells correctly without JS. */
+.ms-game-bg {
+  grid-area: game;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container-type: size;
+}
+.ms-game-frame {
+  position: relative;
+  /* If the cell is wider-than-16:9, the cell height (cqh) is the
+     limiting factor and width = cqh * 16/9. If the cell is
+     taller-than-16:9, the cell width (cqw) is the limit and
+     height derives from aspect-ratio. min() picks the smaller. */
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  background: #0d0d10;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.4);
+}
+.ms-game-frame .battle-scene {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+/* Soft vignette inside the game frame — focuses the eye on the
+   centre of the scene without darkening the rest of the page. */
+.ms-game-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  z-index: 1;
+}
+
+/* HUD chips — float over the game frame's top corners. Top-left
+   shows current location; top-right shows battle phase with a
+   colour-coded status dot (idle = neutral, wild = green, trainer
+   = yellow, boss/raid = red). They sit ABOVE the vignette via
+   z-index so they read clearly against any battle background. */
+.ms-hud {
+  position: absolute;
+  top: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(10, 10, 14, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  pointer-events: auto;
+}
+/* Location chip rides the top-CENTRE of the frame so it doesn't
+   collide with the enemy HP card in the top-left corner. Phase
+   chip stays right since the player HP card lives in the bottom-
+   right (no top-right conflict). */
+.ms-hud-tl { left: 50%; transform: translateX(-50%); }
+.ms-hud-tr { right: 12px; }
+.ms-hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+}
+.ms-hud-phase.phase-battle .ms-hud-dot,
+.ms-hud-phase.phase-raid .ms-hud-dot { background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
+.ms-hud-phase.phase-trainerBattle .ms-hud-dot { background: #facc15; box-shadow: 0 0 8px rgba(250, 204, 21, 0.6); }
+.ms-hud-phase.phase-bossBattle .ms-hud-dot   { background: #f87171; box-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
+.ms-hud-phase.phase-victory .ms-hud-dot     { background: var(--gold); box-shadow: 0 0 10px rgba(245, 245, 245, 0.5); }
+.ms-hud-phase.phase-healing .ms-hud-dot     { background: #34d399; }
+.ms-hud-phase.phase-evolution .ms-hud-dot   { background: #c084fc; box-shadow: 0 0 10px rgba(192, 132, 252, 0.6); }
+
+/* ── Top bar ─────────────────────────────────────────────────────── */
+/* Three regions now (nav text menu was killed): brand · stats ·
+   actions. Brand and stats sit on the left; actions push to the
+   right via the 1fr filler in between. */
+.ms-top-bar {
+  grid-area: topbar;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ms-top-bar > .ms-actions { grid-column: 4; }
+
+.ms-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ms-brand img {
+  width: 26px;
+  height: 26px;
+  opacity: 0.95;
+}
+.ms-brand-mark {
+  font-family: var(--font-display, var(--font-body));
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* Stat chips (money / badges / level) — compact pills with icon +
+   value. Sit between the nav and the action icons so the player has
+   a constant heads-up on key progression numbers. */
+.ms-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ms-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.ms-stat:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+.ms-stat strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+.ms-stat strong small {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 10px;
+}
+.ms-stat-lv {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ms-stat-level strong { color: var(--gold); }
+
+.ms-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  opacity: 0.85;
+}
+.ms-brand img {
+  width: 24px;
+  height: 24px;
+}
+
+.ms-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.ms-nav-btn {
+  position: relative;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: color 160ms ease, opacity 160ms ease;
+  opacity: 0.7;
+}
+.ms-nav-btn:hover { color: var(--text); opacity: 1; }
+.ms-nav-btn.active {
+  color: var(--text);
+  opacity: 1;
+}
+/* Active underline — thin, accent-colored. */
+.ms-nav-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 4px;
+  height: 1.5px;
+  background: var(--text);
+  border-radius: 1.5px;
+}
+.ms-nav-label { display: inline-block; }
+
+.ms-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ms-icon-btn {
+  /* WCAG 2.5.5 — touch target ≥ 44×44. We use 44×52 with a stacked
+     icon + text label so the UI is self-explanatory (no relying on
+     tooltip-only labels) and screen readers + new players both get
+     a clear name. Includes a visible :focus-visible outline. */
+  min-width: 56px;
+  height: 44px;
+  padding: 4px 8px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  opacity: 0.85;
+  font-family: inherit;
+}
+.ms-icon-btn-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.ms-icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  opacity: 1;
+}
+.ms-icon-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.ms-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.ms-icon-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  opacity: 1;
+}
+
+/* ── Left party rail ─────────────────────────────────────────────── */
+.ms-party-rail {
+  grid-area: party;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(15, 15, 18, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.ms-party-rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.ms-party-rail-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ms-party-rail-count {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ms-party-rail-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+.ms-party-rail-body::-webkit-scrollbar { width: 4px; }
+.ms-party-rail-body::-webkit-scrollbar-track { background: transparent; }
+.ms-party-rail-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+}
+
+/* The PartyList ctx-section card lives inside the rail — flatten its
+   chrome so the rail reads as a transparent overlay. The card-uniformity
+   block applies !important to .party-card so we have to override
+   per-context here. */
+.ms-party-rail .party-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.ms-party-rail .party-card > h4,
+.ms-party-rail .ctx-section > h4 { display: none !important; }
+.ms-party-rail .party-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+/* Restyle .party-row inside the rail to match the screenshot's
+   transparent row pattern. */
+.ms-party-rail .party-row {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  display: grid !important;
+  grid-template-columns: 36px 1fr !important;
+  gap: 10px !important;
+  align-items: center !important;
+  cursor: pointer;
+}
+.ms-party-rail .party-row:hover {
+  background: rgba(255,255,255,0.03) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+.ms-party-rail .party-row.active {
+  background: rgba(255,255,255,0.05) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+.ms-party-rail .party-row-sprite {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.ms-party-rail .party-row-sprite img { width: 30px; height: 30px; }
+.ms-party-rail .party-row-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ms-party-rail .party-row-name {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+}
+.ms-party-rail .party-row-name strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.1px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-party-rail .party-row-types { display: none; }
+.ms-party-rail .party-row-level {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ms-party-rail .party-bar-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 9px;
+}
+.ms-party-rail .party-bar-label {
+  font-size: 8px;
+  color: var(--text-faint);
+  letter-spacing: 0.6px;
+}
+.ms-party-rail .party-bar.hp {
+  height: 3px !important;
+  flex: 1;
+  background: rgba(255,255,255,0.06) !important;
+  border-radius: 2px !important;
+  border: 0 !important;
+}
+.ms-party-rail .party-bar.exp {
+  display: none !important;
+}
+.ms-party-rail .party-bar-wrap:has(.party-bar.exp) {
+  display: none !important;
+}
+
+.ms-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  opacity: 0.65;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 8px 4px;
+  font-family: inherit;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+.ms-hint:hover { opacity: 1; color: var(--text); }
+.ms-hint kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+.ms-hint-tab { margin-top: auto; align-self: stretch; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.04); }
+
+/* Slim "next goal" card below the party list. Restores the always-
+   visible goal-tracking info from the previous layout but inside
+   the existing rail so it doesn't compete with the game scene. */
+.ms-party-rail-goal {
+  flex-shrink: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.ms-party-rail-goal .unlock-hint {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.ms-party-rail-goal .unlock-hint h4 {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.4px !important;
+  text-transform: uppercase !important;
+  color: var(--text-muted) !important;
+  margin: 0 0 6px !important;
+}
+.ms-party-rail-goal .unlock-hint .unlock-target {
+  margin-bottom: 6px;
+}
+.ms-party-rail-goal .unlock-hint .unlock-target strong {
+  font-size: 12px;
+}
+.ms-party-rail-goal .unlock-hint ul {
+  font-size: 10px;
+}
+.ms-party-rail-goal .unlock-hint .unlock-peek { font-size: 10px; }
+
+/* ── Bottom action bar — moves panel wrapper ─────────────────────── */
+/* Two stacked panels: the slim utility toolbar (speed picker +
+   heal/manage/catch icons) and the chunky moves grid below. The
+   moves grid is the visual hero; the toolbar is utilitarian and
+   sits in a tighter, less prominent strip. */
+.ms-action-bar {
+  grid-area: action;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  justify-self: center;
+}
+.ms-action-bar .moves-toolbar {
+  background: rgba(15, 15, 18, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 10px !important;
+  padding: 6px 10px !important;
+  min-height: 0 !important;
+}
+.ms-action-bar .moves-panel-wrap {
+  background: rgba(15, 15, 18, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px !important;
+  padding: 12px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* ── Right-edge chat rail ────────────────────────────────────────── */
+/* Vertical pill anchored at the right edge of the centre row. Tight
+   so it doesn't dominate; the keyboard hint (C / ENTER) is the
+   primary affordance — the player already knows what "Chat" is. */
+.ms-chat-rail {
+  grid-area: chat;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 10px;
+  background: rgba(15, 15, 18, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  width: 56px;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.ms-chat-rail:hover {
+  background: rgba(20, 20, 26, 0.72);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  transform: translateX(-2px);
+}
+.ms-chat-rail.active {
+  background: rgba(20, 20, 26, 0.85);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+}
+.ms-chat-rail-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.ms-chat-rail-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: inherit;
+}
+.ms-chat-rail small {
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  opacity: 0.65;
+}
+
+/* ── Section overlay (centered card) ─────────────────────────────── */
+.ms-section-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6vh 24px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: msFadeIn 180ms ease;
+}
+@keyframes msFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ms-section-card {
+  width: min(960px, calc(100vw - 80px));
+  max-height: calc(100vh - 12vh);
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 15, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: msSlideUp 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes msSlideUp {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.ms-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ms-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+.ms-section-head h3 {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+.ms-section-close {
+  width: 32px; height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.ms-section-close:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+  color: var(--text);
+}
+.ms-section-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Chat slide-in ──────────────────────────────────────────────── */
+.ms-chat-slide {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 92vw);
+  z-index: 60;
+  background: rgba(12, 12, 14, 0.95);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.ms-chat-slide.open {
+  transform: translateX(0);
+}
+.ms-chat-slide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ms-chat-slide-head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ms-chat-slide-close {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ms-chat-slide-close:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+  color: var(--text);
+}
+.ms-chat-slide-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.ms-chat-slide-body .mini-chat {
+  flex: 1;
+  min-height: 0;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.ms-chat-slide-body .mini-chat > h4 { display: none !important; }
+
+/* ── Settings tile grid ─────────────────────────────────────────── */
+.ms-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.ms-settings-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 14px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  align-items: flex-start;
+  font-family: inherit;
+}
+.ms-settings-tile:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.12);
+  color: var(--text);
+}
+.ms-settings-tile strong {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text);
+}
+.ms-settings-tile span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ms-settings-note {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.2px;
+}
+
+/* ── Battle scene HUD restyle ───────────────────────────────────── */
+/* Inside the minimal shell, the HP cards float over the scene. Drop
+   the heavy card chrome and let them be subtle blurred panels. */
+.ms-shell .battle-scene .hp-card {
+  background: rgba(15, 15, 18, 0.65) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+.ms-shell .battle-scene .typewriter,
+.ms-shell .battle-scene .battle-status {
+  background: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Sprite slots — the original 58%/58% player slot was sized for a
+   ~520px-wide arena; in the new minimal shell the frame is much
+   wider (16:9 of available cell height), which scaled the sprites
+   way up. Tighten the slot percentages so sprites stay roughly
+   their original on-screen size relative to the scene background. */
+.ms-shell .battle-scene .player-slot {
+  width: 42% !important;
+  height: 42% !important;
+}
+.ms-shell .battle-scene .enemy-slot {
+  width: 22% !important;
+  height: 24% !important;
+}
+
+/* ── Right rail ──────────────────────────────────────────────────── */
+/* Always-visible "Here" + Chat column. The top half hosts the
+   ContextPanel (current location, encounters, gym/raid info — info
+   that used to require a "World" menu click) and the bottom half is
+   live MiniChat. Replaces both the old chat-rail-hint and the
+   chat-slide-in; chat is now permanent. */
+.ms-right-rail {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(15, 15, 18, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ms-rail-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.ms-rail-section-head span:first-child {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ms-right-rail-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 1 auto;
+  max-height: 50%;
+  min-height: 0;
+}
+.ms-right-rail-context-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+.ms-right-rail-context-body::-webkit-scrollbar { width: 4px; }
+.ms-right-rail-context-body::-webkit-scrollbar-track { background: transparent; }
+.ms-right-rail-context-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+}
+/* Strip the heavy ctx-section chrome inside the rail — the rail IS
+   the panel; sections within should read as flat content. */
+.ms-right-rail-context-body .context-panel,
+.ms-right-rail-context-body .context-panel-body {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ms-right-rail-context-body .ctx-section {
+  background: rgba(255,255,255,0.025) !important;
+  border: 1px solid rgba(255,255,255,0.05) !important;
+  border-radius: 8px !important;
+  padding: 10px !important;
+  box-shadow: none !important;
+}
+.ms-right-rail-context-body .ctx-section h4 {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.4px !important;
+  text-transform: uppercase !important;
+  color: var(--text-muted) !important;
+  margin: 0 0 6px !important;
+}
+.ms-right-rail-context-body .wild-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.ms-right-rail-context-body .wild-cell {
+  padding: 4px 2px !important;
+}
+.ms-right-rail-context-body .wild-cell small {
+  font-size: 9px;
+}
+
+.ms-right-rail-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 10px;
+}
+.ms-right-rail-chat-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ms-right-rail-chat-body .mini-chat {
+  flex: 1;
+  min-height: 0;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.ms-right-rail-chat-body .mini-chat > h4 { display: none !important; }
+
+/* Visual divider between utility-icon group (Map/Bag/PC/Dex) and
+   action-icon group (PvP/Friends/Settings) in the top bar. */
+.ms-actions-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+/* Active utility icon — gold underline accent so the open section
+   is obvious without flooding the icon with colour. */
+.ms-icon-btn.active {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  position: relative;
+}
+.ms-icon-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 2px;
+  height: 1.5px;
+  background: var(--gold);
+  border-radius: 1.5px;
+}
+
+/* ── Compact rail context ───────────────────────────────────────── */
+/* Replaces the kitchen-sink ContextPanel inside the rail. Shows
+   only a thin location header + encounters-or-CTA row. The full
+   interactive UI for raids / gym / league lives behind the CTA in
+   the LocationActionModal so the rail stays calm. */
+.rail-ctx {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rail-ctx-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+.rail-ctx-loc-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.rail-ctx-loc-type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+}
+.rail-ctx-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rail-ctx-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.rail-ctx-section-head span:first-child {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rail-ctx-section-head small {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.3px;
+}
+.rail-ctx-encounters {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.rail-ctx-enc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+  overflow: hidden;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.rail-ctx-enc:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.rail-ctx-enc.caught { border-color: rgba(74, 222, 128, 0.18); }
+.rail-ctx-enc img { display: block; }
+.rail-ctx-empty {
+  margin: 0;
+  font-size: 11px;
+}
+.rail-ctx-line {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rail-ctx-line.dim { color: var(--text-muted); }
+.rail-ctx-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.rail-ctx-dot[data-kind="wild"]    { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
+.rail-ctx-dot[data-kind="trainer"] { background: #facc15; box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
+.rail-ctx-dot[data-kind="boss"]    { background: #f87171; box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
+
+/* Primary CTA — the single button that opens the deep-dive modal.
+   Bigger, gold-accented, designed to be the focal point of the
+   rail's "Here" section when there's actionable content. */
+.rail-ctx-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 11px 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 245, 245, 0.08),
+    rgba(245, 245, 245, 0.02)
+  ), rgba(15, 15, 18, 0.7);
+  border: 1px solid rgba(245, 245, 245, 0.18);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.rail-ctx-cta:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    rgba(245, 245, 245, 0.14),
+    rgba(245, 245, 245, 0.04)
+  ), rgba(15, 15, 18, 0.78);
+  border-color: rgba(245, 245, 245, 0.32);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+.rail-ctx-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Secondary CTA — used in mid-battle rail strips to peek at the
+   trainer's full team without leaving the battle. */
+.rail-ctx-cta-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  margin-top: 4px;
+}
+.rail-ctx-cta-soft:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* ── Location action modal ─────────────────────────────────────── */
+/* Hosts the existing ContextPanel as a focused, dismissable popup.
+   The full raid tier picker / league card / gym roster lives here
+   instead of permanently in the rail — opens via the rail's CTA. */
+.loc-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 24px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: msFadeIn 180ms ease;
+}
+.loc-modal-card {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 8vh);
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 15, 18, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: msSlideUp 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.loc-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.loc-modal-head h3 {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+.loc-modal-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.loc-modal-close:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.loc-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+/* Inside the modal, the existing ContextPanel renders normally —
+   just ensure the section chrome reads as flat cards. */
+.loc-modal-body .context-panel,
+.loc-modal-body .context-panel-body {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Action bar consolidation ───────────────────────────────────── */
+/* Make the toolbar + moves-panel read as ONE bar by removing the
+   gap between them and aligning their borders. The toolbar is the
+   thin "utility strip" on top, the moves panel is the chunky tile
+   grid below — sharing one continuous outline. */
+.ms-action-bar { gap: 0 !important; }
+.ms-action-bar .moves-toolbar {
+  border-bottom: 0 !important;
+  border-radius: 10px 10px 0 0 !important;
+  padding: 6px 10px !important;
+}
+.ms-action-bar .moves-panel-wrap {
+  border-top: 0 !important;
+  border-radius: 0 0 12px 12px !important;
+  margin-top: 0;
+}
+
+/* ── Focus rings — WCAG 2.4.7 ─────────────────────────────────── */
+/* Every interactive element inside the minimal shell gets a
+   visible focus indicator. Gold accent matches the active-state
+   stripe so keyboard users get a consistent visual language. */
+.ms-shell button:focus-visible,
+.ms-shell .rail-ctx-cta:focus-visible,
+.ms-shell .rail-ctx-cta-soft:focus-visible,
+.ms-shell .rail-ctx-enc:focus-visible,
+.ms-shell .ms-stat:focus-visible,
+.ms-shell .ms-section-close:focus-visible,
+.loc-modal-card button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ── Responsive — collapse rail on mid-width screens ────────────── */
+@media (max-width: 1280px) {
+  .ms-shell {
+    grid-template-columns: 240px 1fr 280px;
+  }
+  .ms-action-bar { max-width: 820px; }
+}
+@media (max-width: 1100px) {
+  .ms-shell {
+    grid-template-columns: 220px 1fr 260px;
+    padding: 8px;
+    gap: 8px;
+  }
+  .ms-stats { display: none; }
+}
+@media (max-width: 980px) {
+  /* Below this width the desktop shell becomes cramped — the mobile
+     shell takes over via the existing media query in GameShell. */
 }

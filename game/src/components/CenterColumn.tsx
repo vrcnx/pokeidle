@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
-import { BottomTabs } from "./BottomTabs";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
 import { sfxManager } from "../utils/sfx";
 
-// Center column: battle arena → toolbar → moves → bottom tabs (Map / Mart /
-// Bag / PC / Pokédex). The toolbar (speed/heal/manage) is its own bar above
-// the moves card so it reads as a global controls strip.
+// Center column: battle arena → toolbar → moves panel. The bottom
+// tabs (Map / Mart / Bag / PC / Dex) used to render here too, but
+// they've been promoted to the LeftNav so the battle scene is the
+// undisputed focal point of the screen.
 //
 // Two quick-toggle buttons sit in the top-right of the battle scene —
 // one for music, one for sound effects — so the player can silence
@@ -25,7 +25,6 @@ export function CenterColumn() {
       </div>
       <MovesToolbar />
       <MovesPanel />
-      <BottomTabs />
     </div>
   );
 }

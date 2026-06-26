@@ -292,6 +292,50 @@ export function IconSliders({ size = 16, strokeWidth = 2, className }: IconProps
   );
 }
 
+// Three figures / friends — used in the minimal shell's top-right
+// row to open the Social panel (chat + friends list).
+export function IconUsers({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+// Bell — notifications / PvP invites entry point on the minimal shell.
+export function IconBell({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+// Compass / world spoke — minimal shell brand mark and the World tab.
+export function IconCompass({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </svg>
+  );
+}
+
+// Scroll / quest log — used by the Quests entry in the top nav.
+export function IconScroll({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2 2 2 0 0 0-2 2v3h3" />
+      <path d="M21 7H10a2 2 0 0 0-2 2v10a2 2 0 0 1-2 2" />
+      <path d="M11 11h6M11 15h6" />
+    </svg>
+  );
+}
+
 // Crossed swords — used for the PvP battle entry point.
 export function IconSwords({ size = 16, strokeWidth = 2, className }: IconProps) {
   return (

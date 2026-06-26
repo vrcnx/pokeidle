@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { PartyColumn } from "./PartyColumn";
-import { CenterColumn } from "./CenterColumn";
-import { LocationColumn } from "./LocationColumn";
+import { MinimalShell } from "./MinimalShell";
 import { MobileShell } from "./MobileShell";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { bindTradeSocket } from "../state/trade";
@@ -29,10 +27,11 @@ import { PvpReplayModal } from "./PvpReplayModal";
 import { PvpSpectatorModal } from "./PvpSpectatorModal";
 import { ReportBugModal } from "./ReportBugModal";
 
-// Three-column dashboard layout. A floating <GlobalDock> at the top-right
-// holds every "open a drawer" action (Settings, Mart, Bag, PC, Pokédex,
-// Info) plus the immediate Heal button — so the persistent UI stays
-// focused on game state (party, battle, location).
+// Minimal "AAA-feeling" desktop shell. The battle scene fills the
+// viewport and every UI affordance floats over it as a transparent
+// overlay — top-bar nav, left party rail, bottom action bar, and
+// edge-anchored hints for chat & TAB. Mobile keeps its own dedicated
+// single-column shell.
 
 export function GameShell() {
   const isMobile = useMediaQuery("(max-width: 900px)");
@@ -50,11 +49,7 @@ export function GameShell() {
       {isMobile ? (
         <MobileShell />
       ) : (
-        <div className="dashboard">
-          <PartyColumn />
-          <CenterColumn />
-          <LocationColumn />
-        </div>
+        <MinimalShell />
       )}
 
       <EvolutionModal />

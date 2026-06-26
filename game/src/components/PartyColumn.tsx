@@ -56,21 +56,31 @@ function statusBadgeClass(s: StatusCondition): string {
 // bottom. Drag a party row onto another to swap slots; drag a box
 // Pokémon onto a party slot to move/swap. The drag system is
 // pointer-events-based (not HTML5 DnD) so it works on touch.
+//
+// Two exports — `PartyColumn` is the legacy desktop column (list +
+// ContextPanel), retained for the mobile shell. `PartyList` is just
+// the list section, used by the new desktop LeftNav as its "Party"
+// tab pane (ContextPanel is its own tab there).
 export function PartyColumn() {
-  const { state } = useGame();
   return (
     <div className="party-column">
-      <section className="ctx-section party-card">
-        <h4>Party</h4>
-        <ul className="party-list">
-          {state.party.map((p, idx) => (
-            <PartyRow key={p.id} pokemon={p} index={idx} />
-          ))}
-        </ul>
-      </section>
-
+      <PartyList />
       <ContextPanel />
     </div>
+  );
+}
+
+export function PartyList() {
+  const { state } = useGame();
+  return (
+    <section className="ctx-section party-card">
+      <h4>Party</h4>
+      <ul className="party-list">
+        {state.party.map((p, idx) => (
+          <PartyRow key={p.id} pokemon={p} index={idx} />
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -211,7 +221,6 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
           <div className={`party-bar hp ${hpClass}`}>
             <div className="party-bar-fill" style={{ width: `${hpPct}%` }} />
           </div>
-          <span className="party-bar-num">{p.currentHp}/{p.maxHp}</span>
         </div>
         <div className="party-bar-wrap">
           <span className="party-bar-label">EXP</span>

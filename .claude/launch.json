@@ -5,13 +5,20 @@
       "name": "pkmn-idle",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "game"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "pkmn-admin",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "admin"],
       "port": 5174
+    },
+    {
+      "name": "pkmn-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "server"],
+      "port": 8787
     }
   ]
 }
