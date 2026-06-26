@@ -92,6 +92,12 @@ export const api = {
   // Trade history — caller-scoped, returns the last 50 trades with a
   // normalised {sent, received, partner} shape.
   myTradeHistory: () => request<{ trades: TradeHistoryRow[] }>("GET", "/api/profile/me/trades"),
+  // Public trainer directory — top trainers by level / dex / Σ-levels.
+  trainerDirectory: (sort: "level" | "dex" | "sigma" = "level", limit = 30) =>
+    request<{ trainers: PublicProfile[]; sort: string }>(
+      "GET",
+      `/api/profile/directory?sort=${sort}&limit=${limit}`,
+    ),
 
   // PvP — rating, history, leaderboard, tournaments
   myRating: () => request<RatingRow>("GET", "/api/pvp/me/rating"),

@@ -9,7 +9,7 @@ import { openPublicTrainerCard } from "./TrainerCardModal";
 //   Chat    — channels list (Global + DMs) + thread + composer
 //   Friends — add form + incoming / pending / accepted lists
 
-type Tab = "chat" | "friends";
+type Tab = "chat" | "friends" | "directory";
 type ChannelKey = string; // "global" or "dm:<userIdA>:<userIdB>"
 
 function dmChannel(a: string, b: string): ChannelKey {
@@ -146,6 +146,15 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
               Friends
               {incomingCount > 0 && <span className="g-tab-pill">{incomingCount}</span>}
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "directory"}
+              className={`g-tab ${tab === "directory" ? "active" : ""}`}
+              onClick={() => setTab("directory")}
+            >
+              Trainers
+            </button>
           </div>
           <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
         </header>
@@ -177,6 +186,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
             }}
           />
         )}
+        {tab === "directory" && <DirectoryTab />}
       </div>
     </div>
   );
@@ -438,5 +448,88 @@ function FriendRow({ entry, presence, actions }: {
         ))}
       </div>
     </div>
+  );
+}
+
+// Trainer directory — top 30 trainers by the chosen sort (level /
+// dex / Σ-levels). Click any row to open their public trainer card.
+// Refetches whenever the sort changes; same cap as the server uses
+// so we don't render a long stub list while loading more.
+type DirectorySort = "level" | "dex" | "sigma";
+function DirectoryTab() {
+  const [sort, setSort] = useState<DirectorySort>("level");
+  const [trainers, setTrainers] = useState<import("../net/api").PublicProfile[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setTrainers(null);
+    setErr(null);
+    api.trainerDirectory(sort, 30)
+      .then((r) => { if (!cancelled) setTrainers(r.trainers); })
+      .catch((e) => { if (!cancelled) setErr(String((e as any)?.message ?? e)); });
+    return () => { cancelled = true; };
+  }, [sort]);
+  return (
+    <div className="g-social-body trainer-directory">
+      <div className="trainer-directory-controls">
+        <span className="dim small">Sort by:</span>
+        <DirSortBtn label="Level"          val="level"  active={sort} onPick={setSort} />
+        <DirSortBtn label="Pokédex"        val="dex"    active={sort} onPick={setSort} />
+        <DirSortBtn label="Σ Mon levels"   val="sigma"  active={sort} onPick={setSort} />
+      </div>
+      {trainers === null && !err && (
+        <p className="dim small" style={{ padding: "0 14px" }}>Loading…</p>
+      )}
+      {err && <p className="dim small" style={{ padding: "0 14px" }}>Couldn't load directory.</p>}
+      {trainers && trainers.length === 0 && (
+        <p className="dim small" style={{ padding: "0 14px" }}>No active trainers yet.</p>
+      )}
+      {trainers && trainers.length > 0 && (
+        <ol className="trainer-directory-list">
+          {trainers.map((t, i) => (
+            <li key={t.id} className="trainer-directory-row">
+              <span className="trainer-directory-rank">{i + 1}</span>
+              <button
+                type="button"
+                className="trainer-directory-name g-friend-info-btn"
+                onClick={() => openPublicTrainerCard(t.username)}
+                title={`View ${t.username}'s trainer card`}
+              >
+                <strong>{t.name ?? t.username}</strong>
+                <small className="dim">@{t.username}</small>
+              </button>
+              <span className="trainer-directory-stat" title="Account level">
+                Lv <strong>{t.accountLevel}</strong>
+              </span>
+              <span className="trainer-directory-stat" title="Pokédex caught">
+                <strong>{t.pokedexCaughtCount}</strong>/151
+              </span>
+              <span className="trainer-directory-stat" title="Total Pokémon levels">
+                Σ <strong>{(t.totalCaughtLevels ?? 0).toLocaleString()}</strong>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function DirSortBtn({
+  label, val, active, onPick,
+}: {
+  label: string;
+  val: DirectorySort;
+  active: DirectorySort;
+  onPick: (v: DirectorySort) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`g-tab g-tab-small ${active === val ? "active" : ""}`}
+      onClick={() => onPick(val)}
+    >
+      {label}
+    </button>
   );
 }

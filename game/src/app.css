@@ -13117,6 +13117,85 @@ html, body {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
 }
 
+/* ── Trainer directory (Social panel Trainers tab) ────────────────── */
+.trainer-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.trainer-directory-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 4px;
+  flex-wrap: wrap;
+}
+.g-tab.g-tab-small {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.trainer-directory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trainer-directory-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+.trainer-directory-rank {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.trainer-directory-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.trainer-directory-name strong {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.trainer-directory-stat {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.trainer-directory-stat strong { color: var(--text); }
+@media (max-width: 540px) {
+  .trainer-directory-row {
+    grid-template-columns: 22px 1fr auto;
+    grid-template-rows: auto auto;
+    row-gap: 2px;
+  }
+  .trainer-directory-stat:nth-of-type(2),
+  .trainer-directory-stat:nth-of-type(3) { grid-column: 2 / -1; font-size: 10.5px; }
+}
+
 /* ── Settings modal tab strip ─────────────────────────────────────── */
 /* Settings is split into Stats / Audio / Chat / Account tabs to fix
    the previous kitchen-sink layout. Hero stays above the strip so

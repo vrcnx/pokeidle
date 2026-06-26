@@ -4,6 +4,42 @@ import { requireUser } from "../lib/middleware.js";
 
 const app = new Hono();
 
+// GET /api/profile/directory?sort=level|dex|sigma&limit=N
+// Public trainer directory — top N trainers by the chosen sort.
+// Open to any signed-in user. No PII (no email) — fields mirror
+// PublicProfile shape. Excludes banned + just-signed-up accounts
+// (lastSeenAt within ~24h of createdAt OR account level 0 with no
+// Pokémon caught) so the directory always reads as active players.
+app.get("/directory", requireUser, async (c) => {
+  const sortRaw = c.req.query("sort") ?? "level";
+  const limit = Math.min(100, Math.max(5, parseInt(c.req.query("limit") ?? "30", 10)));
+  type SortKey = "accountLevel" | "pokedexCaughtCount" | "totalCaughtLevels";
+  const sortKey: SortKey =
+    sortRaw === "dex" ? "pokedexCaughtCount"
+    : sortRaw === "sigma" ? "totalCaughtLevels"
+    : "accountLevel";
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [{ bannedUntil: null }, { bannedUntil: { lt: new Date() } }],
+      pokedexCaughtCount: { gt: 0 },
+    },
+    orderBy: [{ [sortKey]: "desc" }, { accountLevel: "desc" }, { username: "asc" }],
+    take: limit,
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      image: true,
+      accountLevel: true,
+      totalCaughtLevels: true,
+      pokedexCaughtCount: true,
+      createdAt: true,
+      lastSeenAt: true,
+    },
+  });
+  return c.json({ trainers: users, sort: sortKey });
+});
+
 // GET /api/profile/me/trades — caller's trade history. Up to 50 most
 // recent records. Mirrors the admin /users/:id/trades shape but is
 // scoped to the caller, so any signed-in player can see their own
