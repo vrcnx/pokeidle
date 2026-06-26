@@ -13300,6 +13300,53 @@ html, body {
   50%      { transform: scale(1.25); opacity: 1; }
 }
 
+/* ── Battle history list (inside trainer card) ────────────────────── */
+.battle-history-section .battle-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.battle-history-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+.battle-history-row img { display: block; }
+.battle-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.battle-history-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-history-kind {
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.battle-history-trainer .battle-history-kind { color: #fbbf24; }
+.battle-history-boss .battle-history-kind    { color: #f87171; }
+.battle-history-raid .battle-history-kind    { color: #c084fc; }
+.battle-history-wild .battle-history-kind    { color: #4ade80; }
+
 /* ── Trade history list (inside trainer card) ─────────────────────── */
 .trade-history-section ul.trade-history-list {
   list-style: none;

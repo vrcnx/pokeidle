@@ -6,6 +6,7 @@ import { eliteFour } from "../data/eliteFour";
 import { pokemonTable } from "../data/pokemon";
 import { api, type PublicProfile, type TradeHistoryRow } from "../net/api";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useBattleHistory } from "../utils/battleHistory";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
 import { sendBattleInvite, usePvpState } from "../state/pvp";
@@ -183,6 +184,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
             </div>
           </section>
 
+          <BattleHistorySection />
           <TradeHistorySection />
         </div>
 
@@ -191,6 +193,58 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+// Recent battles — client-side cache from utils/battleHistory.
+// Records up to 30 most-recent wild / trainer / boss / raid wins
+// from THIS device. A server-backed history that's cross-device
+// is a follow-up; this one ships today.
+function BattleHistorySection() {
+  const entries = useBattleHistory();
+  if (entries.length === 0) {
+    return (
+      <section className="g-card g-card-full battle-history-section">
+        <h3>Recent Battles</h3>
+        <p className="dim small" style={{ margin: 0 }}>
+          No battles logged yet — wins start appearing here as you encounter Pokémon.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="g-card g-card-full battle-history-section">
+      <h3>Recent Battles</h3>
+      <ul className="battle-history-list">
+        {entries.slice(0, 12).map((e) => (
+          <li key={e.at} className={`battle-history-row battle-history-${e.type}`}>
+            <img
+              src={pokemonSpriteUrl(e.enemySpeciesKey)}
+              alt={e.enemyName}
+              width={28}
+              height={28}
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div className="battle-history-main">
+              <span className="battle-history-name">
+                {e.trainerName ? (
+                  <span>{e.trainerName}'s <strong>{e.enemyName}</strong></span>
+                ) : (
+                  <strong>{e.enemyName}</strong>
+                )}
+                <small className="dim"> · Lv {e.enemyLevel}</small>
+              </span>
+              <small className="dim">
+                {e.locationName} · {new Date(e.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </small>
+            </div>
+            <span className="battle-history-kind dim">
+              {e.type === "wild" ? "Wild" : e.type === "trainer" ? "Trainer" : e.type === "boss" ? "Boss" : "Raid"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

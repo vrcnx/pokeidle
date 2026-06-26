@@ -14,6 +14,8 @@ import { SAVE_KEY } from "../data/raidLegendaries";
 import { pokemonTable } from "../data/pokemon";
 import { expForLevel } from "../utils/stats";
 import { pickAbility } from "../data/abilities";
+import { routes } from "../data/routes";
+import { recordBattle } from "../utils/battleHistory";
 import { api } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 
@@ -304,6 +306,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
     state.defeatedGyms.length,
     state.defeatedEliteFour.length,
   ]);
+
+  // ── Recent battles cache (client-side) ──
+  // Record one entry whenever phase transitions FROM a battle state TO
+  // idle / victory. Captures the last seen enemy + trainer + location
+  // + lead mon for the trainer card's "Recent Battles" feed. Lives in
+  // localStorage via utils/battleHistory.ts so it survives reloads
+  // without bloating saveData.
+  const prevPhaseRef = useRef<typeof state.phase>(state.phase);
+  const lastEnemyRef = useRef<typeof state.enemyPokemon>(null);
+  useEffect(() => {
+    if (state.enemyPokemon) lastEnemyRef.current = state.enemyPokemon;
+    const prev = prevPhaseRef.current;
+    const cur = state.phase;
+    const wasBattle =
+      prev === "battle" || prev === "trainerBattle" || prev === "bossBattle" || prev === "raid";
+    const isResolved = cur === "idle" || cur === "victory";
+    if (wasBattle && isResolved && lastEnemyRef.current) {
+      const enemy = lastEnemyRef.current;
+      const here = state.currentLocation;
+      const route = routes[here];
+      const trainer =
+        prev === "trainerBattle" ? state.trainerBattle?.trainerName
+        : prev === "bossBattle"    ? state.bossBattle?.trainerName
+        : undefined;
+      const player = state.playerPokemon;
+      recordBattle({
+        at: Date.now(),
+        type: prev === "raid" ? "raid" : prev === "bossBattle" ? "boss" : prev === "trainerBattle" ? "trainer" : "wild",
+        enemyName: enemy.name,
+        enemyLevel: enemy.level,
+        enemySpeciesKey: enemy.speciesKey,
+        locationKey: here,
+        locationName: route?.name ?? here,
+        trainerName: trainer,
+        playerLeadName: player?.name,
+        playerLeadLevel: player?.level,
+        playerLeadSpeciesKey: player?.speciesKey,
+      });
+      lastEnemyRef.current = null;
+    }
+    prevPhaseRef.current = cur;
+  }, [state.phase, state.enemyPokemon, state.currentLocation, state.trainerBattle, state.bossBattle, state.playerPokemon]);
 
   // Stable reference to current state for forceSave. Reading from a
   // ref avoids re-creating forceSave on every state change and makes
