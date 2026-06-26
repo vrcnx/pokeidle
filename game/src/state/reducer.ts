@@ -875,6 +875,31 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, inventory };
     }
 
+    case "SELL_ITEM": {
+      // Sell N of an item at its catalog sellPrice. Refuses to sell
+      // items without a sellPrice (Master Ball, key items, HM/TM
+      // display-only entries) since those are non-fungible by design.
+      const { itemId, quantity } = action.payload;
+      if (quantity <= 0) return state;
+      const owned = state.inventory[itemId] ?? 0;
+      if (owned <= 0) return state;
+      const sellPrice = itemsCatalog[itemId]?.sellPrice ?? 0;
+      if (sellPrice <= 0) return pushLog(state, "This item can't be sold.");
+      const actualQty = Math.min(quantity, owned);
+      const gained = actualQty * sellPrice;
+      const inventory = { ...state.inventory };
+      const remaining = owned - actualQty;
+      if (remaining <= 0) delete inventory[itemId];
+      else inventory[itemId] = remaining;
+      const name = itemsCatalog[itemId]?.name ?? itemId;
+      return pushLog(
+        { ...state, inventory, money: state.money + gained },
+        actualQty > 1
+          ? `Sold ${actualQty}× ${name} for $${gained.toLocaleString()}.`
+          : `Sold ${name} for $${gained.toLocaleString()}.`
+      );
+    }
+
     case "USE_LINK_CABLE": {
       // Solo trade-evolution. Lets offline players evolve trade-only
       // species (Kadabra→Alakazam, etc.) and trade-with-item species

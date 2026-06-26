@@ -11940,8 +11940,39 @@ body { background: transparent !important; }
   font-weight: 700;
   font-size: 14px;
   border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: transform 140ms ease, border-color 140ms ease;
 }
+.g-friend-avatar:hover {
+  border-color: var(--border-strong);
+  transform: scale(1.05);
+}
+.g-friend-avatar:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+/* When the info area is the click target (button form). */
 .g-friend-info { min-width: 0; }
+.g-friend-info-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+.g-friend-info-btn:hover .g-friend-name strong { text-decoration: underline; }
+.g-friend-info-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .g-friend-name {
   display: inline-flex;
   align-items: baseline;
@@ -13084,6 +13115,96 @@ html, body {
 .g-modal .move-grid .g-btn-ghost { min-height: 36px; padding: 6px 10px; }
 @media (pointer: coarse) {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
+}
+
+/* ── Opponent name → trainer card affordance ─────────────────────── */
+/* Used in the PvP battle modal header. Inline link-styled button so
+   the player can click their opponent to see who they're up against
+   without leaving the battle. */
+.pvp-opponent-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.3);
+  text-underline-offset: 3px;
+}
+.pvp-opponent-link:hover {
+  text-decoration-color: var(--gold);
+}
+.pvp-opponent-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Bag inline sell controls ─────────────────────────────────────── */
+/* Each sellable bag row gets a small "Sell" button; clicking turns
+   the row's right edge into a quantity stepper + confirm/cancel
+   pair. Mirrors the Mart's pending-buy stepper so the patterns
+   match. Items without a sellPrice (Master Ball, key items) hide
+   the button entirely so the row stays clean. */
+.bag-sell-btn {
+  height: 28px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  margin-left: 8px;
+}
+.bag-sell-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+.bag-sell-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.bag-sell-confirm {
+  height: 28px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, rgba(74, 222, 128, 0.18), rgba(74, 222, 128, 0.08));
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  border-radius: 6px;
+  color: #c4ffd3;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.bag-sell-confirm:hover {
+  background: linear-gradient(180deg, rgba(74, 222, 128, 0.28), rgba(74, 222, 128, 0.12));
+  border-color: rgba(74, 222, 128, 0.65);
+}
+.bag-sell-cancel {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bag-sell-cancel:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .bag-sell-btn,
+  .bag-sell-confirm { height: 44px; padding: 0 14px; }
+  .bag-sell-cancel  { width: 44px; height: 44px; }
 }
 
 /* ── On-sprite status visualisation ───────────────────────────────── */

@@ -3,6 +3,7 @@ import { api, type ChatMessage, type FriendEntry, type FriendList, type MeProfil
 import { getSocket } from "../net/socket";
 import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
+import { openPublicTrainerCard } from "./TrainerCardModal";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -369,8 +370,21 @@ function FriendRow({ entry, presence, actions }: {
   const initial = (entry.name ?? entry.username ?? "?")[0]?.toUpperCase() ?? "?";
   return (
     <div className="g-friend-row">
-      <div className="g-friend-avatar">{initial}</div>
-      <div className="g-friend-info">
+      <button
+        type="button"
+        className="g-friend-avatar"
+        onClick={() => openPublicTrainerCard(entry.username)}
+        title={`View ${entry.username}'s trainer card`}
+        aria-label={`View ${entry.username}'s trainer card`}
+      >
+        {initial}
+      </button>
+      <button
+        type="button"
+        className="g-friend-info g-friend-info-btn"
+        onClick={() => openPublicTrainerCard(entry.username)}
+        title={`View ${entry.username}'s trainer card`}
+      >
         <div className="g-friend-name">
           <strong>{entry.name ?? entry.username}</strong>
           <span className={`g-presence ${online ? "on" : "off"}`}>{online ? "online" : "offline"}</span>
@@ -378,7 +392,7 @@ function FriendRow({ entry, presence, actions }: {
         <div className="g-friend-meta">
           @{entry.username} · Lv {entry.accountLevel} · {entry.pokedexCaughtCount}/151 dex
         </div>
-      </div>
+      </button>
       <div className="g-friend-actions">
         {actions.map((a) => (
           <button

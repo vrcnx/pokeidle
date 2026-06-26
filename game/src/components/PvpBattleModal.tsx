@@ -9,6 +9,7 @@ import {
 } from "../state/pvp";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { moves as movesTable } from "../data/moves";
+import { openPublicTrainerCard } from "./TrainerCardModal";
 
 // Live PvP battle UI. Mounts whenever the pvp store has an active
 // `room`. The actual simulation runs server-side via @pkmn/sim — this
@@ -85,7 +86,15 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
       >
         <header className="g-modal-head">
           <h2>
-            Battle vs <strong>{room.opponent.username}</strong>
+            Battle vs{" "}
+            <button
+              type="button"
+              className="pvp-opponent-link"
+              onClick={() => openPublicTrainerCard(room.opponent.username)}
+              title={`View ${room.opponent.username}'s trainer card`}
+            >
+              <strong>{room.opponent.username}</strong>
+            </button>
           </h2>
           {!room.result && room.turnDeadlineAt && <TurnTimer deadline={room.turnDeadlineAt} />}
           <button

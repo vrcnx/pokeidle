@@ -7,6 +7,7 @@ import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { itemsCatalog } from "../data/itemsCatalog";
 import { useModalEnter } from "../utils/animate";
 import { playTradeAnimation } from "./TradeAnimation";
+import { openPublicTrainerCard } from "./TrainerCardModal";
 import type { Pokemon } from "../types";
 
 // Live two-sided trade UI. Mounts whenever there's an active room in
@@ -120,7 +121,15 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
       >
         <header className="g-modal-head">
           <h2>
-            Trading with <strong>{room.other.username}</strong>
+            Trading with{" "}
+            <button
+              type="button"
+              className="pvp-opponent-link"
+              onClick={() => openPublicTrainerCard(room.other.username)}
+              title={`View ${room.other.username}'s trainer card`}
+            >
+              <strong>{room.other.username}</strong>
+            </button>
           </h2>
           <span className="dim small trade-room-timer">{secondsLeft}s</span>
           <button className="g-modal-close" onClick={requestCancel} aria-label="Cancel">×</button>

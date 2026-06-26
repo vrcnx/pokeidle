@@ -210,7 +210,7 @@ export function MartTab() {
 }
 
 // ---------------------------------------------------------------------------
-// Bag — flat inventory list.
+// Bag — flat inventory list with inline sell controls.
 // ---------------------------------------------------------------------------
 export function BagTab() {
   const { state, dispatch } = useGame();
@@ -222,6 +222,11 @@ export function BagTab() {
     held: [], stone: [], utility: [], treasure: [], tm: [], hm: [], key: [],
   };
   for (const [id, count] of items) groups[getCatalogCategory(id)].push([id, count]);
+
+  // Active "sell" row — at most one at a time, like the mart's buy
+  // stepper. Click "Sell" on a row to open the stepper; commit to fire
+  // SELL_ITEM, cancel to close without selling.
+  const [sellPending, setSellPending] = useState<{ itemId: string; qty: number } | null>(null);
 
   return (
     <div className="tab-pane bag-tab">
@@ -283,6 +288,11 @@ export function BagTab() {
                     const info = getItemInfo(id);
                     const cat = itemsCatalog[id];
                     const notReady = cat && cat.implemented === false;
+                    const sellPrice = cat?.sellPrice ?? 0;
+                    const canSell = sellPrice > 0;
+                    const isPending = sellPending?.itemId === id;
+                    const sellQty = isPending ? sellPending!.qty : 1;
+                    const sellTotal = sellPrice * sellQty;
                     return (
                       <li
                         key={id}
@@ -299,6 +309,66 @@ export function BagTab() {
                         />
                         <span className="bag-row-name">{info.name}</span>
                         <span className="bag-row-count">×{count}</span>
+                        {canSell && !isPending && (
+                          <button
+                            type="button"
+                            className="bag-sell-btn"
+                            onClick={() => setSellPending({ itemId: id, qty: 1 })}
+                            title={`Sell for $${sellPrice.toLocaleString()} each`}
+                          >
+                            Sell
+                          </button>
+                        )}
+                        {isPending && (
+                          <div className="bag-sell-controls" role="group" aria-label={`Sell ${info.name}`}>
+                            <button
+                              type="button"
+                              className="mart-qty-step"
+                              onClick={() => setSellPending({ itemId: id, qty: Math.max(1, sellQty - 1) })}
+                              disabled={sellQty <= 1}
+                              aria-label="Decrease quantity"
+                            >
+                              −
+                            </button>
+                            <span className="mart-qty-value">{sellQty}</span>
+                            <button
+                              type="button"
+                              className="mart-qty-step"
+                              onClick={() => setSellPending({ itemId: id, qty: Math.min(count, sellQty + 1) })}
+                              disabled={sellQty >= count}
+                              aria-label="Increase quantity"
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              className="bag-sell-confirm"
+                              onClick={() => {
+                                dispatch({ type: "SELL_ITEM", payload: { itemId: id, quantity: sellQty } });
+                                pushToast({
+                                  kind: "success",
+                                  icon: "💰",
+                                  text:
+                                    sellQty > 1
+                                      ? `Sold ${sellQty}× ${info.name} for $${sellTotal.toLocaleString()}`
+                                      : `Sold ${info.name} for $${sellTotal.toLocaleString()}`,
+                                });
+                                setSellPending(null);
+                              }}
+                              title={`Sell ${sellQty} for $${sellTotal.toLocaleString()}`}
+                            >
+                              Sell ${sellTotal.toLocaleString()}
+                            </button>
+                            <button
+                              type="button"
+                              className="bag-sell-cancel"
+                              onClick={() => setSellPending(null)}
+                              aria-label="Cancel selling"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
