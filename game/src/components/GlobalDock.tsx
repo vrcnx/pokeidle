@@ -275,19 +275,33 @@ function DockButton({ icon, label, active, disabled, title, onClick }: DockBtnPr
 }
 
 // ---------------------------------------------------------------------------
-// Settings modal — a proper centered modal that's the single home for game
-// controls (pause/speed/mode/auto-proceed), trainer info (Pokédex stats,
-// shiny charm, battles, wallet), and the Reset save action. Designed to
-// keep growing — new toggles/sections drop in here rather than the dock.
+// Settings modal — split into four focused tabs to fix the previous
+// kitchen-sink layout (the trainer record, audio, chat, account, legal,
+// help and report-bug were all stacked in one ~400-line scroll). Tabs:
+//   - Stats:    Pokédex / Battles / Shiny Charm record
+//   - Audio:    music + sfx prefs
+//   - Chat:     profanity filter + future chat prefs
+//   - Account:  email / join date / sign out / report bug / legal
+// Default tab is Stats since most opens are "check my progress".
 // ---------------------------------------------------------------------------
+type SettingsTab = "stats" | "audio" | "chat" | "account";
+
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
   const { me, signOut } = useAuth();
+  const [tab, setTab] = useState<SettingsTab>("stats");
   const totalDex = Object.keys(pokemonTable).length;
   const charm = hasShinyCharm(state.pokedexCaught);
   const dexPct = ((state.pokedexCaught.length / totalDex) * 100).toFixed(1);
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+
+  // ESC dismisses — every modal in the codebase should.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -303,96 +317,111 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 
+        {me && (
+          <section className="g-profile-hero settings-hero">
+            <div className="g-avatar">{initial}</div>
+            <div className="g-profile-info">
+              <div className="g-profile-name">{me.name ?? me.username}</div>
+              <div className="g-profile-handle">@{me.username}</div>
+            </div>
+            <div className="g-profile-stats">
+              <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>Level</span></div>
+              <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>Money</span></div>
+              <div className="g-stat-pill"><strong><CountUp value={state.defeatedGyms.length} />/{gymLeaders.length}</strong><span>Badges</span></div>
+            </div>
+          </section>
+        )}
+
+        <nav className="settings-tabs" role="tablist" aria-label="Settings sections">
+          <SettingsTabBtn label="Stats"   tab="stats"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label="Audio"   tab="audio"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label="Chat"    tab="chat"    active={tab} onPick={setTab} />
+          <SettingsTabBtn label="Account" tab="account" active={tab} onPick={setTab} />
+        </nav>
+
         <div className="g-modal-body">
-          {me && (
-            <section className="g-profile-hero">
-              <div className="g-avatar">{initial}</div>
-              <div className="g-profile-info">
-                <div className="g-profile-name">{me.name ?? me.username}</div>
-                <div className="g-profile-handle">@{me.username}</div>
-              </div>
-              <div className="g-profile-stats">
-                <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>Level</span></div>
-                <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>Money</span></div>
-                <div className="g-stat-pill"><strong><CountUp value={state.defeatedGyms.length} />/{gymLeaders.length}</strong><span>Badges</span></div>
-              </div>
-            </section>
-          )}
-
           <div className="g-grid">
-            <section className="g-card">
-              <h3>Pokédex</h3>
-              <div className="g-row"><span>Caught</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
-              <div className="g-row"><span>Completion</span><strong>{dexPct}%</strong></div>
-              <div className="g-row"><span>Seen</span><strong>{state.pokedexSeen.length}</strong></div>
-              <div className="g-row"><span>Shiny seen</span><strong>{state.shinySeen.length}</strong></div>
-              <div className="g-row"><span>Shiny caught</span><strong>{state.shinyCaught.length}</strong></div>
-            </section>
+            {tab === "stats" && (
+              <>
+                <section className="g-card">
+                  <h3>Pokédex</h3>
+                  <div className="g-row"><span>Caught</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
+                  <div className="g-row"><span>Completion</span><strong>{dexPct}%</strong></div>
+                  <div className="g-row"><span>Seen</span><strong>{state.pokedexSeen.length}</strong></div>
+                  <div className="g-row"><span>Shiny seen</span><strong>{state.shinySeen.length}</strong></div>
+                  <div className="g-row"><span>Shiny caught</span><strong>{state.shinyCaught.length}</strong></div>
+                </section>
 
-            <section className="g-card">
-              <h3>Battles</h3>
-              <div className="g-row"><span>Wild won</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
-              <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
-            </section>
+                <section className="g-card">
+                  <h3>Battles</h3>
+                  <div className="g-row"><span>Wild won</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
+                  <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
+                  <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
+                  <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+                </section>
 
-            <section className="g-card">
-              <h3>Shiny Charm</h3>
-              <div className="g-row">
-                <span>Status</span>
-                <strong className={charm ? "g-tag on" : "g-tag off"}>{charm ? "Active" : "Locked"}</strong>
-              </div>
-              <p className="g-help">
-                {charm
-                  ? "Shiny encounter rate is doubled (1/4096)."
-                  : `Catch all ${totalDex} Pokémon to unlock. ${totalDex - state.pokedexCaught.length} left.`}
-              </p>
-            </section>
-
-            {me && (
-              <section className="g-card">
-                <h3>Account</h3>
-                <div className="g-row"><span>Email</span><strong className="g-mono">{me.email}</strong></div>
-                <div className="g-row"><span>Caught levels</span><strong>{me.totalCaughtLevels.toLocaleString()}</strong></div>
-                <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
-              </section>
+                <section className="g-card">
+                  <h3>Shiny Charm</h3>
+                  <div className="g-row">
+                    <span>Status</span>
+                    <strong className={charm ? "g-tag on" : "g-tag off"}>{charm ? "Active" : "Locked"}</strong>
+                  </div>
+                  <p className="g-help">
+                    {charm
+                      ? "Shiny encounter rate is doubled (1/4096)."
+                      : `Catch all ${totalDex} Pokémon to unlock. ${totalDex - state.pokedexCaught.length} left.`}
+                  </p>
+                </section>
+              </>
             )}
 
-            <AudioPrefsCard />
-            <ChatPrefsCard />
+            {tab === "audio" && <AudioPrefsCard />}
+            {tab === "chat" && <ChatPrefsCard />}
 
-            <section className="g-card">
-              <h3>Help & Feedback</h3>
-              <p className="g-help" style={{ marginTop: 0 }}>
-                Found a bug or have feedback? Send a quick report and the
-                team will look at it. Includes a snapshot of your party
-                and last few battle log lines so we can reproduce.
-              </p>
-              <div className="settings-legal-links">
-                <button
-                  className="g-btn-primary g-btn-small"
-                  onClick={() => { onClose(); openReportBug(); }}
-                >
-                  Report a bug
-                </button>
-              </div>
-            </section>
+            {tab === "account" && (
+              <>
+                {me && (
+                  <section className="g-card">
+                    <h3>Account</h3>
+                    <div className="g-row"><span>Email</span><strong className="g-mono">{me.email}</strong></div>
+                    <div className="g-row"><span>Caught levels</span><strong>{me.totalCaughtLevels.toLocaleString()}</strong></div>
+                    <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
+                  </section>
+                )}
 
-            <section className="g-card">
-              <h3>Legal</h3>
-              <p className="g-help" style={{ marginTop: 0 }}>
-                Unofficial fan project. Not affiliated with, endorsed by, or
-                sponsored by Nintendo, Game Freak, or The Pokémon Company.
-                Non-commercial; no copyrighted Pokémon assets are stored on
-                our servers.
-              </p>
-              <div className="settings-legal-links">
-                <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("terms")}>Terms of Service</button>
-                <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("privacy")}>Privacy</button>
-                <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("disclaimer")}>Fan-Game Disclaimer</button>
-              </div>
-            </section>
+                <section className="g-card">
+                  <h3>Help &amp; Feedback</h3>
+                  <p className="g-help" style={{ marginTop: 0 }}>
+                    Found a bug or have feedback? Send a quick report and the
+                    team will look at it. Includes a snapshot of your party
+                    and last few battle log lines so we can reproduce.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button
+                      className="g-btn-primary g-btn-small"
+                      onClick={() => { onClose(); openReportBug(); }}
+                    >
+                      Report a bug
+                    </button>
+                  </div>
+                </section>
+
+                <section className="g-card">
+                  <h3>Legal</h3>
+                  <p className="g-help" style={{ marginTop: 0 }}>
+                    Unofficial fan project. Not affiliated with, endorsed by, or
+                    sponsored by Nintendo, Game Freak, or The Pokémon Company.
+                    Non-commercial; no copyrighted Pokémon assets are stored on
+                    our servers.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("terms")}>Terms of Service</button>
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("privacy")}>Privacy</button>
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("disclaimer")}>Fan-Game Disclaimer</button>
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </div>
 
@@ -404,6 +433,27 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+function SettingsTabBtn({
+  label, tab, active, onPick,
+}: {
+  label: string;
+  tab: SettingsTab;
+  active: SettingsTab;
+  onPick: (t: SettingsTab) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active === tab}
+      className={`settings-tab ${active === tab ? "active" : ""}`}
+      onClick={() => onPick(tab)}
+    >
+      {label}
+    </button>
   );
 }
 

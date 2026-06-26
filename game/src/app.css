@@ -13117,6 +13117,47 @@ html, body {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
 }
 
+/* ── Settings modal tab strip ─────────────────────────────────────── */
+/* Settings is split into Stats / Audio / Chat / Account tabs to fix
+   the previous kitchen-sink layout. Hero stays above the strip so
+   account context is always visible regardless of which tab you're
+   on. */
+.settings-hero { margin: 0 18px 0; }
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.settings-tab {
+  position: relative;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+  margin-bottom: -1px;
+}
+.settings-tab:hover { color: var(--text); }
+.settings-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--gold);
+}
+.settings-tab:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+@media (pointer: coarse) {
+  .settings-tab { min-height: 44px; padding: 11px 16px; }
+}
+
 /* ── Save-status badge (above the profile strip) ──────────────────── */
 /* Thin contextual chip showing cloud-save state. Per-state colour:
    amber for pending/saving, green for saved, red for error. The
