@@ -1,6 +1,10 @@
 import { useGame } from "../state/GameContext";
 import { pokemonSpriteUrl } from "../utils/sprites";
 
+// No ESC handler / close button on this modal — the player MUST pick a
+// new active Pokémon to continue the battle. Closing without a pick
+// would leave the game in a broken `awaitingSwitch` state with no UI
+// path to fix it.
 export function FaintSwitchModal() {
   const { state, dispatch } = useGame();
   if (!state.awaitingSwitch) return null;
@@ -11,35 +15,45 @@ export function FaintSwitchModal() {
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
-        <h2>{state.playerPokemon?.name} fainted!</h2>
-        <p>Choose your next Pokémon:</p>
-        <div className="bag-target-grid">
-          {choices.map(({ p, idx }) => (
-            <button
-              key={p.id}
-              onClick={() =>
-                dispatch({
-                  type: "SWITCH_PLAYER_POKEMON",
-                  payload: { partyIndex: idx },
-                })
-              }
-            >
-              <img
-                src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
-                alt={p.name}
-                width={48}
-                height={48}
-                style={{ imageRendering: "pixelated" }}
-              />
-              <span>
-                {p.name} L{p.level}
-              </span>
-              <small>
-                {p.currentHp} / {p.maxHp}
-              </small>
-            </button>
-          ))}
+      <div
+        className="g-modal faint-switch-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose next Pokémon"
+      >
+        <header className="g-modal-head">
+          <h2>{state.playerPokemon?.name} fainted!</h2>
+        </header>
+        <div className="g-modal-body">
+          <p className="dim small" style={{ margin: "0 0 8px" }}>
+            Choose your next Pokémon:
+          </p>
+          <div className="faint-switch-grid">
+            {choices.map(({ p, idx }) => (
+              <button
+                key={p.id}
+                className="faint-switch-choice"
+                onClick={() =>
+                  dispatch({
+                    type: "SWITCH_PLAYER_POKEMON",
+                    payload: { partyIndex: idx },
+                  })
+                }
+              >
+                <img
+                  src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+                  alt={p.name}
+                  width={48}
+                  height={48}
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <span><strong>{p.name}</strong> <small className="dim">Lv {p.level}</small></span>
+                <small className="dim">
+                  HP {p.currentHp} / {p.maxHp}
+                </small>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

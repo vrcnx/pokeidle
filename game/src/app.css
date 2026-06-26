@@ -13036,3 +13036,125 @@ html, body {
     min-width: 56px;
   }
 }
+
+/* ── Legacy modal migration: FaintSwitchModal + LevelUpModal moved
+      from `.modal` to `.g-modal` chrome. The existing `.modal .X`
+      selectors don't cover them anymore; these rules do. */
+.faint-switch-modal { width: min(540px, 96vw); }
+.faint-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.faint-switch-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.faint-switch-choice:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.faint-switch-choice:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.faint-switch-choice img { image-rendering: pixelated; }
+.faint-switch-choice strong { font-size: 12px; }
+
+/* LevelUpModal's move-grid + level-up-move now nested inside
+   `.g-modal .g-modal-body` rather than `.modal`. Re-establish the
+   grid wrapping that the old `.modal .move-grid` provided. */
+.g-modal .level-up-move { margin: 0; }
+.g-modal .move-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-top: 4px;
+}
+.g-modal .move-grid .g-btn-ghost { min-height: 36px; padding: 6px 10px; }
+@media (pointer: coarse) {
+  .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
+}
+
+/* ── On-sprite status visualisation ───────────────────────────────── */
+/* A small floating badge in the corner of the sprite slot, colour-
+   coded per status and pulsing softly so the player notices when
+   their attacker is paralyzed / burned / asleep. Mirrors the HP
+   card's status chip but is positioned right at the fighter so the
+   visual signal is co-located with the action. */
+.sprite-slot { position: absolute; }
+.sprite-status-badge {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.6px;
+  color: #0a0a0a;
+  background: var(--text);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+  text-shadow: none;
+  pointer-events: none;
+  animation: spriteStatusPulse 1500ms ease-in-out infinite;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+/* Enemy sprite is top-right corner of the arena, so badge sits at its
+   top-LEFT (toward the centre of the scene). Player is bottom-left
+   so its badge sits at its top-RIGHT (also toward centre). Either
+   side, the badge faces the player's eye. */
+.player-slot .sprite-status-badge { left: auto; right: 4px; top: 4px; }
+.enemy-slot  .sprite-status-badge { left: 4px;  right: auto; top: 4px; }
+/* Per-status palette. Mirrors the HP-card chip colours from earlier
+   in the file. */
+.sprite-status-badge.status-paralyzed     { background: #facc15; }
+.sprite-status-badge.status-asleep        { background: #94a3b8; }
+.sprite-status-badge.status-burned        { background: #f87171; color: #fff; }
+.sprite-status-badge.status-frozen        { background: #60a5fa; color: #fff; }
+.sprite-status-badge.status-poisoned      { background: #c084fc; color: #fff; }
+.sprite-status-badge.status-badlyPoisoned { background: #7e22ce; color: #fff; }
+
+/* Subtle sprite filter per status — reinforces the badge for color-
+   blind users + signals the status visually even at a glance. */
+.sprite-slot[data-status="paralyzed"]     .enemy-sprite,
+.sprite-slot[data-status="paralyzed"]     .player-sprite {
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.55));
+}
+.sprite-slot[data-status="asleep"]        .enemy-sprite,
+.sprite-slot[data-status="asleep"]        .player-sprite {
+  filter: grayscale(0.6) brightness(0.92);
+}
+.sprite-slot[data-status="burned"]        .enemy-sprite,
+.sprite-slot[data-status="burned"]        .player-sprite {
+  filter: drop-shadow(0 0 6px rgba(248, 113, 113, 0.55));
+}
+.sprite-slot[data-status="frozen"]        .enemy-sprite,
+.sprite-slot[data-status="frozen"]        .player-sprite {
+  filter: hue-rotate(180deg) brightness(0.95);
+}
+.sprite-slot[data-status="poisoned"]      .enemy-sprite,
+.sprite-slot[data-status="badlyPoisoned"] .enemy-sprite,
+.sprite-slot[data-status="poisoned"]      .player-sprite,
+.sprite-slot[data-status="badlyPoisoned"] .player-sprite {
+  filter: drop-shadow(0 0 6px rgba(192, 132, 252, 0.55));
+}
+@keyframes spriteStatusPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.95; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}

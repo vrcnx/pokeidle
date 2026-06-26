@@ -123,6 +123,7 @@ export function BattleScene() {
               // until after the trainer-behind has slid in & paused.
               (state.trainerBattle || state.bossBattle) ? "trainer-delayed" : "",
             ].join(" ")}
+            data-status={enemy.status ?? undefined}
           >
             <img
               className="enemy-sprite"
@@ -131,6 +132,7 @@ export function BattleScene() {
               style={{ imageRendering: "pixelated" }}
               onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
+            {enemy.status && <SpriteStatusBadge status={enemy.status} />}
           </div>
         </>
       )}
@@ -140,6 +142,7 @@ export function BattleScene() {
           <div
             key={`player-slot-${player.id}`}
             className={`sprite-slot player-slot ${playerBump > 0 ? `bump-${playerBump % 2}` : ""} ${player.currentHp <= 0 ? "fainted" : ""}`}
+            data-status={player.status ?? undefined}
           >
             <img
               className="player-sprite"
@@ -148,6 +151,7 @@ export function BattleScene() {
               style={{ imageRendering: "pixelated" }}
               onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
+            {player.status && <SpriteStatusBadge status={player.status} />}
           </div>
           <HpCard pokemon={player} className="player-card" />
         </>
@@ -435,6 +439,23 @@ function statusBadgeLabel(status: string): string {
   }
 }
 
+// Per-sprite status ribbon — a small floating chip in the slot's top
+// corner that mirrors the HP-card badge but is positioned at the
+// fighter itself, so the player can read status without scanning the
+// HP card or log line. CSS handles the corner placement + colour-coded
+// pulse animation per status.
+function SpriteStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`sprite-status-badge status-${status}`}
+      aria-label={`Status: ${status}`}
+      title={`Status: ${status}`}
+    >
+      {statusBadgeLabel(status)}
+    </span>
+  );
+}
+
 // The status bar doubles as the battle ticker. We surface the most recent
 // Boot / restore log lines that we don't want lingering as the
 // battle-scene status line. They're useful in the scrollable log
@@ -451,5 +472,22 @@ function statusLine(state: ReturnType<typeof useGame>["state"]): string {
   if (state.paused) return "Paused.";
   if (state.phase === "evolution") return "Evolving…";
   if (state.phase === "healing") return "Healing…";
+  // Manual mode mid-battle with no pending events: the player is being
+  // asked to pick a move. Canonical Pokémon games show this prompt.
+  // Without it the scene reads as idle even though the moves panel is
+  // live and waiting for input.
+  const inBattle =
+    state.phase === "battle" || state.phase === "trainerBattle" || state.phase === "bossBattle";
+  if (
+    inBattle
+    && state.battleMode === "manual"
+    && state.pendingEvents.length === 0
+    && state.playerPokemon
+    && state.enemyPokemon
+    && !state.playerVolatile?.mustRecharge
+    && !state.playerVolatile?.lockedMove
+  ) {
+    return `What will ${state.playerPokemon.name} do?`;
+  }
   return "Looking for trainers…";
 }
