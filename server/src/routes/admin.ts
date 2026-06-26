@@ -768,14 +768,56 @@ app.put("/map-positions", async (c) => {
 
 // ── Chat moderation ────────────────────────────────────────────────────
 app.get("/chat/recent", async (c) => {
-  const limit = Math.min(200, Math.max(20, parseInt(c.req.query("limit") ?? "50", 10)));
-  const messages = await prisma.chatMessage.findMany({
-    where: { channelId: "global" },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: { user: { select: { id: true, username: true, name: true, isAdmin: true } } },
+  const limit = Math.min(500, Math.max(20, parseInt(c.req.query("limit") ?? "100", 10)));
+  // channel: "all" | "global" | "area" | "dm" | a specific channel id like "area:Pallet Town"
+  const channel = (c.req.query("channel") ?? "all").trim();
+  const q = (c.req.query("q") ?? "").trim();
+  const username = (c.req.query("username") ?? "").trim();
+
+  const where: any = {};
+  if (channel && channel !== "all") {
+    if (channel === "global") where.channelId = "global";
+    else if (channel === "area") where.channelId = { startsWith: "area:" };
+    else if (channel === "dm")   where.channelId = { startsWith: "dm:" };
+    else where.channelId = channel;
+  }
+  if (q) where.content = { contains: q, mode: "insensitive" };
+  if (username) {
+    where.user = {
+      OR: [
+        { username: { contains: username, mode: "insensitive" } },
+        { name:     { contains: username, mode: "insensitive" } },
+      ],
+    };
+  }
+
+  const [messages, channelGroups] = await Promise.all([
+    prisma.chatMessage.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: { user: { select: { id: true, username: true, name: true, isAdmin: true } } },
+    }),
+    // Channel facets — count messages by channelId so the admin sees
+    // which channels are noisiest at a glance. Limit to public channels
+    // (global + area:*) because DMs leak addressee info.
+    prisma.chatMessage.groupBy({
+      by: ["channelId"],
+      _count: { channelId: true },
+      where: {
+        OR: [
+          { channelId: "global" },
+          { channelId: { startsWith: "area:" } },
+        ],
+      },
+      orderBy: { _count: { channelId: "desc" } },
+      take: 12,
+    }),
+  ]);
+  return c.json({
+    messages: messages.reverse(),
+    channels: channelGroups.map((g) => ({ id: g.channelId, count: g._count.channelId })),
   });
-  return c.json({ messages: messages.reverse() });
 });
 
 // Wipe every message in the public live-chat channels (global + any

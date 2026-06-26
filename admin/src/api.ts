@@ -27,6 +27,14 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+export interface ChatMessage {
+  id: string;
+  channelId: string;
+  content: string;
+  createdAt: string;
+  user: { id: string; username: string; name: string | null; isAdmin: boolean };
+}
+
 export interface AdminUser {
   id: string;
   username: string;
@@ -158,8 +166,17 @@ export const api = {
     ),
 
   // Chat moderation
-  recentChat: (limit = 50) =>
-    req<{ messages: any[] }>("GET", `/api/admin/chat/recent?limit=${limit}`),
+  recentChat: (limit = 100, opts?: { channel?: string; q?: string; username?: string }) => {
+    const p = new URLSearchParams();
+    p.set("limit", String(limit));
+    if (opts?.channel)  p.set("channel",  opts.channel);
+    if (opts?.q)        p.set("q",        opts.q);
+    if (opts?.username) p.set("username", opts.username);
+    return req<{
+      messages: ChatMessage[];
+      channels: { id: string; count: number }[];
+    }>("GET", `/api/admin/chat/recent?${p.toString()}`);
+  },
   deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/chat/${id}`),
   // Wipes every message in the public live-chat channels (global +
   // area:*). DMs are preserved. Server broadcasts chat:cleared so live

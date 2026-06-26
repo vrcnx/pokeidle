@@ -1,19 +1,13 @@
-import { InventoryRibbon } from "./InventoryRibbon";
-import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
-import { UnlockHint } from "./ContextPanel";
 
-// Right column: account-level / social actions. Settings + Social dock
-// at the top, Next-Goal tracker, then live chat takes the rest of the
-// space, profile strip at the bottom. Goal sits above chat so the
-// player's eye lands on progress info before the chatter.
+// LEFT rail (Twitch-stream layout): chat is the elastic watch surface
+// that absorbs all vertical slack. Dock actions, Next Goal, profile
+// strip, and inventory ribbon all moved to the RIGHT rail
+// (PartyColumn) so chat finally gets the full column to itself.
 export function LocationColumn() {
   return (
-    <div className="location-column">
-      <MetaDock />
-      <UnlockHint />
+    <div className="location-column chat-column">
       <MiniChat />
-      <InventoryRibbon />
     </div>
   );
 }

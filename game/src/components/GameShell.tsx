@@ -51,9 +51,13 @@ export function GameShell() {
         <MobileShell />
       ) : (
         <div className="dashboard">
-          <PartyColumn />
-          <CenterColumn />
+          {/* Twitch-stream layout: chat LEFT (elastic watch surface),
+              arena CENTER (focal point), control panel RIGHT (party +
+              actions + goal + profile). Chat absorbs all vertical
+              slack so the left rail never reads half-empty. */}
           <LocationColumn />
+          <CenterColumn />
+          <PartyColumn />
         </div>
       )}
 

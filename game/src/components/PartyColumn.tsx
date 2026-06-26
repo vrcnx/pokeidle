@@ -5,11 +5,13 @@ import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteSlug } from "../utils/items";
 import { expForLevel } from "../utils/stats";
 import { openPokemonDetail } from "./PokemonDetailModal";
-import { ContextPanel } from "./ContextPanel";
+import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
 import { useDragAndDrop } from "../hooks/useDrag";
+import { MetaDock } from "./GlobalDock";
+import { InventoryRibbon } from "./InventoryRibbon";
 import type { Pokemon, GameState, StatusCondition } from "../types";
 
 // Returns true when this party member can evolve right now — either
@@ -55,14 +57,20 @@ function statusBadgeClass(s: StatusCondition): string {
   }
 }
 
-// Left column: Party list on top, footer with Settings + Heal at the
-// bottom. Drag a party row onto another to swap slots; drag a box
-// Pokémon onto a party slot to move/swap. The drag system is
-// pointer-events-based (not HTML5 DnD) so it works on touch.
+// RIGHT rail (Twitch-stream layout): control panel. Order top→bottom:
+//   1. MetaDock (PvP / Social / Settings / Trade — 44px icon row)
+//   2. Party list (the player's team)
+//   3. ContextPanel (status hints + battle log)
+//   4. UnlockHint (Next Goal card — collapsed by default)
+//   5. InventoryRibbon (profile strip pinned to the bottom: Lv / $ / badges)
+// Drag a party row onto another to swap slots; drag a box Pokémon onto a
+// party slot to move/swap. The drag system is pointer-events-based so it
+// works on touch.
 export function PartyColumn() {
   const { state } = useGame();
   return (
-    <div className="party-column">
+    <div className="party-column control-column">
+      <MetaDock />
       <section className="ctx-section party-card">
         <h4>Party</h4>
         <ul className="party-list">
@@ -73,6 +81,8 @@ export function PartyColumn() {
       </section>
 
       <ContextPanel />
+      <UnlockHint />
+      <InventoryRibbon />
     </div>
   );
 }
