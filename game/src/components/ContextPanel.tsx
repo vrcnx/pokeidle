@@ -681,15 +681,25 @@ export function UnlockHint() {
     .sort((a, b) => a.unlockOrder - b.unlockOrder);
   const next = candidates[0];
   if (!next) {
+    // Player feedback: "lost on what to do after elite 4". Post-Champion
+    // surface the actual endgame loops by name (Raid Island for legendary
+    // catches, Victory Token reward shop for evo stones + utility) so
+    // the player isn't left with a generic "go fill the dex" pat.
     return (
       <section className="ctx-section unlock-hint">
         <h4>Goal</h4>
         <strong>All locations unlocked!</strong>
-        <p className="dim small" style={{ margin: "4px 0 0" }}>
-          {state.championDefeated
-            ? "You've cleared everything. Try filling the Pokédex."
-            : "Defeat the Elite Four and become Champion."}
-        </p>
+        {state.championDefeated ? (
+          <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
+            <li>Battle legendaries at <strong>Raid Island</strong> (top-right of the map).</li>
+            <li>Spend Victory Tokens at the <strong>Reward Shop</strong> on Indigo Plateau.</li>
+            <li>Finish the Pokédex — every species still counts toward the Shiny Charm.</li>
+          </ul>
+        ) : (
+          <p className="dim small" style={{ margin: "4px 0 0" }}>
+            Defeat the Elite Four and become Champion.
+          </p>
+        )}
       </section>
     );
   }

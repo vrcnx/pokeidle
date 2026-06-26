@@ -77,9 +77,14 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "superrepel" },
       { itemId: "maxrepel" },
       { itemId: "honey" },
-      // Celadon-exclusive: the Exp. Share buff. Buying activates a 300-battle
-      // timer that shares 3% EXP per non-fainted party member.
+      // Celadon-exclusive: the Exp. Share buff. Buying activates a
+      // 300-battle timer that shares ~25% EXP per non-fainted party
+      // member.
       { itemId: "expShare" },
+      // Link Cable — a consumable that triggers a solo trade-evolution
+      // on a held mon. Lets offline players finish the Pokédex
+      // without needing a friend.
+      { itemId: "linkcable" },
       // Battle held items.
       { itemId: "leftovers" },
       { itemId: "lifeorb" },

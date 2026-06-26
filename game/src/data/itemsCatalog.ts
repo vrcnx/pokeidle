@@ -95,6 +95,12 @@ const items: CatalogItem[] = [
   { id: "protector",     name: "Protector",      description: "A held item that triggers an evolution when its holder is traded. (Rhydon → Rhyperior)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "protector", implemented: true },
   { id: "electirizer",   name: "Electirizer",    description: "A held item that triggers an evolution when its holder is traded. (Electabuzz → Electivire)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "electirizer", implemented: true },
   { id: "magmarizer",    name: "Magmarizer",     description: "A held item that triggers an evolution when its holder is traded. (Magmar → Magmortar)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "magmarizer", implemented: true },
+  // Link Cable — a consumable bought from the Celadon Dept. Store
+  // that triggers a SOLO trade-evolution on a chosen party Pokémon.
+  // Honours the trade+item entries too: using a Link Cable on Onix
+  // requires it to be holding a Metal Coat, and the catalyst is
+  // consumed alongside the cable.
+  { id: "linkcable",     name: "Link Cable",     description: "A handcrafted cable that mimics a peer-to-peer trade. Use on a Pokémon that evolves by trade to trigger its evolution. Consumed on use.", category: "utility", buyPrice: 9800, sellPrice: 4900, spriteOverride: "link-cable", implemented: true },
 
   // ── Evolution Stones (luxury items — extremely expensive) ────────────────
   { id: "firestone",    name: "Fire Stone",    description: "A rare stone that radiates heat. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "fire-stone", implemented: true },

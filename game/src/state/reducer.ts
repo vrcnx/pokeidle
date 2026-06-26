@@ -165,13 +165,16 @@ function applyExp(
   let next: GameState = { ...state, playerPokemon: updated, levelUpNotification };
   next = syncPlayerToParty(next);
 
-  // Exp Share: distribute 3% EXP + the same EV yield to each non-fainted
-  // member. (Nerfed from 5% to keep the buff meaningful but not dominant.)
+  // Exp Share: distribute 25% EXP + the same EV yield to each non-fainted
+  // member. Player feedback flagged the previous 3% as "almost no EXP" —
+  // bumping to 25% lands in the right neighborhood for the modern
+  // mainline ratio (~50% for held-item version, but our buff is a single
+  // global toggle covering the entire backline so we land halfway).
   // Skip effects flagged paused — the player explicitly turned the
   // buff off so battles shouldn't consume its remaining counter.
   const hasExpShare = state.activeEffects.some((e) => e.itemId === "expShare" && !e.paused);
   if (hasExpShare && state.party.length > 1) {
-    const shared = Math.floor(exp * 0.03);
+    const shared = Math.floor(exp * 0.25);
     if (shared > 0 || evYield) {
       const party = next.party.map((p, idx) => {
         if (idx === next.activePlayerPokemonIndex) return p;
@@ -824,16 +827,18 @@ export function reducer(state: GameState, action: Action): GameState {
       if (state.money < total) return pushLog(state, "Not enough money!");
       // Special case: Exp. Share is a buff, not a stockpile-able held item.
       // Buying it (re)activates the active-effect timer for `quantity * duration`
-      // battles. Doesn't go into inventory.
+      // battles. Doesn't go into inventory. We previously hard-capped at
+      // 3× duration (900 battles) which silently wasted any over-purchase
+      // — player feedback was "stops at 999 but money gets deducted".
+      // Now we stack uncapped so the player gets what they paid for.
       if (itemId === "expShare") {
         const def = consumables.expShare;
         const addBattles = (def?.duration ?? 300) * quantity;
         const existing = state.activeEffects.find((e) => e.itemId === "expShare");
-        const cap = (def?.duration ?? 300) * 3;
         const activeEffects = existing
           ? state.activeEffects.map((e) =>
               e === existing
-                ? { ...e, battlesRemaining: Math.min(e.battlesRemaining + addBattles, cap) }
+                ? { ...e, battlesRemaining: e.battlesRemaining + addBattles }
                 : e
             )
           : [
@@ -842,9 +847,7 @@ export function reducer(state: GameState, action: Action): GameState {
             ];
         return pushLog(
           { ...state, money: state.money - total, activeEffects },
-          quantity > 1
-            ? `Activated Exp. Share (${addBattles} battles).`
-            : `Activated Exp. Share (${addBattles} battles).`
+          `Activated Exp. Share (+${addBattles} battles).`
         );
       }
       return {
@@ -870,6 +873,61 @@ export function reducer(state: GameState, action: Action): GameState {
       if (next === 0) delete inventory[itemId];
       else inventory[itemId] = next;
       return { ...state, inventory };
+    }
+
+    case "USE_LINK_CABLE": {
+      // Solo trade-evolution. Lets offline players evolve trade-only
+      // species (Kadabra→Alakazam, etc.) and trade-with-item species
+      // (Onix+Metal Coat→Steelix, etc.) without an actual trade
+      // partner. The Link Cable is consumed; for trade+item entries
+      // the catalyst (Metal Coat / King's Rock / etc.) is consumed
+      // from the Pokémon's heldItem slot too, matching the live
+      // peer-to-peer trade flow.
+      const { partyIndex } = action.payload;
+      if (partyIndex < 0 || partyIndex >= state.party.length) return state;
+      const owned = state.inventory.linkcable ?? 0;
+      if (owned <= 0) return pushLog(state, "You don't have a Link Cable.");
+      const target = state.party[partyIndex];
+      if (!target) return state;
+      const evos = evolutions[target.speciesKey] ?? [];
+      // Prefer trade+item matches (more specific) over pure trade.
+      const tradeEvo =
+        evos.find((e) => "trade" in e && "item" in e && (e as any).item === target.heldItem)
+        ?? evos.find((e) => "trade" in e && !("item" in e));
+      if (!tradeEvo) {
+        const tradeWithItem = evos.find((e) => "trade" in e && "item" in e) as any;
+        if (tradeWithItem) {
+          const itemName = itemsCatalog[tradeWithItem.item]?.name ?? tradeWithItem.item;
+          return pushLog(state, `${target.name} needs to be holding ${itemName} to evolve via Link Cable.`);
+        }
+        return pushLog(state, `${target.name} can't evolve via Link Cable.`);
+      }
+      // Consume the cable from inventory.
+      const inventory = { ...state.inventory };
+      const remaining = owned - 1;
+      if (remaining <= 0) delete inventory.linkcable;
+      else inventory.linkcable = remaining;
+      // For trade+item evolutions also strip the held catalyst — the
+      // peer-to-peer flow does the same in TRADE_COMPLETE.
+      let party = state.party;
+      if ("item" in tradeEvo) {
+        party = state.party.map((p, i) =>
+          i === partyIndex ? { ...p, heldItem: undefined } : p
+        );
+      }
+      const cleared = bailFromBattle({ ...state, inventory, party });
+      return pushLog(
+        {
+          ...cleared,
+          phase: "evolution",
+          evolutionState: {
+            partyIndex,
+            toSpeciesKey: (tradeEvo as any).into,
+            step: 0,
+          },
+        },
+        `Used a Link Cable on ${target.name}!`
+      );
     }
 
     case "REORDER_BOX": {

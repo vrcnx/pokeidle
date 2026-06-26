@@ -192,22 +192,32 @@ export function PokemonDetailModal() {
         eligible,
       });
     } else if ("trade" in t) {
-      // Trade-only evolutions (and trade+item variants) — listed for
-      // awareness but never eligible from the party menu. The actual
-      // evolution fires automatically after a successful trade with
-      // another player. Trade+item shape carries the catalyst name
-      // so the player knows what to equip before initiating the trade.
-      const itemName =
-        "item" in t
-          ? (evolutionStones[(t as any).item]?.name ?? (t as any).item)
-          : null;
-      allEvolutions.push({
-        trigger: t,
-        reason: itemName
-          ? `Trade while holding ${itemName}`
-          : "Trade with another player",
-        eligible: false,
-      });
+      // Trade evolutions: eligible automatically after a peer-to-peer
+      // trade OR by using a Link Cable bought at Celadon Dept. Store.
+      // For trade+item variants the catalyst (Metal Coat, etc.) must
+      // be HELD by the Pokémon — the Link Cable consumes it on use,
+      // matching the live trade flow.
+      const requiredItem = "item" in t ? (t as any).item as string : null;
+      const requiredItemName = requiredItem
+        ? (itemsCatalog[requiredItem]?.name ?? requiredItem)
+        : null;
+      const haveCable = (state.inventory.linkcable ?? 0) > 0;
+      const haveCatalyst = !requiredItem || p.heldItem === requiredItem;
+      const eligible = haveCable && haveCatalyst;
+      let reason: string;
+      if (eligible) {
+        reason = requiredItemName
+          ? `Use Link Cable (consumes ${requiredItemName})`
+          : "Use Link Cable";
+      } else if (!haveCable && !haveCatalyst) {
+        reason = `Trade or use a Link Cable while holding ${requiredItemName}`;
+      } else if (!haveCable) {
+        reason = "Trade or use a Link Cable";
+      } else {
+        // Have cable, missing the held catalyst.
+        reason = `Equip ${requiredItemName} to use Link Cable`;
+      }
+      allEvolutions.push({ trigger: t, reason, eligible });
     } else if ("item" in t) {
       const owned = state.inventory[t.item] ?? 0;
       const eligible = owned > 0;
@@ -223,12 +233,16 @@ export function PokemonDetailModal() {
 
   function evolveTo(trigger: EvolutionTrigger) {
     if (!selected || !isPartySelection) return;
+    // Trade evolutions go through USE_LINK_CABLE — the reducer handles
+    // consuming the cable, stripping the held catalyst (for trade+item
+    // variants), and starting the evolution flow atomically.
+    if ("trade" in trigger) {
+      dispatch({ type: "USE_LINK_CABLE", payload: { partyIndex: selected.index } });
+      closePokemonDetail();
+      return;
+    }
     // Stone-style item evolution consumes from bag inventory.
-    // Trade+item evolutions have an item too, but it's the catalyst
-    // held by the Pokemon and is consumed by the trade handler — not
-    // from the player's inventory. Guard so we don't accidentally
-    // burn a bag item that we never required.
-    if ("item" in trigger && !("trade" in trigger)) {
+    if ("item" in trigger) {
       dispatch({ type: "CONSUME_ITEM", payload: { itemId: trigger.item, quantity: 1 } });
     }
     dispatch({

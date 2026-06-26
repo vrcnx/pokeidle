@@ -458,6 +458,7 @@ export type Action =
   | { type: "APPLY_SHARED_EXP"; payload: { exp: number } }
   | { type: "GIVE_HELD_ITEM"; payload: { pokemonId: string; itemId: string } }
   | { type: "TAKE_HELD_ITEM"; payload: { pokemonId: string } }
+  | { type: "USE_LINK_CABLE"; payload: { partyIndex: number } }
   | { type: "LOAD_SAVE"; payload: { state: Partial<GameState> } };
 
 export type Dispatch = (action: Action) => void;

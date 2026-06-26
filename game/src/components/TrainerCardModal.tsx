@@ -137,6 +137,12 @@ function SelfCard({ onClose }: { onClose: () => void }) {
               <div className="g-row"><span>Seen</span><strong>{state.pokedexSeen.length}</strong></div>
               <div className="g-row"><span>Shiny</span><strong>{state.shinyCaught.length}</strong></div>
               <div className="g-row"><span>Badges</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
+              {/* Σ Pokémon levels — the same headline collection stat
+                  the public Trainer Card shows. Players complained they
+                  couldn't see this on their own card. */}
+              {me && (
+                <div className="g-row"><span>Σ Pokémon levels</span><strong>{(me.totalCaughtLevels ?? 0).toLocaleString()}</strong></div>
+              )}
             </section>
           </div>
 
