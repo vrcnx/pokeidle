@@ -13117,6 +13117,50 @@ html, body {
   .g-modal .move-grid .g-btn-ghost { min-height: 44px; }
 }
 
+/* ── Save-status badge (above the profile strip) ──────────────────── */
+/* Thin contextual chip showing cloud-save state. Per-state colour:
+   amber for pending/saving, green for saved, red for error. The
+   colours follow the existing weather / status palette so the player
+   already knows what each signifies. */
+.save-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 15, 18, 0.55);
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  align-self: flex-start;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.save-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.save-status-saved { color: #c4ffd3; border-color: rgba(74, 222, 128, 0.35); }
+.save-status-saved .save-status-dot { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
+.save-status-pending,
+.save-status-saving { color: #fde68a; border-color: rgba(250, 204, 21, 0.35); }
+.save-status-pending .save-status-dot,
+.save-status-saving .save-status-dot {
+  background: #facc15;
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.6);
+  animation: saveStatusPulse 1.4s ease-in-out infinite;
+}
+.save-status-error { color: #fecaca; border-color: rgba(248, 113, 113, 0.45); }
+.save-status-error .save-status-dot { background: #f87171; box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
+@keyframes saveStatusPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.85; }
+  50%      { transform: scale(1.25); opacity: 1; }
+}
+
 /* ── Trade history list (inside trainer card) ─────────────────────── */
 .trade-history-section ul.trade-history-list {
   list-style: none;

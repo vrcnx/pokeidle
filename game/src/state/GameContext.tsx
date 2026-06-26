@@ -4,6 +4,7 @@ import {
   useEffect,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 import type { Action, Dispatch, GameState, Pokemon } from "../types";
@@ -55,6 +56,8 @@ function normalizePokemon(p: Pokemon): Pokemon {
   return next;
 }
 
+export type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
 interface GameContextValue {
   state: GameState;
   dispatch: Dispatch;
@@ -63,6 +66,15 @@ interface GameContextValue {
    *  current species/level instead of a 1.5s-stale version (the bug
    *  where evolving then trading shipped the pre-evolved form). */
   forceSave: () => Promise<void>;
+  /** Coarse-grained cloud-sync status for the UI. `pending` while the
+   *  debounce timer is running; `saving` while putSave is in flight;
+   *  `saved` when the most recent flush succeeded; `error` when it
+   *  failed (most often: offline). */
+  saveStatus: SaveStatus;
+  /** Wall-clock timestamp of the last successful putSave, or null if
+   *  no save has succeeded this session. Lets the indicator show
+   *  "Saved · 12s ago" instead of a static "Saved". */
+  lastSavedAt: number | null;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -167,6 +179,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const cloudReadyRef = useRef(false);
   const lastUploadedRef = useRef<string>("");
   const uploadTimerRef = useRef<number | undefined>(undefined);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const { refresh: refreshProfile } = useAuth();
 
   // ── Initial cloud sync ──
@@ -254,11 +268,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const serialized = JSON.stringify(snapshot);
     if (serialized === lastUploadedRef.current) return;
     if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
+    setSaveStatus("pending");
     uploadTimerRef.current = window.setTimeout(() => {
       lastUploadedRef.current = serialized;
+      setSaveStatus("saving");
       api.putSave(snapshot)
-        .then(() => refreshProfile())   // pulls back the new accountLevel
-        .catch(() => undefined);
+        .then(() => {
+          setSaveStatus("saved");
+          setLastSavedAt(Date.now());
+          return refreshProfile();   // pulls back the new accountLevel
+        })
+        .catch(() => setSaveStatus("error"));
     }, 1500);
 
     return () => {
@@ -302,10 +322,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const serialized = JSON.stringify(snapshot);
     if (serialized === lastUploadedRef.current) return;
     lastUploadedRef.current = serialized;
+    setSaveStatus("saving");
     try {
       await api.putSave(snapshot);
+      setSaveStatus("saved");
+      setLastSavedAt(Date.now());
       refreshProfile();
     } catch {
+      setSaveStatus("error");
       // Surface failure to the caller so trade-lock can bail rather
       // than emitting against a stale cloud copy.
       throw new Error("save_sync_failed");
@@ -313,7 +337,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <GameContext.Provider value={{ state, dispatch: dispatch as Dispatch, forceSave }}>
+    <GameContext.Provider
+      value={{
+        state,
+        dispatch: dispatch as Dispatch,
+        forceSave,
+        saveStatus,
+        lastSavedAt,
+      }}
+    >
       {children}
     </GameContext.Provider>
   );
