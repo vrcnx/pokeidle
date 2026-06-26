@@ -2326,6 +2326,138 @@ input[type="checkbox"], input[type="radio"] {
   white-space: pre-wrap;
 }
 
+/* =================================================================
+   Live ops — real-time operator view
+   ================================================================= */
+.liveops-page { max-width: 1440px; margin: 0 auto; }
+
+.liveops-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.liveops-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-dim);
+}
+.liveops-status.on  .liveops-status-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+  animation: lo-pulse 1.4s ease-in-out infinite;
+}
+.liveops-status.off .liveops-status-dot { background: var(--text-dim); }
+@keyframes lo-pulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
+
+.liveops-kpi-row { margin-bottom: 24px; }
+
+.liveops-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .liveops-grid { grid-template-columns: 1fr; }
+}
+
+/* Online users list */
+.liveops-online-card { padding: 18px 20px; }
+.liveops-online-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 600px; overflow-y: auto; }
+.liveops-online-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.liveops-online-row:last-child { border-bottom: 0; }
+.liveops-online-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+}
+.liveops-online-name { display: flex; flex-direction: column; min-width: 0; }
+.liveops-online-name strong { font-size: 13px; }
+.liveops-online-name small  { font-size: 10.5px; }
+.liveops-online-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.liveops-session-badge {
+  background: var(--brand-soft);
+  color: var(--brand-hover);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+/* Activity feed */
+.liveops-feed-card { padding: 18px 20px; }
+.liveops-feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.liveops-feed { list-style: none; margin: 0; padding: 0; max-height: 600px; overflow-y: auto; }
+.liveops-feed-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 40px;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.liveops-feed-row:last-child { border-bottom: 0; }
+.liveops-feed-kind {
+  text-transform: uppercase;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-align: center;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+.liveops-feed-kind.kind-chat   { background: var(--good-soft);  color: #6ee7b7; }
+.liveops-feed-kind.kind-signup { background: var(--brand-soft); color: var(--brand-hover); }
+.liveops-feed-kind.kind-trade  { background: rgba(20, 184, 166, 0.18); color: #5eead4; }
+.liveops-feed-kind.kind-pvp    { background: var(--warn-soft);  color: #fde68a; }
+.liveops-feed-body {
+  line-height: 1.5;
+  word-break: break-word;
+  min-width: 0;
+}
+.liveops-feed-content {
+  display: block;
+  color: var(--text);
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+.liveops-feed-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Mobile responsiveness ───────────────────────────────────── */
 @media (max-width: 800px) {
   .admin-shell { grid-template-columns: 1fr; }

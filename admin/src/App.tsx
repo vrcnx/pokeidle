@@ -10,9 +10,10 @@ import { ErrorLogsPage } from "./pages/ErrorLogsPage";
 import { TournamentsPage } from "./pages/TournamentsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
+import { LiveOpsPage } from "./pages/LiveOpsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok";
-type Page = "analytics" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
+type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
@@ -53,6 +54,7 @@ export function App() {
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Overview</span>
             <NavItem active={page === "analytics"} onClick={() => setPage("analytics")} label="Analytics" icon={<IconChart />} />
+            <NavItem active={page === "liveops"} onClick={() => setPage("liveops")} label="Live ops" icon={<IconPulse />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">People</span>
@@ -95,6 +97,7 @@ export function App() {
         {page === "tournaments" && <TournamentsPage />}
         {page === "audit" && <AuditLogPage />}
         {page === "announcements" && <AnnouncementsPage />}
+        {page === "liveops" && <LiveOpsPage />}
       </main>
     </div>
   );
@@ -178,6 +181,13 @@ function IconMap() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+function IconPulse() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   );
 }

@@ -5,7 +5,7 @@ import { requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser } from "../socket.js";
+import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot } from "../socket.js";
 import { auth } from "../auth.js";
 import {
   battleRooms,
@@ -888,6 +888,92 @@ app.delete("/chat/:id", async (c) => {
   } catch {
     return c.json({ error: "message not found" }, 404);
   }
+});
+
+// ── Live ops ──────────────────────────────────────────────────────────
+// Real-time snapshot of who is connected right this second. Joined
+// with the User table so we can show display names + ban state + last
+// seen + level. Also returns the last 30 minutes of chat as a
+// rolling activity feed so the operator sees engagement at a glance.
+app.get("/live-ops", async (c) => {
+  const snapshot = liveOnlineSnapshot();
+  const userIds = snapshot.map((s) => s.userId);
+  const since = new Date(Date.now() - 30 * 60 * 1000);
+
+  const [users, recentMessages, recentSignups, recentTrades, recentPvP] = await Promise.all([
+    userIds.length === 0
+      ? []
+      : prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: {
+            id: true, username: true, name: true,
+            accountLevel: true, lastSeenAt: true,
+            pokedexCaughtCount: true, isAdmin: true, bannedUntil: true,
+          },
+        }),
+    prisma.chatMessage.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { user: { select: { id: true, username: true, name: true } } },
+    }),
+    prisma.user.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, username: true, name: true, createdAt: true },
+    }),
+    prisma.tradeRecord.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, createdAt: true, userASentSpecies: true, userBSentSpecies: true },
+    }).catch(() => [] as any[]),
+    prisma.pvpMatch.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, createdAt: true, winnerId: true },
+    }).catch(() => [] as any[]),
+  ]);
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  const onlineUsers = snapshot.map((s) => ({
+    ...s,
+    user: userMap.get(s.userId) ?? null,
+  }));
+
+  return c.json({
+    online: onlineUsers,
+    activity: {
+      chat: recentMessages.map((m) => ({
+        id: m.id,
+        kind: "chat",
+        channelId: m.channelId,
+        content: m.content,
+        createdAt: m.createdAt,
+        user: m.user,
+      })),
+      signups: recentSignups.map((u) => ({
+        id: u.id,
+        kind: "signup",
+        createdAt: u.createdAt,
+        user: { id: u.id, username: u.username, name: u.name },
+      })),
+      trades: recentTrades.map((t) => ({
+        id: t.id,
+        kind: "trade",
+        createdAt: t.createdAt,
+        species: [t.userASentSpecies, t.userBSentSpecies],
+      })),
+      pvp: recentPvP.map((p) => ({
+        id: p.id,
+        kind: "pvp",
+        createdAt: p.createdAt,
+        winnerUserId: p.winnerId,
+      })),
+    },
+    serverTime: new Date().toISOString(),
+  });
 });
 
 // ── Audit log ──────────────────────────────────────────────────────────

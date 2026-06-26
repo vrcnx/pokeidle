@@ -27,6 +27,41 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+export interface LiveOpsUser {
+  userId: string;
+  sessionCount: number;
+  user: {
+    id: string;
+    username: string;
+    name: string | null;
+    accountLevel: number;
+    lastSeenAt: string;
+    pokedexCaughtCount: number;
+    isAdmin: boolean;
+    bannedUntil: string | null;
+  } | null;
+}
+export interface LiveOpsActivityItem {
+  id: string;
+  kind: "chat" | "signup" | "trade" | "pvp";
+  createdAt: string;
+  channelId?: string;
+  content?: string;
+  user?: { id: string; username: string; name: string | null };
+  species?: (string | null)[];
+  winnerUserId?: string | null;
+}
+export interface LiveOps {
+  online: LiveOpsUser[];
+  activity: {
+    chat: LiveOpsActivityItem[];
+    signups: LiveOpsActivityItem[];
+    trades: LiveOpsActivityItem[];
+    pvp: LiveOpsActivityItem[];
+  };
+  serverTime: string;
+}
+
 export interface AuditEntry {
   id: string;
   action: string;
@@ -202,6 +237,11 @@ export const api = {
       `/api/admin/announce`,
       { content },
     ),
+
+  // Live ops — real-time snapshot of who is connected + last 30
+  // minutes of activity (chat, signups, trades, PvP). Polled by the
+  // Live ops page every 5 s.
+  liveOps: () => req<LiveOps>("GET", "/api/admin/live-ops"),
 
   // Audit log — every admin action that touches another user lands
   // here. Newest-first, capped at 200 rows server-side.

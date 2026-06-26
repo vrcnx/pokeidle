@@ -674,8 +674,23 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
 // which screen they're on. Rendered in the right column above MiniChat
 // (was inside ContextPanel previously; moved out so it sits next to
 // chat, where the player's eye lands more often).
+const UNLOCK_COLLAPSED_KEY = "pokeidle.unlockHint.collapsed";
+
+function readCollapsed(): boolean {
+  try { return localStorage.getItem(UNLOCK_COLLAPSED_KEY) === "1"; } catch { return false; }
+}
+
 export function UnlockHint() {
   const { state } = useGame();
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(UNLOCK_COLLAPSED_KEY, next ? "1" : "0"); } catch { /* */ }
+      return next;
+    });
+  };
+
   const candidates = Object.values(routes)
     .filter((r) => !state.unlockedLocations.includes(r.id))
     .sort((a, b) => a.unlockOrder - b.unlockOrder);
@@ -720,31 +735,47 @@ export function UnlockHint() {
   }
   const reqs = describeRequirements(next.unlock, state);
   const peek = candidates[1];
+  // Combined progress for the collapsed pill — average of all
+  // requirements (clamped 0..1). Gives the player one number to glance
+  // at without expanding the card.
+  const overall = reqs.length === 0
+    ? 0
+    : reqs.reduce((sum, r) => sum + Math.min(1, r.cur / Math.max(1, r.target)), 0) / reqs.length;
   return (
-    <section className="ctx-section unlock-hint">
-      <h4>Next Goal</h4>
-      <div className="unlock-target">
-        <span className="unlock-target-icon">{iconFor(next.type)}</span>
-        <strong>{next.name}</strong>
-      </div>
-      <ul>
-        {reqs.map((r, i) => (
-          <li key={i} className={r.done ? "done" : ""}>
-            <span className="unlock-req-label">{r.label}</span>
-            <span className="unlock-req-bar">
-              <span
-                className="unlock-req-fill"
-                style={{ width: `${Math.min(100, (r.cur / Math.max(1, r.target)) * 100)}%` }}
-              />
-            </span>
-            <span className="unlock-req-num">{r.cur}/{r.target}</span>
-          </li>
-        ))}
-      </ul>
-      {peek && (
-        <p className="unlock-peek dim small">
-          After this → <strong>{peek.name}</strong>
-        </p>
+    <section className={`ctx-section unlock-hint ${collapsed ? "collapsed" : ""}`}>
+      <button type="button" className="unlock-header" onClick={toggle} aria-expanded={!collapsed}>
+        <span className="unlock-header-label">Next Goal</span>
+        <strong className="unlock-header-target">
+          <span className="unlock-target-icon">{iconFor(next.type)}</span>
+          <span>{next.name}</span>
+        </strong>
+        <span className="unlock-header-bar" aria-hidden>
+          <span className="unlock-header-bar-fill" style={{ width: `${overall * 100}%` }} />
+        </span>
+        <span className={`unlock-header-chev ${collapsed ? "" : "open"}`} aria-hidden>▾</span>
+      </button>
+      {!collapsed && (
+        <div className="unlock-body">
+          <ul>
+            {reqs.map((r, i) => (
+              <li key={i} className={r.done ? "done" : ""}>
+                <span className="unlock-req-label">{r.label}</span>
+                <span className="unlock-req-bar">
+                  <span
+                    className="unlock-req-fill"
+                    style={{ width: `${Math.min(100, (r.cur / Math.max(1, r.target)) * 100)}%` }}
+                  />
+                </span>
+                <span className="unlock-req-num">{r.cur}/{r.target}</span>
+              </li>
+            ))}
+          </ul>
+          {peek && (
+            <p className="unlock-peek dim small">
+              After this → <strong>{peek.name}</strong>
+            </p>
+          )}
+        </div>
       )}
     </section>
   );

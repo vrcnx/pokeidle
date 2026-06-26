@@ -216,6 +216,17 @@ export function isOnline(userId: string): boolean {
   return online.has(userId);
 }
 
+// Snapshot of currently-online users, with their concurrent socket
+// count. Used by the admin "Live ops" page to render who is connected
+// right this second. Map iteration order is insertion order so the
+// list is roughly oldest-session-first.
+export function liveOnlineSnapshot(): { userId: string; sessionCount: number }[] {
+  return Array.from(online.entries()).map(([userId, sockets]) => ({
+    userId,
+    sessionCount: sockets.size,
+  }));
+}
+
 // Cross-module helper: send `event` to every active socket of a user.
 // Used by admin routes (tournament bracket runner, etc.) that need to
 // reach players outside the socket-handler scope.
