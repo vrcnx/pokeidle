@@ -15098,3 +15098,359 @@ html, body {
   .dex-hero-milestones { grid-column: 1 / -1; justify-content: flex-start; }
   .dex-types { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
 }
+
+/* =================================================================
+   PvP Arena Card v2 — denser trainer-card lobby
+   Horizontal hero card with portrait + stats grid + 6-mon team strip.
+   ================================================================= */
+.pvp-hub-arena2 {
+  width: min(720px, 95vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg, #0e1014);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+  padding-bottom: 0;
+}
+
+.pvp2-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.05), transparent);
+}
+.pvp2-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--gold, #fbbf24);
+}
+.pvp2-elo-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+.pvp2-close {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pvp2-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+
+/* Trainer card row */
+.pvp2-trainer-row { padding: 0 18px; }
+.pvp-hero-trainer-card {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.07) 0%, rgba(0, 0, 0, 0.35) 100%);
+  border-radius: 12px;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* LEFT: portrait */
+.pvp2-portrait-wrap { position: relative; }
+.pvp2-portrait {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--bg, #0e1014);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 600ms ease;
+}
+.pvp2-portrait img { image-rendering: pixelated; }
+.pvp2-portrait-empty { font-size: 28px; opacity: 0.4; }
+.pvp2-streak {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: rgba(248, 113, 113, 0.92);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.6);
+}
+
+/* CENTER: identity + stats */
+.pvp2-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pvp2-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pvp2-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+.pvp2-tier-chip {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.pvp2-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 14px;
+}
+.pvp2-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pvp2-stat-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+}
+.pvp2-stat strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.1;
+}
+.pvp2-next-tier {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.pvp2-next-tier strong { color: var(--gold, #fbbf24); font-size: 11px; }
+
+/* RIGHT: team strip (6 sprites) */
+.pvp2-team-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.pvp2-team-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+.pvp2-team-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.pvp2-team-slot {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.32);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.pvp2-team-slot.empty { color: var(--text-dim); font-size: 16px; }
+.pvp2-team-slot.is-shiny {
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.5), 0 0 8px rgba(251, 191, 36, 0.18);
+}
+
+/* MODE CHIPS + READY UP */
+.pvp2-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+}
+
+/* 2-col row: match tape + top 3 */
+.pvp2-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 18px;
+}
+.pvp2-panel {
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pvp2-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pvp2-panel-head h4 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+.pvp2-empty { margin: 0; }
+
+/* Pip row (horizontal in the v2 layout) */
+.pvp2-pip-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pvp2-pip-row .pvp-pip {
+  display: flex;
+  grid-template-columns: none;
+  padding: 0;
+  cursor: pointer;
+}
+.pvp2-pip-row .pvp-pip-tip { display: none; }
+.pvp2-pip-row .pvp-pip-shape { width: 14px; height: 14px; }
+
+/* Top 3 list */
+.pvp2-podium-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pvp2-podium-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  position: relative;
+}
+.pvp2-podium-row.rank-1 {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.14), transparent);
+  box-shadow: inset 2px 0 0 var(--gold, #fbbf24);
+}
+.pvp2-podium-row.rank-2 { background: linear-gradient(90deg, rgba(207, 210, 216, 0.12), transparent); }
+.pvp2-podium-row.rank-3 { background: linear-gradient(90deg, rgba(176, 122, 72, 0.12), transparent); }
+.pvp2-podium-row.pvp2-podium-you {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+  margin-top: 4px;
+}
+.pvp2-podium-rank {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.pvp2-podium-row.rank-1 .pvp2-podium-rank { color: var(--gold, #fbbf24); }
+.pvp2-podium-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pvp2-podium-rating { font-size: 11px; color: var(--text-muted); }
+.pvp2-podium-crown { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); color: var(--gold, #fbbf24); }
+.pvp2-podium-row.rank-1 .pvp2-podium-crown { right: 56px; }
+
+/* Live battles row */
+.pvp2-live {
+  padding: 0 18px;
+}
+.pvp2-live-cards {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.pvp2-live-card {
+  flex-shrink: 0;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: var(--panel-2);
+  border-radius: 8px;
+}
+.pvp2-live-vs { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.pvp2-live-trainer {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.pvp2-live-vs-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--gold, #fbbf24);
+  padding: 1px 6px;
+  background: rgba(251, 191, 36, 0.12);
+  border-radius: 4px;
+}
+
+/* Queued-state ring/portrait */
+.pvp-hub-arena2.is-queued .pvp2-portrait {
+  animation: pvp-pulse 1.4s ease-in-out infinite;
+}
+
+@media (max-width: 700px) {
+  .pvp-hero-trainer-card {
+    grid-template-columns: 80px 1fr;
+    gap: 12px;
+  }
+  .pvp2-team-strip {
+    grid-column: 1 / -1;
+    align-items: flex-start;
+  }
+  .pvp2-team-row { grid-template-columns: repeat(6, 1fr); }
+  .pvp2-stats { grid-template-columns: repeat(2, 1fr); }
+  .pvp2-row2 { grid-template-columns: 1fr; }
+}
