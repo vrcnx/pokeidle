@@ -13,12 +13,27 @@ import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok";
-type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
+
+// Module-scoped navigation bus so any page (e.g. an AnalyticsPage
+// alert card) can request a tab switch without prop-drilling through
+// every component. App subscribes once on mount and routes the
+// request through the same setPage state setter.
+const _navListeners = new Set<(p: Page) => void>();
+export function navigateTo(p: Page): void {
+  for (const fn of _navListeners) fn(p);
+}
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<AdminMe | null>(null);
   const [page, setPage] = useState<Page>("analytics");
+
+  // Wire the module-scoped nav helper to this App's setPage.
+  useEffect(() => {
+    _navListeners.add(setPage);
+    return () => { _navListeners.delete(setPage); };
+  }, []);
 
   useEffect(() => {
     api.me()

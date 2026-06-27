@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Analytics } from "../api";
+import { navigateTo, type Page } from "../App";
 
 // "Cadence" layout — design panel winner.
 // One focal point per row. 12-column grid, 24px gutters, 32px between
@@ -134,18 +135,22 @@ export function AnalyticsPage() {
             value={data.totals.errorsLast24h}
             state={data.totals.errorsLast24h > 0 ? "danger" : "neutral"}
             cta="Open logs →"
+            onClick={() => navigateTo("errors")}
           />
           <AlertCard
             label="Open bug reports"
             value={data.totals.bugReportsOpen}
             state={data.totals.bugReportsOpen > 0 ? "warn" : "neutral"}
             cta="Review →"
+            onClick={() => navigateTo("bugs")}
           />
           <AlertCard
             label="Admins · Banned"
             value={data.totals.admins}
             sub={`${data.totals.bannedUsers} banned`}
             state="neutral"
+            cta="View users →"
+            onClick={() => navigateTo("users")}
           />
         </aside>
       </section>
@@ -256,16 +261,30 @@ function KpiCompact({ label, value, sub }: { label: string; value: number; sub?:
 }
 
 function AlertCard({
-  label, value, sub, state, cta,
+  label, value, sub, state, cta, onClick,
 }: {
   label: string;
   value: number;
   sub?: string;
   state: "danger" | "warn" | "neutral";
   cta?: string;
+  onClick?: () => void;
 }) {
+  const interactive = !!onClick;
   return (
-    <article className={`alert-card alert-card--${state}`}>
+    <article
+      className={`alert-card alert-card--${state} ${interactive ? "is-clickable" : ""}`}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (!interactive) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+    >
       <div className="alert-card__row">
         <span className="alert-card__dot" aria-hidden />
         <span className="alert-card__label">{label}</span>
