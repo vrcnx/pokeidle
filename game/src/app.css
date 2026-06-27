@@ -313,14 +313,14 @@ a:focus-visible {
 
 .party-column,
 .location-column {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   gap: 8px;
-  padding: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 /* Chat rail (LEFT in the Twitch-stream layout) — chat absorbs ALL
@@ -7695,45 +7695,72 @@ input, textarea, select {
   gap: var(--sp-2);
 }
 /* Twitch-stream layout: ActionDock at the top of the RIGHT rail. One
-   tight 44px horizontal row of equal-width icon buttons. The previous
-   2x2 grid wasted half a tile and left visual gaps at the top of the
-   rail. */
-.control-column .dock-meta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 4px;
+   tight 44px horizontal row of icon+label buttons, sharing one panel
+   surface so the dock reads as a single strip — not three floating
+   tiles. Buttons sit FLAT (transparent bg) with hover/active states
+   filling them with a darker tonal step. */
+.control-column .dock-meta,
+.party-column .dock-meta {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 0 !important;
+  padding: 3px !important;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   height: 44px;
   flex-shrink: 0;
+  margin: 0;
 }
-.control-column .dock-meta .dock-btn {
-  flex-direction: row;
-  gap: 6px;
-  padding: 0 8px;
-  font-size: 11px;
-  letter-spacing: 0.3px;
-  border: 0;
-  background: transparent;
-  height: 100%;
+.control-column .dock-meta .dock-btn,
+.party-column .dock-meta .dock-btn {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px !important;
+  text-transform: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  height: 100% !important;
+  width: 100% !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transition: background 120ms ease, color 120ms ease;
 }
-.control-column .dock-meta .dock-btn:hover:not(:disabled) {
-  background: var(--panel-3);
-  border-color: transparent;
+.control-column .dock-meta .dock-btn:hover:not(:disabled),
+.party-column .dock-meta .dock-btn:hover:not(:disabled) {
+  background: var(--panel-3) !important;
+  color: var(--text) !important;
+  border-color: transparent !important;
 }
-.control-column .dock-meta .dock-btn.active {
-  background: var(--panel-4);
-  color: var(--text);
+.control-column .dock-meta .dock-btn.active,
+.party-column .dock-meta .dock-btn.active {
+  background: var(--panel-4) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
 }
-.control-column .dock-meta .dock-btn-icon { font-size: 14px; }
-.control-column .dock-meta .dock-btn-label {
-  font-size: 11px;
-  font-weight: 600;
+.control-column .dock-meta .dock-btn-icon,
+.party-column .dock-meta .dock-btn-icon {
+  display: inline-flex;
+  font-size: 14px !important;
+  line-height: 1;
+}
+.control-column .dock-meta .dock-btn-label,
+.party-column .dock-meta .dock-btn-label {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px !important;
 }
 
-/* Mobile shell still uses the original 2-column grid for these */
+/* Mobile shell still uses the original 2-column grid for these. The
+   selectors above only fire inside .control-column / .party-column on
+   desktop, so MobileShell is unaffected. */
 .mobile-shell .dock-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .dock-gameplay {
   display: grid;
