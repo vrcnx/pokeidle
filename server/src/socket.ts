@@ -554,13 +554,18 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       //      snapshot (older clients, or snapshot failed validation).
       const aId = String(t.a.offer.id);
       const bId = String(t.b.offer.id);
+      // Always pull DB saveData as a fallback even when liveSnapshot
+      // exists. The snapshot is authoritative when present (covers
+      // the autosave/lock race for trade-evolution mons), but if the
+      // snapshot was validator-rejected mid-flight, dropped, or the
+      // offered id was moved between party/box between snapshot
+      // capture and lock, the DB still has the canonical source of
+      // truth. One extra read per lock — negligible cost, eliminates
+      // the "Cannot be verified as the owner" dead-end seen by
+      // veterans whose saves stalled at the MAX_BOX validator cap.
       const [aRow, bRow] = await Promise.all([
-        t.a.liveSnapshot
-          ? Promise.resolve(null)
-          : prisma.user.findUnique({ where: { id: t.a.userId }, select: { saveData: true } }),
-        t.b.liveSnapshot
-          ? Promise.resolve(null)
-          : prisma.user.findUnique({ where: { id: t.b.userId }, select: { saveData: true } }),
+        prisma.user.findUnique({ where: { id: t.a.userId }, select: { saveData: true } }),
+        prisma.user.findUnique({ where: { id: t.b.userId }, select: { saveData: true } }),
       ]);
       const findMonInSave = (save: unknown, id: string): TradeOffer | null => {
         if (!save || typeof save !== "object") return null;

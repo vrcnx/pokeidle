@@ -199,9 +199,16 @@ export function isTierUnlocked(
   return true;
 }
 
+// Default is "always" — players reasonably expect the game to keep
+// throwing balls at every wild encounter unless they explicitly opt
+// into a stricter rule. The old default ("pokedex_new") silently
+// stopped catching once a species was registered, which read as
+// "the game won't throw a ball at this Magikarp" and generated
+// repeat bug reports. "pokedex_new" is now opt-in via the catch
+// settings modal.
 export const DEFAULT_CATCH_SETTINGS: CatchSettings = {
   enabled: true,
-  mode: "pokedex_new",
+  mode: "always",
   levelThreshold: 1,
   enabledBalls: ["pokeball"],
 };

@@ -15,7 +15,14 @@
 
 const MAX_LEVEL = 100;
 const MAX_PARTY = 6;
-const MAX_BOX = 600;
+// 600 was the original cap, but veteran auto-catch accounts blew past
+// it within weeks — once a player crossed 600 box mons every save
+// POST started 400-ing, and once the trade flow's liveSnapshot got
+// dropped by the same validator, ownership verification fell back to
+// a now-stale DB save and trades cancelled with "Cannot be verified
+// as the owner of the offered Pokémon". Bumping to 9999 (≈ 16
+// traditional Pokémon PC boxes) covers any realistic account.
+const MAX_BOX = 9999;
 const MAX_INVENTORY_STACK = 999_999;
 const MAX_MONEY = 999_999_999;
 const MAX_IV = 31;

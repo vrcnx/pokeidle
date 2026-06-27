@@ -1431,8 +1431,13 @@ header.tab-pane-head.v2 .mart-wallet {
 .pc-cell {
   width: 100%;
   height: 100%;
-  background: transparent;
-  border: 1px solid transparent;
+  /* Faint persistent background + border so an occupied slot is
+     visible even when the Gen-V sprite GIF fails to load (ad-blocker,
+     CDN hiccup, or a tiny-intrinsic-size species rendering as a
+     speck). Previously the slot was 100% transparent until hover,
+     which read as "PC is empty until you mouse over random cells". */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   padding: 2px;
   display: flex;
@@ -1455,9 +1460,15 @@ header.tab-pane-head.v2 .mart-wallet {
   max-height: 100%;
   width: auto;
   height: auto;
+  /* Floor on intrinsic size — small-sprite species (Diglett, Pichu,
+     Caterpie) ship as 24-32px from PokeAPI and used to render as
+     dots inside a much larger transparent cell. 28px floor keeps
+     them readable while still respecting max-width/max-height. */
+  min-width: 28px;
+  min-height: 28px;
   object-fit: contain;
 }
-.pc-cell:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--border-strong); }
+.pc-cell:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--border-strong); }
 .pc-cell:active { cursor: grabbing; }
 /* Box cells are pure sprite — no name/level labels, like the original PC. */
 .pc-box-slot .pc-cell-label,

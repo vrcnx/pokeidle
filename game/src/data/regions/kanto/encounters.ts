@@ -276,7 +276,7 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
         { speciesKey: "scyther", weight: 12, minLevel: 23, maxLevel: 28 },
         { speciesKey: "kangaskhan", weight: 12, minLevel: 25, maxLevel: 28 },
         { speciesKey: "tauros", weight: 12, minLevel: 25, maxLevel: 28 },
-        { speciesKey: "dratini", weight: 12, minLevel: 15, maxLevel: 20 },
+        { speciesKey: "dratini", weight: 12, minLevel: 22, maxLevel: 28 },
         { speciesKey: "tangela", weight: 12, minLevel: 22, maxLevel: 28 },
         { speciesKey: "pinsir", weight: 15, minLevel: 23, maxLevel: 28 },
         { speciesKey: "goldeen", weight: 15, minLevel: 22, maxLevel: 28 },

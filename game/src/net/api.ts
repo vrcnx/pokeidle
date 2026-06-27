@@ -125,11 +125,18 @@ export const api = {
     "GET",
     "/api/saves"
   ),
-  putSave: (saveData: any) =>
+  // putSave optionally accepts `expectedSaveVersion` — when set, the
+  // server gates the write on the cloud copy still being at that
+  // version (compare-and-swap). A 409 means a different device wrote
+  // in between this client's last pull and now, OR this client is
+  // trying to push state older than the cloud. Caller should handle
+  // 409 by re-pulling and either re-applying its diff or surfacing a
+  // conflict prompt — never silently overwrite.
+  putSave: (saveData: any, expectedSaveVersion?: number) =>
     request<{ ok: true; saveVersion: number; saveUpdatedAt: string; accountLevel: number; totalCaughtLevels: number; pokedexCaughtCount: number }>(
       "POST",
       "/api/saves",
-      { saveData }
+      expectedSaveVersion !== undefined ? { saveData, expectedSaveVersion } : { saveData }
     ),
 
   // Friends

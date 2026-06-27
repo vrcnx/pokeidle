@@ -82,7 +82,7 @@ app.post("/", requireUser, async (c) => {
   // is still echoed for diagnostics but no longer the gate.
   const existing = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { saveVersion: true },
+    select: { saveVersion: true, saveData: true },
   });
   const expected = parsed.data.expectedSaveVersion;
   if (existing && expected !== undefined && expected < existing.saveVersion) {
@@ -92,6 +92,44 @@ app.post("/", requireUser, async (c) => {
       serverSaveVersion: existing.saveVersion,
       clientExpectedVersion: expected,
     }, 409);
+  }
+
+  // 2b) Anti-regression guard. Even with no expectedSaveVersion, refuse
+  // writes from older clients that would erase major milestone progress
+  // (Elite Four cleared, Champion defeated, badges earned, Pokédex
+  // entries). Cross-device save-sync bugs in v1 of the client caused
+  // a stale device to silently overwrite the canonical save and bury
+  // weeks of progress. This guard catches every save-clobber path on
+  // the server regardless of which client version sent the write.
+  if (existing?.saveData) {
+    try {
+      const prior = JSON.parse(existing.saveData) as Record<string, unknown>;
+      const sig = (s: Record<string, unknown>) => ({
+        badges:   Array.isArray(s.defeatedGyms)      ? (s.defeatedGyms as unknown[]).length      : 0,
+        e4:       Array.isArray(s.defeatedEliteFour) ? (s.defeatedEliteFour as unknown[]).length : 0,
+        champion: !!s.championDefeated,
+        caught:   Array.isArray(s.pokedexCaught)     ? (s.pokedexCaught as unknown[]).length     : 0,
+      });
+      const before = sig(prior);
+      const after  = sig(save as Record<string, unknown>);
+      const regressed =
+           after.badges   < before.badges
+        || after.e4       < before.e4
+        || (before.champion && !after.champion)
+        || after.caught   < before.caught;
+      if (regressed) {
+        return c.json({
+          error: "regression_blocked",
+          reason: "incoming save erases milestone progress — refusing to clobber the cloud copy",
+          before,
+          after,
+        }, 409);
+      }
+    } catch {
+      // Existing save unparseable; treat as if there's no prior — let
+      // the new write through. This is the migration / corruption
+      // recovery path.
+    }
   }
 
   const derived = computeAccountLevel(save);

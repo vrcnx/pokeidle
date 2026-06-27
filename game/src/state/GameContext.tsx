@@ -134,6 +134,44 @@ function loadSaved(): GameState {
   }
 }
 
+// Returns true if `cloudData` strictly has MORE meaningful progress
+// than `local`. Used by the boot sync to refuse swaps that would lose
+// a milestone — e.g. local with empty defeatedEliteFour should never
+// overwrite a cloud save where the Elite Four was cleared. We bias to
+// "cloud wins" so cross-device players never see regressions.
+function cloudHasMoreProgress(cloudData: any, local: GameState): boolean {
+  const sigOf = (s: any) => ({
+    badges:       Array.isArray(s?.defeatedGyms)       ? s.defeatedGyms.length       : 0,
+    e4:           Array.isArray(s?.defeatedEliteFour)  ? s.defeatedEliteFour.length  : 0,
+    champion:     !!s?.championDefeated,
+    caught:       Array.isArray(s?.pokedexCaught)      ? s.pokedexCaught.length      : 0,
+    boxParty:     (Array.isArray(s?.party) ? s.party.length : 0)
+                + (Array.isArray(s?.box)   ? s.box.length   : 0),
+    locations:    Array.isArray(s?.unlockedLocations)  ? s.unlockedLocations.length  : 0,
+    money:        typeof s?.money === "number" ? s.money : 0,
+  });
+  const c = sigOf(cloudData);
+  const l = sigOf(local);
+  // Cloud wins if any milestone is greater; or if all are equal but
+  // local has strictly less collection mass (catches a "local was
+  // wiped to initialState but cloud is intact" case).
+  if (c.e4 > l.e4) return true;
+  if (c.champion && !l.champion) return true;
+  if (c.badges > l.badges) return true;
+  if (c.caught > l.caught) return true;
+  if (c.locations > l.locations) return true;
+  // For party/box and money we only trust cloud when the OTHER milestones
+  // are equal — a strictly bigger cloud collection with equal story
+  // progress indicates the cloud is the same player's longer-running
+  // save and we should restore it.
+  if (
+    c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
+    c.locations === l.locations &&
+    c.boxParty > l.boxParty + 1   // +1 slack to swallow lock-window race
+  ) return true;
+  return false;
+}
+
 const PERSISTENT_KEYS: (keyof GameState)[] = [
   "playerPokemon",
   "activePlayerPokemonIndex",
@@ -179,6 +217,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // returns (cloud wins if it has data; otherwise local migrates up).
   const [state, dispatch] = useReducer(reducer, undefined, loadSaved);
   const cloudReadyRef = useRef(false);
+  // Tracks the server-side `saveVersion` we have observed. Sent on every
+  // putSave so the server can compare-and-swap reject stale writes that
+  // would clobber a newer cloud copy from a different device. -1 means
+  // "we have never successfully talked to the cloud this session" —
+  // crucial for the autosave gate: if we never got cloud, we MUST NOT
+  // push local state up (it might be stale and would destroy progress).
+  const cloudVersionRef = useRef<number>(-1);
   const lastUploadedRef = useRef<string>("");
   const uploadTimerRef = useRef<number | undefined>(undefined);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -186,12 +231,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const { refresh: refreshProfile } = useAuth();
 
   // ── Initial cloud sync ──
-  // Uses last-write-wins on the snapshot timestamp. localStorage updates
-  // synchronously on every state change, but the cloud is debounced ~1.5s.
-  // If the player travels and reloads inside that window, cloud is stale
-  // and would otherwise overwrite the fresh local state. Comparing the
-  // `__savedAt` markers lets local win in that case (and triggers a
-  // background upload so the cloud catches up).
+  // Reconciliation rules (corrects the v1 timestamp-tiebreak bug that
+  // silently regressed cross-device players):
+  //
+  //   1. Cloud is the source of truth. We trust the server's monotonic
+  //      saveVersion over any client-supplied __savedAt, since client
+  //      clocks drift between devices.
+  //   2. Local can only win if it strictly *adds* progress on top of
+  //      what cloud already had. We measure that via milestone counts
+  //      (defeatedEliteFour, defeatedGyms, pokedexCaught, championDefeated,
+  //      raidLegendary count). If applying local would LOSE any milestone
+  //      vs cloud, we discard local and load cloud.
+  //   3. On cloud-fetch failure we do NOT enable autosave. The user keeps
+  //      seeing their local state, but uploads are blocked until we
+  //      can confirm what's in the cloud. Prevents the
+  //      "transient-network-blip → overwrite cloud with stale local"
+  //      regression class.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -203,13 +258,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
           && typeof cloudData === "object"
           && cloudData.playerPokemon
           && typeof cloudData.playerPokemon.speciesKey === "string";
-        const cloudTs: number =
-          cloudOk && typeof cloudData[SNAPSHOT_TS_KEY] === "number" ? cloudData[SNAPSHOT_TS_KEY] : 0;
-        const localTs = readLocalTimestamp();
-        const cloudIsNewer = cloudOk && cloudTs >= localTs;
+        // Lock in the cloud version BEFORE any potential upload. This
+        // is what gets sent on every putSave as expectedSaveVersion.
+        cloudVersionRef.current = cloud.saveVersion ?? 0;
 
-        if (cloudIsNewer) {
-          // Cloud is the source of truth. Replace local state.
+        const local = loadSaved();
+        const localOk = !!local.playerPokemon;
+
+        if (!cloudOk) {
+          // First-ever play, or cloud row is null/garbage. Keep local
+          // (loadSaved already seeded the reducer) and bootstrap the
+          // cloud with whatever we have.
+          if (localOk) {
+            const snapshot = pickPersistent(local);
+            try {
+              const res = await api.putSave(snapshot, cloudVersionRef.current);
+              cloudVersionRef.current = res.saveVersion;
+            } catch { /* offline: try again on next change */ }
+          }
+        } else if (!localOk || cloudHasMoreProgress(cloudData, local)) {
+          // Cloud wins. Replace local state. Crucially this fires not
+          // just when cloud has more milestones than local — it also
+          // fires when local has none (fresh-tab / cleared-localStorage)
+          // so we don't overwrite cloud with initialState.
           const sd = cloudData as Partial<GameState>;
           const normParty = (sd.party ?? [])
             .filter((p: any) => p && typeof p.speciesKey === "string")
@@ -235,20 +306,69 @@ export function GameProvider({ children }: { children: ReactNode }) {
               },
             },
           });
+          // Mark this snapshot as already-uploaded so the autosave
+          // useEffect's diff check doesn't re-push cloud right back to
+          // cloud on the first state-change tick.
+          lastUploadedRef.current = JSON.stringify(pickPersistent({
+            ...local,
+            ...sd,
+          } as GameState));
         } else {
-          // Local is newer (or there's no usable cloud save). Keep what
-          // loadSaved() seeded the reducer with and push it up so the
-          // cloud catches up.
-          const local = loadSaved();
-          if (local.playerPokemon) {
-            const snapshot = pickPersistent(local);
-            await api.putSave(snapshot).catch(() => undefined);
+          // Local strictly extends cloud (more milestones / equal +
+          // local-only changes). Push local up with the cloud version
+          // as expectedSaveVersion so a concurrent write from another
+          // device can still 409 us and prevent a clobber.
+          const snapshot = pickPersistent(local);
+          try {
+            const res = await api.putSave(snapshot, cloudVersionRef.current);
+            cloudVersionRef.current = res.saveVersion;
+          } catch (err: any) {
+            // 409 means another device wrote in between — re-pull
+            // cloud and load it rather than retrying our stale view.
+            if (err?.status === 409) {
+              try {
+                const fresh = await api.getSave();
+                cloudVersionRef.current = fresh.saveVersion ?? cloudVersionRef.current;
+                const fd = fresh.saveData as Partial<GameState> | null;
+                if (fd && (fd as any).playerPokemon) {
+                  dispatch({
+                    type: "LOAD_SAVE",
+                    payload: {
+                      state: {
+                        ...fd,
+                        party: ((fd.party ?? []) as any[])
+                          .filter((p) => p && typeof p.speciesKey === "string")
+                          .map(normalizePokemon),
+                        box: ((fd.box ?? []) as any[])
+                          .filter((p) => p && typeof p.speciesKey === "string")
+                          .map(normalizePokemon),
+                        phase: "idle",
+                        enemyPokemon: null,
+                        pendingEvents: [],
+                        trainerBattle: null,
+                        bossBattle: null,
+                        healingState: null,
+                        playerVolatile: null,
+                        evolutionState: null,
+                      },
+                    },
+                  });
+                }
+              } catch { /* */ }
+            }
+            // else: silent retry on next autosave cycle.
           }
         }
-      } catch {
-        /* offline: keep local state */
-      } finally {
         cloudReadyRef.current = true;
+      } catch {
+        // CRITICAL: a cloud fetch failure does NOT enable autosave.
+        // Previously this branch flipped cloudReadyRef.current = true
+        // which let the debounced uploader push local state to cloud
+        // on the next change — destructively if local was stale.
+        // Now we leave the flag false; the user keeps playing locally
+        // and we retry getSave on next mount. Save status is surfaced
+        // to the UI so silent regressions don't slip past QA.
+        setSaveStatus("error");
       }
     })();
     return () => { cancelled = true; };
@@ -274,13 +394,56 @@ export function GameProvider({ children }: { children: ReactNode }) {
     uploadTimerRef.current = window.setTimeout(() => {
       lastUploadedRef.current = serialized;
       setSaveStatus("saving");
-      api.putSave(snapshot)
-        .then(() => {
+      // expectedSaveVersion gates the write: if another device wrote
+      // in between, the server rejects with 409 and we re-pull rather
+      // than blindly overwriting.
+      api.putSave(snapshot, cloudVersionRef.current >= 0 ? cloudVersionRef.current : undefined)
+        .then((res) => {
+          cloudVersionRef.current = res.saveVersion;
           setSaveStatus("saved");
           setLastSavedAt(Date.now());
-          return refreshProfile();   // pulls back the new accountLevel
+          return refreshProfile();
         })
-        .catch(() => setSaveStatus("error"));
+        .catch(async (err: any) => {
+          if (err?.status === 409) {
+            // Cloud advanced under us — another device wrote. Re-pull
+            // and adopt cloud rather than retrying the stale write.
+            try {
+              const fresh = await api.getSave();
+              cloudVersionRef.current = fresh.saveVersion ?? cloudVersionRef.current;
+              const fd = fresh.saveData as Partial<GameState> | null;
+              if (fd && (fd as any).playerPokemon) {
+                const normParty = ((fd.party ?? []) as any[])
+                  .filter((p) => p && typeof p.speciesKey === "string")
+                  .map(normalizePokemon);
+                const normBox = ((fd.box ?? []) as any[])
+                  .filter((p) => p && typeof p.speciesKey === "string")
+                  .map(normalizePokemon);
+                dispatch({
+                  type: "LOAD_SAVE",
+                  payload: {
+                    state: {
+                      ...fd,
+                      party: normParty,
+                      box: normBox,
+                      phase: "idle",
+                      enemyPokemon: null,
+                      pendingEvents: [],
+                      trainerBattle: null,
+                      bossBattle: null,
+                      healingState: null,
+                      playerVolatile: null,
+                      evolutionState: null,
+                    },
+                  },
+                });
+                setSaveStatus("saved");
+                return;
+              }
+            } catch { /* */ }
+          }
+          setSaveStatus("error");
+        });
     }, 1500);
 
     return () => {

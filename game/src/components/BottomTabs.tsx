@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { TownMap } from "./TownMap";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { pokemonSpriteUrl, pokemonStaticSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
 import { buildUnifiedShop } from "../data/regions";
@@ -558,6 +558,18 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
             height={40}
             style={{ imageRendering: "pixelated" }}
             draggable={false}
+            onError={(e) => {
+              // Animated GIF subtree on jsDelivr is sometimes blocked
+              // by ad-blockers (the `/animated/` path matches a few
+              // common filter lists). Fall back to the static PNG at
+              // a different subtree so occupied PC cells still show
+              // something rather than collapsing to an empty button.
+              const sp = pokemonTable[p.speciesKey];
+              if (!sp) return;
+              const fallback = pokemonStaticSpriteUrl(sp.id);
+              const img = e.currentTarget as HTMLImageElement;
+              if (img.src !== fallback) img.src = fallback;
+            }}
           />
           {p.heldItem && itemsCatalog[p.heldItem] && (
             <img
