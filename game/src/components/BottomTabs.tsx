@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { TownMap } from "./TownMap";
 import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
@@ -549,62 +549,191 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
 // ---------------------------------------------------------------------------
 // Pokédex — tri-state grid (unseen black / seen gray / caught color).
 // ---------------------------------------------------------------------------
+type DexFilter = "all" | "caught" | "seen" | "shiny" | "unknown";
+
+const DEX_TYPES = [
+  "Normal","Fire","Water","Electric","Grass","Ice",
+  "Fighting","Poison","Ground","Flying","Psychic","Bug",
+  "Rock","Ghost","Dragon","Dark","Steel","Fairy",
+] as const;
+
+const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
+  { count: 10,  label: "Squad Builder", icon: "🧩" },
+  { count: 25,  label: "Roster",        icon: "📘" },
+  { count: 50,  label: "Half-way",      icon: "📚" },
+  { count: 100, label: "Centurion",     icon: "💯" },
+  { count: 151, label: "Master",        icon: "🏆" },
+];
+
 export function DexTab() {
   const { state } = useGame();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
-  const all = Object.entries(pokemonTable).sort(([, a], [, b]) => a.id - b.id);
+  const [filter, setFilter] = useState<DexFilter>("all");
+
+  const all = useMemo(() => Object.entries(pokemonTable).sort(([, a], [, b]) => a.id - b.id), []);
   const q = query.trim().toLowerCase();
-  const filtered = q
-    ? all.filter(([key, sp]) => {
-        // Match name + dex number ("char", "006", "#6")
-        const idStr = String(sp.id);
-        const padded = idStr.padStart(3, "0");
-        return (
-          sp.name.toLowerCase().includes(q) ||
-          key.toLowerCase().includes(q) ||
-          idStr.includes(q.replace(/^#/, "")) ||
-          padded.includes(q.replace(/^#/, ""))
-        );
-      })
-    : all;
+
+  const seenSet   = useMemo(() => new Set(state.pokedexSeen),   [state.pokedexSeen]);
+  const caughtSet = useMemo(() => new Set(state.pokedexCaught), [state.pokedexCaught]);
+  const shinySet  = useMemo(() => new Set(state.shinyCaught),   [state.shinyCaught]);
+
+  // Per-type completion counts.
+  const typeCompletion = useMemo(() => {
+    const byType: Record<string, { caught: number; total: number }> = {};
+    for (const t of DEX_TYPES) byType[t] = { caught: 0, total: 0 };
+    for (const [key, sp] of all) {
+      for (const t of sp.types) {
+        const bucket = byType[t];
+        if (!bucket) continue;
+        bucket.total++;
+        if (caughtSet.has(key)) bucket.caught++;
+      }
+    }
+    return byType;
+  }, [all, caughtSet]);
+
+  const filtered = useMemo(() => {
+    let base = all;
+    if (filter === "caught")  base = base.filter(([k]) => caughtSet.has(k));
+    if (filter === "seen")    base = base.filter(([k]) => seenSet.has(k) && !caughtSet.has(k));
+    if (filter === "shiny")   base = base.filter(([k]) => shinySet.has(k));
+    if (filter === "unknown") base = base.filter(([k]) => !seenSet.has(k));
+    if (!q) return base;
+    return base.filter(([key, sp]) => {
+      const idStr = String(sp.id);
+      const padded = idStr.padStart(3, "0");
+      return (
+        sp.name.toLowerCase().includes(q) ||
+        key.toLowerCase().includes(q) ||
+        idStr.includes(q.replace(/^#/, "")) ||
+        padded.includes(q.replace(/^#/, ""))
+      );
+    });
+  }, [all, filter, caughtSet, seenSet, shinySet, q]);
+
+  const completion = (state.pokedexCaught.length / all.length) * 100;
+  const nextMilestone = DEX_MILESTONES.find((m) => state.pokedexCaught.length < m.count);
 
   return (
-    <div className="tab-pane dex-tab">
-      <TabPaneHead
-        title="Pokédex"
-        meta={`${state.pokedexCaught.length}/${all.length} caught · ${state.pokedexSeen.length} seen`}
-      />
-      <div className="dex-search-wrap">
-        <input
-          type="search"
-          className="dex-search"
-          placeholder="Search by name or dex #"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {query && (
-          <button
-            type="button"
-            className="dex-search-clear"
-            onClick={() => setQuery("")}
-            aria-label="Clear search"
-          >
-            ×
-          </button>
-        )}
+    <div className="tab-pane dex-tab dex-tab-v2">
+      {/* HERO STRIP — completion ring + milestones */}
+      <header className="dex-hero">
+        <div className="dex-hero-ring">
+          <svg viewBox="0 0 36 36" className="dex-hero-ring-svg" aria-hidden>
+            <path
+              className="dex-hero-ring-track"
+              d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
+            />
+            <path
+              className="dex-hero-ring-fill"
+              d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
+              style={{ strokeDasharray: `${completion}, 100` }}
+            />
+          </svg>
+          <span className="dex-hero-ring-text">{Math.round(completion)}%</span>
+        </div>
+        <div className="dex-hero-stats">
+          <div>
+            <span className="dex-hero-label">Caught</span>
+            <strong className="tabular">{state.pokedexCaught.length}<span className="dim"> / {all.length}</span></strong>
+          </div>
+          <div>
+            <span className="dex-hero-label">Seen</span>
+            <strong className="tabular">{state.pokedexSeen.length}</strong>
+          </div>
+          <div>
+            <span className="dex-hero-label">Shinies</span>
+            <strong className="tabular">{state.shinyCaught.length}</strong>
+          </div>
+        </div>
+        <div className="dex-hero-milestones" aria-label="Milestones">
+          {DEX_MILESTONES.map((m) => {
+            const done = state.pokedexCaught.length >= m.count;
+            const active = nextMilestone && nextMilestone.count === m.count;
+            return (
+              <div
+                key={m.count}
+                className={`dex-milestone ${done ? "done" : ""} ${active ? "active" : ""}`}
+                title={`${m.label} — ${m.count}`}
+              >
+                <span className="dex-milestone-icon">{done ? m.icon : "🔒"}</span>
+                <span className="dex-milestone-count tabular">{m.count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </header>
+
+      {/* TYPE COMPLETION STRIP */}
+      <section className="dex-types">
+        {DEX_TYPES.map((t) => {
+          const bucket = typeCompletion[t];
+          if (!bucket || bucket.total === 0) return null;
+          const pct = (bucket.caught / Math.max(1, bucket.total)) * 100;
+          const complete = bucket.caught === bucket.total;
+          return (
+            <div key={t} className={`dex-type-pill type-${t.toLowerCase()} ${complete ? "complete" : ""}`} title={`${t}: ${bucket.caught} / ${bucket.total}`}>
+              <span className="dex-type-name">{t}</span>
+              <span className="dex-type-bar">
+                <span className="dex-type-bar-fill" style={{ width: `${pct}%` }} />
+              </span>
+              <span className="dex-type-num tabular">{bucket.caught}/{bucket.total}</span>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* FILTERS + SEARCH */}
+      <div className="dex-controls">
+        <div className="dex-filter-pills" role="tablist">
+          {(["all", "caught", "seen", "shiny", "unknown"] as DexFilter[]).map((f) => (
+            <button
+              key={f}
+              role="tab"
+              aria-selected={filter === f}
+              className={`dex-filter ${filter === f ? "active" : ""}`}
+              onClick={() => setFilter(f)}
+            >
+              {f === "all"     ? "All"
+                : f === "caught"  ? "Caught"
+                : f === "seen"    ? "Seen"
+                : f === "shiny"   ? "✨ Shiny"
+                :                   "???"}
+            </button>
+          ))}
+        </div>
+        <div className="dex-search-wrap">
+          <input
+            type="search"
+            className="dex-search"
+            placeholder="Search by name or dex #"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              type="button"
+              className="dex-search-clear"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+            >×</button>
+          )}
+        </div>
       </div>
+
+      {/* GRID */}
       <div className="dex-tab-grid">
         {filtered.length === 0 && (
           <p className="dim small" style={{ gridColumn: "1 / -1" }}>
-            No Pokémon match "{query}".
+            Nothing matches the current filter.
           </p>
         )}
         {filtered.map(([key, sp]) => {
-          const caught = state.pokedexCaught.includes(key);
-          const seen = state.pokedexSeen.includes(key);
-          const shiny = state.shinyCaught.includes(key);
-          const filter = caught
+          const caught = caughtSet.has(key);
+          const seen   = seenSet.has(key);
+          const shiny  = shinySet.has(key);
+          const filterCss = caught
             ? "none"
             : seen
             ? "grayscale(1) brightness(0.85)"
@@ -614,7 +743,7 @@ export function DexTab() {
             <button
               key={key}
               type="button"
-              className={`dex-cell ${caught ? "caught" : seen ? "seen" : "unknown"}`}
+              className={`dex-cell ${caught ? "caught" : seen ? "seen" : "unknown"} ${shiny ? "is-shiny" : ""}`}
               onClick={() => clickable && setPicked(key)}
               disabled={!clickable}
               title={clickable ? sp.name : "???"}
@@ -624,9 +753,10 @@ export function DexTab() {
                 alt={clickable ? sp.name : "???"}
                 width={36}
                 height={36}
-                style={{ imageRendering: "pixelated", filter }}
+                style={{ imageRendering: "pixelated", filter: filterCss }}
               />
               <small>#{String(sp.id).padStart(3, "0")}</small>
+              {shiny && <span className="dex-cell-shiny" aria-hidden>✨</span>}
             </button>
           );
         })}

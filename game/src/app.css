@@ -14896,3 +14896,205 @@ html, body {
   .achievement-toast { animation: none; }
   .battle-juice-burst { animation: none; opacity: 1; transform: none; }
 }
+
+/* =================================================================
+   Pokédex tab v2 — gamified hero strip + filters + type completion
+   ================================================================= */
+.dex-tab-v2 { display: flex; flex-direction: column; gap: 10px; }
+
+.dex-hero {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(0, 0, 0, 0.25) 100%);
+  border-radius: 10px;
+}
+.dex-hero-ring { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+.dex-hero-ring-svg { transform: rotate(-90deg); display: block; }
+.dex-hero-ring-track { fill: none; stroke: rgba(255, 255, 255, 0.07); stroke-width: 3.2; }
+.dex-hero-ring-fill {
+  fill: none;
+  stroke: var(--gold, #fbbf24);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.5));
+  transition: stroke-dasharray 600ms ease;
+}
+.dex-hero-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.dex-hero-stats {
+  display: flex;
+  gap: 18px;
+}
+.dex-hero-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dex-hero-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dex-hero-stats strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+.dex-hero-milestones {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.dex-milestone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  transition: background 200ms ease;
+  min-width: 38px;
+}
+.dex-milestone.done {
+  background: rgba(251, 191, 36, 0.14);
+  color: var(--gold, #fbbf24);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.32);
+}
+.dex-milestone.active {
+  background: rgba(251, 191, 36, 0.22);
+  color: #fde68a;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.28), inset 0 0 0 1px rgba(251, 191, 36, 0.45);
+}
+.dex-milestone-icon { font-size: 14px; }
+.dex-milestone-count { font-size: 10px; }
+
+/* Type completion */
+.dex-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px;
+}
+.dex-type-pill {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 6px;
+  font-size: 10px;
+  transition: background 120ms ease;
+}
+.dex-type-pill.complete {
+  background: rgba(126, 224, 126, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(126, 224, 126, 0.28);
+}
+.dex-type-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dex-type-bar {
+  display: block;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dex-type-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #fbbf24, #fde68a);
+  border-radius: 2px;
+}
+.dex-type-pill.type-fire     .dex-type-bar-fill { background: linear-gradient(90deg, #ef4444, #fb923c); }
+.dex-type-pill.type-water    .dex-type-bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.dex-type-pill.type-electric .dex-type-bar-fill { background: linear-gradient(90deg, #facc15, #fde047); }
+.dex-type-pill.type-grass    .dex-type-bar-fill { background: linear-gradient(90deg, #22c55e, #86efac); }
+.dex-type-pill.type-ice      .dex-type-bar-fill { background: linear-gradient(90deg, #06b6d4, #67e8f9); }
+.dex-type-pill.type-fighting .dex-type-bar-fill { background: linear-gradient(90deg, #b91c1c, #f87171); }
+.dex-type-pill.type-poison   .dex-type-bar-fill { background: linear-gradient(90deg, #a855f7, #c084fc); }
+.dex-type-pill.type-ground   .dex-type-bar-fill { background: linear-gradient(90deg, #ca8a04, #fbbf24); }
+.dex-type-pill.type-flying   .dex-type-bar-fill { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+.dex-type-pill.type-psychic  .dex-type-bar-fill { background: linear-gradient(90deg, #ec4899, #f9a8d4); }
+.dex-type-pill.type-bug      .dex-type-bar-fill { background: linear-gradient(90deg, #84cc16, #bef264); }
+.dex-type-pill.type-rock     .dex-type-bar-fill { background: linear-gradient(90deg, #78716c, #d6d3d1); }
+.dex-type-pill.type-ghost    .dex-type-bar-fill { background: linear-gradient(90deg, #6d28d9, #a78bfa); }
+.dex-type-pill.type-dragon   .dex-type-bar-fill { background: linear-gradient(90deg, #4338ca, #818cf8); }
+.dex-type-pill.type-dark     .dex-type-bar-fill { background: linear-gradient(90deg, #1e293b, #475569); }
+.dex-type-pill.type-steel    .dex-type-bar-fill { background: linear-gradient(90deg, #64748b, #94a3b8); }
+.dex-type-pill.type-fairy    .dex-type-bar-fill { background: linear-gradient(90deg, #f472b6, #fbcfe8); }
+.dex-type-pill.type-normal   .dex-type-bar-fill { background: linear-gradient(90deg, #a8a29e, #d6d3d1); }
+
+.dex-type-num { font-size: 9.5px; color: var(--text-muted); }
+
+/* Controls */
+.dex-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.dex-filter-pills {
+  display: inline-flex;
+  background: var(--panel-2);
+  padding: 3px;
+  border-radius: 999px;
+  gap: 2px;
+}
+.dex-filter {
+  background: transparent;
+  border: 0;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dex-filter:hover { color: var(--text); }
+.dex-filter.active {
+  background: var(--panel-4);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.dex-controls .dex-search-wrap { flex: 1; min-width: 180px; }
+
+/* Cell shiny accent */
+.dex-cell.is-shiny {
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45), 0 0 10px rgba(251, 191, 36, 0.18);
+}
+.dex-cell-shiny {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 10px;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.8));
+}
+.dex-cell { position: relative; }
+
+@media (max-width: 600px) {
+  .dex-hero { grid-template-columns: auto 1fr; gap: 10px; }
+  .dex-hero-milestones { grid-column: 1 / -1; justify-content: flex-start; }
+  .dex-types { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+}
