@@ -9,6 +9,9 @@ import { bindTradeSocket } from "../state/trade";
 import { bindPresenceSocket } from "../state/presence";
 import { bindPvpSocket } from "../state/pvp";
 import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
+import { useAchievementTracker } from "../state/achievements";
+import { AchievementToast } from "./AchievementToast";
+import { AchievementsModal } from "./AchievementsModal";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
@@ -64,6 +67,12 @@ export function GameShell() {
     const seen = state.pokedexSeen.slice(-30).map((speciesKey) => ({ speciesKey }));
     warmupSpecies(seen);
   }, [state.pokedexSeen]);
+
+  // Achievement tracker — derives unlocked-id set from GameState +
+  // PvP/trade snapshots and fires unlock-toast events for any newly
+  // unlocked achievements relative to localStorage. First-run pass is
+  // silent so historical unlocks don't spam the player at boot.
+  useAchievementTracker(state, {});
   return (
     <div className="game-window">
       <AppBackground />
@@ -101,6 +110,8 @@ export function GameShell() {
       <PvpReplayModal />
       <PvpSpectatorModal />
       <ReportBugModal />
+      <AchievementsModal />
+      <AchievementToast />
     </div>
   );
 }

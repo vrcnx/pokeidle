@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
+import { openAchievements } from "./AchievementsModal";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { openPvpHub } from "./PvpHubModal";
@@ -358,6 +359,22 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
                   <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
                   <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+                </section>
+
+                <section className="g-card">
+                  <h3>Achievements</h3>
+                  <p className="g-help" style={{ marginTop: 0 }}>
+                    Trophy gallery — track your unlocks across catches,
+                    battles, PvP, trading, and the story.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button
+                      className="g-btn-primary g-btn-small"
+                      onClick={() => { onClose(); openAchievements(); }}
+                    >
+                      Open trophy gallery
+                    </button>
+                  </div>
                 </section>
 
                 <section className="g-card">

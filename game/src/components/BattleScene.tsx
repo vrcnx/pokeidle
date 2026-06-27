@@ -7,6 +7,7 @@ import { TrainerIntro } from "./TrainerIntro";
 import { WhiteoutOverlay } from "./WhiteoutOverlay";
 import { MoveAnimation } from "./MoveAnimation";
 import { HealOverlay } from "./HealOverlay";
+import { BattleJuice } from "./BattleJuice";
 import type { Pokemon, RouteType } from "../types";
 
 // Aspect-ratio-locked battle arena that always shows the current scene.
@@ -169,6 +170,7 @@ export function BattleScene() {
       <DamageFlash side="player" />
       <DamageFlash side="enemy" />
       <EffectivenessFlash />
+      <BattleJuice />
       </div>
       <WhiteoutOverlay />
       <HealOverlay />
