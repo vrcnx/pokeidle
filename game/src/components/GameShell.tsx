@@ -4,9 +4,11 @@ import { CenterColumn } from "./CenterColumn";
 import { LocationColumn } from "./LocationColumn";
 import { MobileShell } from "./MobileShell";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useGame } from "../state/GameContext";
 import { bindTradeSocket } from "../state/trade";
 import { bindPresenceSocket } from "../state/presence";
 import { bindPvpSocket } from "../state/pvp";
+import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
@@ -36,6 +38,7 @@ import { ReportBugModal } from "./ReportBugModal";
 
 export function GameShell() {
   const isMobile = useMediaQuery("(max-width: 900px)");
+  const { state } = useGame();
   // Bind trade socket listeners once GameShell mounts (i.e. once the
   // user is authenticated). The bind is idempotent — the module guards
   // against double-subscribing if GameShell unmounts and remounts.
@@ -44,6 +47,23 @@ export function GameShell() {
     bindPresenceSocket();
     bindPvpSocket();
   }, []);
+  // Warm Pokémon-sprite browser cache for everything the player is
+  // likely to see soon: party (both facings + shiny variant) on every
+  // change, plus the species the player has already seen at idle.
+  // This is what makes the wild-encounter sprite render instantly
+  // rather than flickering in mid-battle. See utils/spriteWarmup for
+  // why we chose preload-into-browser-cache over IndexedDB/SW.
+  useEffect(() => {
+    warmupParty(state.party);
+  }, [state.party]);
+  useEffect(() => {
+    // Cap the seen-list warm to the first 30 species so we don't
+    // hammer the CDN on Pokédex-complete saves. The player's RECENT
+    // encounters are the ones we actually need warm; the long-tail
+    // (Tauros they caught once last week) can take the normal hit.
+    const seen = state.pokedexSeen.slice(-30).map((speciesKey) => ({ speciesKey }));
+    warmupSpecies(seen);
+  }, [state.pokedexSeen]);
   return (
     <div className="game-window">
       <AppBackground />

@@ -51,6 +51,57 @@ export const mergedEliteFour = concatLeaders((r) => r.eliteFour);
 export const mergedTrainerEncounters = mergeTrainerEncounters();
 export const mergedShops = mergeShops();
 
+// Unified mart inventory — the player no longer has to traipse to a
+// specific town to access a stone or a Great Ball. Once they've visited
+// a town that stocks an item, that item is available from every mart in
+// the region. The per-item `unlockWildBattlesWon` gate still fires on
+// top so progression unlocks aren't bypassed.
+//
+// Returns the merged ShopDef so the UI can render one tidy list keyed
+// by itemId, plus a `unlockedAt` map naming the first town that sold
+// each item (used for "First spotted at Cerulean Mart"-style hints).
+export interface UnifiedShopItem {
+  itemId: string;
+  unlockWildBattlesWon?: number;
+  firstSoldAt: string;        // canonical locationId of the earliest stocking town
+  firstSoldAtName: string;    // its display name (e.g. "Cerulean Mart")
+}
+export interface UnifiedShop {
+  items: UnifiedShopItem[];
+  visitedTownsWithMart: number;
+}
+export function buildUnifiedShop(visitedLocationIds: readonly string[]): UnifiedShop {
+  const visited = new Set(visitedLocationIds);
+  const map = new Map<string, UnifiedShopItem>();
+  let visitedTownsWithMart = 0;
+  for (const [locationId, shop] of Object.entries(mergedShops)) {
+    if (!visited.has(locationId)) continue;
+    visitedTownsWithMart++;
+    for (const entry of shop.items) {
+      const existing = map.get(entry.itemId);
+      if (existing) {
+        // Keep the lower wildBattlesWon gate (whichever town unlocked
+        // it first wins) — caps are union-of-easiest.
+        const existingGate = existing.unlockWildBattlesWon ?? 0;
+        const newGate = entry.unlockWildBattlesWon ?? 0;
+        if (newGate < existingGate) {
+          existing.unlockWildBattlesWon = entry.unlockWildBattlesWon;
+          existing.firstSoldAt = locationId;
+          existing.firstSoldAtName = shop.name;
+        }
+      } else {
+        map.set(entry.itemId, {
+          itemId: entry.itemId,
+          unlockWildBattlesWon: entry.unlockWildBattlesWon,
+          firstSoldAt: locationId,
+          firstSoldAtName: shop.name,
+        });
+      }
+    }
+  }
+  return { items: Array.from(map.values()), visitedTownsWithMart };
+}
+
 // Reverse lookups — given a location id, what region does it belong to?
 const locationToRegion: Record<string, RegionId> = {};
 for (const region of Object.values(regions)) {

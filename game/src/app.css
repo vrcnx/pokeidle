@@ -13869,3 +13869,186 @@ html, body {
 @media (max-width: 600px) {
   .effectiveness-flash { font-size: 12px; padding: 5px 10px; top: 14%; }
 }
+
+/* =================================================================
+   Mart v2 — universal/progressional Poké Mart
+   ----------------------------------------------------------------
+   Replaces the per-town inventory lookup with a single panel that
+   merges every shop the player has visited. UI tuned for browse-and-
+   buy: categories along the top, items in a one-row-per-item list
+   with sprite, name, price, one-line description, locked criterion,
+   and Buy/×10 controls.
+   ================================================================= */
+.shop-panel.mart-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+.mart-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.mart-head-title h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+.mart-head-title p { margin: 2px 0 0; }
+.mart-money {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.mart-money-coin { color: #fbbf24; font-weight: 700; }
+.mart-money strong { font-weight: 600; }
+
+.mart-categories {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mart-categories::-webkit-scrollbar { display: none; }
+.mart-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+.mart-category:hover { color: var(--text); }
+.mart-category.active {
+  background: var(--panel-4);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.mart-category-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.mart-category.active .mart-category-count {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+}
+
+.mart-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mart-item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+.mart-item:hover { background: var(--panel-3); }
+.mart-item.locked { opacity: 0.55; }
+.mart-item-sprite {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+.mart-item-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mart-item-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mart-item-name strong { font-size: 13px; font-weight: 600; }
+.mart-item-price {
+  font-size: 12.5px;
+  color: #fde68a;
+  font-weight: 600;
+}
+.mart-item-desc {
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mart-item-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #fbbf24;
+}
+.mart-lock-icon { font-size: 11px; }
+.mart-item-hint { font-size: 10.5px; }
+.mart-item-buy {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.mart-buy-btn {
+  background: var(--accent);
+  color: #0e1014;
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.mart-buy-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.mart-buy-btn:active:not(:disabled) { transform: translateY(1px); }
+.mart-buy-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.mart-buy-x10 {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+  font-weight: 600;
+}
+.mart-buy-x10:hover:not(:disabled) { background: rgba(251, 191, 36, 0.32); color: #fef3c7; }
+.mart-empty { padding: 24px; text-align: center; }
+
+@media (max-width: 600px) {
+  .mart-item { grid-template-columns: 36px 1fr; grid-template-rows: auto auto; gap: 8px; padding: 8px; }
+  .mart-item-sprite { width: 36px; height: 36px; }
+  .mart-item-buy { grid-column: 1 / -1; justify-content: flex-end; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.04); }
+  .mart-item-desc { white-space: normal; }
+}
