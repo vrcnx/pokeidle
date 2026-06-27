@@ -315,7 +315,12 @@ a:focus-visible {
 .location-column {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Was overflow: hidden, which clipped the gym leader trainer card
+     and other bottom-most sections when the column ran out of vertical
+     space. Switching to auto lets the column scroll its contents
+     instead of swallowing them. */
+  overflow-y: auto;
+  overflow-x: hidden;
   gap: 8px;
   padding: 0;
   background: transparent;

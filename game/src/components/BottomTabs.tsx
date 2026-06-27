@@ -4,7 +4,7 @@ import { TownMap } from "./TownMap";
 import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
-import { shops } from "../data/shops";
+import { buildUnifiedShop } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { openPokemonDetail } from "./PokemonDetailModal";
@@ -73,14 +73,16 @@ export function BottomTabs() {
 }
 
 // ---------------------------------------------------------------------------
-// Mart — town-only stub for now.
+// Mart — UNIVERSAL / PROGRESSIONAL. The previous town-only stub forced
+// players to travel to a specific city to access its stock; the operator
+// flagged that as friction. Now the mart shows the UNION of every shop
+// the player has unlocked (any town they've visited). Per-item
+// wildBattlesWon gates still fire on top.
 // ---------------------------------------------------------------------------
 export function MartTab() {
   const { state, dispatch } = useGame();
   const here = state.currentLocation;
   const route = routes[here];
-  const isTown = route?.type === "town";
-  const shop = isTown ? shops[here] : null;
   // When the player hits Buy, the row swaps into a quantity adjuster so
   // they can buy in bulk. Only one row can be pending at a time.
   const [pending, setPending] = useState<{ itemId: string; qty: number } | null>(null);
@@ -88,6 +90,14 @@ export function MartTab() {
   // Cancel the pending row whenever the player travels — prevents the row
   // sticking around when the shop changes underneath it.
   useEffect(() => { setPending(null); }, [here]);
+
+  // Unified inventory across every shop the player has visited. Each
+  // entry remembers the first town that stocked it so we can show a
+  // small "First found at Pewter Mart" hint.
+  const unified = useMemo(
+    () => buildUnifiedShop(state.unlockedLocations),
+    [state.unlockedLocations],
+  );
 
   const resolve = (id: string): { price: number; description: string } | null => {
     const cat = itemsCatalog[id];
@@ -101,19 +111,36 @@ export function MartTab() {
     return null;
   };
 
+  // Sort items by price ascending so the cheapest balls / repels land
+  // at the top of the list — typical buy-bulk-of-cheap-balls flow.
+  const sortedItems = useMemo(() => {
+    return unified.items.slice().sort((a, b) => {
+      const ra = resolve(a.itemId)?.price ?? Infinity;
+      const rb = resolve(b.itemId)?.price ?? Infinity;
+      return ra - rb;
+    });
+  }, [unified]);
+
   return (
     <div className="tab-pane mart-tab">
       <TabPaneHead
-        title={`${route?.name ?? "Mart"} · Mart`}
-        meta={<span className="mart-wallet">💰 ${state.money.toLocaleString()}</span>}
+        title="Poké Mart"
+        meta={
+          <span className="mart-wallet">
+            💰 ${state.money.toLocaleString()}
+            <span className="dim small" style={{ marginLeft: 8 }}>
+              · {unified.visitedTownsWithMart} town{unified.visitedTownsWithMart === 1 ? "" : "s"} visited
+            </span>
+          </span>
+        }
       />
-      {!isTown ? (
-        <p className="dim small">Marts are only open in towns. Travel to a city to shop.</p>
-      ) : !shop ? (
-        <p className="dim small">No mart in this town yet.</p>
+      {unified.visitedTownsWithMart === 0 ? (
+        <p className="dim small">No mart has opened to you yet. Visit Viridian City to unlock your first stock.</p>
+      ) : sortedItems.length === 0 ? (
+        <p className="dim small">No items available yet.</p>
       ) : (
         <ul className="mart-list">
-          {shop.items.map((entry) => {
+          {sortedItems.map((entry) => {
             const resolved = resolve(entry.itemId);
             if (!resolved) return null;
             const locked =
@@ -138,10 +165,13 @@ export function MartTab() {
                   <strong>{info.name}</strong>
                   {locked ? (
                     <small className="dim">
-                      Unlocks at {entry.unlockWildBattlesWon} wild battles
+                      Unlocks at {entry.unlockWildBattlesWon} wild battles ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
                     </small>
                   ) : (
-                    <small className="dim">{resolved.description}</small>
+                    <small className="dim">
+                      {resolved.description}
+                      <span style={{ opacity: 0.7 }}> · First found at {entry.firstSoldAtName}</span>
+                    </small>
                   )}
                 </div>
                 <span className="mart-price">${resolved.price.toLocaleString()}</span>

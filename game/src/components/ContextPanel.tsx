@@ -85,7 +85,7 @@ function BattleTrainerPanel() {
   // contextual card instead of the random trainer the player happens
   // to be mid-battle with — that's what defines the town.
   const leader = getGymLeaderForLocation(state.currentLocation);
-  if (leader) {
+  if (leader && leader.name) {
     const defeated = state.defeatedGyms.includes(leader.id);
     const reqBadges = gymBadgeRequirement(leader.id);
     const haveBadges = state.defeatedGyms.length;
@@ -254,7 +254,7 @@ function IdleTownPanel() {
   return (
     <>
       {here === "indigoPlat" && <LeagueCard />}
-      {leader && (
+      {leader && leader.name && (
         <section className="ctx-section">
           <h4>Gym Leader</h4>
           <div className="ctx-trainer-card">
