@@ -61,10 +61,17 @@ export function TeamBuilderModal() {
   // ids rather than indices because the box can be re-sorted.
   const [picked, setPicked] = useState<string[]>([]);
 
-  // Reset selection whenever the modal opens fresh.
+  // Pre-fill with the player's current party on every fresh open. The
+  // common flow is "Battle Hub → Ready Up → confirm my usual team",
+  // so requiring six taps to re-pick what's already in the party was
+  // friction the operator flagged. Order matches party order so the
+  // lead stays the lead. The player can deselect / swap in box mons
+  // before confirming. Re-runs on each new request (not on party
+  // changes mid-modal) so toggling a row doesn't bounce back.
   useEffect(() => {
-    if (req) setPicked([]);
-  }, [req?.mode]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (req) setPicked(state.party.slice(0, 6).map((p) => p.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [req]);
 
   if (!req) return null;
 
