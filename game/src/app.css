@@ -2137,6 +2137,40 @@ body.dnd-active {
   border-color: var(--gold);
 }
 .dock-btn-icon { font-size: 16px; line-height: 1; }
+/* Notification badge — top-right red pill with pulsing glow when a
+   button has pending work (e.g. Social with incoming friend requests).
+   `.dock-btn` is position: static by default, so the badge needs the
+   wrapper relative-positioned. Adding it here without touching the
+   base ruleset above keeps the layout intact. */
+.dock-btn.has-badge { position: relative; }
+.dock-btn-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px #161616, 0 0 12px rgba(239, 68, 68, 0.7);
+  animation: dock-badge-pulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.dock-btn.active .dock-btn-badge { box-shadow: 0 0 0 2px var(--gold), 0 0 12px rgba(239, 68, 68, 0.7); }
+@keyframes dock-badge-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.12); opacity: 0.92; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-btn-badge { animation: none; }
+}
 .dock-btn-label {
   font-family: inherit;
   font-size: 7px;

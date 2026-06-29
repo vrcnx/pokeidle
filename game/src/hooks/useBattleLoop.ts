@@ -162,7 +162,7 @@ export function useBattleLoop(): void {
           cur.autoCatch &&
           shouldAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.level, enemy.isShiny)
         ) {
-          const ball = ballForAutoCatch(cur, cur.currentRoute, enemy.speciesKey);
+          const ball = ballForAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.isShiny);
           if (ball) {
             dispatch({ type: "TRY_CATCH", payload: { ballId: ball } });
             schedule();

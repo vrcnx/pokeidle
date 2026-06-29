@@ -127,6 +127,29 @@ function loadSaved(): GameState {
       migratedGlobalCatchDefaults = { ...parsed.globalCatchDefaults, mode: "always" };
     }
 
+    // Dedupe Pokédex arrays. DrWhy reported "rankings show 151 for
+    // pokédex but profile goes up to 194" — the server's pokedexCaughtCount
+    // already runs through `new Set(...)` (level.ts) but the client
+    // reads `state.pokedexCaught.length` directly in 4 places
+    // (BottomTabs DexTab, GlobalDock Settings, PokedexPanel,
+    // TrainerCardModal), so duplicate entries inflate the displayed
+    // count out of sync with the server view. Strip dupes once on
+    // load; subsequent dispatches that add to these arrays already
+    // guard against re-adds via .includes() — this catches legacy
+    // saves from before that guard existed.
+    const dedupeStrings = (arr: unknown): string[] => {
+      if (!Array.isArray(arr)) return [];
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const v of arr) {
+        if (typeof v !== "string") continue;
+        if (seen.has(v)) continue;
+        seen.add(v);
+        out.push(v);
+      }
+      return out;
+    };
+
     return {
       ...initialState,
       ...parsed,
@@ -134,6 +157,10 @@ function loadSaved(): GameState {
       party: normalizedParty,
       box: normalizedBox,
       activePlayerPokemonIndex: activeIdx,
+      pokedexCaught: dedupeStrings(parsed.pokedexCaught),
+      pokedexSeen:   dedupeStrings(parsed.pokedexSeen),
+      shinyCaught:   dedupeStrings(parsed.shinyCaught),
+      shinySeen:     dedupeStrings(parsed.shinySeen),
       globalCatchDefaults: migratedGlobalCatchDefaults ?? initialState.globalCatchDefaults,
       // Defensively reset transient fields we never want to restore
       phase: "idle",

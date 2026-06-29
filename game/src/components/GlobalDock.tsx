@@ -11,6 +11,7 @@ import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
+import { useIncomingRequestCount } from "../state/friendRequests";
 import { openPvpHub } from "./PvpHubModal";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
@@ -63,6 +64,11 @@ export function MetaDock() {
   // from the hub then) but stays enabled while queueing — the queue
   // state is fine to inspect / leave from inside the hub.
   const inBattle = !!pvp.room;
+  // Polls /api/friends every 30s; non-zero count lights up a badge
+  // on the Social button so a fresh request is discoverable without
+  // having to open the panel. (DrWhy: "socials tab does not light up
+  // if a request is there unless you hit it" — fixed.)
+  const { count: incomingRequests } = useIncomingRequestCount();
   return (
     <>
       <div className="dock dock-meta" role="toolbar" aria-label="Account actions">
@@ -88,7 +94,10 @@ export function MetaDock() {
           icon={<IconChat size={18} />}
           label="Social"
           active={open === "social"}
-          title="Friends & chat"
+          title={incomingRequests > 0
+            ? `Friends & chat · ${incomingRequests} pending request${incomingRequests === 1 ? "" : "s"}`
+            : "Friends & chat"}
+          badge={incomingRequests}
           onClick={() => setOpen(open === "social" ? null : "social")}
         />
       </div>
@@ -109,6 +118,9 @@ interface DockBtnProps {
   active?: boolean;
   disabled?: boolean;
   title?: string;
+  /** When > 0, paints a small red dot + count in the corner of the
+   *  button. Used by the Social button for pending friend requests. */
+  badge?: number;
   onClick: () => void;
 }
 // Audio preferences — master mute + volume slider. Lives next to the
@@ -258,19 +270,22 @@ function ChatPrefsCard() {
   );
 }
 
-function DockButton({ icon, label, active, disabled, title, onClick }: DockBtnProps) {
+function DockButton({ icon, label, active, disabled, title, badge, onClick }: DockBtnProps) {
   return (
     <button
       type="button"
-      className={`dock-btn ${active ? "active" : ""}`}
+      className={`dock-btn ${active ? "active" : ""} ${badge && badge > 0 ? "has-badge" : ""}`}
       title={title ?? label}
-      aria-label={label}
+      aria-label={badge && badge > 0 ? `${label} (${badge} new)` : label}
       aria-pressed={!!active}
       disabled={disabled}
       onClick={onClick}
     >
       <span className="dock-btn-icon">{icon}</span>
       <span className="dock-btn-label">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="dock-btn-badge" aria-hidden>{badge > 99 ? "99+" : badge}</span>
+      )}
     </button>
   );
 }

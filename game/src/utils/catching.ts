@@ -44,12 +44,17 @@ export function shouldAutoCatch(
   level: number,
   isShiny: boolean
 ): boolean {
+  // ULTIMATE override — a shiny encounter is 1/8192 (or 1/4096 with
+  // Shiny Charm). Player report from global chat: "5 shinies today,
+  // didn't throw a ball at any of them" — caused by the v1 ordering
+  // of this function which short-circuited on
+  // `!settings.enabled || settings.enabledBalls.length === 0` BEFORE
+  // checking alwaysCatchShinies. A per-route disable or an empty
+  // ball list silently ate every shiny. Now the shiny gate fires
+  // first; ballForAutoCatch will fall back to ANY owned ball.
+  if (isShiny && state.alwaysCatchShinies) return true;
   const settings = resolveCatchSettings(state, routeKey, speciesKey);
   if (!settings.enabled || settings.enabledBalls.length === 0) return false;
-  // Global "always catch shinies" override — wins over per-route mode so a
-  // 1-in-8192 encounter never escapes because the route is configured for
-  // level_threshold or shiny_only-but-disabled. The toggle is on by default.
-  if (isShiny && state.alwaysCatchShinies) return true;
   switch (settings.mode) {
     case "always":          return true;
     case "shiny_only":      return isShiny;
@@ -62,8 +67,21 @@ export function shouldAutoCatch(
 export function ballForAutoCatch(
   state: GameState,
   routeKey: string,
-  speciesKey: string
+  speciesKey: string,
+  isShiny = false,
 ): string | null {
   const settings = resolveCatchSettings(state, routeKey, speciesKey);
+  // Shiny override extends to ball selection: if the user has
+  // alwaysCatchShinies on and we're picking a ball for a shiny, fall
+  // back to ANY owned ball when the configured enabledBalls list is
+  // empty or out of stock. Better to use the wrong ball than to let
+  // the encounter walk away.
+  if (isShiny && state.alwaysCatchShinies) {
+    const fromEnabled = pickAutoBall(speciesKey, settings.enabledBalls, state.inventory);
+    if (fromEnabled) return fromEnabled;
+    const anyOwned = BALL_ORDER.find((b) => (state.inventory[b] ?? 0) > 0);
+    if (anyOwned) return anyOwned;
+    return null;
+  }
   return pickAutoBall(speciesKey, settings.enabledBalls, state.inventory);
 }
