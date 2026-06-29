@@ -104,6 +104,29 @@ function loadSaved(): GameState {
         : normalizedParty.findIndex((p) => p.id === parsed.playerPokemon!.id);
     if (activeIdx < 0) activeIdx = 0;
     const activeFromParty = normalizedParty[activeIdx] ?? normalizePokemon(parsed.playerPokemon);
+    // Migration: existing players inherited the old DEFAULT_CATCH_SETTINGS
+    // (mode "pokedex_new") which silently stopped throwing balls once
+    // a species was caught. Veterans flooded global chat with "auto-
+    // catch doesn't work on Gastly / Porygon / Eevee dupes" reports.
+    // We flipped the default to "always" but baked-in saves still
+    // carry "pokedex_new". One-time flip ONLY when the save shows the
+    // exact factory-default shape — never overrides an opt-in choice
+    // (e.g. ball list other than ["pokeball"] or non-default threshold).
+    // Naturally idempotent: once flipped to "always", the condition no
+    // longer matches, so no flag needed.
+    let migratedGlobalCatchDefaults = parsed.globalCatchDefaults;
+    if (
+      parsed.globalCatchDefaults
+      && parsed.globalCatchDefaults.mode === "pokedex_new"
+      && parsed.globalCatchDefaults.enabled === true
+      && parsed.globalCatchDefaults.levelThreshold === 1
+      && Array.isArray(parsed.globalCatchDefaults.enabledBalls)
+      && parsed.globalCatchDefaults.enabledBalls.length === 1
+      && parsed.globalCatchDefaults.enabledBalls[0] === "pokeball"
+    ) {
+      migratedGlobalCatchDefaults = { ...parsed.globalCatchDefaults, mode: "always" };
+    }
+
     return {
       ...initialState,
       ...parsed,
@@ -111,6 +134,7 @@ function loadSaved(): GameState {
       party: normalizedParty,
       box: normalizedBox,
       activePlayerPokemonIndex: activeIdx,
+      globalCatchDefaults: migratedGlobalCatchDefaults ?? initialState.globalCatchDefaults,
       // Defensively reset transient fields we never want to restore
       phase: "idle",
       enemyPokemon: null,

@@ -10,7 +10,13 @@
 // hit through normal play.
 
 const MAX_PARTY = 6;
-const MAX_BOX = 600;
+// MUST match saveValidation.ts MAX_BOX. Out of sync the computeAccountLevel
+// silently truncates: veteran players' totalCaughtLevels capped at
+// (MAX_PARTY + 600) * 100 = 60_600 (and in practice at the sum of the
+// first 606 mons' levels, which stalls at whatever number the cap
+// happened to land on — DrWhy was "stuck at 5838" because of exactly
+// this).
+const MAX_BOX = 9999;
 const MAX_LEVEL = 100;
 const MAX_TOTAL_DEX = 151; // Kanto only (extend with later regions)
 const MAX_TOTAL_CAUGHT_LEVELS = (MAX_PARTY + MAX_BOX) * MAX_LEVEL;
