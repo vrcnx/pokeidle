@@ -249,11 +249,14 @@ function CatchSettingsDialog({
                     </div>
                     <button
                       className={`catch-toggle ${rule.enabled ? "on" : "off"}`}
+                      title={rule.enabled
+                        ? "Auto-catch is ON for this species. Click to skip."
+                        : "Auto-catch is OFF for this species. Click to enable."}
                       onClick={() =>
                         setRule(e.speciesKey, { ...rule, enabled: !rule.enabled })
                       }
                     >
-                      CATCH
+                      {rule.enabled ? "✓ CATCH" : "✗ SKIP"}
                     </button>
                   </li>
                 );

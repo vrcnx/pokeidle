@@ -11,6 +11,7 @@
 import type { Action, ActiveEffect, BossBattle, GameState, Pokemon, TrainerBattle } from "../types";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
+import { mergedEncounters } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { evolutionStones } from "../data/evolutionStones";
@@ -786,9 +787,27 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "TOGGLE_ROUTE_CATCH_ALL": {
       const { routeKey, enabled } = action.payload;
-      const rules = { ...(state.catchSettings[routeKey] ?? {}) };
-      for (const k of Object.keys(rules)) {
-        rules[k] = { ...rules[k], enabled };
+      // Previously only iterated over EXISTING per-species rules — so
+      // "All" / "None" did nothing on a fresh route where the user
+      // had never customized anything. Multiple bug reports of
+      // "catch settings do nothing" traced back here. Now enumerate
+      // the route's actual encounter list and materialize a rule for
+      // every species (starting from globalCatchDefaults + the
+      // requested enabled state). Uses a lazy import of the merged
+      // encounters map from data/regions since reducer.ts avoided
+      // that dependency previously.
+      const encs = mergedEncounters[routeKey]?.encounters ?? [];
+      const existing = state.catchSettings[routeKey] ?? {};
+      const rules: Record<string, typeof state.globalCatchDefaults> = { ...existing };
+      for (const e of encs) {
+        const base = existing[e.speciesKey] ?? state.globalCatchDefaults;
+        rules[e.speciesKey] = { ...base, enabled };
+      }
+      // Also flip any pre-existing rules that weren't on the encounter
+      // list (defensive — old data or renamed species keys) so "None"
+      // truly silences the route.
+      for (const k of Object.keys(existing)) {
+        if (!rules[k]) rules[k] = { ...existing[k], enabled };
       }
       return {
         ...state,
