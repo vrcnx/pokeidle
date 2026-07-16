@@ -11,6 +11,15 @@
     <meta name="author" content="Pokémon Idle" />
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="color-scheme" content="dark" />
+    <!-- Suppress browser auto-translation of the app UI. Google Translate
+         and similar in-browser translators wrap text nodes in extra
+         <font> elements, which then break React's reconciler with
+         "removeChild: node is not a child" errors on next update
+         (iOS Safari reports it as "The object can not be found here").
+         Two months of production error logs pinned 184 hits (kaiser)
+         and 3 more iOS variants on this exact class. -->
+    <meta name="google" content="notranslate" />
+    <meta http-equiv="Content-Language" content="en" />
     <link rel="canonical" href="https://pokeidle.com/" />
 
     <!-- ── Robots / discovery ───────────────────────────────────────── -->
@@ -114,7 +123,11 @@
     <!-- Crawler-visible content rendered before React mounts. Search
          engines that don't fully execute JS still see a page with H1
          and meaningful copy. React replaces #root contents on hydrate. -->
-    <div id="root">
+    <!-- translate="no" + class="notranslate" is the belt-and-braces
+         double declaration Google Translate + iOS Safari both honour.
+         Meta tag above handles engines that respect the page-level
+         directive; these attributes catch the ones that don't. -->
+    <div id="root" translate="no" class="notranslate">
       <noscript>
         <div style="max-width:640px;margin:48px auto;padding:24px;font-family:system-ui,sans-serif;color:#fff;background:#0a0a0a;border-radius:8px;line-height:1.55">
           <h1 style="margin:0 0 8px;font-size:24px">Pokémon Idle</h1>
