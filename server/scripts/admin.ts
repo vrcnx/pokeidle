@@ -276,6 +276,30 @@ async function main() {
       out(await req("POST", `/api/admin/users/${id}/admin`, { isAdmin: sub === "promote" }));
       return;
     }
+    if (sub === "snapshots") {
+      const username = rest[0];
+      if (!username) throw new Error("Usage: admin.ts user snapshots <username>");
+      const { id } = await userIdFor(username);
+      const r = await req("GET", `/api/admin/users/${id}/snapshots`);
+      out(r.snapshots.map((s: any) => ({
+        id: s.id,
+        when: s.createdAt,
+        reason: s.reason,
+        v: s.saveVersion,
+        lvl: s.summary?.level, badges: s.summary?.badges, caught: s.summary?.caught,
+        money: s.summary?.money, kb: s.summary ? Math.round(s.summary.bytes / 1024) : null,
+      })));
+      return;
+    }
+    if (sub === "restore") {
+      const [username, snapshotId] = rest;
+      if (!username || !snapshotId) {
+        throw new Error("Usage: admin.ts user restore <username> <snapshotId>  (get ids from: user snapshots <username>)");
+      }
+      const { id } = await userIdFor(username);
+      out(await req("POST", `/api/admin/users/${id}/snapshots/${snapshotId}/restore`));
+      return;
+    }
     throw new Error(`Unknown user subcommand: ${sub}`);
   }
 
@@ -324,6 +348,8 @@ function printUsage() {
     user promote <username>
     user demote <username>
     user grant <username> <itemId> <qty>
+    user snapshots <username>          List a player's save-history checkpoints
+    user restore <username> <id>       Roll a player back to a snapshot (reversible)
 
   Every write lands in the admin audit log attributed to the key's
   actor with via:"api-key".`);

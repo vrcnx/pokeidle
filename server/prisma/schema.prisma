@@ -76,6 +76,29 @@ model User {
   messages          ChatMessage[]
   dailyActive       DailyActive[]
   giveawayEntries   GiveawayEntry[]
+  saveSnapshots     SaveSnapshot[]
+}
+
+/// Append-only checkpoints of a player's save, so a bad or clobbered write
+/// is recoverable. The server keeps NO other history — saveData is a single
+/// column overwritten in place — so before this, any accepted-but-wrong
+/// write was unrecoverable. Not every write is snapshotted (that would be
+/// thousands of near-identical rows per hour): one is taken at most every
+/// SNAPSHOT_INTERVAL_MS per player, and the ring is pruned to the newest
+/// MAX_SNAPSHOTS_PER_USER.
+model SaveSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  saveVersion Int
+  saveData    String
+  /// Why it exists: "auto" (periodic) | "pre-restore" (captured just before
+  /// an admin restore, so the restore is itself reversible).
+  reason      String   @default("auto")
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Session {

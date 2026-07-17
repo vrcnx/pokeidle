@@ -12,6 +12,7 @@ import {
   isValidHref,
   toPublic as toPublicAnnouncement,
 } from "../lib/announcements.js";
+import { forceSnapshot } from "../lib/saveHistory.js";
 import { auth } from "../auth.js";
 import {
   battleRooms,
@@ -395,6 +396,105 @@ app.post("/users/:id/reset-save", async (c) => {
   } catch {
     return c.json({ error: "user not found" }, 404);
   }
+});
+
+// ── User: save history ─────────────────────────────────────────────────
+// The append-only checkpoints from lib/saveHistory. Lets an operator see a
+// player's recent saved states and roll one back — the recovery path that
+// makes an accepted-but-wrong write survivable.
+
+// GET /users/:id/snapshots — list (metadata only; bodies are large).
+app.get("/users/:id/snapshots", async (c) => {
+  const id = c.req.param("id");
+  const rows = await prisma.saveSnapshot.findMany({
+    where: { userId: id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, saveVersion: true, reason: true, createdAt: true, saveData: true },
+  });
+  // Summarise each so the operator can tell them apart without shipping
+  // every full blob to the browser.
+  const snapshots = rows.map((r) => {
+    let summary: { level: number; badges: number; caught: number; money: number; bytes: number } | null = null;
+    try {
+      const s = JSON.parse(r.saveData) as Record<string, unknown>;
+      summary = {
+        level: typeof s.playerPokemon === "object" && s.playerPokemon
+          ? ((s.playerPokemon as any).level ?? 0) : 0,
+        badges: Array.isArray(s.defeatedGyms) ? s.defeatedGyms.length : 0,
+        caught: Array.isArray(s.pokedexCaught) ? s.pokedexCaught.length : 0,
+        money: typeof s.money === "number" ? s.money : 0,
+        bytes: r.saveData.length,
+      };
+    } catch { /* corrupt snapshot; leave summary null */ }
+    return { id: r.id, saveVersion: r.saveVersion, reason: r.reason, createdAt: r.createdAt, summary };
+  });
+  return c.json({ snapshots });
+});
+
+// GET /users/:id/snapshots/:snapshotId — the full save body of one snapshot,
+// for inspection/diff before restoring.
+app.get("/users/:id/snapshots/:snapshotId", async (c) => {
+  const id = c.req.param("id");
+  const snapshotId = c.req.param("snapshotId");
+  const snap = await prisma.saveSnapshot.findFirst({ where: { id: snapshotId, userId: id } });
+  if (!snap) return c.json({ error: "snapshot not found" }, 404);
+  let saveData: unknown = null;
+  try { saveData = JSON.parse(snap.saveData); } catch { /* return raw below */ }
+  return c.json({
+    id: snap.id, saveVersion: snap.saveVersion, reason: snap.reason,
+    createdAt: snap.createdAt, saveData: saveData ?? snap.saveData,
+  });
+});
+
+// POST /users/:id/snapshots/:snapshotId/restore — roll the player back to a
+// snapshot. Validates the snapshot first, captures the CURRENT save as a
+// pre-restore checkpoint (so the restore is undoable), then writes it back
+// with a bumped saveVersion so live clients 409 and re-pull rather than
+// racing the operator.
+app.post("/users/:id/snapshots/:snapshotId/restore", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const snapshotId = c.req.param("snapshotId");
+
+  const snap = await prisma.saveSnapshot.findFirst({ where: { id: snapshotId, userId: id } });
+  if (!snap) return c.json({ error: "snapshot not found" }, 404);
+
+  let parsed: Record<string, unknown>;
+  try { parsed = JSON.parse(snap.saveData) as Record<string, unknown>; }
+  catch { return c.json({ error: "snapshot is corrupt and cannot be restored" }, 422); }
+
+  const v = validateSave(parsed);
+  if (!v.ok) return c.json({ error: "snapshot fails validation", reason: v.reason }, 422);
+
+  const current = await prisma.user.findUnique({
+    where: { id },
+    select: { saveData: true, saveVersion: true },
+  });
+  if (!current) return c.json({ error: "user not found" }, 404);
+
+  // Preserve the current state so this restore can itself be reversed.
+  if (current.saveData) {
+    try { await forceSnapshot(id, current.saveVersion, current.saveData, "pre-restore"); }
+    catch { /* best-effort; the restore below is the important part */ }
+  }
+
+  const derived = computeAccountLevel(parsed);
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      saveData: snap.saveData,
+      saveVersion: { increment: 1 },
+      saveUpdatedAt: new Date(),
+      accountLevel: derived.accountLevel,
+      totalCaughtLevels: derived.totalCaughtLevels,
+      pokedexCaughtCount: derived.pokedexCaughtCount,
+    },
+    select: { id: true, saveVersion: true, accountLevel: true },
+  });
+  void makeAudit(c)(me.id, "user.restore_save", id, {
+    snapshotId, snapshotVersion: snap.saveVersion, snapshotTakenAt: snap.createdAt,
+  });
+  return c.json({ ok: true, ...updated });
 });
 
 // ── User: send password reset ──────────────────────────────────────────

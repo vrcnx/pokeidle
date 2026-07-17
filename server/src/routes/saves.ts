@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 import { requireUser } from "../lib/middleware.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { validateSave, MAX_BOX } from "../lib/saveValidation.js";
+import { maybeSnapshot } from "../lib/saveHistory.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 
 const app = new Hono();
@@ -213,6 +214,10 @@ app.post("/", requireUser, async (c) => {
     }
     throw e;
   }
+  // Append-only history: an interval-gated checkpoint of this accepted save,
+  // so a later bad write is recoverable. Fire-and-forget — it must never
+  // delay or fail the response for a save that already committed.
+  void maybeSnapshot(user.id, updated.saveVersion, JSON.stringify(save));
   return c.json({ ok: true, ...updated });
 });
 
