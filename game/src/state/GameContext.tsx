@@ -574,6 +574,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
               }
             } catch { /* */ }
           }
+          // The upload marked this snapshot as uploaded before the request
+          // resolved, so duplicate in-flight writes are skipped. It didn't
+          // upload — so un-mark it, or a player whose state then stops
+          // changing (idle, party full, nothing to do) keeps a snapshot the
+          // cloud never got and the next change is the only thing that
+          // could ever retry it. Clearing it means the next tick retries.
+          lastUploadedRef.current = "";
           setSaveStatus("error");
         });
     }, starved ? 0 : 1500);
