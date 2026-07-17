@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.5.0";
+export const CURRENT_VERSION = "0.6.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,38 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.6.0",
+      subtitle: "Giveaways, What's New, and a few things that were quietly broken",
+      date: "2026-07-17",
+      highlight: true,
+      sections: [
+        {
+          heading: "🎁 Giveaways",
+          items: [
+            "Free prize draws are here — Master Balls, cash, and rare Pokemon, straight into your save",
+            "One entry per trainer, no cost, no catch. Find them in Settings > Giveaways",
+            "Winners are picked from a published random seed, so anyone can check the draw was fair — the seed is shown on every finished giveaway",
+            "Results and winners stay up after the draw, and we announce them in global chat",
+          ],
+        },
+        {
+          heading: "What's new, in-game",
+          items: [
+            "This window! It shows up once after each update with only what changed since you were last here, and you can reopen the full history any time from Settings > What's new",
+          ],
+        },
+        {
+          heading: "Fixes",
+          items: [
+            "Super Repel and Max Repel did NOTHING. They were sold in five marts for $500 and $700 and had no effect whatsoever — if you bought one, you were robbed, and we are sorry. Both now work, and last 1,000 and 2,000 battles respectively",
+            "Exp. Share said it shares 3% EXP. It actually shares 25% — it has always been eight times better than we told you. The description now says so",
+            "Auto-catch went silently dead when you ran out of Poke Balls and never told you. It now warns you the moment it happens",
+            "Buying 99 Poke Balls took 98 clicks. There are now +10 and Max buttons (and shift-click for +10)",
+          ],
+        },
+      ],
+    },
     {
       version: "0.5.0",
       subtitle: "Universal Mart, gamified PvP, achievements & a big bug sweep",

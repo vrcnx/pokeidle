@@ -175,14 +175,23 @@ export function MartTab() {
                   )}
                 </div>
                 <span className="mart-price">${resolved.price.toLocaleString()}</span>
+                {/* Restocking 99 balls used to be 98 clicks on "+".
+                    maxAffordable was already computed and only used as a
+                    cap, so the shortcuts below cost nothing to offer.
+                    Shift/Ctrl-click steps by 10 for people who never find
+                    the ×10 button. */}
                 <div className="mart-qty-controls">
                   <button
                     type="button"
                     className="mart-qty-step"
-                    onClick={() =>
-                      setPending({ itemId: entry.itemId, qty: Math.max(1, qty - 1) })
+                    onClick={(e) =>
+                      setPending({
+                        itemId: entry.itemId,
+                        qty: Math.max(1, qty - (e.shiftKey || e.ctrlKey ? 10 : 1)),
+                      })
                     }
                     disabled={qty <= 1 || locked}
+                    title="Shift-click for −10"
                     aria-label="Decrease quantity"
                   >
                     −
@@ -191,13 +200,38 @@ export function MartTab() {
                   <button
                     type="button"
                     className="mart-qty-step"
-                    onClick={() =>
-                      setPending({ itemId: entry.itemId, qty: Math.min(maxAffordable, qty + 1) })
+                    onClick={(e) =>
+                      setPending({
+                        itemId: entry.itemId,
+                        qty: Math.min(maxAffordable, qty + (e.shiftKey || e.ctrlKey ? 10 : 1)),
+                      })
                     }
                     disabled={qty >= maxAffordable || locked}
+                    title="Shift-click for +10"
                     aria-label="Increase quantity"
                   >
                     +
+                  </button>
+                  <button
+                    type="button"
+                    className="mart-qty-jump"
+                    onClick={() =>
+                      setPending({ itemId: entry.itemId, qty: Math.min(maxAffordable, qty + 10) })
+                    }
+                    disabled={qty >= maxAffordable || locked}
+                    aria-label="Add ten"
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    className="mart-qty-jump"
+                    onClick={() => setPending({ itemId: entry.itemId, qty: maxAffordable })}
+                    disabled={qty >= maxAffordable || locked}
+                    title={`Buy as many as you can afford (${maxAffordable})`}
+                    aria-label="Maximum affordable"
+                  >
+                    Max
                   </button>
                   <button
                     type="button"

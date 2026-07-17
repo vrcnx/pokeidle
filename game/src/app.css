@@ -15824,3 +15824,20 @@ html, body {
   .giveaway-head, .giveaway-body { padding-left: 14px; padding-right: 14px; }
   .giveaway-card-head { flex-direction: column; gap: 6px; }
 }
+
+/* Mart quantity shortcuts — restocking 99 balls was 98 clicks on "+". */
+.mart-qty-jump {
+  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.mart-qty-jump:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: var(--text); }
+.mart-qty-jump:disabled { opacity: 0.3; cursor: not-allowed; }
