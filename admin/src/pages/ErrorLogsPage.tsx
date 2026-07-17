@@ -107,6 +107,21 @@ export function ErrorLogsPage() {
           busy={busy}
           expanded={expandedFingerprint}
           onToggle={(fp) => setExpandedFingerprint(expandedFingerprint === fp ? null : fp)}
+          onResolve={async (g) => {
+            if (!window.confirm(
+              `Resolve this error group?\n\n${g.message.slice(0, 160)}\n\n`
+              + `This permanently deletes all ${g.count.toLocaleString()} recorded `
+              + `occurrence(s). Do this once the bug is actually FIXED — the history `
+              + `is then just noise burying live errors.\n\nIt will reappear if the bug recurs.`
+            )) return;
+            setErr(null);
+            try {
+              await api.clearErrorGroup(g.kind, g.message);
+              reload();
+            } catch (e) {
+              setErr(`Couldn't resolve: ${(e as Error).message}`);
+            }
+          }}
         />
       )}
       {view === "raw" && (
@@ -168,7 +183,7 @@ function ErrorRow({
       </tr>
       {expanded && (
         <tr className="err-detail-row">
-          <td colSpan={6}>
+          <td colSpan={7}>
             <ErrorDetail entry={entry} />
           </td>
         </tr>
@@ -218,13 +233,14 @@ function ErrorDetail({ entry }: { entry: ErrorEntry }) {
 // number. The occurrence drill-down still uses the fetched rows, and
 // says so, since those ARE capped.
 function ErrorGrouped({
-  groups, rows, busy, expanded, onToggle,
+  groups, rows, busy, expanded, onToggle, onResolve,
 }: {
   groups: ErrorGroup[];
   rows: ErrorEntry[];
   busy: boolean;
   expanded: string | null;
   onToggle: (fp: string) => void;
+  onResolve: (g: ErrorGroup) => void;
 }) {
   if (busy) return <p className="dim">Loading…</p>;
   if (groups.length === 0) return <p className="dim center">No errors recorded.</p>;
@@ -232,7 +248,7 @@ function ErrorGrouped({
     <table className="users-table">
       <thead>
         <tr>
-          <th>Count</th><th>Kind</th><th>Source</th><th>Message</th><th>Last seen</th><th></th>
+          <th>Count</th><th>Kind</th><th>Source</th><th>Message</th><th>Last seen</th><th></th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -251,11 +267,18 @@ function ErrorGrouped({
                 <td className="dim small mono">{g.sample?.source ?? "—"}</td>
                 <td className="err-msg">{g.message}</td>
                 <td className="dim small">{g.latestAt ? new Date(g.latestAt).toLocaleString() : "—"}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="btn-ghost btn-tiny"
+                    title="This bug is fixed — delete its history so it stops burying live errors"
+                    onClick={() => onResolve(g)}
+                  >Resolve</button>
+                </td>
                 <td className="dim small">{expanded === key ? "▴" : "▾"}</td>
               </tr>
               {expanded === key && (
                 <tr className="err-detail-row">
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     {g.sample && (
                       <ErrorDetail
                         entry={{

@@ -9,6 +9,8 @@ import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
+import { openChangelog } from "./ChangelogModal";
+import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { useIncomingRequestCount } from "../state/friendRequests";
@@ -374,6 +376,26 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
                   <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
                   <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+                </section>
+
+                <section className="g-card">
+                  <h3>What's new</h3>
+                  <div className="g-row">
+                    <span>Version</span>
+                    <strong className="g-mono">v{CURRENT_VERSION}</strong>
+                  </div>
+                  <p className="g-help" style={{ marginTop: 4 }}>
+                    Every update, newest first. We ship often — most of it comes
+                    straight from player reports.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button
+                      className="g-btn-ghost g-btn-small"
+                      onClick={() => { onClose(); openChangelog(); }}
+                    >
+                      View changelog
+                    </button>
+                  </div>
                 </section>
 
                 <section className="g-card">

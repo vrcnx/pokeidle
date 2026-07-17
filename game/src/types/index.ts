@@ -388,6 +388,11 @@ export interface ShopDef {
 export interface ChangelogEntry {
   version: string;
   subtitle?: string;
+  /** ISO date the version shipped. Shown in the changelog so players can
+   *  see how actively the game is being worked on. */
+  date?: string;
+  /** Marks a headline release — rendered with the accent treatment. */
+  highlight?: boolean;
   sections: { heading: string; items: string[] }[];
 }
 

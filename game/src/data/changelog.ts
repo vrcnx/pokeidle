@@ -1,9 +1,112 @@
 import type { ChangelogEntry } from "../types";
 
-export const CURRENT_VERSION = "0.4.0";
+// The version the client is currently running. Bump this (and add a
+// matching entry at the TOP of `changelog`) whenever you ship something
+// players should know about. The What's New modal keys off it.
+//
+// Keep this in sync with package.json's version field.
+export const CURRENT_VERSION = "0.5.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
+// Compare two dotted versions. Returns >0 if a is newer than b.
+// Used to show a returning player ONLY the entries published since they
+// were last here, rather than the entire history every time.
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+// Entries NEWER than `since`. A null/unknown `since` means we have never
+// recorded a version for this player, which is the brand-new-player case
+// — they get nothing, because a wall of release notes is a terrible
+// first thing to see in a game you have not played yet.
+export function changesSince(since: string | null): ChangelogEntry[] {
+  if (!since) return [];
+  return changelog.filter((e) => compareVersions(e.version, since) > 0);
+}
+
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.5.0",
+      subtitle: "Universal Mart, gamified PvP, achievements & a big bug sweep",
+      date: "2026-07-17",
+      highlight: true,
+      sections: [
+        {
+          heading: "Poke Mart is now universal",
+          items: [
+            "Every mart now stocks everything you have unlocked anywhere — no more travelling back to Celadon for a stone",
+            "Visit a town once and its stock is yours from any mart, forever",
+            "New category tabs (Poke Balls / Repels / Stones / Held Items) with live counts, and each item shows where you first found it",
+            "Locked items now show real progress (\"12 / 50 wild battles\") instead of a static requirement",
+          ],
+        },
+        {
+          heading: "Battle Hub — PvP rebuilt",
+          items: [
+            "Brand-new gamified lobby: trainer card with your rank, rating ring, win streak and full team on show",
+            "Ranked tiers — Bronze, Silver, Gold, Platinum and Diamond, with your progress to the next tier",
+            "Last-10 form guide, live top-3 leaderboard, and one-tap spectating of matches happening right now",
+            "Your current party is pre-selected when you queue, so Ready Up is genuinely one click",
+          ],
+        },
+        {
+          heading: "Achievements",
+          items: [
+            "30 achievements across catching, battling, PvP, trading, money, exploration, collection and the story",
+            "Bronze through Diamond tiers, with a trophy gallery showing your progress on everything still locked",
+            "Unlock toasts pop the moment you earn one — find the gallery in Settings > Stats",
+          ],
+        },
+        {
+          heading: "Pokedex glow-up",
+          items: [
+            "Completion ring, milestone badges (10 / 25 / 50 / 100 / 151) and per-type completion bars",
+            "Filter by Caught / Seen / Shiny / undiscovered",
+            "Shiny entries now sparkle in the grid so your collection actually shows off",
+          ],
+        },
+        {
+          heading: "Battle feel",
+          items: [
+            "Level-ups, catches and money now pop on screen instead of only scrolling past in the log",
+            "Sprites are pre-loaded so wild Pokemon appear instantly instead of flickering in",
+          ],
+        },
+        {
+          heading: "Catching fixes (thank you for the reports!)",
+          items: [
+            "Auto-catch defaulted to \"only new species\", which silently stopped throwing balls at Pokemon you had already caught — it now catches everything by default, and existing saves have been migrated",
+            "The per-species CATCH button was mislabelled and toggled the WRONG way — it now clearly reads CATCH or SKIP",
+            "\"Catch All\" did nothing on routes you had not customised. Fixed",
+            "Shinies could escape if a route was configured a certain way — \"always catch shinies\" now genuinely overrides everything, and will use any ball you own",
+            "Safari Zone Dratini spawned below every sensible level threshold, so it was never caught. Fixed",
+          ],
+        },
+        {
+          heading: "Save & progression fixes",
+          items: [
+            "Fixed the big one: playing on a second device could silently roll your progress back. Saves are now versioned properly and the server refuses any write that would erase your badges, Elite Four wins or Pokedex",
+            "Veteran trainers with 600+ Pokemon in the PC could not save at all, which also broke their trades. The cap is now 9,999",
+            "Profile levels that were stuck (\"mine says 5838 forever\") now update correctly",
+            "Pokedex counts no longer double-count",
+          ],
+        },
+        {
+          heading: "Quality of life",
+          items: [
+            "PC box Pokemon are no longer invisible until you hover them, and small sprites render at a readable size",
+            "Friend requests now light up the Social button instead of hiding until you click in",
+            "Fixed a crash that could take the whole app down (especially with browser translation turned on)",
+          ],
+        },
+      ],
+    },
     {
       version: "0.4.0",
       subtitle: "Repel & Honey, Exp. Share, Mobile Layout & QoL",

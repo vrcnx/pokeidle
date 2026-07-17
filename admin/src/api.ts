@@ -322,6 +322,12 @@ export const api = {
   // view must NOT be computed from the capped row list — those counts
   // are a floor and understate exactly the runaway error the operator
   // is trying to find.
+  /** Delete every row for a resolved (kind, message). Once a bug is
+   *  actually fixed its history buries live problems and inflates the
+   *  error KPI forever. Audited server-side with the row count. */
+  clearErrorGroup: (kind: "server" | "client", message: string) =>
+    req<{ ok: true; deleted: number }>("POST", "/api/admin/errors/clear-group", { kind, message }),
+
   listErrorGroups: (kind = "", days = 14) =>
     req<{ sinceDays: number; groups: ErrorGroup[] }>(
       "GET",

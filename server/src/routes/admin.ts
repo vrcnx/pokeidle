@@ -1345,6 +1345,37 @@ app.get("/errors/groups", async (c) => {
   return c.json({ sinceDays: days, groups });
 });
 
+// Clear a resolved error group.
+//
+// Once a bug is actually fixed, its historical rows are pure noise —
+// they push live problems off the top of the log and inflate the
+// dashboard's error KPI forever. Deleting by exact (kind, message) is
+// the honest unit: it is the same key the grouped view counts by, so
+// what the operator sees is exactly what gets removed.
+//
+// Audited with the row count, so "who wiped 228 errors and when" stays
+// answerable after the fact.
+const ClearErrorsBody = z.object({
+  kind: z.enum(["server", "client"]),
+  message: z.string().min(1),
+});
+
+app.post("/errors/clear-group", async (c) => {
+  const me = c.get("user");
+  const parsed = ClearErrorsBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const { kind, message } = parsed.data;
+  const result = await prisma.errorLog.deleteMany({ where: { kind, message } });
+  void makeAudit(c)(me.id, "errors.clear_group", null, {
+    kind,
+    message: message.slice(0, 200),
+    deleted: result.count,
+  });
+  return c.json({ ok: true, deleted: result.count });
+});
+
 app.get("/errors", async (c) => {
   const kind = (c.req.query("kind") ?? "").trim();
   // Cap raised 200 → 500 to match what the dashboard actually asks for.

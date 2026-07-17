@@ -91,6 +91,38 @@ async function main() {
     return;
   }
 
+  // Clear every row for an exact (kind, message). Once a bug is really
+  // fixed its history is noise: it buries live problems and inflates the
+  // dashboard error KPI forever. --dry-run first, always.
+  if (cmd === "clear") {
+    const kind = arg("--kind");
+    const contains = arg("--message");
+    const dry = process.argv.includes("--dry-run");
+    if (!kind || !contains) {
+      throw new Error(`Usage: errors.ts clear --kind client|server --message "<substring>" [--dry-run]`);
+    }
+    if (kind !== "client" && kind !== "server") throw new Error("--kind must be client or server");
+
+    // Resolve the substring to the exact messages it matches, and report
+    // them, so a careless substring cannot silently nuke unrelated groups.
+    const groups = await prisma.errorLog.groupBy({
+      by: ["message"],
+      where: { kind, message: { contains } },
+      _count: { _all: true },
+    });
+    if (groups.length === 0) {
+      console.log(JSON.stringify({ matched: 0, deleted: 0 }, null, 2));
+      return;
+    }
+    const total = groups.reduce((n, g) => n + g._count._all, 0);
+    console.log(`Matched ${groups.length} group(s), ${total} row(s):`);
+    for (const g of groups) console.log(`  ${g._count._all.toString().padStart(5)} x ${g.message.slice(0, 78)}`);
+    if (dry) { console.log("\n--dry-run: nothing deleted."); return; }
+    const res = await prisma.errorLog.deleteMany({ where: { kind, message: { contains } } });
+    console.log(`\nDeleted ${res.count} row(s).`);
+    return;
+  }
+
   if (cmd === "counts") {
     const days = parseInt(arg("--days", "14") ?? "14", 10);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
