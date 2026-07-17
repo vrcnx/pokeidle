@@ -416,7 +416,26 @@ a:focus-visible {
 }
 .control-column > .meta-dock-strip { flex-shrink: 0; }
 .control-column > .party-card { flex: 0 0 auto; }
-.control-column > .context-panel { flex: 1; min-height: 0; }
+/* The context panel holds the Gym Leader card, wild-encounter list and
+   raid panel — the actionable content of the rail.
+
+   It used to be `flex: 1; min-height: 0`. As the ONLY flexible item in
+   the column, that made it absorb 100% of any overshoot: with a full
+   six-mon party (6 x ~88px of sprite + HP + EXP bars) the column runs
+   past the viewport and flexbox crushed this to height ZERO. Its inner
+   `.context-panel-body` is `overflow-y: auto`, so it clipped to ~20px —
+   exactly enough to show the "GYM LEADER" heading and hide the card
+   underneath it. Measured: panel 300x0, body clientHeight 20 vs
+   scrollHeight 183, card rendered at top=699 on a 720px viewport.
+   The card was never broken; it was squashed offscreen.
+   min-height keeps enough room for a trainer card (~110px) plus its
+   heading, and flex-shrink: 0 stops the crush at source. Overflow past
+   that scrolls the column, which is what the column's overflow-y is
+   for. */
+.control-column > .context-panel {
+  flex: 1 0 auto;
+  min-height: 168px;
+}
 .control-column > .unlock-hint  { flex-shrink: 0; }
 .control-column > .inventory-ribbon { margin-top: auto; flex-shrink: 0; }
 /* Hide the scrollbar on the party column (and any inner scrollable
@@ -12372,7 +12391,13 @@ html, body {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
-.party-column > .context-panel { flex: 1; min-height: 0; }
+/* NOTE: the `flex: 1; min-height: 0` that used to live here was a
+   duplicate of the rule near the top of this file, at identical
+   specificity but 12k lines later — so it silently won and reinstated
+   the collapse-to-zero bug that squashed the Gym Leader card offscreen.
+   The rail element carries BOTH .party-column and .control-column, so
+   both selectors match it. Sizing is owned by
+   `.control-column > .context-panel` only; this block is padding. */
 .party-column .context-panel-body {
   overflow-y: auto;
   display: flex;
