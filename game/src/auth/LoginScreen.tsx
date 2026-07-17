@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "../net/api";
 import { useAuth } from "./AuthContext";
 import { useModalEnter } from "../utils/animate";
@@ -98,6 +98,22 @@ export function LoginScreen() {
   // letting the player resubmit and get rate-limited.
   const [forgotSent, setForgotSent] = useState(false);
   const dialogRef = useModalEnter();
+  // Live "N trainers online" counter shown under the header — polled
+  // every 25 s from a public no-auth endpoint so it works on the
+  // sign-in screen without a socket connection. Silently drops to
+  // null on error so a temporary blip doesn't clutter the surface.
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      api.publicOnlineCount()
+        .then((r) => { if (!cancelled) setOnlineCount(r.count); })
+        .catch(() => { if (!cancelled) setOnlineCount(null); });
+    };
+    load();
+    const t = window.setInterval(load, 25_000);
+    return () => { cancelled = true; window.clearInterval(t); };
+  }, []);
   // Show a banner if we were just kicked by a session-replaced event
   // (another device signed into the same account). The flag is set in
   // net/socket.ts and consumed once.
@@ -190,6 +206,18 @@ export function LoginScreen() {
       <div ref={dialogRef} className="g-modal auth-modal" role="dialog" aria-label="Sign in">
         <header className="g-modal-head auth-brand-head">
           <img className="auth-brand" src="/logos/Pokeidle.svg" alt="Pokémon Idle" />
+          {onlineCount !== null && onlineCount > 0 && (
+            <div
+              className="auth-online-pill"
+              role="status"
+              aria-live="polite"
+              title={`${onlineCount.toLocaleString()} trainer${onlineCount === 1 ? "" : "s"} online right now`}
+            >
+              <span className="auth-online-dot" aria-hidden />
+              <strong className="tabular">{onlineCount.toLocaleString()}</strong>
+              <span>online</span>
+            </div>
+          )}
         </header>
 
         <div className="g-modal-body">

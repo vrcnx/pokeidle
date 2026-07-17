@@ -120,6 +120,9 @@ export const api = {
   leaveTournament: (id: string) =>
     request<{ ok: true }>("DELETE", `/api/pvp/tournaments/${id}/leave`),
 
+  // Public — no auth required. Used by the pre-sign-in landing screen.
+  publicOnlineCount: () => request<{ count: number }>("GET", "/api/public/online"),
+
   // Saves
   getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string }>(
     "GET",
