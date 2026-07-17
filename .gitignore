@@ -17,7 +17,12 @@ build/
 # ── Prisma local dev DB ──────────────────────────────────────────────────
 server/prisma/dev.db
 server/prisma/dev.db-journal
-server/prisma/migrations/
+# NOTE: prisma/migrations is deliberately NOT ignored. Migrations are
+# source code — they are the schema's history and the exact thing the
+# deploy applies (`prisma migrate deploy`). Ignoring them is why the
+# deploy previously had to use `db push --accept-data-loss`, which
+# could silently drop live columns. Commit them alongside the schema
+# change that produced them. See server/prisma/migrations/README.md.
 
 # ── Logs ─────────────────────────────────────────────────────────────────
 *.log

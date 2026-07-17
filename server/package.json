@@ -10,10 +10,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:push": "prisma db push",
+    "db:push": "echo 'REFUSED: db push diffs the whole schema and can DROP live columns/tables. Prod is managed by Prisma Migrate. Use: npm run db:migrate (dev) then commit the migration -- deploy applies it via migrate deploy.' && exit 1",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:push:force": "prisma db push",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
