@@ -20,6 +20,7 @@ import { recordBattle } from "../utils/battleHistory";
 import { api } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 import { reportClientError } from "../net/errorReporter";
+import { computeOfflineProgress } from "../utils/offlineProgress";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -308,6 +309,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // push local state up (it might be stale and would destroy progress).
   const cloudVersionRef = useRef<number>(-1);
   const lastUploadedRef = useRef<string>("");
+  // The local save's timestamp captured at first render — BEFORE the local
+  // save effect below overwrites it — so offline-progress can measure how
+  // long the player was actually away on this device.
+  const bootLocalTsRef = useRef<number>(readLocalTimestamp());
+  // Offline training is credited at most once per mount.
+  const offlineDoneRef = useRef(false);
   // The newest snapshot that has not reached the cloud yet, and the timer
   // that will send it. See the uploader below for why this is a throttle
   // and not a debounce.
@@ -387,6 +394,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const localIsForeign = localOwner !== null && myId !== null && localOwner !== myId;
         const localOk = !!local.playerPokemon && !localIsForeign;
 
+        // The save the reducer will actually be running after reconcile —
+        // used only to measure offline progress once below.
+        let effectiveSave: GameState | null = null;
+
         if (localIsForeign) {
           // Drop it now so no later code path can read it back. The rightful
           // owner's copy is safe in their own cloud row; this is only a cache.
@@ -402,6 +413,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // (loadSaved already seeded the reducer) and bootstrap the
           // cloud with whatever we have.
           if (localOk) {
+            effectiveSave = local;
             const snapshot = pickPersistent(local);
             try {
               const res = await api.putSave(snapshot, cloudVersionRef.current);
@@ -426,6 +438,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           const normBox = (sd.box ?? [])
             .filter((p: any) => p && typeof p.speciesKey === "string")
             .map(normalizePokemon);
+          effectiveSave = { ...local, ...sd, party: normParty, box: normBox } as GameState;
           dispatch({
             type: "LOAD_SAVE",
             payload: {
@@ -456,6 +469,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // local-only changes). Push local up with the cloud version
           // as expectedSaveVersion so a concurrent write from another
           // device can still 409 us and prevent a clobber.
+          effectiveSave = local;
           const snapshot = pickPersistent(local);
           try {
             const res = await api.putSave(snapshot, cloudVersionRef.current);
@@ -497,6 +511,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
             // else: silent retry on next autosave cycle.
           }
         }
+
+        // ── Offline training ──
+        // The game is idle, so an away player's team should have kept
+        // battling. Credit that once, from the effective loaded save, using
+        // the most recent activity we know of on ANY device: the newer of
+        // the cloud's saveUpdatedAt and this device's local timestamp. Runs
+        // at most once per mount; LOAD_SAVE (if any) was dispatched above,
+        // so APPLY_OFFLINE_PROGRESS lands on top of the reconciled state.
+        if (!offlineDoneRef.current && effectiveSave?.playerPokemon) {
+          offlineDoneRef.current = true;
+          const cloudTs = cloud.saveUpdatedAt ? new Date(cloud.saveUpdatedAt).getTime() : 0;
+          const lastActive = Math.max(cloudTs, bootLocalTsRef.current);
+          if (lastActive > 0) {
+            const result = computeOfflineProgress(effectiveSave, Date.now() - lastActive);
+            if (result) {
+              dispatch({
+                type: "APPLY_OFFLINE_PROGRESS",
+                payload: {
+                  exp: result.exp,
+                  battles: result.battles,
+                  awayMs: result.awayMs,
+                  creditedMs: result.creditedMs,
+                },
+              });
+            }
+          }
+        }
+
         cloudReadyRef.current = true;
       } catch {
         // A cloud fetch failure must NOT let the uploader push possibly

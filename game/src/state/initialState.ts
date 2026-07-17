@@ -20,6 +20,7 @@ export const initialState: GameState = {
   paused: false,
   battleLog: [],
   levelUpNotification: null,
+  offlineSummary: null,
   wildBattlesWon: 0,
   trainerBattlesWon: 0,
   battlesWonByLocation: {},
