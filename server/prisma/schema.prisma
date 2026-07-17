@@ -29,7 +29,7 @@ datasource db {
 model DailyActive {
   id     String   @id @default(cuid())
   userId String
-  /** UTC midnight of the day this activity happened. */
+  /// UTC midnight of the day this activity happened.
   day    DateTime
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -75,6 +75,7 @@ model User {
   friendsReceived   Friend[]      @relation("Receiver")
   messages          ChatMessage[]
   dailyActive       DailyActive[]
+  giveawayEntries   GiveawayEntry[]
 }
 
 model Session {
@@ -291,6 +292,77 @@ model PvpMatch {
 // `bracket` holds a JSON tree of round/match assignments updated as
 // matches complete; advancement reads the winner from PvpMatch and
 // rewrites the next round's slots.
+// ── Giveaways / draws ───────────────────────────────────────────────
+//
+// An operator-run prize draw. Players enter (free, one entry each),
+// the operator draws N winners, and prizes are granted automatically
+// to the winners' saves.
+//
+// Fairness is the whole product here — a draw players do not trust is
+// worse than no draw at all. So:
+//   * `drawSeed` is recorded at draw time and the winner selection is
+//     a deterministic function of (seed, sorted entry ids). Anyone can
+//     be shown the seed afterwards and the result recomputed.
+//   * Entries are immutable once the draw happens (drawnAt set).
+//   * Every draw is written to the admin audit log.
+model Giveaway {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  /// When entries open. Null = open immediately on publish.
+  startsAt    DateTime?
+  /// When entries close. Null = open until the operator draws.
+  endsAt      DateTime?
+  drawnAt     DateTime?
+
+  title       String
+  description String
+  /// "draft" | "open" | "closed" | "drawn" | "cancelled"
+  status      String   @default("draft")
+
+  /// How many winners to pick.
+  winnerCount Int      @default(1)
+
+  /// JSON array of prize descriptors, e.g.
+  /// [{"kind":"item","itemId":"masterball","quantity":1},
+  /// {"kind":"money","amount":50000},
+  /// {"kind":"pokemon","speciesKey":"mew","level":50,"isShiny":true}]
+  /// Kept as JSON rather than a table: prizes are small, never queried
+  /// independently, and the shape evolves with the game's catalog.
+  prizes      String
+
+  /// Optional entry gates. Null = anyone may enter.
+  minAccountLevel Int?
+  /// Recorded at draw time so the result can be re-derived and shown
+  /// to be fair. Null until drawn.
+  drawSeed    String?
+
+  ownerId     String
+
+  entries GiveawayEntry[]
+
+  @@index([status, createdAt])
+}
+
+model GiveawayEntry {
+  id         String   @id @default(cuid())
+  giveawayId String
+  userId     String
+  username   String   // denormalised so a deleted account still shows in results
+  createdAt  DateTime @default(now())
+  isWinner   Boolean  @default(false)
+  /// Set once the prize has actually been written to the winner's
+  /// save, so a retry cannot double-grant.
+  claimedAt  DateTime?
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One entry per user per giveaway — this is what makes it a fair
+  // draw rather than a spam contest.
+  @@unique([giveawayId, userId])
+  @@index([giveawayId, isWinner])
+}
+
 model Tournament {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())

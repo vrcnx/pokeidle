@@ -14,6 +14,7 @@ import {
   type BattleRoom,
 } from "../pvp.js";
 import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
+import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
 
 const app = new Hono();
 
@@ -1117,6 +1118,273 @@ app.delete("/chat/:id", async (c) => {
     return c.json({ error: "message not found" }, 404);
   }
 });
+
+// ── Giveaways ─────────────────────────────────────────────────────────
+const PrizeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("item"), itemId: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/), quantity: z.number().int().min(1).max(999) }),
+  z.object({ kind: z.literal("money"), amount: z.number().int().min(1).max(10_000_000) }),
+  // The admin client builds the real mon (it owns the stat formula);
+  // we bound the shape here and validateSave gates the final write.
+  z.object({ kind: z.literal("pokemon"), label: z.string().max(80), mon: z.record(z.string(), z.unknown()) }),
+]);
+const GiveawayBody = z.object({
+  title: z.string().min(1).max(120),
+  description: z.string().max(2000),
+  winnerCount: z.number().int().min(1).max(100),
+  prizes: z.array(PrizeSchema).min(1).max(10),
+  minAccountLevel: z.number().int().min(0).max(10_000).nullable().optional(),
+  startsAt: z.string().datetime().nullable().optional(),
+  endsAt: z.string().datetime().nullable().optional(),
+});
+
+app.get("/giveaways", async (c) => {
+  const rows = await prisma.giveaway.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { entries: { select: { id: true, userId: true, username: true, isWinner: true, claimedAt: true } } },
+  });
+  return c.json({
+    giveaways: rows.map((g) => ({
+      ...g,
+      prizes: parsePrizes(g.prizes),
+      prizeSummary: describePrizes(parsePrizes(g.prizes)),
+      entryCount: g.entries.length,
+    })),
+  });
+});
+
+app.post("/giveaways", async (c) => {
+  const me = c.get("user");
+  const parsed = GiveawayBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  const d = parsed.data;
+  const g = await prisma.giveaway.create({
+    data: {
+      title: d.title,
+      description: d.description,
+      winnerCount: d.winnerCount,
+      prizes: JSON.stringify(d.prizes),
+      minAccountLevel: d.minAccountLevel ?? null,
+      startsAt: d.startsAt ? new Date(d.startsAt) : null,
+      endsAt: d.endsAt ? new Date(d.endsAt) : null,
+      status: "draft",
+      ownerId: me.id,
+    },
+  });
+  void makeAudit(c)(me.id, "giveaway.create", g.id, { title: g.title, winnerCount: g.winnerCount });
+  return c.json({ giveaway: g });
+});
+
+// Status transitions. Same forward-only discipline as tournaments —
+// walking a drawn giveaway back to open would let an operator re-draw
+// and quietly change who won, which is exactly the thing the seed
+// exists to make impossible.
+const GIVEAWAY_NEXT: Record<string, string[]> = {
+  draft:     ["open", "cancelled"],
+  open:      ["closed", "cancelled"],
+  closed:    ["open", "drawn", "cancelled"],   // reopening entries is fine BEFORE a draw
+  drawn:     [],                                // terminal — winners are final
+  cancelled: [],
+};
+
+app.patch("/giveaways/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => null)) as
+    | { title?: string; description?: string; status?: string; endsAt?: string | null }
+    | null;
+  if (!body) return c.json({ error: "invalid body" }, 400);
+
+  const current = await prisma.giveaway.findUnique({ where: { id }, select: { status: true } });
+  if (!current) return c.json({ error: "giveaway not found" }, 404);
+
+  const data: Record<string, unknown> = {};
+  if (typeof body.title === "string" && body.title.length <= 120) data.title = body.title;
+  if (typeof body.description === "string" && body.description.length <= 2000) data.description = body.description;
+  if (body.endsAt !== undefined) data.endsAt = body.endsAt ? new Date(body.endsAt) : null;
+  if (body.status !== undefined && body.status !== current.status) {
+    const allowed = GIVEAWAY_NEXT[current.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({
+        error: "illegal status transition",
+        reason: `A giveaway cannot go from "${current.status}" to "${body.status}".`
+          + (allowed.length ? ` Allowed: ${allowed.join(", ")}.` : ` "${current.status}" is final.`),
+        from: current.status, to: body.status, allowed,
+      }, 409);
+    }
+    data.status = body.status;
+  }
+  const g = await prisma.giveaway.update({ where: { id }, data });
+  void makeAudit(c)(me.id, "giveaway.update", id, data);
+  return c.json({ giveaway: g });
+});
+
+app.delete("/giveaways/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const g = await prisma.giveaway.findUnique({ where: { id }, select: { drawnAt: true } });
+  if (!g) return c.json({ error: "giveaway not found" }, 404);
+  // Deleting a drawn giveaway erases the public record of who won and
+  // the seed that proves it was fair. Refuse — cancel instead.
+  if (g.drawnAt) {
+    return c.json({
+      error: "cannot delete a drawn giveaway",
+      reason: "Winners and the fairness seed are a public record. Deleting it would erase the proof the draw was fair.",
+    }, 409);
+  }
+  await prisma.giveaway.delete({ where: { id } });
+  void makeAudit(c)(me.id, "giveaway.delete", id);
+  return c.json({ ok: true });
+});
+
+// ── The draw ────────────────────────────────────────────────────────
+// Picks winners deterministically from a stored seed, then grants the
+// prizes straight into the winners' saves.
+app.post("/giveaways/:id/draw", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const g = await prisma.giveaway.findUnique({ where: { id }, include: { entries: true } });
+  if (!g) return c.json({ error: "giveaway not found" }, 404);
+  if (g.drawnAt) {
+    return c.json({
+      error: "already drawn",
+      reason: "This giveaway has already been drawn. Re-drawing would change who won after the fact.",
+    }, 409);
+  }
+  if (g.status !== "open" && g.status !== "closed") {
+    return c.json({ error: "giveaway must be open or closed to draw" }, 409);
+  }
+  if (g.entries.length === 0) return c.json({ error: "no entries to draw from" }, 400);
+
+  const seed = newDrawSeed();
+  const winnerEntryIds = pickWinners(seed, g.entries.map((e) => e.id), g.winnerCount);
+  const winners = g.entries.filter((e) => winnerEntryIds.includes(e.id));
+  const prizes = parsePrizes(g.prizes);
+
+  // Grant prizes. Per-winner and best-effort: one corrupt save must not
+  // block the rest of the draw, and the result is reported per winner so
+  // the operator can see exactly who still needs paying out rather than
+  // guessing.
+  const granted: { username: string; ok: boolean; error?: string }[] = [];
+  for (const w of winners) {
+    try {
+      await grantPrizesToUser(w.userId, prizes);
+      await prisma.giveawayEntry.update({
+        where: { id: w.id },
+        data: { isWinner: true, claimedAt: new Date() },
+      });
+      granted.push({ username: w.username, ok: true });
+      // Tell them right now if they are online — a prize you only find
+      // out about days later is a much smaller moment.
+      try {
+        sendToUserGlobal(w.userId, "giveaway:won", {
+          giveawayId: g.id,
+          title: g.title,
+          prizeSummary: describePrizes(prizes),
+        });
+      } catch { /* socket layer optional */ }
+    } catch (e) {
+      // Still mark them a winner — they won. The prize just needs a
+      // manual grant, and claimedAt stays null so it is obvious which.
+      await prisma.giveawayEntry.update({ where: { id: w.id }, data: { isWinner: true } });
+      granted.push({ username: w.username, ok: false, error: String((e as Error).message ?? e) });
+    }
+  }
+
+  const updated = await prisma.giveaway.update({
+    where: { id },
+    data: { status: "drawn", drawnAt: new Date(), drawSeed: seed },
+  });
+
+  void makeAudit(c)(me.id, "giveaway.draw", id, {
+    seed,                              // the proof — must be in the ledger
+    entryCount: g.entries.length,
+    winners: granted.map((x) => x.username),
+    failedGrants: granted.filter((x) => !x.ok).map((x) => x.username),
+  });
+
+  // Announce in global chat. A giveaway nobody sees the result of might
+  // as well not have happened.
+  try {
+    const io = getIo();
+    if (io && granted.length > 0) {
+      const names = granted.map((x) => `@${x.username}`).join(", ");
+      const stored = await prisma.chatMessage.create({
+        data: {
+          channelId: "global",
+          userId: me.id,
+          content: `🎉 GIVEAWAY — "${g.title}" has been drawn! Congratulations ${names} — you won ${describePrizes(prizes)}!`,
+        },
+        include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+      });
+      io.to("global").emit("chat:message", {
+        id: stored.id, channelId: stored.channelId, content: stored.content,
+        createdAt: stored.createdAt, user: stored.user,
+      });
+    }
+  } catch { /* announcement is a nice-to-have, never fail the draw for it */ }
+
+  return c.json({
+    ok: true,
+    giveaway: updated,
+    seed,
+    winners: granted,
+    entryCount: g.entries.length,
+  });
+});
+
+// Write prizes into a user's save, reusing the same validate-then-write
+// discipline as the manual item grant so a prize can never produce a
+// save the game would reject.
+async function grantPrizesToUser(userId: string, prizes: Prize[]): Promise<void> {
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { saveData: true } });
+  if (!target) throw new Error("user not found");
+  const base = target.saveData ? safeParseObject(target.saveData) : {};
+  if (!base) throw new Error("save is corrupt");
+
+  const save: Record<string, unknown> = { ...base };
+
+  for (const p of prizes) {
+    if (p.kind === "item") {
+      const inv: Record<string, number> = {
+        ...((save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+          ? (save.inventory as Record<string, number>) : {}),
+      };
+      inv[p.itemId] = Math.min(999_999, (inv[p.itemId] ?? 0) + p.quantity);
+      save.inventory = inv;
+    } else if (p.kind === "money") {
+      const cur = typeof save.money === "number" ? save.money : 0;
+      save.money = Math.min(999_999_999, cur + p.amount);
+    } else if (p.kind === "pokemon") {
+      // Into the BOX, never the party: overwriting a party slot would be
+      // a hostile way to receive a gift.
+      const box = Array.isArray(save.box) ? [...(save.box as unknown[])] : [];
+      const nextId = typeof save.nextPokemonId === "number" ? save.nextPokemonId : Date.now();
+      // Re-id so the prize cannot collide with a mon the winner already
+      // owns — an id clash would confuse trade ownership lookups, which
+      // match by id.
+      box.push({ ...p.mon, id: `g${nextId}` });
+      save.box = box;
+      save.nextPokemonId = nextId + 1;
+    }
+  }
+
+  const v = validateSave(save);
+  if (!v.ok) throw new Error(`prize would corrupt save: ${v.reason}`);
+
+  const derived = computeAccountLevel(save);
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      saveData: JSON.stringify(save),
+      saveVersion: { increment: 1 },
+      saveUpdatedAt: new Date(),
+      accountLevel: derived.accountLevel,
+      totalCaughtLevels: derived.totalCaughtLevels,
+      pokedexCaughtCount: derived.pokedexCaughtCount,
+    },
+  });
+}
 
 // ── Live ops ──────────────────────────────────────────────────────────
 // Real-time snapshot of who is connected right this second. Joined
