@@ -5,7 +5,13 @@ import { adminApiKey, requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit as auditRaw } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot } from "../socket.js";
+import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot, broadcastAnnouncement } from "../socket.js";
+import {
+  AnnouncementInput,
+  getLiveAnnouncement,
+  isValidHref,
+  toPublic as toPublicAnnouncement,
+} from "../lib/announcements.js";
 import { auth } from "../auth.js";
 import {
   battleRooms,
@@ -1105,6 +1111,81 @@ app.post("/announce", async (c) => {
   if (io) io.to("global").emit("chat:message", payload);
   void makeAudit(c)(me.id, "chat.announce", null, { length: content.length });
   return c.json({ ok: true, message: payload });
+});
+
+// ── Pinned banner (Announcement) ─────────────────────────────────────
+// The persistent header banner, distinct from the ephemeral chat
+// broadcast above. See prisma/schema.prisma `Announcement`.
+
+// GET /admin/announcements — the live banner plus recent history.
+app.get("/announcements", async (c) => {
+  const [live, recent] = await Promise.all([
+    getLiveAnnouncement(),
+    prisma.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
+  ]);
+  return c.json({
+    live: live ? toPublicAnnouncement(live) : null,
+    recent: recent.map((a) => ({
+      ...toPublicAnnouncement(a),
+      active: a.active,
+      startsAt: a.startsAt ? a.startsAt.toISOString() : null,
+    })),
+  });
+});
+
+// POST /admin/announcements — publish a banner. Deactivates every other
+// row in the same transaction so exactly one is ever live.
+app.post("/announcements", async (c) => {
+  const me = c.get("user");
+  const parsed = AnnouncementInput.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  const d = parsed.data;
+
+  const href = d.href?.trim() || null;
+  if (href && !isValidHref(href)) {
+    return c.json({ error: "invalid href", reason: "href must be an https(s) URL or an in-app #route" }, 400);
+  }
+  const expiresAt = d.expiresAt ? new Date(d.expiresAt) : null;
+  const startsAt = d.startsAt ? new Date(d.startsAt) : null;
+  if (expiresAt && startsAt && expiresAt <= startsAt) {
+    return c.json({ error: "expiresAt must be after startsAt" }, 400);
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    await tx.announcement.updateMany({ where: { active: true }, data: { active: false } });
+    return tx.announcement.create({
+      data: {
+        type: d.type,
+        message: d.message,
+        href,
+        linkLabel: href ? (d.linkLabel?.trim() || null) : null,
+        startsAt,
+        expiresAt,
+        active: true,
+        createdBy: me.id,
+      },
+    });
+  });
+
+  // The banner is already committed. The live broadcast is best-effort — a
+  // DB blip on this re-query must not 500 a publish that actually succeeded
+  // (the client's own socket-connect push and REST fetch will reconcile).
+  try {
+    const live = await getLiveAnnouncement();
+    broadcastAnnouncement(live ? toPublicAnnouncement(live) : null);
+  } catch { /* published; players pick it up on their next connect/fetch */ }
+  void makeAudit(c)(me.id, "announcement.publish", created.id, { type: created.type });
+  return c.json({ announcement: toPublicAnnouncement(created) });
+});
+
+// POST /admin/announcements/clear — take the banner down. Deactivates all
+// active rows; safe to call when nothing is live.
+app.post("/announcements/clear", async (c) => {
+  const me = c.get("user");
+  const res = await prisma.announcement.updateMany({ where: { active: true }, data: { active: false } });
+  broadcastAnnouncement(null);
+  void makeAudit(c)(me.id, "announcement.clear", null, { deactivated: res.count });
+  return c.json({ ok: true, deactivated: res.count });
 });
 
 app.delete("/chat/:id", async (c) => {

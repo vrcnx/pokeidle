@@ -7,6 +7,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useGame } from "../state/GameContext";
 import { bindTradeSocket } from "../state/trade";
 import { bindPresenceSocket } from "../state/presence";
+import { bindAnnouncementSocket } from "../state/announcement";
 import { bindPvpSocket } from "../state/pvp";
 import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
 import { useAchievementTracker } from "../state/achievements";
@@ -49,6 +50,7 @@ export function GameShell() {
   useEffect(() => {
     bindTradeSocket();
     bindPresenceSocket();
+    bindAnnouncementSocket();
     bindPvpSocket();
   }, []);
   // Warm Pokémon-sprite browser cache for everything the player is

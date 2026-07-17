@@ -79,6 +79,23 @@ export interface ChatMessage {
   user: { id: string; username: string; name: string | null; isAdmin: boolean };
 }
 
+export type AnnouncementType = "info" | "event" | "giveaway" | "warning" | "maintenance";
+
+export interface AdminAnnouncement {
+  id: string;
+  type: AnnouncementType;
+  message: string;
+  href: string | null;
+  linkLabel: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+}
+// The history rows carry a little more than the public shape.
+export interface AdminAnnouncementRow extends AdminAnnouncement {
+  active: boolean;
+  startsAt: string | null;
+}
+
 /** Mirrors the server's USER_SORTS allow-list. */
 export type UserSortKey =
   | "createdAt" | "lastSeenAt" | "accountLevel"
@@ -321,6 +338,20 @@ export const api = {
       `/api/admin/announce`,
       { content },
     ),
+
+  // Pinned banner (Announcement) — persistent header banner, distinct
+  // from the ephemeral chat broadcast above.
+  listAnnouncements: () =>
+    req<{ live: AdminAnnouncement | null; recent: AdminAnnouncementRow[] }>(
+      "GET", "/api/admin/announcements",
+    ),
+  publishAnnouncement: (body: {
+    type: AnnouncementType; message: string;
+    href?: string | null; linkLabel?: string | null;
+    startsAt?: string | null; expiresAt?: string | null;
+  }) => req<{ announcement: AdminAnnouncement }>("POST", "/api/admin/announcements", body),
+  clearAnnouncement: () =>
+    req<{ ok: true; deactivated: number }>("POST", "/api/admin/announcements/clear"),
 
   // Giveaways
   listGiveawaysAdmin: () => req<{ giveaways: AdminGiveaway[] }>("GET", "/api/admin/giveaways"),

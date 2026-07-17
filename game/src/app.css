@@ -407,6 +407,92 @@ a:focus-visible {
   50%      { opacity: 1; }
 }
 
+/* ── Announcement banner variant ─────────────────────────────────────
+   Same 44px slot as the plain CHAT header, so the columns keep their
+   shared top line. A left accent bar + tinted background signal the
+   type; the online count still lives on the right. */
+.channel-header--announce {
+  gap: 8px;
+  border-color: var(--ann-accent, var(--border));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ann-accent, var(--border)) 18%, transparent), transparent 60%),
+    var(--panel-2);
+  box-shadow: inset 3px 0 0 var(--ann-accent, var(--border));
+}
+/* Per-type accent. --ann-accent drives border, bar, icon, and CTA. */
+.channel-header.ann-info        { --ann-accent: #38bdf8; }
+.channel-header.ann-event       { --ann-accent: #a78bfa; }
+.channel-header.ann-giveaway    { --ann-accent: #fbbf24; }
+.channel-header.ann-warning     { --ann-accent: #fb923c; }
+.channel-header.ann-maintenance { --ann-accent: #f87171; }
+
+.channel-header-announce-body {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;            /* lets the text child ellipsize instead of overflowing */
+  flex: 1 1 auto;
+}
+.channel-header-announce-icon {
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.channel-header-announce-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.1px;
+}
+.channel-header-announce-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ann-accent, var(--border)) 55%, transparent);
+  background: color-mix(in srgb, var(--ann-accent, var(--border)) 16%, transparent);
+  color: color-mix(in srgb, var(--ann-accent, #fff) 78%, #fff);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+.channel-header-announce-cta:hover {
+  background: color-mix(in srgb, var(--ann-accent, var(--border)) 30%, transparent);
+}
+.channel-header-announce-cta:active { transform: translateY(1px); }
+.channel-header-announce-x {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.channel-header-announce-x:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+/* On the narrow chat rail the online label is the first thing to sacrifice
+   when a banner is present, so the message keeps room to breathe. */
+.channel-header--announce .channel-header-online .dim.small { display: none; }
+
 /* Control rail (RIGHT in the Twitch-stream layout) — dock at top,
    party in the middle, NextGoal collapsed, profile pinned to the
    bottom via auto-margin on the InventoryRibbon. */

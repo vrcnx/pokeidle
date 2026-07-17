@@ -6,6 +6,7 @@ import { recordDailyActive } from "./lib/presence.js";
 import { canAccessChannel, GLOBAL_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
+import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
 import {
   battleRooms,
   newBattleId,
@@ -251,6 +252,16 @@ export function broadcastChatCleared(scope: "public"): void {
   ioInstance.emit("chat:cleared", { scope });
 }
 
+// Push the pinned banner to every connected player the instant an admin
+// publishes or clears one. `payload` is the PublicAnnouncement, or null to
+// tear the banner down. A player who joins later gets the current banner
+// pushed on connect (see the connection handler), so this only needs to
+// reach who is already online.
+export function broadcastAnnouncement(payload: unknown | null): void {
+  if (!ioInstance) return;
+  ioInstance.emit("announcement:set", { announcement: payload });
+}
+
 export function attachSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -397,6 +408,14 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     // chat header has a value to show immediately, before any other
     // user comes/goes.
     socket.emit("presence:count", { count: online.size });
+
+    // Push the current pinned banner to this socket so a player who joins
+    // after it was set still sees it — the REST fetch on the client covers
+    // the pre-socket paint, this covers everyone already connected when a
+    // banner is live. Never allowed to fail the connection.
+    void getLiveAnnouncement()
+      .then((a) => socket.emit("announcement:set", { announcement: a ? toPublic(a) : null }))
+      .catch(() => { /* banner is a nice-to-have; a DB blip must not drop the socket */ });
 
     if (wasFirst) {
       // First connection for this user — broadcast updated total to

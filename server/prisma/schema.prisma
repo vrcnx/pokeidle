@@ -363,6 +363,44 @@ model GiveawayEntry {
   @@index([giveawayId, isWinner])
 }
 
+/// A pinned, server-wide banner shown in the top of every player's chat
+/// column. Distinct from a chat announcement (which scrolls away like any
+/// message): this persists until an admin clears or replaces it, and a
+/// player who joins hours later still sees it. Exactly one is "current" at
+/// a time — publishing a new one deactivates the rest.
+model Announcement {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// Visual + semantic category. One of:
+  /// "info" | "event" | "giveaway" | "warning" | "maintenance".
+  /// Drives the banner's icon and colour on the client.
+  type      String   @default("info")
+
+  /// The banner text. Kept short — this is a single glanceable line.
+  message   String
+
+  /// Optional call-to-action. `href` may be an external URL or an in-app
+  /// hash route (e.g. "#giveaways"); `linkLabel` is the button text.
+  href      String?
+  linkLabel String?
+
+  /// Whether this banner is live. Only one row is active at a time;
+  /// publishing a new banner flips every other row to false.
+  active    Boolean  @default(true)
+
+  /// Optional schedule. `startsAt` in the future hides it until then;
+  /// `expiresAt` in the past hides it again. Null = no bound.
+  startsAt  DateTime?
+  expiresAt DateTime?
+
+  /// The admin who published it (User.id). Not a relation — an admin
+  /// account being deleted must never cascade-delete history.
+  createdBy String
+
+  @@index([active, createdAt])
+}
+
 model Tournament {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())

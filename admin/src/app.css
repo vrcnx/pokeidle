@@ -2335,6 +2335,76 @@ input[type="checkbox"], input[type="radio"] {
   white-space: pre-wrap;
 }
 
+/* ── Pinned banner manager ─────────────────────────────────────── */
+.ann-none { padding: 10px 0 4px; }
+.ann-live {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ann-c, var(--border));
+  background: color-mix(in srgb, var(--ann-c, var(--border)) 12%, var(--panel-2));
+  box-shadow: inset 3px 0 0 var(--ann-c, var(--border));
+  margin: 4px 0 16px;
+}
+.ann-live--info        { --ann-c: #38bdf8; }
+.ann-live--event       { --ann-c: #a78bfa; }
+.ann-live--giveaway    { --ann-c: #fbbf24; }
+.ann-live--warning     { --ann-c: #fb923c; }
+.ann-live--maintenance { --ann-c: #f87171; }
+.ann-live-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ann-live-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.ann-live-msg { font-size: 14px; font-weight: 650; color: var(--text); }
+
+.ann-form { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.ann-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.ann-field--narrow { flex: 0 0 150px; }
+.ann-field-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.ann-input {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.ann-input:focus { outline: none; border-color: var(--accent, #6ea8fe); }
+.ann-input:disabled { opacity: 0.5; }
+
+.ann-type-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ann-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.ann-type-chip:hover { color: var(--text); }
+.ann-type-chip.is-active {
+  color: var(--text);
+  border-color: var(--chip-c, var(--accent));
+  background: color-mix(in srgb, var(--chip-c, var(--accent)) 16%, transparent);
+}
+.ann-type-chip--info        { --chip-c: #38bdf8; }
+.ann-type-chip--event       { --chip-c: #a78bfa; }
+.ann-type-chip--giveaway    { --chip-c: #fbbf24; }
+.ann-type-chip--warning     { --chip-c: #fb923c; }
+.ann-type-chip--maintenance { --chip-c: #f87171; }
+
+.ann-actions { display: flex; justify-content: flex-end; }
+.ann-history-wrap { margin-top: 16px; }
+.ann-history-wrap summary { cursor: pointer; user-select: none; }
+
 /* =================================================================
    Live ops — real-time operator view
    ================================================================= */

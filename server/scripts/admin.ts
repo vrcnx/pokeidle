@@ -122,6 +122,32 @@ async function main() {
     return;
   }
 
+  // ── Pinned banner ────────────────────────────────────────────────
+  if (cmd === "banner") {
+    if (!sub || sub === "show") {
+      out(await req("GET", "/api/admin/announcements"));
+      return;
+    }
+    if (sub === "clear") {
+      out(await req("POST", "/api/admin/announcements/clear"));
+      return;
+    }
+    if (sub === "set") {
+      // admin.ts banner set <type> "message" [href] [linkLabel]
+      const [type, message, href, linkLabel] = rest;
+      if (!type || !message) {
+        throw new Error(`Usage: admin.ts banner set <info|event|giveaway|warning|maintenance> "message" [href] [linkLabel]`);
+      }
+      out(await req("POST", "/api/admin/announcements", {
+        type, message,
+        href: href || null,
+        linkLabel: linkLabel || null,
+      }));
+      return;
+    }
+    throw new Error(`Usage: admin.ts banner {show|set|clear}`);
+  }
+
   // ── Tournaments ──────────────────────────────────────────────────
   if (cmd === "tournament" || cmd === "t") {
     if (!sub || sub === "list") {
@@ -272,6 +298,12 @@ function printUsage() {
 
   Announce
     announce "message"                 Broadcast to global chat (live)
+
+  Pinned banner
+    banner show                        Show the live banner + recent history
+    banner set <type> "message" [href] [label]
+                                       Pin a banner. type: info|event|giveaway|warning|maintenance
+    banner clear                       Take the banner down
 
   Tournaments  (alias: t)
     tournament list

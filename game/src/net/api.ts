@@ -180,6 +180,10 @@ export const api = {
     } catch { /* never let the unload path throw */ }
   },
 
+  // Announcements — the current pinned banner, or null.
+  getActiveAnnouncement: () =>
+    request<{ announcement: Announcement | null }>("GET", "/api/announcements/active"),
+
   // Friends
   listFriends: () => request<FriendList>("GET", "/api/friends"),
   requestFriend: (username: string) =>
@@ -360,6 +364,18 @@ export interface ProfileUser {
   name: string | null;
   username: string;
   image: string | null;
+}
+
+export type AnnouncementType = "info" | "event" | "giveaway" | "warning" | "maintenance";
+
+export interface Announcement {
+  id: string;
+  type: AnnouncementType;
+  message: string;
+  href: string | null;
+  linkLabel: string | null;
+  createdAt: string;
+  expiresAt: string | null;
 }
 
 export interface MeProfile {
