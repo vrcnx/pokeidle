@@ -1457,7 +1457,44 @@ app.patch("/tournaments/:id", async (c) => {
   if (body.levelCap === null || (typeof body.levelCap === "number" && body.levelCap >= 1 && body.levelCap <= 100)) {
     data.levelCap = body.levelCap;
   }
-  if (typeof body.status === "string") data.status = body.status;
+  // Status was `if (typeof body.status === "string")` — any string, no
+  // enum, no state machine. The dashboard renders a plain "Open"
+  // button, and clicking it on a LIVE event walked the tournament
+  // backwards into "open", which re-armed Generate bracket (whose only
+  // guard was status !== "open"). That then overwrote `bracket`
+  // wholesale, discarding every battleId and winnerId recorded so far.
+  // Two clicks, a semifinal's worth of real results gone, no history,
+  // no undo. Only legal forward transitions are accepted now.
+  const LEGAL_NEXT: Record<string, string[]> = {
+    open:      ["live", "cancelled"],
+    live:      ["completed", "cancelled"],
+    completed: [],            // terminal — re-opening would invite a re-seed
+    cancelled: [],            // terminal
+  };
+  if (body.status !== undefined) {
+    const next = String(body.status);
+    const current = await prisma.tournament.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (!current) return c.json({ error: "tournament not found" }, 404);
+    if (next !== current.status) {
+      const allowed = LEGAL_NEXT[current.status] ?? [];
+      if (!allowed.includes(next)) {
+        return c.json({
+          error: "illegal status transition",
+          reason: `A tournament cannot go from "${current.status}" to "${next}".`
+            + (allowed.length
+              ? ` Allowed from here: ${allowed.join(", ")}.`
+              : ` "${current.status}" is terminal.`),
+          from: current.status,
+          to: next,
+          allowed,
+        }, 409);
+      }
+      data.status = next;
+    }
+  }
   try {
     const t = await prisma.tournament.update({ where: { id }, data });
     void makeAudit(c)(me.id, "tournament.update", id, data);
@@ -1518,11 +1555,26 @@ app.post("/tournaments/:id/generate-bracket", async (c) => {
   if (t.status !== "open") {
     return c.json({ error: "tournament must be 'open' to generate a bracket" }, 409);
   }
-  if (t.entries.length < 2) {
+  // Status is not sufficient protection on its own. Refuse outright if a
+  // bracket already exists — regenerating overwrites it wholesale and
+  // takes every recorded battleId and winnerId with it. Requiring an
+  // explicit delete + recreate to re-seed makes destroying real results
+  // an intentional act rather than a side effect of a stray click.
+  if (t.bracket != null) {
+    return c.json({
+      error: "bracket already exists",
+      reason: "Regenerating would discard the recorded match results. "
+        + "Delete the tournament and recreate it if you need a fresh seed.",
+    }, 409);
+  }
+  // Never re-seed eliminated players. bracket.ts's own header documents
+  // this expectation; the endpoint was passing t.entries unfiltered.
+  const seedable = t.entries.filter((e) => !e.eliminated);
+  if (seedable.length < 2) {
     return c.json({ error: "need at least 2 participants" }, 400);
   }
   const bracket = generateBracket(
-    t.entries.map((e) => ({ userId: e.userId, username: e.username, seed: e.seed })),
+    seedable.map((e) => ({ userId: e.userId, username: e.username, seed: e.seed })),
   );
   const updated = await prisma.tournament.update({
     where: { id },
