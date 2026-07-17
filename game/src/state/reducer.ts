@@ -1135,7 +1135,7 @@ export function reducer(state: GameState, action: Action): GameState {
       // React already escapes text nodes, but keeping bad input out of state
       // also keeps the save file clean), collapse whitespace, length-limit.
       const cleaned = nickname
-        .replace(/[ -]/g, "")
+        .replace(/[\x00-\x1f\x7f]/g, "")
         .replace(/[<>]/g, "")
         .replace(/\s+/g, " ")
         .trim()
