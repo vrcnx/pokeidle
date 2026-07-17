@@ -5,17 +5,19 @@
    - Consistent radii (4 / 8 / 12), spacing rhythm (4px base), motion (120/180/240ms) */
 
 :root {
-  /* ── Palette ── pure dark neutrals, no color tint, no accent hue. ── */
-  --bg:            #0a0a0a;
-  --bg-2:          #050505;
-  --panel:         #131313;
-  --panel-2:       #1a1a1a;
-  --panel-3:       #222222;
-  --panel-4:       #2c2c2c;
+  /* ── Palette ── unified TRUE-BLACK neutrals. One elevation ladder shared
+     by the whole UI (game panels AND popups), stepping up from pure black.
+     No hue anywhere; the Pokémon sprites are the only colour. ── */
+  --bg:            #000000;   /* page canvas */
+  --bg-2:          #000000;
+  --panel:         #0d0d0e;   /* base surface / card */
+  --panel-2:       #151516;   /* raised surface */
+  --panel-3:       #242426;   /* active / highest */
+  --panel-4:       #2f2f31;
 
-  --border:        #1f1f1f;
-  --border-strong: #2a2a2a;
-  --border-bright: #3a3a3a;
+  --border:        #1c1c1e;   /* barely-there hairline */
+  --border-strong: #2a2a2c;
+  --border-bright: #3a3a3c;
 
   --text:          #f5f5f5;
   --text-muted:    #9c9c9c;
@@ -10031,25 +10033,17 @@ input:focus, textarea:focus, select:focus {
    typical viewport.
    ─────────────────────────────────────────────────────────────────── */
 .g-modal {
-  /* Soft-slate modal skin — cool near-black, cards lift on shadow, no hard
-     outlines. Scoped to .g-modal so it restyles every popup that uses these
-     primitives without touching the game's own panels. */
-  --m-bg: #16181d;
-  --m-surface: #1e2027;
-  --m-surface-2: #262a33;
-  --m-text: #eef0f4;
-  --m-muted: #8b8f9a;
-  --m-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  /* Popups draw from the SAME true-black token ladder as the game panels —
+     that shared surface language is the "synergy". The --m-* aliases just
+     name the roles (bg / raised / active) for the primitives below; they
+     resolve to the global tokens, so popups and panels move together. */
+  --m-bg: var(--panel);
+  --m-surface: var(--panel-2);
+  --m-surface-2: var(--panel-3);
+  --m-text: var(--text);
+  --m-muted: var(--text-muted);
+  --m-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   --m-hairline: rgba(255, 255, 255, 0.05);
-  /* Remap the game's own tokens within the modal so every popup's bespoke
-     content inherits the cool palette and the near-invisible border. */
-  --panel: #16181d;
-  --panel-2: #1e2027;
-  --panel-3: #262a33;
-  --border: rgba(255, 255, 255, 0.06);
-  --text: #eef0f4;
-  --text-muted: #8b8f9a;
-  --text-dim: #6b6f7a;
   width: min(760px, 96vw);
   max-height: 90vh;
   background: var(--m-bg);
