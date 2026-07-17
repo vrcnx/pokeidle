@@ -62,6 +62,13 @@ model User {
   // Presence — set by the socket connection lifecycle.
   lastSeenAt      DateTime  @default(now())
 
+  // Daily rewards / login streak. Server-authoritative so the streak can't
+  // be farmed by moving the client clock. lastDailyClaimAt is the UTC
+  // instant of the last claim; the route compares it against UTC midnight.
+  dailyStreak        Int       @default(0)
+  longestDailyStreak Int       @default(0)
+  lastDailyClaimAt   DateTime?
+
   // Moderation — admin flag bootstraps a user into the admin dashboard;
   // bannedUntil > now blocks login + socket connections.
   isAdmin         Boolean   @default(false)

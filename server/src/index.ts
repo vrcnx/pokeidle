@@ -13,6 +13,7 @@ import bugReportsRoute from "./routes/bugReports.js";
 import pvpRoute from "./routes/pvp.js";
 import giveawaysRoute from "./routes/giveaways.js";
 import announcementsRoute from "./routes/announcements.js";
+import dailiesRoute from "./routes/dailies.js";
 import publicRoute from "./routes/public.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
@@ -157,6 +158,7 @@ app.route("/api/bug-reports", bugReportsRoute);
 app.route("/api/pvp", pvpRoute);
 app.route("/api/giveaways", giveawaysRoute);
 app.route("/api/announcements", announcementsRoute);
+app.route("/api/dailies", dailiesRoute);
 app.route("/api/public", publicRoute);
 
 // Global error handler — anything that throws inside a route handler

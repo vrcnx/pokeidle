@@ -587,6 +587,18 @@ export function reducer(state: GameState, action: Action): GameState {
     case "CLEAR_OFFLINE_SUMMARY":
       return state.offlineSummary ? { ...state, offlineSummary: null } : state;
 
+    case "APPLY_DAILY_REWARD": {
+      // The server has already recorded the claim + streak; this just adds
+      // the returned reward to the local save. The unconditional localStorage
+      // write means the reward survives even if the cloud upload is offline.
+      const inventory = { ...state.inventory };
+      for (const it of action.payload.items) {
+        inventory[it.itemId] = Math.min(999_999, (inventory[it.itemId] ?? 0) + it.quantity);
+      }
+      const money = Math.min(999_999_999, state.money + Math.max(0, action.payload.money));
+      return { ...state, inventory, money };
+    }
+
     case "CATCH_RESOLVE": {
       // Animation finished — apply the pre-rolled outcome. If success, copy
       // the (still-on-field) enemy into the party/box and end the battle;

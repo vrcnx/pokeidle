@@ -5047,6 +5047,54 @@ body.dnd-active {
 .offline-lead strong { color: var(--text); }
 .offline-foot { padding: 18px 22px 20px; display: flex; justify-content: center; }
 .offline-dismiss { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 9px 28px; font-weight: 700; }
+
+/* ── Daily reward ─────────────────────────────────────────────────── */
+.daily-modal { max-width: 460px; width: calc(100vw - 32px); text-align: center; }
+.daily-head { padding: 22px 22px 0; }
+.daily-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+  text-transform: uppercase; color: var(--gold, #fbbf24);
+}
+.daily-head h2 { margin: 4px 0 4px; font-size: 22px; }
+.daily-streak { margin: 0; font-size: 13px; color: var(--text); font-weight: 600; }
+.daily-week {
+  display: flex; gap: 5px; padding: 16px 18px 4px; justify-content: center;
+}
+.daily-day {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  min-width: 0;
+}
+.daily-day-n { font-size: 9.5px; color: var(--text-muted); white-space: nowrap; }
+.daily-day-mark { font-size: 14px; line-height: 1; color: var(--text-dim); }
+.daily-day.is-past { border-color: color-mix(in srgb, var(--gold, #fbbf24) 40%, transparent); }
+.daily-day.is-past .daily-day-mark { color: #34d399; }
+.daily-day.is-today {
+  border-color: var(--gold, #fbbf24);
+  background: color-mix(in srgb, var(--gold, #fbbf24) 16%, var(--panel-2));
+}
+.daily-day.is-today .daily-day-mark { color: var(--gold, #fbbf24); }
+.daily-reward-box {
+  margin: 14px 22px 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.daily-reward-label { font-size: 18px; color: var(--gold, #fbbf24); font-weight: 800; }
+.daily-foot { padding: 18px 22px 20px; display: flex; justify-content: center; }
+.daily-claim { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 10px 32px; font-weight: 700; }
+.daily-claimable-dot {
+  display: inline-block; width: 7px; height: 7px; margin-left: 6px;
+  border-radius: 50%; background: var(--gold, #fbbf24);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold, #fbbf24) 25%, transparent);
+  vertical-align: middle;
+}
 .modal.evolution img { animation: pulse 0.7s infinite alternate; }
 @keyframes pulse {
   from { transform: scale(1); filter: brightness(1); }

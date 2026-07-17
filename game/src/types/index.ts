@@ -428,6 +428,7 @@ export type Action =
   | { type: "CATCH_RESOLVE" }
   | { type: "APPLY_OFFLINE_PROGRESS"; payload: { exp: number; battles: number; awayMs: number; creditedMs: number } }
   | { type: "CLEAR_OFFLINE_SUMMARY" }
+  | { type: "APPLY_DAILY_REWARD"; payload: { money: number; items: { itemId: string; quantity: number }[] } }
   | { type: "CLEAR_WHITEOUT_ANIM" }
   | { type: "CONSUME_EVENT" }
   | { type: "APPLY_EXP"; payload: { exp: number } }

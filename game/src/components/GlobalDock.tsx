@@ -11,6 +11,8 @@ import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
 import { openChangelog } from "./ChangelogModal";
 import { openHowToPlay } from "./HowToPlayModal";
+import { openDailyReward } from "../state/dailies";
+import { useDailyStatus } from "../state/dailies";
 import { openGiveaways } from "./GiveawayModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
@@ -309,6 +311,7 @@ type SettingsTab = "stats" | "audio" | "chat" | "account";
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
   const { me, signOut } = useAuth();
+  const dailyStatus = useDailyStatus();
   const [tab, setTab] = useState<SettingsTab>("stats");
   const totalDex = Object.keys(pokemonTable).length;
   const charm = hasShinyCharm(state.pokedexCaught);
@@ -392,6 +395,12 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                       onClick={() => { onClose(); openGiveaways(); }}
                     >
                       🎁 View giveaways
+                    </button>
+                    <button
+                      className="g-btn-ghost g-btn-small"
+                      onClick={() => { onClose(); openDailyReward(); }}
+                    >
+                      🔥 Daily reward{dailyStatus && !dailyStatus.claimedToday && <span className="daily-claimable-dot" aria-label="claim available" />}
                     </button>
                   </div>
                 </section>

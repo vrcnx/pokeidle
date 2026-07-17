@@ -184,6 +184,12 @@ export const api = {
   getActiveAnnouncement: () =>
     request<{ announcement: Announcement | null }>("GET", "/api/announcements/active"),
 
+  // Daily rewards / login streak.
+  dailyStatus: () => request<DailyStatus>("GET", "/api/dailies/status"),
+  claimDaily: () =>
+    request<{ ok: true; reward: DailyReward; streak: number; longestStreak: number; status: DailyStatus }>(
+      "POST", "/api/dailies/claim"),
+
   // Friends
   listFriends: () => request<FriendList>("GET", "/api/friends"),
   requestFriend: (username: string) =>
@@ -364,6 +370,20 @@ export interface ProfileUser {
   name: string | null;
   username: string;
   image: string | null;
+}
+
+export interface DailyReward {
+  money: number;
+  items: { itemId: string; quantity: number }[];
+  label: string;
+}
+export interface DailyStatus {
+  claimedToday: boolean;
+  streak: number;
+  longestStreak: number;
+  streakIfClaimed: number;
+  todayReward: DailyReward;
+  nextClaimInMs: number;
 }
 
 export type AnnouncementType = "info" | "event" | "giveaway" | "warning" | "maintenance";
