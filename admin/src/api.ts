@@ -79,6 +79,14 @@ export interface ChatMessage {
   user: { id: string; username: string; name: string | null; isAdmin: boolean };
 }
 
+export interface SaveSnapshotRow {
+  id: string;
+  saveVersion: number;
+  reason: string;
+  createdAt: string;
+  summary: { level: number; badges: number; caught: number; money: number; bytes: number } | null;
+}
+
 export type AnnouncementType = "info" | "event" | "giveaway" | "warning" | "maintenance";
 
 export interface AdminAnnouncement {
@@ -256,6 +264,12 @@ export const api = {
   deleteUser: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/users/${id}`),
   resetSave: (id: string) =>
     req<{ id: string; saveVersion: number }>("POST", `/api/admin/users/${id}/reset-save`),
+  // Save history (append-only checkpoints).
+  listSnapshots: (id: string) =>
+    req<{ snapshots: SaveSnapshotRow[] }>("GET", `/api/admin/users/${id}/snapshots`),
+  restoreSnapshot: (id: string, snapshotId: string) =>
+    req<{ ok: true; id: string; saveVersion: number; accountLevel: number }>(
+      "POST", `/api/admin/users/${id}/snapshots/${snapshotId}/restore`),
   savePatch: (id: string, patch: Record<string, unknown>) =>
     req<{ ok: true; id: string; saveVersion: number; accountLevel: number; pokedexCaughtCount: number; keys: string[] }>(
       "POST",

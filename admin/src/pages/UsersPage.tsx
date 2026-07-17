@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -685,7 +685,92 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
           Delete user is permanent and cascades to friends, chat messages, sessions.
         </p>
       </section>
+
+      <SaveHistorySection
+        userId={data.id}
+        username={data.username}
+        onRestored={() => { reload(); onChange(); }}
+      />
     </>
+  );
+}
+
+// ─── Save history — append-only checkpoints + one-click restore ─────────
+function SaveHistorySection({ userId, username, onRestored }: {
+  userId: string; username: string; onRestored: () => void;
+}) {
+  const [rows, setRows] = useState<SaveSnapshotRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  const load = () => {
+    api.listSnapshots(userId)
+      .then((d) => setRows(d.snapshots))
+      .catch((e) => setErr(e.message));
+  };
+  useEffect(load, [userId]);
+
+  const restore = async (snap: SaveSnapshotRow) => {
+    const when = new Date(snap.createdAt).toLocaleString();
+    if (!window.confirm(
+      `Restore ${username} to the save from ${when} (v${snap.saveVersion})?\n\n`
+      + `Their CURRENT save is checkpointed first, so this is reversible. `
+      + `Any device they have open will be bumped and re-pull on its next save.`
+    )) return;
+    setBusyId(snap.id); setErr(null); setNote(null);
+    try {
+      const res = await api.restoreSnapshot(userId, snap.id);
+      setNote(`Restored to v${snap.saveVersion}. New save version: ${res.saveVersion}.`);
+      load();
+      onRestored();
+    } catch (e: any) {
+      setErr(`Restore failed: ${e?.message ?? "unknown"}`);
+    } finally { setBusyId(null); }
+  };
+
+  return (
+    <section className="profile-section">
+      <h3>Save history <span className="dim small">· {rows?.length ?? "…"}</span></h3>
+      <p className="dim small">
+        Automatic checkpoints (≤ 1 per 30 min, newest 24 kept). Restoring first checkpoints
+        the current save, so it can be undone by restoring that.
+      </p>
+      {err && <div className="profile-action-err" role="alert"><span>{err}</span></div>}
+      {note && <p className="profile-msg dim small">{note}</p>}
+      {rows === null
+        ? <p className="dim small">Loading…</p>
+        : rows.length === 0
+          ? <p className="dim small">No checkpoints yet — they'll accrue as the player saves.</p>
+          : (
+            <table className="snapshot-table">
+              <thead>
+                <tr><th>When</th><th>Ver</th><th>Lv</th><th>Badges</th><th>Dex</th><th>Money</th><th>Size</th><th></th></tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className={r.reason === "pre-restore" ? "snapshot-row--prerestore" : ""}>
+                    <td>
+                      {new Date(r.createdAt).toLocaleString()}
+                      {r.reason === "pre-restore" && <span className="snapshot-tag" title="Captured just before a restore">pre-restore</span>}
+                    </td>
+                    <td>{r.saveVersion}</td>
+                    <td>{r.summary?.level ?? "—"}</td>
+                    <td>{r.summary?.badges ?? "—"}</td>
+                    <td>{r.summary?.caught ?? "—"}</td>
+                    <td>{r.summary ? r.summary.money.toLocaleString() : "—"}</td>
+                    <td>{r.summary ? `${Math.round(r.summary.bytes / 1024)}KB` : "—"}</td>
+                    <td>
+                      <button className="btn-secondary btn-tiny" onClick={() => restore(r)} disabled={busyId !== null}>
+                        {busyId === r.id ? "Restoring…" : "Restore"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+    </section>
   );
 }
 

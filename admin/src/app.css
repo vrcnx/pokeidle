@@ -1044,6 +1044,39 @@ input[type="checkbox"], input[type="radio"] {
   padding: 16px 18px;
 }
 .profile-section:last-child { margin-bottom: 0; }
+
+/* Save-history table */
+.snapshot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+.snapshot-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+.snapshot-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+.snapshot-table tr:last-child td { border-bottom: 0; }
+.snapshot-row--prerestore td { background: color-mix(in srgb, var(--accent, #6ea8fe) 8%, transparent); }
+.snapshot-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent, #6ea8fe);
+  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent);
+}
 .profile-section h3 {
   margin: 0 0 12px;
   font-size: 11px;
