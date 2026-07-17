@@ -285,7 +285,7 @@ a:focus-visible {
   align-items: center;
   gap: 12px;
   padding: 5px 10px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   font-size: 10px;
   color: var(--gold);
@@ -572,7 +572,7 @@ a:focus-visible {
 .bottom-tab-strip {
   display: flex;
   gap: 0;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -914,7 +914,7 @@ header.tab-pane-head.v2 .mart-wallet {
 }
 .dex-species-modal .info-head {
   padding: 12px 16px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
 .dex-species-modal h2 { display: inline-flex; align-items: center; gap: 10px; }
@@ -1395,7 +1395,7 @@ header.tab-pane-head.v2 .mart-wallet {
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  background: #0f0f0f;
+  background: var(--panel);
   color: var(--gold);
   border-bottom: 1px solid var(--border);
 }
@@ -1414,7 +1414,7 @@ header.tab-pane-head.v2 .mart-wallet {
   border: 1px solid var(--border);
 }
 .header-icon-btn:hover:not(:disabled) {
-  background: #1a1a1a;
+  background: var(--panel-2);
   border-color: var(--border-strong);
 }
 
@@ -1439,7 +1439,7 @@ header.tab-pane-head.v2 .mart-wallet {
   justify-content: space-between;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  background: #0f0f0f;
+  background: var(--panel);
 }
 .pc-head h2 {
   margin: 0;
@@ -1497,7 +1497,7 @@ header.tab-pane-head.v2 .mart-wallet {
   grid-template-rows: repeat(5, 1fr);
   gap: 2px;
   padding: 8px;
-  background: #1a1a1a;
+  background: var(--panel-2);
   border: none;
   border-radius: 6px;
   min-height: 0;
@@ -1611,7 +1611,7 @@ header.tab-pane-head.v2 .mart-wallet {
 }
 .pokedex-modal .info-head {
   padding: 10px 14px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
 .pokedex-summary { padding: 8px 14px 0; margin: 0; }
@@ -2226,7 +2226,7 @@ body.dnd-active {
   justify-content: center;
   gap: 2px;
   padding: 6px 4px 4px;
-  background: #161616;
+  background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: #fff;
@@ -2469,7 +2469,7 @@ body.dnd-active {
   color: inherit;
 }
 .profile-strip:hover {
-  background: #161616;
+  background: var(--panel-2);
   border-color: var(--border-strong);
 }
 .profile-stat {
@@ -2505,7 +2505,7 @@ body.dnd-active {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -2740,7 +2740,7 @@ body.dnd-active {
 }
 .trainer-card-modal .info-head {
   padding: 12px 16px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
 .trainer-card-body {
@@ -3353,9 +3353,9 @@ body.dnd-active {
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+  background: var(--accent);
   color: #0a0a0a;
-  border: 1px solid #b45309;
+  border: none;
   border-radius: 6px;
   margin-top: 4px;
 }
@@ -4218,7 +4218,7 @@ body.dnd-active {
   align-items: center;
   padding: 5px 12px;
   font-size: 10px;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   color: var(--gold);
 }
@@ -4370,7 +4370,7 @@ body.dnd-active {
 
 .location-tabs {
   display: flex;
-  background: #0f0f0f;
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
 .location-tabs button {
@@ -4852,7 +4852,7 @@ body.dnd-active {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: #0f0f0f;
+  background: var(--panel);
   font-size: 9px;
   color: var(--gold);
 }
@@ -5690,7 +5690,7 @@ body.dnd-active {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #0f0f0f;
+  background: var(--panel);
   padding: 3px 8px;
   border-bottom: 1px solid var(--border);
   min-height: 30px;
@@ -10098,11 +10098,11 @@ input:focus, textarea:focus, select:focus {
   border-color: var(--border);
 }
 .g-modal-body {
-  padding: 16px 18px;
+  padding: 18px 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-height: 0;
 }
 .g-modal-foot {
@@ -10187,7 +10187,8 @@ input:focus, textarea:focus, select:focus {
 .g-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 14px;
+  align-items: stretch;   /* cards match height regardless of row count */
 }
 @media (max-width: 600px) {
   .g-grid { grid-template-columns: 1fr; }
@@ -10238,13 +10239,13 @@ input:focus, textarea:focus, select:focus {
   }
 }
 .g-card {
-  background: var(--m-surface, #1e2027);
+  background: var(--m-surface, #151516);
   border: none;
   border-radius: 12px;
-  padding: 13px 15px;
+  padding: 15px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
   box-shadow: var(--m-shadow, 0 4px 16px rgba(0, 0, 0, 0.35));
 }
