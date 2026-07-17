@@ -8,6 +8,9 @@ import {
   itemSpriteUrl,
   pokemonStaticSpriteUrl,
   createPokemon,
+  deriveStatsForLevel,
+  type IVs,
+  type Stats,
 } from "../data/gameCatalog";
 
 // ─── User list page ────────────────────────────────────────────────────
@@ -892,7 +895,39 @@ function PokemonRow({ mon, onEdit, onRemove, useStaticSprite }: {
       <div className="poke-card-body">
         <label>
           <span>Lv</span>
-          <input type="number" min={1} max={100} value={mon.level ?? 1} onChange={(e) => onEdit({ level: clamp(parseInt(e.target.value, 10) || 1, 1, 100) })} />
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={mon.level ?? 1}
+            onChange={(e) => {
+              const level = clamp(parseInt(e.target.value, 10) || 1, 1, 100);
+              // Patch the derived stats alongside the level. Writing
+              // `level` on its own leaves maxHp/attack/... at their old
+              // values — the game does NOT recompute them on load, and
+              // validateSave only bounds-checks, so a Lv100 mon with Lv5
+              // stats persists happily and loses every battle. Preserve
+              // the mon's real IVs/EVs rather than assuming perfect ones.
+              const derived = deriveStatsForLevel(
+                mon.speciesKey,
+                level,
+                mon.ivs as Partial<IVs> | undefined,
+                mon.evs as Partial<Stats> | undefined,
+              );
+              if (!derived) { onEdit({ level }); return; }  // unknown species: don't invent stats
+              // Keep the HP fraction the mon had, so editing the level of
+              // a hurt Pokemon does not silently full-heal or leave it on
+              // more HP than its new max allows.
+              const prevMax = typeof mon.maxHp === "number" && mon.maxHp > 0 ? mon.maxHp : derived.maxHp;
+              const prevCur = typeof mon.currentHp === "number" ? mon.currentHp : prevMax;
+              const frac = Math.max(0, Math.min(1, prevCur / prevMax));
+              onEdit({
+                level,
+                ...derived,
+                currentHp: Math.max(1, Math.round(derived.maxHp * frac)),
+              });
+            }}
+          />
         </label>
         <label>
           <span>Nickname</span>

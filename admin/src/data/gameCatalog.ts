@@ -14,8 +14,8 @@
 import pokemonRaw from "./pokemon-snapshot.json";
 import itemsRaw from "./items-snapshot.json";
 
-type Stats = { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
-type IVs = Stats;
+export type Stats = { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
+export type IVs = Stats;
 type GrowthRate = "fast" | "mediumFast" | "mediumSlow" | "slow" | "erratic" | "fluctuating";
 
 export interface PokemonEntry {
@@ -152,6 +152,49 @@ export function createPokemon(
     ivs,
     evs,
     isShiny,
+  };
+}
+
+// Re-derive a mon's stats + exp baseline for a new level, preserving
+// its existing IVs/EVs.
+//
+// The save editor previously patched ONLY `level` when an operator
+// changed it, on the documented assumption that "stats re-derive from
+// the species catalog on the user's next save load". That is false:
+// the game's normalizePokemon only raises totalExp to the level
+// baseline and backfills missing ivs/evs/nature — it never recomputes
+// stats. validateSave only bounds-checks, so a Lv100 mon carrying Lv5
+// stats passes cleanly. The net effect: compensating a player handed
+// them a Lv50 Charizard with ~20 HP that lost every battle, which then
+// read to them as a fresh bug. Stats must be derived HERE, at the edit.
+//
+// Returns null for an unknown species so the caller can leave the mon
+// untouched rather than writing garbage.
+export function deriveStatsForLevel(
+  speciesKey: string,
+  level: number,
+  ivs?: Partial<IVs>,
+  evs?: Partial<Stats>,
+): { totalExp: number; maxHp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number } | null {
+  const sp = _pokemonBySlug.get(speciesKey);
+  if (!sp) return null;
+  const fullIvs: IVs = {
+    hp: ivs?.hp ?? 31, attack: ivs?.attack ?? 31, defense: ivs?.defense ?? 31,
+    spAttack: ivs?.spAttack ?? 31, spDefense: ivs?.spDefense ?? 31, speed: ivs?.speed ?? 31,
+  };
+  const fullEvs: Stats = {
+    hp: evs?.hp ?? 0, attack: evs?.attack ?? 0, defense: evs?.defense ?? 0,
+    spAttack: evs?.spAttack ?? 0, spDefense: evs?.spDefense ?? 0, speed: evs?.speed ?? 0,
+  };
+  const s = calcAllStats(sp.baseStats, level, fullIvs, fullEvs);
+  return {
+    totalExp: expForLevel(level, sp.growthRate),
+    maxHp: s.hp,
+    attack: s.attack,
+    defense: s.defense,
+    spAttack: s.spAttack,
+    spDefense: s.spDefense,
+    speed: s.speed,
   };
 }
 
