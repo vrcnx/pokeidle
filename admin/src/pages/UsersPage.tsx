@@ -16,14 +16,33 @@ import {
 //   - Detail view: full-page tabbed management panel for one user
 // Clicking a row navigates to detail; the "Back to users" button on
 // the detail view returns to the list, preserving search + page state.
-export function UsersPage() {
-  const [q, setQ] = useState("");
+export function UsersPage({
+  focusUserId,
+  initialQuery,
+}: {
+  /** Set when another page navigated here to act on a specific player
+   *  (e.g. "Ban" from a chat message). Opens their detail directly. */
+  focusUserId?: string;
+  /** Set when another page navigated here with a search intent. */
+  initialQuery?: string;
+} = {}) {
+  const [q, setQ] = useState(initialQuery ?? "");
   const [page, setPage] = useState(0);
   const [data, setData] = useState<{ total: number; users: AdminUser[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(focusUserId ?? null);
   const PAGE_SIZE = 25;
+
+  // Re-focus when the operator drills in again from another page while
+  // Users is already mounted — a second "Ban" click from chat must move
+  // to the new player rather than sit on the previous one.
+  useEffect(() => {
+    if (focusUserId) setSelected(focusUserId);
+  }, [focusUserId]);
+  useEffect(() => {
+    if (initialQuery !== undefined) { setQ(initialQuery); setPage(0); }
+  }, [initialQuery]);
 
   // Monotonic request id. Every keystroke fires a request, and they can
   // resolve out of order — typing "ash" issues a/as/ash, and if "a"

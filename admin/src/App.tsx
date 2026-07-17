@@ -15,25 +15,46 @@ import { LiveOpsPage } from "./pages/LiveOpsPage";
 type Status = "loading" | "anon" | "forbidden" | "ok";
 export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
 
-// Module-scoped navigation bus so any page (e.g. an AnalyticsPage
-// alert card) can request a tab switch without prop-drilling through
-// every component. App subscribes once on mount and routes the
-// request through the same setPage state setter.
-const _navListeners = new Set<(p: Page) => void>();
-export function navigateTo(p: Page): void {
-  for (const fn of _navListeners) fn(p);
+// What a page can be asked to focus on when navigated to. The bus used
+// to carry a page name and nothing else, which meant every cross-page
+// action dead-ended: the operator could see a user misbehaving in chat,
+// in the LiveOps feed, or in the audit log, and had no way to act on
+// them without memorising the username, walking to Users, and typing it
+// back in. Carrying a target turns "find the thing" into one click.
+export interface NavParams {
+  /** Open Users straight into this user's detail panel. */
+  userId?: string;
+  /** Pre-fill a page's search box (e.g. Users, Audit) with this. */
+  query?: string;
+}
+
+// Module-scoped navigation bus so any page can request a tab switch
+// without prop-drilling through every component. App subscribes once on
+// mount and routes the request through its own state setters.
+type NavRequest = { page: Page; params: NavParams };
+const _navListeners = new Set<(r: NavRequest) => void>();
+export function navigateTo(p: Page, params: NavParams = {}): void {
+  for (const fn of _navListeners) fn({ page: p, params });
 }
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<AdminMe | null>(null);
   const [page, setPage] = useState<Page>("analytics");
+  const [navParams, setNavParams] = useState<NavParams>({});
 
-  // Wire the module-scoped nav helper to this App's setPage.
+  // Wire the module-scoped nav helper to this App's state.
   useEffect(() => {
-    _navListeners.add(setPage);
-    return () => { _navListeners.delete(setPage); };
+    const onNav = (r: NavRequest) => { setPage(r.page); setNavParams(r.params); };
+    _navListeners.add(onNav);
+    return () => { _navListeners.delete(onNav); };
   }, []);
+
+  // Clicking a sidebar item is a fresh intent, not a drill-down, so it
+  // must clear any pending target — otherwise navigating Chat → Users
+  // (focusing a player) and then clicking Users in the sidebar would
+  // silently re-open that same player instead of the list.
+  const gotoPage = (p: Page) => { setPage(p); setNavParams({}); };
 
   useEffect(() => {
     api.me()
@@ -68,31 +89,31 @@ export function App() {
         <nav className="admin-nav">
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Overview</span>
-            <NavItem active={page === "analytics"} onClick={() => setPage("analytics")} label="Analytics" icon={<IconChart />} />
-            <NavItem active={page === "liveops"} onClick={() => setPage("liveops")} label="Live ops" icon={<IconPulse />} />
+            <NavItem active={page === "analytics"} onClick={() => gotoPage("analytics")} label="Analytics" icon={<IconChart />} />
+            <NavItem active={page === "liveops"} onClick={() => gotoPage("liveops")} label="Live ops" icon={<IconPulse />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">People</span>
-            <NavItem active={page === "users"} onClick={() => setPage("users")} label="Users" icon={<IconUsers />} />
+            <NavItem active={page === "users"} onClick={() => gotoPage("users")} label="Users" icon={<IconUsers />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Moderation</span>
-            <NavItem active={page === "chat"} onClick={() => setPage("chat")} label="Chat" icon={<IconChat />} />
-            <NavItem active={page === "bugs"} onClick={() => setPage("bugs")} label="Bug reports" icon={<IconBug />} />
-            <NavItem active={page === "audit"} onClick={() => setPage("audit")} label="Audit log" icon={<IconHistory />} />
+            <NavItem active={page === "chat"} onClick={() => gotoPage("chat")} label="Chat" icon={<IconChat />} />
+            <NavItem active={page === "bugs"} onClick={() => gotoPage("bugs")} label="Bug reports" icon={<IconBug />} />
+            <NavItem active={page === "audit"} onClick={() => gotoPage("audit")} label="Audit log" icon={<IconHistory />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Events</span>
-            <NavItem active={page === "tournaments"} onClick={() => setPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
-            <NavItem active={page === "announcements"} onClick={() => setPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
+            <NavItem active={page === "tournaments"} onClick={() => gotoPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
+            <NavItem active={page === "announcements"} onClick={() => gotoPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Diagnostics</span>
-            <NavItem active={page === "errors"} onClick={() => setPage("errors")} label="Error log" icon={<IconAlert />} />
+            <NavItem active={page === "errors"} onClick={() => gotoPage("errors")} label="Error log" icon={<IconAlert />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Tools</span>
-            <NavItem active={page === "map"} onClick={() => setPage("map")} label="Map editor" icon={<IconMap />} />
+            <NavItem active={page === "map"} onClick={() => gotoPage("map")} label="Map editor" icon={<IconMap />} />
           </div>
         </nav>
         <div className="admin-foot">
@@ -104,7 +125,7 @@ export function App() {
       </aside>
       <main className="admin-main">
         {page === "analytics" && <AnalyticsPage />}
-        {page === "users" && <UsersPage />}
+        {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
         {page === "chat" && <ChatModerationPage />}
         {page === "bugs" && <BugReportsPage />}

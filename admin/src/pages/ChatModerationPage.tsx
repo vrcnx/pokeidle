@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type ChatMessage } from "../api";
+import { navigateTo } from "../App";
 
 type Filter = "all" | "global" | "area" | "dm" | string;
 
@@ -185,8 +186,19 @@ export function ChatModerationPage() {
                   <button
                     className="btn-ghost btn-tiny"
                     onClick={() => setUsername(m.user.username)}
-                    title="Filter by this trainer"
+                    title="Filter this feed to only this trainer"
                   >Filter</button>
+                  {/* The whole point of reading chat moderation is to act
+                      on whoever is misbehaving. Until now the page could
+                      only delete the message — the operator had to
+                      memorise the username, walk to Users, and type it
+                      back in. One click now opens the offender with every
+                      action (ban, save, sessions) already in reach. */}
+                  <button
+                    className="btn-ghost btn-tiny"
+                    onClick={() => navigateTo("users", { userId: m.user.id })}
+                    title={`Open ${m.user.username} in Users — ban, inspect save, view sessions`}
+                  >Open user</button>
                   <button
                     className="btn-danger btn-tiny"
                     onClick={() => del(m.id)}

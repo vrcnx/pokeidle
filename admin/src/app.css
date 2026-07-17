@@ -2566,3 +2566,16 @@ input[type="checkbox"], input[type="radio"] {
   text-decoration: underline;
 }
 .linklike:hover { color: var(--text); }
+
+/* Rows that drill through to another page. The operator should be able
+   to see that a row is actionable before clicking it. */
+.liveops-online-row.is-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 120ms var(--ease);
+}
+.liveops-online-row.is-clickable:hover { background: var(--surface-2); }
+.liveops-online-row.is-clickable:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}

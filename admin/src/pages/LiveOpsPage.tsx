@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type LiveOps, type LiveOpsActivityItem } from "../api";
+import { navigateTo } from "../App";
 
 type FeedFilter = "all" | "chat" | "signup" | "trade" | "pvp";
 
@@ -112,7 +113,24 @@ export function LiveOpsPage() {
             : (
               <ul className="liveops-online-list">
                 {online.map((o) => o.user && (
-                  <li key={o.userId} className="liveops-online-row">
+                  // The online list is where an operator spots trouble
+                  // live. Rows are now click-through to the player, so
+                  // "that name looks like a bot" is one click from the
+                  // ban button instead of a manual re-search.
+                  <li
+                    key={o.userId}
+                    className="liveops-online-row is-clickable"
+                    role="button"
+                    tabIndex={0}
+                    title={`Open ${o.user.username} in Users`}
+                    onClick={() => navigateTo("users", { userId: o.userId })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigateTo("users", { userId: o.userId });
+                      }
+                    }}
+                  >
                     <span className="liveops-online-dot" />
                     <span className="liveops-online-name">
                       <strong>{o.user.name ?? o.user.username}</strong>

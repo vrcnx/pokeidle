@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type AuditEntry } from "../api";
+import { navigateTo } from "../App";
 
 // Audit log viewer. Shows every admin action that touched another user
 // (or chat / map / tournament). Newest first. Filter by action prefix
@@ -106,7 +107,26 @@ export function AuditLogPage() {
                   {e.target && (
                     <>
                       <span className="dim">→</span>
-                      <span><strong>@{e.target.username}</strong></span>
+                      {/* The server resolves targetId against the user
+                          table and yields "?" when the row is gone — a
+                          deleted account, or a non-user target like a
+                          tournament id. Rendering "@?" told the operator
+                          nothing; show the raw id (which is still a real
+                          handle they can search) and only offer the
+                          click-through when it resolves to a live user. */}
+                      {e.target.username === "?" ? (
+                        <span className="dim mono small" title={`Target ${e.target.id} is not a current user — deleted, or a non-user target such as a tournament.`}>
+                          {e.target.id}
+                        </span>
+                      ) : (
+                        <button
+                          className="linklike"
+                          onClick={() => navigateTo("users", { userId: e.target!.id })}
+                          title={`Open ${e.target.username} in Users`}
+                        >
+                          <strong>@{e.target.username}</strong>
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
