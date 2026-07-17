@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { requireUser, requireAdmin } from "../lib/middleware.js";
-import { audit } from "../lib/audit.js";
+import { adminApiKey, requireUser, requireAdmin } from "../lib/middleware.js";
+import { audit as auditRaw } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot } from "../socket.js";
@@ -17,8 +17,22 @@ import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js
 
 const app = new Hono();
 
-// All admin endpoints require an authenticated admin.
-app.use("*", requireUser, requireAdmin);
+// All admin endpoints require an admin. Two ways in:
+//   * a browser session (requireUser → requireAdmin), or
+//   * the ADMIN_API_KEY machine path for CLI / agent callers, which
+//     adminApiKey resolves to a real admin row before requireUser runs.
+// requireAdmin is the single chokepoint either way: no isAdmin, no entry.
+app.use("*", adminApiKey, requireUser, requireAdmin);
+
+// Audit shim. Every call site in this file already passes the acting
+// admin id; this wrapper additionally stamps HOW the caller authed, so
+// the ledger can tell "the operator clicked this in the dashboard"
+// apart from "an agent/CLI did this over the API key". Signature is
+// otherwise identical to lib/audit.ts, so no call site changes.
+function makeAudit(c: { get: (k: "viaApiKey") => boolean | undefined }) {
+  return (adminId: string, action: string, targetId: string | null, meta?: Record<string, unknown>) =>
+    auditRaw(adminId, action, targetId, c.get("viaApiKey") ? { ...(meta ?? {}), via: "api-key" } : meta);
+}
 
 // ── Self-check ─────────────────────────────────────────────────────────
 app.get("/me", (c) => {
@@ -91,7 +105,7 @@ app.get("/users/:id", async (c) => {
   });
   if (!u) return c.json({ error: "not found" }, 404);
   if (id !== me.id) {
-    void audit(me.id, "user.read_save", id);
+    void makeAudit(c)(me.id, "user.read_save", id);
   }
   return c.json(u);
 });
@@ -114,7 +128,7 @@ app.post("/users/:id/admin", async (c) => {
       data: { isAdmin },
       select: { id: true, isAdmin: true },
     });
-    void audit(me.id, isAdmin ? "user.promote" : "user.demote", id);
+    void makeAudit(c)(me.id, isAdmin ? "user.promote" : "user.demote", id);
     return c.json(u);
   } catch {
     return c.json({ error: "user not found" }, 404);
@@ -151,7 +165,7 @@ app.post("/users/:id/ban", async (c) => {
       data: { bannedUntil: until, banReason: body.reason ?? null },
       select: { id: true, bannedUntil: true, banReason: true },
     });
-    void audit(me.id, until ? "user.ban" : "user.unban", id, {
+    void makeAudit(c)(me.id, until ? "user.ban" : "user.unban", id, {
       until: until?.toISOString() ?? null,
       reason: body.reason ?? null,
     });
@@ -174,7 +188,7 @@ app.delete("/users/:id", async (c) => {
   if (id === me.id) return c.json({ error: "cannot delete self" }, 400);
   try {
     await prisma.user.delete({ where: { id } });
-    void audit(me.id, "user.delete", id);
+    void makeAudit(c)(me.id, "user.delete", id);
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "user not found" }, 404);
@@ -260,7 +274,7 @@ app.post("/users/:id/save-patch", async (c) => {
     select: { id: true, saveVersion: true, accountLevel: true, pokedexCaughtCount: true },
   });
 
-  void audit(me.id, "user.save_patch", id, { keys: appliedKeys });
+  void makeAudit(c)(me.id, "user.save_patch", id, { keys: appliedKeys });
   return c.json({ ok: true, ...updated, keys: appliedKeys });
 });
 
@@ -284,7 +298,7 @@ app.post("/users/:id/reset-save", async (c) => {
       data: { saveData: null, saveVersion: 0, accountLevel: 0, totalCaughtLevels: 0, pokedexCaughtCount: 0 },
       select: { id: true, saveVersion: true },
     });
-    void audit(me.id, "user.reset_save", id);
+    void makeAudit(c)(me.id, "user.reset_save", id);
     return c.json(u);
   } catch {
     return c.json({ error: "user not found" }, 404);
@@ -318,7 +332,7 @@ app.post("/users/:id/send-password-reset", async (c) => {
     await auth.api.requestPasswordReset({
       body: { email: target.email, redirectTo },
     });
-    void audit(me.id, "user.send_password_reset", id);
+    void makeAudit(c)(me.id, "user.send_password_reset", id);
     return c.json({ ok: true, sentTo: target.email });
   } catch (e) {
     return c.json({ error: "failed to send reset email", detail: String(e) }, 500);
@@ -358,7 +372,7 @@ app.get("/users/:id/sessions", async (c) => {
       return { ...s, country };
     }),
   );
-  void audit(me.id, "user.read_sessions", id);
+  void makeAudit(c)(me.id, "user.read_sessions", id);
   return c.json({ sessions: decorated });
 });
 
@@ -406,7 +420,7 @@ app.get("/users/:id/trades", async (c) => {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
-  void audit(me.id, "user.read_trades", id);
+  void makeAudit(c)(me.id, "user.read_trades", id);
   return c.json({ trades });
 });
 
@@ -431,7 +445,7 @@ app.get("/users/:id/messages", async (c) => {
     take: limit,
     select: { id: true, channelId: true, content: true, createdAt: true },
   });
-  void audit(me.id, "user.read_messages", id);
+  void makeAudit(c)(me.id, "user.read_messages", id);
   return c.json({ messages });
 });
 
@@ -479,7 +493,7 @@ app.post("/users/:id/items", async (c) => {
       saveUpdatedAt: new Date(),
     },
   });
-  void audit(me.id, "user.set_item", id, { itemId, quantity });
+  void makeAudit(c)(me.id, "user.set_item", id, { itemId, quantity });
   return c.json({ ok: true, itemId, quantity });
 });
 
@@ -841,7 +855,7 @@ app.delete("/chat/clear", async (c) => {
     },
   });
   broadcastChatCleared("public");
-  void audit(me.id, "chat.clearAll", null, { deleted: result.count });
+  void makeAudit(c)(me.id, "chat.clearAll", null, { deleted: result.count });
   return c.json({ ok: true, deleted: result.count });
 });
 
@@ -874,7 +888,7 @@ app.post("/announce", async (c) => {
   };
   const io = getIo();
   if (io) io.to("global").emit("chat:message", payload);
-  void audit(me.id, "chat.announce", null, { length: content.length });
+  void makeAudit(c)(me.id, "chat.announce", null, { length: content.length });
   return c.json({ ok: true, message: payload });
 });
 
@@ -883,7 +897,7 @@ app.delete("/chat/:id", async (c) => {
   const id = c.req.param("id");
   try {
     await prisma.chatMessage.delete({ where: { id } });
-    void audit(me.id, "chat.delete", id);
+    void makeAudit(c)(me.id, "chat.delete", id);
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "message not found" }, 404);
@@ -1060,7 +1074,7 @@ app.patch("/bug-reports/:id", async (c) => {
            "updatedAt" = NOW()
      WHERE "id" = ${id}
   `;
-  void audit(me.id, "bugReport.update", id, { status: newStatus, adminNotes: body.adminNotes });
+  void makeAudit(c)(me.id, "bugReport.update", id, { status: newStatus, adminNotes: body.adminNotes });
   return c.json({ ok: true });
 });
 
@@ -1139,7 +1153,7 @@ app.post("/tournaments", async (c) => {
       ownerId: me.id,
     },
   });
-  void audit(me.id, "tournament.create", t.id, { name: t.name, levelCap: t.levelCap });
+  void makeAudit(c)(me.id, "tournament.create", t.id, { name: t.name, levelCap: t.levelCap });
   return c.json({ tournament: t });
 });
 
@@ -1148,7 +1162,7 @@ app.delete("/tournaments/:id", async (c) => {
   const id = c.req.param("id");
   try {
     await prisma.tournament.delete({ where: { id } });
-    void audit(me.id, "tournament.delete", id);
+    void makeAudit(c)(me.id, "tournament.delete", id);
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "tournament not found" }, 404);
@@ -1171,7 +1185,7 @@ app.patch("/tournaments/:id", async (c) => {
   if (typeof body.status === "string") data.status = body.status;
   try {
     const t = await prisma.tournament.update({ where: { id }, data });
-    void audit(me.id, "tournament.update", id, data);
+    void makeAudit(c)(me.id, "tournament.update", id, data);
     return c.json({ tournament: t });
   } catch {
     return c.json({ error: "tournament not found" }, 404);
@@ -1193,7 +1207,7 @@ app.post("/tournaments/:id/entries", async (c) => {
     const entry = await prisma.tournamentEntry.create({
       data: { tournamentId: id, userId: u.id, username: u.username },
     });
-    void audit(me.id, "tournament.add_entry", id, { userId: u.id });
+    void makeAudit(c)(me.id, "tournament.add_entry", id, { userId: u.id });
     return c.json({ entry });
   } catch {
     return c.json({ error: "user already registered or tournament missing" }, 400);
@@ -1206,7 +1220,7 @@ app.delete("/tournaments/:id/entries/:entryId", async (c) => {
   const eid = c.req.param("entryId");
   try {
     await prisma.tournamentEntry.delete({ where: { id: eid } });
-    void audit(me.id, "tournament.remove_entry", tid, { entryId: eid });
+    void makeAudit(c)(me.id, "tournament.remove_entry", tid, { entryId: eid });
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "entry not found" }, 404);
@@ -1239,7 +1253,7 @@ app.post("/tournaments/:id/generate-bracket", async (c) => {
     where: { id },
     data: { bracket: JSON.stringify(bracket), status: "live", startsAt: new Date() },
   });
-  void audit(me.id, "tournament.generate_bracket", id, {
+  void makeAudit(c)(me.id, "tournament.generate_bracket", id, {
     rounds: bracket.rounds.length,
     entries: t.entries.length,
   });
@@ -1304,7 +1318,7 @@ app.post("/tournaments/:id/advance-bracket", async (c) => {
     data.finishedAt = new Date();
   }
   const updated = await prisma.tournament.update({ where: { id }, data });
-  void audit(me.id, "tournament.advance_bracket", id, {
+  void makeAudit(c)(me.id, "tournament.advance_bracket", id, {
     eliminated: advanced.eliminatedUserIds.length,
     complete: advanced.complete,
     championId: advanced.championId,
@@ -1420,7 +1434,7 @@ app.post("/tournaments/:id/start-bracket-match", async (c) => {
   });
   try {
     await startBattle(getIo()!, room, sendToUserGlobal);
-    void audit(me.id, "tournament.start_bracket_match", t.id, { battleId, matchId, aUserId, bUserId });
+    void makeAudit(c)(me.id, "tournament.start_bracket_match", t.id, { battleId, matchId, aUserId, bUserId });
     return c.json({ ok: true, battleId });
   } catch (e) {
     room.status = "cancelled";
@@ -1528,7 +1542,7 @@ app.post("/tournaments/:id/match", async (c) => {
   });
   try {
     await startBattle(getIo()!, room, sendToUserGlobal);
-    void audit(me.id, "tournament.start_match", t.id, { battleId, aUserId, bUserId });
+    void makeAudit(c)(me.id, "tournament.start_match", t.id, { battleId, aUserId, bUserId });
     return c.json({ ok: true, battleId });
   } catch (e) {
     room.status = "cancelled";
