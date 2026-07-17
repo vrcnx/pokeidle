@@ -231,6 +231,20 @@ function appendNewMoves(existing: Pokemon["moves"], newIds: string[]): Pokemon["
 }
 
 function decrementEffects(effects: ActiveEffect[]): ActiveEffect[] {
+  // Return the SAME array when there is nothing to change. `.map().filter()`
+  // always allocates, so this used to hand back a brand-new (often empty)
+  // array on every single battle — for every player, whether or not they
+  // had any effects at all.
+  //
+  // That churn was not cosmetic: `state.activeEffects` is a dependency of
+  // the cloud-save effect in GameContext, compared by reference. A new
+  // array every battle re-ran that effect, whose cleanup cleared the
+  // 1.5s save debounce. Battles resolve in well under 1.5s at speed 2+,
+  // so the debounce was reset forever and the cloud save NEVER fired —
+  // the save indicator sat on "Unsaved" and players reported coming back
+  // to lost progress. Measured: 30s of idling = 37 resets, 0 saves.
+  if (effects.length === 0) return effects;
+  if (effects.every((e) => e.paused)) return effects;
   return effects
     .map((e) => (e.paused ? e : { ...e, battlesRemaining: e.battlesRemaining - 1 }))
     .filter((e) => e.battlesRemaining > 0);

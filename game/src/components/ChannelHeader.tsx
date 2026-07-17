@@ -51,8 +51,12 @@ function SaveStatusDot({
 
   let label: string;
   let kind: string;
-  if (status === "pending") { label = "Unsaved";  kind = "pending"; }
-  else if (status === "saving") { label = "Saving…"; kind = "saving"; }
+  // "pending" (debounce armed) and "saving" (request in flight) are an
+  // implementation detail. To a player both mean "it's handling it", so
+  // both read "Saving…". The old "Unsaved" label described the debounce
+  // accurately and reassured nobody — it reads as "your progress is lost",
+  // which is how players took it.
+  if (status === "pending" || status === "saving") { label = "Saving…"; kind = "saving"; }
   else if (status === "error")  { label = "Offline"; kind = "error"; }
   else {
     const ago = lastSavedAt ? Math.max(0, Math.round((now - lastSavedAt) / 1000)) : 0;

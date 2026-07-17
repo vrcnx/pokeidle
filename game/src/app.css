@@ -401,7 +401,6 @@ a:focus-visible {
 }
 .channel-header-save.save-status-saved   .channel-header-save-dot { background: #34d399; }
 .channel-header-save.save-status-saving  .channel-header-save-dot { background: #fbbf24; animation: ch-pulse 1.2s ease-in-out infinite; }
-.channel-header-save.save-status-pending .channel-header-save-dot { background: #fbbf24; }
 .channel-header-save.save-status-error   .channel-header-save-dot { background: #f87171; }
 @keyframes ch-pulse {
   0%, 100% { opacity: 0.55; }
@@ -13624,9 +13623,7 @@ html, body {
 }
 .save-status-saved { color: #c4ffd3; border-color: rgba(74, 222, 128, 0.35); }
 .save-status-saved .save-status-dot { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
-.save-status-pending,
 .save-status-saving { color: #fde68a; border-color: rgba(250, 204, 21, 0.35); }
-.save-status-pending .save-status-dot,
 .save-status-saving .save-status-dot {
   background: #facc15;
   box-shadow: 0 0 6px rgba(250, 204, 21, 0.6);

@@ -276,6 +276,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // push local state up (it might be stale and would destroy progress).
   const cloudVersionRef = useRef<number>(-1);
   const lastUploadedRef = useRef<string>("");
+  // When the current batch of unsaved changes first appeared. Drives the
+  // max-wait guarantee so a fast-churning dependency cannot starve the
+  // save debounce indefinitely.
+  const pendingSinceRef = useRef<number | null>(null);
   const uploadTimerRef = useRef<number | undefined>(undefined);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -298,9 +302,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
   //      can confirm what's in the cloud. Prevents the
   //      "transient-network-blip → overwrite cloud with stale local"
   //      regression class.
+  //   4. A failed fetch RETRIES with backoff. It must never be a
+  //      permanent give-up: that stranded players with saving disabled
+  //      for their whole session.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let retryTimer: number | undefined;
+    let attempt = 0;
+
+    // Exponential backoff, capped at 30s and retrying indefinitely. The
+    // player may sit here for a long time on a bad connection or during
+    // a deploy; giving up is exactly the failure we are fixing. Local
+    // saving is unaffected throughout (see the autosave effect), so the
+    // only thing being deferred is the cloud round-trip.
+    const scheduleRetry = () => {
+      if (cancelled) return;
+      attempt += 1;
+      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
+      retryTimer = window.setTimeout(() => { void sync(); }, delay);
+    };
+
+    const sync = async () => {
       try {
         const cloud = await api.getSave();
         if (cancelled) return;
@@ -412,37 +434,96 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
         cloudReadyRef.current = true;
       } catch {
-        // CRITICAL: a cloud fetch failure does NOT enable autosave.
-        // Previously this branch flipped cloudReadyRef.current = true
-        // which let the debounced uploader push local state to cloud
-        // on the next change — destructively if local was stale.
-        // Now we leave the flag false; the user keeps playing locally
-        // and we retry getSave on next mount. Save status is surfaced
-        // to the UI so silent regressions don't slip past QA.
+        // A cloud fetch failure must NOT let the uploader push possibly
+        // stale local state over a good cloud save, so cloudReadyRef
+        // stays false and the CLOUD upload stays disabled.
+        //
+        // But it must also not be permanent. The first version of this
+        // just gave up here — and claimed in a comment that it would
+        // "retry on next mount", which was false: this effect has []
+        // deps and runs exactly once. So a single blip (a timeout, a
+        // deploy restarting, a flaky phone connection) disabled saving
+        // for the WHOLE session, and because the localStorage write
+        // lived behind the same gate, it killed local saving too.
+        // Players reported "every time i come it goes back to the
+        // start". That was this.
+        //
+        // Retry with backoff instead. The player keeps playing on local
+        // state the entire time, and the moment the server answers we
+        // reconcile properly and re-enable cloud saves.
         setSaveStatus("error");
+        if (!cancelled) scheduleRetry();
       }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    void sync();
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Local save (ALWAYS) ──
+  // Writing localStorage is local-only. It cannot clobber the cloud, it
+  // cannot lose anyone else's data, and it is the player's safety net if
+  // the network is unavailable. So it must NEVER be gated on cloud state.
+  //
+  // It used to live inside the cloud-upload effect, below
+  // `if (!cloudReadyRef.current) return`, under a comment claiming
+  // "always cache locally" — which the early return made a lie. Combined
+  // with the boot sync giving up permanently on a failed fetch, one
+  // blip meant a player's progress stopped being written ANYWHERE for
+  // the whole session: "every time i come it goes back to the start".
+  useEffect(() => {
+    if (state.phase !== "idle" && state.phase !== "victory") return;
+    if (!state.playerPokemon) return;
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(pickPersistent(state)));
+    } catch { /* private mode / quota — nothing we can do */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
   // ── Periodic cloud upload (debounced, idle-only) ──
+  // Gated on cloudReadyRef because pushing before we know what the cloud
+  // holds risks overwriting a good save with stale local state. That gate
+  // is correct — but it must only ever defer the CLOUD write, never the
+  // local one above.
   useEffect(() => {
     if (!cloudReadyRef.current) return;
     if (state.phase !== "idle" && state.phase !== "victory") return;
     if (!state.playerPokemon) return;
 
     const snapshot = pickPersistent(state);
-    // Always cache locally so a refresh shows the most recent state
-    // even before the cloud responds.
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot)); } catch { /* */ }
 
     // Debounce server upload — most state changes happen in clusters.
     const serialized = JSON.stringify(snapshot);
     if (serialized === lastUploadedRef.current) return;
+
+    // MAX-WAIT GUARANTEE.
+    //
+    // This effect re-runs on every dependency change and its cleanup
+    // clears the pending timer, so a dependency that changes faster than
+    // the debounce window starves the save forever. That is not
+    // hypothetical: `state.activeEffects` was reallocated every battle,
+    // so the 1.5s debounce was reset ~37 times per 30s and fired zero
+    // times. Players idled for hours and never saved.
+    //
+    // The immediate cause is fixed at source (reducer decrementEffects
+    // now returns a stable reference), but relying on every future
+    // dependency staying reference-stable is exactly the assumption that
+    // just failed. So: once changes have been pending for MAX_WAIT, the
+    // next one uploads immediately rather than debouncing again. A dep
+    // churning at any rate can now delay a save by at most MAX_WAIT.
+    const MAX_WAIT_MS = 10_000;
+    const now = Date.now();
+    if (pendingSinceRef.current == null) pendingSinceRef.current = now;
+    const starved = now - pendingSinceRef.current >= MAX_WAIT_MS;
+
     if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
     setSaveStatus("pending");
     uploadTimerRef.current = window.setTimeout(() => {
+      pendingSinceRef.current = null;   // this batch is being flushed
       lastUploadedRef.current = serialized;
       setSaveStatus("saving");
       // expectedSaveVersion gates the write: if another device wrote
@@ -495,7 +576,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           }
           setSaveStatus("error");
         });
-    }, 1500);
+    }, starved ? 0 : 1500);
 
     return () => {
       if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
