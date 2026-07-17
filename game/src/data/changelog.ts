@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.6.0";
+export const CURRENT_VERSION = "0.7.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,32 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.7.0",
+      subtitle: "Your progress now actually saves",
+      date: "2026-07-17",
+      highlight: true,
+      sections: [
+        {
+          heading: "💾 Saving",
+          items: [
+            "Your game was not saving while you were battling. Since battling is basically the whole game, that meant a lot of you were losing entire sessions. Worse, the Elite Four never pauses long enough for the old code to save even once, so clearing it could vanish completely. This was our bug, it was as bad as it sounds, and it is fixed",
+            "Saving now happens constantly and automatically, whatever you are doing. It is not something you should ever have to think about",
+            "We also save the moment you close the tab or switch away on your phone, so the last few seconds are not lost",
+            "The 'Unsaved' label is gone, and so is the save indicator entirely. When saving works, you should not need to watch it",
+            "If your progress genuinely cannot be saved, the game now says so plainly, tells you what to do, and reports it to us automatically. Before, every problem just said 'Offline' — even when your internet was perfectly fine",
+          ],
+        },
+        {
+          heading: "Fixes",
+          items: [
+            "If two people used the same browser, the second could have their save overwritten by the first person's game. Saves now know who they belong to and will never load into the wrong account",
+            "Pokemon at level 100 kept stacking EXP forever behind the scenes. Left long enough it would have permanently broken cloud saving for our longest-playing trainers — one of you was hours away from it. EXP now stops at the level 100 mark, where it stops meaning anything anyway",
+            "Playing on two devices at once could silently throw away one side's progress. The server now settles it properly instead of letting both think they won",
+          ],
+        },
+      ],
+    },
     {
       version: "0.6.0",
       subtitle: "Giveaways, What's New, and a few things that were quietly broken",
