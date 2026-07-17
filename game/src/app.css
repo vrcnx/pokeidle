@@ -3626,6 +3626,44 @@ body.dnd-active {
   font-size: 14px;
 }
 
+/* ── Mart rows on narrow screens ──────────────────────────────────────
+   The row is a 4-column grid: icon | info | price | controls. The buy
+   controls (−, qty, +, +10, Max, Buy) are always shown and take a fixed
+   chunk of width, so on a phone the 1fr info column collapsed to almost
+   nothing and the description wrapped one word per line. Give the info a
+   full-width top row and drop the controls onto their own row below. */
+@media (max-width: 640px) {
+  .mart-row {
+    grid-template-columns: 30px 1fr auto;
+    grid-template-areas:
+      "icon info price"
+      "ctrl ctrl ctrl";
+    column-gap: 9px;
+    row-gap: 9px;
+    align-items: start;
+  }
+  .mart-row > img { grid-area: icon; align-self: center; }
+  .mart-row-info { grid-area: info; }
+  .mart-price { grid-area: price; align-self: center; white-space: nowrap; }
+  .mart-qty-controls {
+    grid-area: ctrl;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  /* Keep cards compact: clamp the description to two lines (the full text
+     stays available via the row's title tooltip). */
+  .mart-row-info small {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* The Buy button gets a touch more room and can't be squeezed to a
+     single character. */
+  .mart-buy-btn { min-width: 52px; }
+}
+
 /* Town actions card grid (in idle-town context panel). */
 .town-actions-grid {
   display: grid;
@@ -8063,10 +8101,16 @@ input, textarea, select {
   letter-spacing: 0.2px !important;
 }
 
-/* Mobile shell still uses the original 2-column grid for these. The
-   selectors above only fire inside .control-column / .party-column on
-   desktop, so MobileShell is unaffected. */
-.mobile-shell .dock-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* Mobile header meta buttons — PvP, Settings, Social — sit in ONE row.
+   This used to be a 2-column grid (from when there were 2 or 4 buttons);
+   with 3 it wrapped 2-then-1, leaving a lone chat button dangling on its
+   own line in the header. A single flex row is compact and even. */
+.mobile-shell .dock-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
 .dock-gameplay {
   display: grid;
   grid-template-columns: 1fr;
