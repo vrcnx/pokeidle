@@ -13,13 +13,25 @@ import { navigateTo, type Page } from "../App";
 // the operator toggles which series they want to see. PvP & Trades
 // still get a dedicated secondary row so power-users can compare.
 
-type HeroSeries = "dau" | "signups" | "pvp" | "trades";
+type HeroSeries = "logins" | "signups" | "pvp" | "trades" | "lastSeen";
 
-const HERO_OPTIONS: { key: HeroSeries; label: string; color: string }[] = [
-  { key: "dau",     label: "Daily Active", color: "var(--brand)"        },
-  { key: "signups", label: "Signups",      color: "var(--brand-hover)"  },
-  { key: "pvp",     label: "PvP Matches",  color: "#fbbf24"             },
-  { key: "trades",  label: "Trades",       color: "#f472b6"             },
+// "Daily Active" is gone. It was charting `dauSeries`, which bucketed
+// each user by their single `lastSeenAt` scalar — so it plotted "days
+// since last seen", not activity, and rose toward today by construction
+// whether the game was booming or dying. Real DAU needs a per-day event
+// row that does not exist yet (see the DailyActive TODO in the
+// /analytics endpoint); it cannot be recovered from the data we keep.
+//
+// Logins is the honest replacement: a true count of a real event on a
+// real day. Last seen is still available, but labelled for what it
+// actually is and no longer the default.
+const HERO_OPTIONS: { key: HeroSeries; label: string; color: string; note?: string }[] = [
+  { key: "logins",   label: "Logins",      color: "var(--brand)"       },
+  { key: "signups",  label: "Signups",     color: "var(--brand-hover)" },
+  { key: "pvp",      label: "PvP Matches", color: "#fbbf24"            },
+  { key: "trades",   label: "Trades",      color: "#f472b6"            },
+  { key: "lastSeen", label: "Last seen",   color: "#94a3b8",
+    note: "Players grouped by the day they were last online — a churn view, not activity. Rises toward today by construction." },
 ];
 
 const HERO_STORAGE_KEY = "pokeidle.analytics.heroSeries";
@@ -30,9 +42,14 @@ export function AnalyticsPage() {
   const [lastFetched, setLastFetched] = useState<number | null>(null);
   const [heroSeries, setHeroSeries] = useState<HeroSeries>(() => {
     try {
-      const v = localStorage.getItem(HERO_STORAGE_KEY) as HeroSeries | null;
-      return v && HERO_OPTIONS.some((o) => o.key === v) ? v : "dau";
-    } catch { return "dau"; }
+      const v = localStorage.getItem(HERO_STORAGE_KEY);
+      // Anyone who used the old dashboard has "dau" persisted here, and
+      // that key no longer exists. Land them on the honest replacement
+      // rather than silently falling back — they picked a trend to watch
+      // and should get the closest truthful one.
+      if (v === "dau") return "logins";
+      return v && HERO_OPTIONS.some((o) => o.key === v) ? (v as HeroSeries) : "logins";
+    } catch { return "logins"; }
   });
 
   useEffect(() => {
@@ -51,19 +68,32 @@ export function AnalyticsPage() {
 
   const seriesFor = (k: HeroSeries) => {
     switch (k) {
-      case "dau":     return seriesFromMap(data.dauSeries);
-      case "signups": return seriesFromMap(data.signupSeries);
-      case "pvp":     return seriesFromMap(data.pvpSeries);
-      case "trades":  return seriesFromMap(data.tradeSeries);
+      case "logins":   return seriesFromMap(data.loginSeries);
+      case "signups":  return seriesFromMap(data.signupSeries);
+      case "pvp":      return seriesFromMap(data.pvpSeries);
+      case "trades":   return seriesFromMap(data.tradeSeries);
+      case "lastSeen": return seriesFromMap(data.lastSeenSeries);
     }
   };
-  const dau = seriesFromMap(data.dauSeries);
+  const logins = seriesFromMap(data.loginSeries);
   const heroChart = seriesFor(heroSeries);
-  const heroColor = HERO_OPTIONS.find((o) => o.key === heroSeries)!.color;
+  const heroOption = HERO_OPTIONS.find((o) => o.key === heroSeries)!;
+  const heroColor = heroOption.color;
 
+  // "Active today" is a rolling 24h count (lastSeenAt >= now-24h) and is
+  // honest on its own. Its old delta was not: it averaged the last-seen
+  // buckets — which are a churn distribution, not activity — and then
+  // included today in its own baseline while comparing a rolling window
+  // against calendar days. It printed a large ▲ every single day.
+  //
+  // There is no per-day active history to compare against yet, so
+  // instead of inventing one we show stickiness: what share of the last
+  // 7 days' actives showed up today. That is a real ratio computed from
+  // two rolling windows already in the payload, and it reads the way an
+  // operator wants — "are my weekly players showing up daily?".
   const activeToday = data.activity.activeDay;
-  const avg7dDau = dau.counts.slice(-7).reduce((a, b) => a + b, 0) / Math.max(1, dau.counts.slice(-7).length || 1);
-  const deltaPct = avg7dDau > 0 ? ((activeToday - avg7dDau) / avg7dDau) * 100 : 0;
+  const activeWeek = data.activity.activeWeek;
+  const stickiness = activeWeek > 0 ? (activeToday / activeWeek) * 100 : 0;
 
   const totalUsers = data.totals.users;
   const avgLevel = data.averages.accountLevel;
@@ -92,12 +122,12 @@ export function AnalyticsPage() {
         <article className="kpi-card kpi-card--hero" style={{ gridColumn: "span 4" }}>
           <span className="kpi-label">Active today</span>
           <strong className="kpi-value kpi-value--xl">{activeToday.toLocaleString()}</strong>
-          {avg7dDau > 0 && (
-            <span className={`kpi-delta ${deltaPct >= 0 ? "up" : "down"}`}>
-              {deltaPct >= 0 ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(1)}% vs 7d avg
+          {activeWeek > 0 && (
+            <span className="kpi-sub" title="Share of the last 7 days' active players who were online in the last 24h. Higher means your weekly players are showing up daily.">
+              {stickiness.toFixed(0)}% of weekly actives · stickiness
             </span>
           )}
-          <Sparkline counts={dau.counts} color="var(--brand)" />
+          <Sparkline counts={logins.counts} color="var(--brand)" />
         </article>
         <KpiCompact label="Active 7d"   value={data.activity.activeWeek} />
         <KpiCompact label="Active 30d"  value={data.activity.activeMonth} />
@@ -109,7 +139,7 @@ export function AnalyticsPage() {
       <section className="analytics-grid primary-row">
         <article className="chart-card chart-card--primary" style={{ gridColumn: "span 8" }}>
           <header className="chart-card__header">
-            <h3>Trend · {HERO_OPTIONS.find((o) => o.key === heroSeries)!.label}</h3>
+            <h3>Trend · {heroOption.label}</h3>
             <div className="seg-toggle" role="tablist" aria-label="Hero series">
               {HERO_OPTIONS.map((o) => (
                 <button
@@ -118,12 +148,19 @@ export function AnalyticsPage() {
                   aria-selected={heroSeries === o.key}
                   className={`seg-tab ${heroSeries === o.key ? "active" : ""}`}
                   onClick={() => setHeroSeries(o.key)}
+                  title={o.note}
                 >
                   {o.label}
                 </button>
               ))}
             </div>
           </header>
+          {/* A series whose shape is an artefact of how we store the data
+              carries its caveat inline. The operator should never have to
+              already know that "Last seen" is not activity. */}
+          {heroOption.note && (
+            <p className="chart-card__caveat">{heroOption.note}</p>
+          )}
           <div className="chart-card__body">
             <LineChart days={heroChart.days} counts={heroChart.counts} color={heroColor} height={280} />
           </div>

@@ -123,7 +123,14 @@ export interface Analytics {
     accountLevel: number;
   };
   signupSeries: Record<string, number>;
-  dauSeries: Record<string, number>;
+  /** Users bucketed by the day of their LAST visit — a churn/recency
+   *  distribution, not daily-active. Slopes toward today by construction.
+   *  Was previously misnamed `dauSeries` and charted as "Daily Active". */
+  lastSeenSeries: Record<string, number>;
+  /** True count of logins per day, from Session.createdAt. Undercounts
+   *  engagement (a long-lived session logs in once) but every point is
+   *  a real event on a real day. */
+  loginSeries: Record<string, number>;
   pvpSeries: Record<string, number>;
   tradeSeries: Record<string, number>;
   levelBuckets: { label: string; count: number }[];
@@ -260,11 +267,23 @@ export const api = {
   updateBugReport: (id: string, body: { status?: string; adminNotes?: string }) =>
     req<{ ok: true }>("PATCH", `/api/admin/bug-reports/${id}`, body),
 
-  // Error log — server + client errors
+  // Error log — server + client errors.
+  // `total` is the count across the WHOLE table, so the caller can tell
+  // the operator when what they are looking at is a truncated slice.
   listErrors: (kind = "", limit = 100) =>
-    req<{ errors: ErrorEntry[] }>(
+    req<{ total: number; limit: number; truncated: boolean; errors: ErrorEntry[] }>(
       "GET",
       `/api/admin/errors?kind=${encodeURIComponent(kind)}&limit=${limit}`,
+    ),
+
+  // True counts, grouped server-side over the whole table. The grouped
+  // view must NOT be computed from the capped row list — those counts
+  // are a floor and understate exactly the runaway error the operator
+  // is trying to find.
+  listErrorGroups: (kind = "", days = 14) =>
+    req<{ sinceDays: number; groups: ErrorGroup[] }>(
+      "GET",
+      `/api/admin/errors/groups?kind=${encodeURIComponent(kind)}&days=${days}`,
     ),
 
   // Tournaments — bracket-style PvP events. v1 admin tools only:
@@ -373,6 +392,24 @@ export interface AdminTournament {
   bracket: string | null;
   ownerId: string;
   entries: AdminTournamentEntry[];
+}
+
+export interface ErrorGroup {
+  kind: "server" | "client";
+  message: string;
+  /** True count across the whole table for this (kind, message) — not
+   *  a tally of however many rows the page happened to fetch. */
+  count: number;
+  latestAt: string;
+  sample: {
+    id: string;
+    level: "error" | "warn";
+    source: string | null;
+    stack: string | null;
+    userId: string | null;
+    username: string | null;
+    userAgent: string | null;
+  } | null;
 }
 
 export interface ErrorEntry {

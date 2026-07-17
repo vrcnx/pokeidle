@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
@@ -25,15 +25,41 @@ export function UsersPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const PAGE_SIZE = 25;
 
+  // Monotonic request id. Every keystroke fires a request, and they can
+  // resolve out of order — typing "ash" issues a/as/ash, and if "a"
+  // (25 rows) lands after "ash" (2 rows) the table paints results that
+  // do not match what the box says. Stamping each request and ignoring
+  // any response that is not the newest makes the last keystroke always
+  // win, regardless of what the network does.
+  const reqSeq = useRef(0);
+
   const reload = () => {
+    const seq = ++reqSeq.current;
     setBusy(true);
     setErr(null);
     api.listUsers(q, page, PAGE_SIZE)
-      .then((d) => setData({ total: d.total, users: d.users }))
-      .catch((e) => setErr(e.message))
-      .finally(() => setBusy(false));
+      .then((d) => {
+        if (seq !== reqSeq.current) return;   // superseded — drop it
+        setData({ total: d.total, users: d.users });
+      })
+      .catch((e) => {
+        if (seq !== reqSeq.current) return;
+        setErr(e.message);
+      })
+      .finally(() => {
+        if (seq !== reqSeq.current) return;   // don't un-busy for a stale one
+        setBusy(false);
+      });
   };
-  useEffect(reload, [q, page]);
+
+  // Debounce typing so we issue one request per pause rather than one
+  // per character. Page changes are deliberate clicks, so those go
+  // through immediately.
+  useEffect(() => {
+    const t = window.setTimeout(reload, q ? 250 : 0);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, page]);
 
   // Detail view — full page replaces the list.
   if (selected) {
@@ -288,35 +314,88 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
   setBusy: (v: boolean) => void; reload: () => void; onChange: () => void; onClose: () => void;
 }) {
   const [resetMsg, setResetMsg] = useState<string | null>(null);
+  // Surfaced by run() when any destructive action rejects. Rendered at
+  // the top of the profile tab, not buried next to one button, because
+  // the operator needs to see it wherever they clicked from.
+  const [actionErr, setActionErr] = useState<string | null>(null);
 
-  const promote = async () => {
+  // Every destructive action funnels through here. Previously each was
+  // `try { ... } finally { setBusy(false) }` with NO catch — so a
+  // rejected request propagated as an unhandled rejection, rendered
+  // nothing, and left the operator staring at a button that had just
+  // un-greyed itself. A failed ban was pixel-identical to a successful
+  // one. Now a failure always says so.
+  const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(true);
-    try { await api.setAdmin(data.id, !data.isAdmin); reload(); onChange(); }
-    finally { setBusy(false); }
+    setActionErr(null);
+    try {
+      await fn();
+    } catch (e) {
+      setActionErr(`${label} failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   };
-  const ban = async () => {
-    const reason = window.prompt("Ban reason (optional):") ?? null;
+
+  const promote = () =>
+    run(data.isAdmin ? "Demote" : "Promote", async () => {
+      await api.setAdmin(data.id, !data.isAdmin);
+      reload(); onChange();
+    });
+
+  const ban = () => {
+    // window.prompt returns null on Cancel and "" on OK-with-no-text.
+    // The old code did `window.prompt(...) ?? null`, which maps BOTH to
+    // null and then banned regardless — pressing Cancel on the reason
+    // prompt still handed a real player a 7-day ban, with no confirm
+    // step anywhere. Compare against null explicitly so Cancel aborts
+    // and an empty reason still goes through (the reason is optional).
+    const reason = window.prompt(
+      `Ban ${data.username} for 7 days?\n\n` +
+      `Reason (optional) — press OK to ban, Cancel to abort.`
+    );
+    if (reason === null) return;
     const until = new Date(Date.now() + 7 * 86400000).toISOString();
-    setBusy(true);
-    try { await api.ban(data.id, until, reason); reload(); onChange(); }
-    finally { setBusy(false); }
+    return run("Ban", async () => {
+      await api.ban(data.id, until, reason.trim() || null);
+      reload(); onChange();
+    });
   };
-  const unban = async () => {
-    setBusy(true);
-    try { await api.ban(data.id, null, null); reload(); onChange(); }
-    finally { setBusy(false); }
-  };
-  const resetSave = async () => {
+
+  const unban = () =>
+    run("Unban", async () => {
+      await api.ban(data.id, null, null);
+      reload(); onChange();
+    });
+
+  const resetSave = () => {
     if (!window.confirm(`Reset ${data.username}'s save? This cannot be undone.`)) return;
-    setBusy(true);
-    try { await api.resetSave(data.id); reload(); onChange(); }
-    finally { setBusy(false); }
+    return run("Reset save", async () => {
+      await api.resetSave(data.id);
+      reload(); onChange();
+    });
   };
-  const deleteUser = async () => {
-    if (!window.confirm(`Permanently delete ${data.username}? This cascades to friends, chat, sessions.`)) return;
-    setBusy(true);
-    try { await api.deleteUser(data.id); onClose(); onChange(); }
-    finally { setBusy(false); }
+
+  const deleteUser = () => {
+    // Delete cascades and is unrecoverable, so a plain OK/Cancel is too
+    // easy to fat-finger from a list of similar-looking rows. Require
+    // the operator to type the username — the standard "type to confirm"
+    // gate (GitHub repo deletion, Stripe account closure) for an action
+    // with no undo.
+    const typed = window.prompt(
+      `Permanently DELETE ${data.username}?\n\n` +
+      `This cascades to their friends, chat messages and sessions, and cannot be undone.\n\n` +
+      `Type the username to confirm:`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== data.username) {
+      setActionErr("Delete aborted — the username you typed did not match.");
+      return;
+    }
+    return run("Delete", async () => {
+      await api.deleteUser(data.id);
+      onClose(); onChange();
+    });
   };
   const sendPasswordReset = async () => {
     if (!window.confirm(
@@ -343,6 +422,17 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
 
   return (
     <>
+      {actionErr && (
+        <div className="profile-action-err" role="alert">
+          <span>{actionErr}</span>
+          <button
+            type="button"
+            className="profile-action-err-x"
+            onClick={() => setActionErr(null)}
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      )}
       <div className="detail-stats">
         <div><span>Account Lv</span><strong>{data.accountLevel}</strong></div>
         <div><span>Pokédex</span><strong>{data.pokedexCaughtCount}/151</strong></div>

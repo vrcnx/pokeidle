@@ -2502,3 +2502,67 @@ input[type="checkbox"], input[type="radio"] {
   .detail-tab { white-space: nowrap; flex-shrink: 0; }
   .detail-stats { grid-template-columns: 1fr; }
 }
+
+/* =================================================================
+   Wave 1 — honesty + safety affordances
+   ================================================================= */
+
+/* Inline caveat under a chart whose shape is an artefact of how the
+   data is stored (e.g. "Last seen" is a churn view, not activity).
+   The operator must never have to already know the caveat. */
+.chart-card__caveat {
+  margin: -4px 0 4px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  padding: 7px 10px;
+  background: var(--warn-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* Destructive-action failure banner in the user profile tab. Every
+   ban/delete/reset used to fail silently — try/finally with no catch —
+   so a failed ban looked exactly like a successful one. */
+.profile-action-err {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--bad-soft);
+  border-radius: var(--radius-sm);
+  color: #fca5a5;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.profile-action-err-x {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+.profile-action-err-x:hover { opacity: 1; }
+
+/* Truncation note on the error log — the page asked for 500 rows and
+   silently got 200, so it implied the slice was the whole table. */
+.err-trunc-note {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.linklike {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--brand-hover);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.linklike:hover { color: var(--text); }

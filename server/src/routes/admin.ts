@@ -570,19 +570,58 @@ app.get("/analytics", async (c) => {
   // since we don't keep per-day login records (would need a separate
   // event log table). Buckets users by whose last seen falls in each
   // 24-hour window.
+  // WHAT THIS IS, AND WHAT IT IS NOT.
+  //
+  // This buckets each user by their `lastSeenAt` — a single scalar that
+  // is overwritten every time they connect. A player active every day
+  // for 30 days contributes exactly ONE tick, on today. So a historical
+  // bucket does not hold "users active that day", it holds "users whose
+  // final visit was that day". The buckets sum to activeMonth.
+  //
+  // That makes it a LAST-SEEN / churn distribution. It is emphatically
+  // NOT daily-active-users, and it must slope upward toward today no
+  // matter how the game is actually doing — the shape is an artefact of
+  // the storage model, not a signal. It was previously served as "dau"
+  // and charted as "Daily Active", which is a confident wrong answer to
+  // the single most important question on the dashboard.
+  //
+  // Renamed to `lastSeenSeries` so no caller can mistake it again. Real
+  // DAU needs a per-day event row (see the DailyActive TODO below); it
+  // cannot be recovered retroactively from this column.
   const lastSeenRows = await prisma.user.findMany({
     where: { lastSeenAt: { gte: thirtyDaysAgo } },
     select: { lastSeenAt: true },
   });
-  const dauSeries: Record<string, number> = {};
+  const lastSeenSeries: Record<string, number> = {};
   for (let i = 0; i < 30; i++) {
     const d = new Date(now.getTime() - i * day);
-    dauSeries[d.toISOString().slice(0, 10)] = 0;
+    lastSeenSeries[d.toISOString().slice(0, 10)] = 0;
   }
   for (const row of lastSeenRows) {
     if (!row.lastSeenAt) continue;
     const k = row.lastSeenAt.toISOString().slice(0, 10);
-    if (k in dauSeries) dauSeries[k]++;
+    if (k in lastSeenSeries) lastSeenSeries[k]++;
+  }
+
+  // Daily logins — a real per-day event series, derived from Session
+  // rows (one per login, with a createdAt that is never overwritten).
+  // This is not DAU either: an idle player with a long-lived session
+  // logs in once and plays for days, so it undercounts engagement. But
+  // unlike lastSeenSeries it is a true count of a real event on a real
+  // day, so it is honest and it is the best signal available until a
+  // DailyActive table exists.
+  const sessionRows = await prisma.session.findMany({
+    where: { createdAt: { gte: thirtyDaysAgo } },
+    select: { createdAt: true },
+  });
+  const loginSeries: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now.getTime() - i * day);
+    loginSeries[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const row of sessionRows) {
+    const k = row.createdAt.toISOString().slice(0, 10);
+    if (k in loginSeries) loginSeries[k]++;
   }
 
   // Account-level distribution — bucket users by 10-level bands so the
@@ -685,7 +724,8 @@ app.get("/analytics", async (c) => {
       accountLevel: Math.round((pokedexAvg._avg.accountLevel ?? 0) * 10) / 10,
     },
     signupSeries,
-    dauSeries,
+    lastSeenSeries,
+    loginSeries,
     pvpSeries,
     tradeSeries,
     levelBuckets,
@@ -1082,9 +1122,61 @@ app.patch("/bug-reports/:id", async (c) => {
 // Server + client errors persist into ErrorLog. Filter by kind so the
 // triage view can show server-side stack traces separately from
 // client-reported ones.
+// True error counts, grouped server-side by (kind, message).
+//
+// The dashboard used to group client-side over whatever rows it had
+// fetched — and since the row endpoint caps the page, those counts were
+// a FLOOR, not a count. That is wrong in the exact situation the log
+// exists for: when one looping bug is generating thousands of rows and
+// drowning everything else, the operator most needs to know it is
+// 3,000 and not "200+". A groupBy answers over the whole table
+// regardless of any row cap.
+app.get("/errors/groups", async (c) => {
+  const kind = (c.req.query("kind") ?? "").trim();
+  const days = Math.min(90, Math.max(1, parseInt(c.req.query("days") ?? "14", 10)));
+  const since = new Date(Date.now() - days * 86400000);
+
+  const rows = await prisma.errorLog.groupBy({
+    by: ["kind", "message"],
+    where: {
+      createdAt: { gte: since },
+      ...(kind === "server" || kind === "client" ? { kind } : {}),
+    },
+    _count: { _all: true },
+    _max: { createdAt: true },
+    orderBy: { _count: { message: "desc" } },
+    take: 100,
+  });
+
+  // One representative row per group so the operator can see a stack
+  // without expanding into the raw table.
+  const groups = await Promise.all(rows.map(async (g) => {
+    const sample = await prisma.errorLog.findFirst({
+      where: { kind: g.kind, message: g.message },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, level: true, source: true, stack: true,
+        userId: true, username: true, userAgent: true,
+      },
+    });
+    return {
+      kind: g.kind,
+      message: g.message,
+      count: g._count._all,
+      latestAt: g._max.createdAt,
+      sample,
+    };
+  }));
+
+  return c.json({ sinceDays: days, groups });
+});
+
 app.get("/errors", async (c) => {
   const kind = (c.req.query("kind") ?? "").trim();
-  const limit = Math.min(200, Math.max(1, parseInt(c.req.query("limit") ?? "100", 10)));
+  // Cap raised 200 → 500 to match what the dashboard actually asks for.
+  // It requested 500 and silently received 200, so the table quietly
+  // hid 60% of what the operator asked to see, with no indication.
+  const limit = Math.min(500, Math.max(1, parseInt(c.req.query("limit") ?? "100", 10)));
   const rows = kind === "server" || kind === "client"
     ? await prisma.$queryRawUnsafe<any[]>(
         `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt"
@@ -1100,7 +1192,16 @@ app.get("/errors", async (c) => {
           ORDER BY "createdAt" DESC
           LIMIT ${limit}`
       );
+  // `total` lets the table say "showing 500 of 3,412" instead of
+  // implying the 500 it rendered is everything there is.
+  const total = await prisma.errorLog.count({
+    where: kind === "server" || kind === "client" ? { kind } : {},
+  });
+
   return c.json({
+    total,
+    limit,
+    truncated: total > rows.length,
     errors: rows.map((r) => ({
       ...r,
       meta: r.meta ? safeJson(r.meta) : null,

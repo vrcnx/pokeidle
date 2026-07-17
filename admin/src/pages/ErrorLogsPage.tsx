@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { api, type ErrorEntry } from "../api";
+import { api, type ErrorEntry, type ErrorGroup } from "../api";
 
 type Kind = "all" | "server" | "client";
 type ViewMode = "table" | "grouped" | "raw";
@@ -12,6 +12,12 @@ export function ErrorLogsPage() {
   const [kind, setKind] = useState<Kind>("all");
   const [view, setView] = useState<ViewMode>("table");
   const [errors, setErrors] = useState<ErrorEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [truncated, setTruncated] = useState(false);
+  // Grouped counts come from the server now. Tallying the fetched rows
+  // client-side produced a FLOOR — capped by the row limit — which
+  // understated a runaway error precisely when it mattered most.
+  const [groups, setGroups] = useState<ErrorGroup[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -20,8 +26,17 @@ export function ErrorLogsPage() {
   const reload = () => {
     setBusy(true);
     setErr(null);
-    api.listErrors(kind === "all" ? "" : kind, 500)
-      .then((d) => setErrors(d.errors))
+    const k = kind === "all" ? "" : kind;
+    Promise.all([
+      api.listErrors(k, 500),
+      api.listErrorGroups(k, 14),
+    ])
+      .then(([rows, g]) => {
+        setErrors(rows.errors);
+        setTotal(rows.total);
+        setTruncated(rows.truncated);
+        setGroups(g.groups);
+      })
       .catch((e) => setErr(e.message))
       .finally(() => setBusy(false));
   };
@@ -54,12 +69,28 @@ export function ErrorLogsPage() {
           ))}
         </div>
         <button className="btn-primary" onClick={reload} disabled={busy}>Refresh</button>
+        {/* The page asked for 500 rows and the server silently returned
+            200, so this used to read "200 errors" whether there were 200
+            or 20,000. Say what is actually being shown, and out of how
+            many. */}
         <span className="dim small" style={{ marginLeft: "auto" }}>
-          {errors.length} error{errors.length === 1 ? "" : "s"}
+          {truncated
+            ? `Showing ${errors.length.toLocaleString()} of ${total.toLocaleString()} errors`
+            : `${total.toLocaleString()} error${total === 1 ? "" : "s"}`}
         </span>
       </div>
 
       {err && <div className="page-err">{err}</div>}
+
+      {truncated && view !== "grouped" && (
+        <p className="dim small err-trunc-note">
+          Newest {errors.length.toLocaleString()} shown. Counts in the
+          {" "}
+          <button className="linklike" onClick={() => setView("grouped")}>Grouped</button>
+          {" "}
+          view are computed server-side over all {total.toLocaleString()} rows.
+        </p>
+      )}
 
       {view === "table" && (
         <ErrorTable
@@ -71,7 +102,8 @@ export function ErrorLogsPage() {
       )}
       {view === "grouped" && (
         <ErrorGrouped
-          errors={errors}
+          groups={groups}
+          rows={errors}
           busy={busy}
           expanded={expandedFingerprint}
           onToggle={(fp) => setExpandedFingerprint(expandedFingerprint === fp ? null : fp)}
@@ -170,112 +202,106 @@ function ErrorDetail({ entry }: { entry: ErrorEntry }) {
   );
 }
 
-// ─── Grouped view (collapse same-fingerprint errors with counts) ──────
+// ─── Grouped view — counts come from the SERVER ────────────────────
 //
-// Fingerprint = `${kind}:${source}:${first-line-of-stack-or-message}`. We
-// don't trim numbers / paths / line numbers because two crashes at the
-// same line in the same file are usually the same bug; the small risk
-// is dynamic line numbers (e.g., from minified bundles) splitting one
-// real bug into N groups, which is acceptable for an admin tool.
+// This used to fingerprint and tally the rows the page had fetched.
+// That made every count a floor bounded by the row cap: a bug with
+// 3,000 occurrences reported as "200", and it broke worst exactly when
+// one looping error was drowning the log — the case the grouped view
+// exists to surface. Counts now come from a groupBy over the whole
+// table (GET /errors/groups), so they are true regardless of what the
+// row endpoint returns.
+//
+// The server groups by (kind, message), which is coarser than the old
+// stack-first-line fingerprint. That is a deliberate trade: a true
+// count on a slightly coarser bucket beats a precise-looking wrong
+// number. The occurrence drill-down still uses the fetched rows, and
+// says so, since those ARE capped.
 function ErrorGrouped({
-  errors, busy, expanded, onToggle,
+  groups, rows, busy, expanded, onToggle,
 }: {
-  errors: ErrorEntry[]; busy: boolean;
-  expanded: string | null; onToggle: (fp: string) => void;
+  groups: ErrorGroup[];
+  rows: ErrorEntry[];
+  busy: boolean;
+  expanded: string | null;
+  onToggle: (fp: string) => void;
 }) {
-  const groups = useMemo(() => groupErrors(errors), [errors]);
   if (busy) return <p className="dim">Loading…</p>;
   if (groups.length === 0) return <p className="dim center">No errors recorded.</p>;
   return (
     <table className="users-table">
       <thead>
         <tr>
-          <th>Count</th><th>Kind</th><th>Source</th><th>Sample message</th><th>Last seen</th><th></th>
+          <th>Count</th><th>Kind</th><th>Source</th><th>Message</th><th>Last seen</th><th></th>
         </tr>
       </thead>
       <tbody>
-        {groups.map((g) => (
-          <Fragment key={g.fingerprint}>
-            <tr
-              onClick={() => onToggle(g.fingerprint)}
-              style={{ cursor: "pointer" }}
-            >
-              <td><strong>{g.count}</strong></td>
-              <td>
-                <span className={`tag ${g.sample.kind === "server" ? "kind-server" : "kind-client"}`}>
-                  {g.sample.kind}
-                </span>
-              </td>
-              <td className="dim small mono">{g.sample.source ?? "—"}</td>
-              <td className="err-msg">{g.sample.message}</td>
-              <td className="dim small">{new Date(g.lastSeen).toLocaleString()}</td>
-              <td className="dim small">{expanded === g.fingerprint ? "▴" : "▾"}</td>
-            </tr>
-            {expanded === g.fingerprint && (
-              <tr className="err-detail-row">
-                <td colSpan={6}>
-                  <ErrorDetail entry={g.sample} />
-                  {g.entries.length > 1 && (
-                    <details className="err-occurrences">
-                      <summary className="dim small">Show {g.entries.length} occurrences</summary>
-                      <table className="occurrence-table">
-                        <thead><tr><th>When</th><th>User</th><th>UA</th></tr></thead>
-                        <tbody>
-                          {g.entries.map((e) => (
-                            <tr key={e.id}>
-                              <td className="dim small">{new Date(e.createdAt).toLocaleString()}</td>
-                              <td className="dim small">{e.username ?? "—"}</td>
-                              <td className="dim small mono ua-cell" title={e.userAgent ?? ""}>{e.userAgent ?? "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </details>
-                  )}
+        {groups.map((g) => {
+          const key = `${g.kind}::${g.message}`;
+          const local = rows.filter((r) => r.kind === g.kind && r.message === g.message);
+          return (
+            <Fragment key={key}>
+              <tr onClick={() => onToggle(key)} style={{ cursor: "pointer" }}>
+                <td><strong className="tabular">{g.count.toLocaleString()}</strong></td>
+                <td>
+                  <span className={`tag ${g.kind === "server" ? "kind-server" : "kind-client"}`}>
+                    {g.kind}
+                  </span>
                 </td>
+                <td className="dim small mono">{g.sample?.source ?? "—"}</td>
+                <td className="err-msg">{g.message}</td>
+                <td className="dim small">{g.latestAt ? new Date(g.latestAt).toLocaleString() : "—"}</td>
+                <td className="dim small">{expanded === key ? "▴" : "▾"}</td>
               </tr>
-            )}
-          </Fragment>
-        ))}
+              {expanded === key && (
+                <tr className="err-detail-row">
+                  <td colSpan={6}>
+                    {g.sample && (
+                      <ErrorDetail
+                        entry={{
+                          id: g.sample.id,
+                          kind: g.kind,
+                          level: g.sample.level,
+                          message: g.message,
+                          stack: g.sample.stack,
+                          source: g.sample.source,
+                          userId: g.sample.userId,
+                          username: g.sample.username,
+                          userAgent: g.sample.userAgent,
+                          meta: null,
+                          createdAt: g.latestAt,
+                        }}
+                      />
+                    )}
+                    {local.length > 0 && (
+                      <details className="err-occurrences">
+                        <summary className="dim small">
+                          Show {local.length} recent occurrence{local.length === 1 ? "" : "s"}
+                          {g.count > local.length && ` (of ${g.count.toLocaleString()} total — list is capped)`}
+                        </summary>
+                        <table className="occurrence-table">
+                          <thead><tr><th>When</th><th>User</th><th>UA</th></tr></thead>
+                          <tbody>
+                            {local.map((e) => (
+                              <tr key={e.id}>
+                                <td className="dim small">{new Date(e.createdAt).toLocaleString()}</td>
+                                <td className="dim small">{e.username ? `@${e.username}` : "—"}</td>
+                                <td className="dim small mono err-ua">{e.userAgent ?? "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          );
+        })}
       </tbody>
     </table>
   );
-}
-
-interface ErrorGroup {
-  fingerprint: string;
-  count: number;
-  lastSeen: string;
-  sample: ErrorEntry;
-  entries: ErrorEntry[];
-}
-
-function groupErrors(errors: ErrorEntry[]): ErrorGroup[] {
-  const map = new Map<string, ErrorGroup>();
-  for (const e of errors) {
-    const fp = fingerprintError(e);
-    const g = map.get(fp);
-    if (g) {
-      g.count += 1;
-      g.entries.push(e);
-      if (e.createdAt > g.lastSeen) g.lastSeen = e.createdAt;
-    } else {
-      map.set(fp, { fingerprint: fp, count: 1, lastSeen: e.createdAt, sample: e, entries: [e] });
-    }
-  }
-  // Sort by count desc, then by recency.
-  return Array.from(map.values()).sort((a, b) => b.count - a.count || (b.lastSeen.localeCompare(a.lastSeen)));
-}
-
-function fingerprintError(e: ErrorEntry): string {
-  // Use the first non-empty line of the stack if available, otherwise
-  // the message itself. Stack first-line tends to be more stable across
-  // re-throws (the message can include user-supplied details).
-  const stackHead = e.stack
-    ? (e.stack.split("\n").map((s) => s.trim()).find(Boolean) ?? "")
-    : "";
-  const sig = stackHead || e.message;
-  return `${e.kind}::${e.source ?? ""}::${sig}`;
 }
 
 // ─── Raw view (plain-text dump for copy-paste) ─────────────────────────
