@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../lib/middleware.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { validateSave } from "../lib/saveValidation.js";
+import { validateSave, MAX_BOX } from "../lib/saveValidation.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 
 const app = new Hono();
@@ -39,11 +39,40 @@ const UploadBody = z.object({
   expectedSaveVersion: z.number().int().min(0).optional(),
 });
 
-// Hard upper bound on serialized save size (1 MB). A normal save is
-// well under 100 KB; anything beyond a megabyte is either a bug or an
-// attacker trying to OOM the JSON parser. We check the Content-Length
-// header where available, then again on the parsed body.
-const MAX_SAVE_BYTES = 1_000_000;
+// Hard upper bound on serialized save size. Guards the JSON parser against
+// an OOM attempt. We check the Content-Length header where available, then
+// again on the parsed body.
+//
+// Must stay consistent with saveValidation's MAX_BOX: a save the validator
+// accepts must be one this transport can carry. These were picked
+// independently and disagreed — MAX_BOX allowed 9999 mons while this capped
+// the body at 1MB, so a save could be simultaneously valid and unsendable,
+// 413ing forever with no client recovery. A save is ~600 bytes/mon, so 9999
+// mons is ~6MB: the two constants contradicted each other by ~6x.
+//
+// Nobody has hit this yet — the largest of 1679 real boxes is 212 mons
+// (~130KB), so there is ~8x headroom. Sizing the transport to the declared
+// limit is the cheap half of the fix. The real fix is architectural: the
+// whole collection ships in every save, so payload grows without bound and
+// ANY constant here is a future outage. Delta saves are the answer; this
+// buys the room to build them.
+const MAX_SAVE_BYTES = 8_000_000;
+
+// Measured against the real createPokemon shape, including the statStages
+// the reducer spreads in wholesale: ~635 bytes per boxed mon.
+const BYTES_PER_MON = 635;
+
+// Fail at boot, not at 3am in a player's save. The two constants have no
+// compile-time link, so this is the link: if someone raises MAX_BOX or
+// lowers this cap such that a validator-approved save can no longer be
+// SENT, the server refuses to start rather than silently 413ing veterans
+// forever. That is exactly the failure mode this pair already shipped.
+if (MAX_SAVE_BYTES < MAX_BOX * BYTES_PER_MON) {
+  throw new Error(
+    `Save limits contradict: MAX_BOX=${MAX_BOX} needs ~${MAX_BOX * BYTES_PER_MON} bytes `
+    + `but MAX_SAVE_BYTES=${MAX_SAVE_BYTES}. A save could be valid yet unsendable.`
+  );
+}
 
 app.post("/", requireUser, async (c) => {
   const user = c.get("user");
@@ -133,8 +162,23 @@ app.post("/", requireUser, async (c) => {
   }
 
   const derived = computeAccountLevel(save);
-  const updated = await prisma.user.update({
-    where: { id: user.id },
+  // ATOMIC compare-and-swap.
+  //
+  // The version check ~50 lines above is a read; this is the write. Between
+  // them another request from the same account can land, and both writers
+  // pass a check neither of them still holds — classic check-then-act. Both
+  // got `ok: true` and one save was silently destroyed.
+  //
+  // Putting saveVersion in the WHERE makes the database arbitrate: exactly
+  // one of two concurrent writers matches a given version, the loser
+  // matches no row and Prisma raises P2025, which is precisely a 409. The
+  // read above stays as a fast path that returns a friendlier body.
+  let updated;
+  try {
+    updated = await prisma.user.update({
+    where: expected !== undefined
+      ? { id: user.id, saveVersion: expected }
+      : { id: user.id },
     data: {
       saveData: JSON.stringify(save),
       saveVersion: { increment: 1 },
@@ -150,7 +194,25 @@ app.post("/", requireUser, async (c) => {
       totalCaughtLevels: true,
       pokedexCaughtCount: true,
     },
-  });
+    });
+  } catch (e: any) {
+    // P2025 = "record to update not found". The id is real (requireUser
+    // resolved it), so the only way the WHERE misses is the saveVersion
+    // guard: another write beat us. That is a conflict, not an error.
+    if (e?.code === "P2025") {
+      const now = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { saveVersion: true },
+      });
+      return c.json({
+        error: "stale save",
+        reason: "another device wrote while this save was in flight",
+        serverSaveVersion: now?.saveVersion ?? null,
+        clientExpectedVersion: expected ?? null,
+      }, 409);
+    }
+    throw e;
+  }
   return c.json({ ok: true, ...updated });
 });
 

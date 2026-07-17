@@ -16,7 +16,7 @@ import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { evolutionStones } from "../data/evolutionStones";
 import { evolutions } from "../data/evolutions";
-import { calcAllStats, expYield } from "../utils/stats";
+import { calcAllStats, capTotalExp, expYield } from "../utils/stats";
 import { createPokemon, toMove, ZERO_EVS, rollShiny, hasShinyCharm } from "../utils/pokemon";
 import { evYieldFor, applyEvYield } from "../data/evYields";
 import { levelUpsForExp } from "../utils/moves";
@@ -131,7 +131,7 @@ function applyExp(
 
   const active = state.playerPokemon;
   const species = pokemonTable[active.speciesKey];
-  const newTotalExp = active.totalExp + exp;
+  const newTotalExp = capTotalExp(active.totalExp + exp, species.growthRate);
   const ups = levelUpsForExp(active.speciesKey, species.growthRate, active.level, newTotalExp);
   const newEvs = evYield ? applyEvYield(active.evs ?? ZERO_EVS, evYield) : (active.evs ?? ZERO_EVS);
 
@@ -181,7 +181,7 @@ function applyExp(
         if (idx === next.activePlayerPokemonIndex) return p;
         if (p.currentHp <= 0) return p;
         const sp = pokemonTable[p.speciesKey];
-        const newExp = p.totalExp + shared;
+        const newExp = capTotalExp(p.totalExp + shared, sp.growthRate);
         const subUps = levelUpsForExp(p.speciesKey, sp.growthRate, p.level, newExp);
         const memberEvs = evYield ? applyEvYield(p.evs ?? ZERO_EVS, evYield) : (p.evs ?? ZERO_EVS);
         if (shared > 0) logs.push(`${p.name} gained ${shared} EXP from Exp Share.`);

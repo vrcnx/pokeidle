@@ -150,6 +150,36 @@ export const api = {
       expectedSaveVersion !== undefined ? { saveData, expectedSaveVersion } : { saveData }
     ),
 
+  // Last-gasp save for pagehide / visibilitychange:hidden. A normal fetch
+  // is cancelled when the page goes away, which is precisely the moment we
+  // most need the write to land, so this uses keepalive — the browser
+  // completes the request after the document is gone.
+  //
+  // Deliberately fire-and-forget: there is no page left to handle a
+  // response, so this cannot participate in the compare-and-swap retry
+  // logic. It is strictly a best-effort bonus on top of the localStorage
+  // write, which is synchronous and always runs.
+  //
+  // keepalive caps the request body at 64KB across all in-flight keepalive
+  // requests. Our p99 save is ~70KB and the largest real one is 129KB, so
+  // for the biggest accounts this silently does nothing — hence "best
+  // effort", and hence why localStorage carries the guarantee.
+  putSaveBeacon: (saveData: any, expectedSaveVersion?: number): void => {
+    try {
+      const body = JSON.stringify(
+        expectedSaveVersion !== undefined ? { saveData, expectedSaveVersion } : { saveData }
+      );
+      if (body.length > 60_000) return;   // over the keepalive budget; localStorage has it
+      void fetch(`${SERVER_URL}/api/saves`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch(() => { /* the page is going away; nothing to report to */ });
+    } catch { /* never let the unload path throw */ }
+  },
+
   // Friends
   listFriends: () => request<FriendList>("GET", "/api/friends"),
   requestFriend: (username: string) =>

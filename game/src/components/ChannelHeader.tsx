@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useOnlineCount } from "../state/presence";
 import type { SaveStatus } from "../state/GameContext";
@@ -11,13 +10,13 @@ import type { SaveStatus } from "../state/GameContext";
 // Right: a green-dot Saved status + the live online count. Both are
 // glanceable in idle play and disappear gracefully if data is missing.
 export function ChannelHeader() {
-  const { saveStatus, lastSavedAt } = useGame();
+  const { saveStatus } = useGame();
   const online = useOnlineCount();
   return (
     <div className="channel-header" role="banner" aria-label="Chat">
       <span className="channel-header-label">CHAT</span>
       <span className="channel-header-meta">
-        <SaveStatusDot status={saveStatus} lastSavedAt={lastSavedAt} />
+        <SaveStatusDot status={saveStatus} />
         {online > 0 && (
           <span className="channel-header-online" title={`${online} player${online === 1 ? "" : "s"} online`}>
             <span className="channel-header-online-dot" />
@@ -33,40 +32,39 @@ export function ChannelHeader() {
 // Compact dot+text save status — sits inside the ChannelHeader rather
 // than competing for vertical space with its own row. Mirrors the
 // state machine used by the original SaveStatusBadge.
-function SaveStatusDot({
-  status,
-  lastSavedAt,
-}: {
-  status: SaveStatus;
-  lastSavedAt: number | null;
-}) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (status !== "saved") return;
-    const t = window.setInterval(() => setNow(Date.now()), 10_000);
-    return () => window.clearInterval(t);
-  }, [status]);
-
-  if (status === "idle") return null;
-
-  let label: string;
-  let kind: string;
-  // "pending" (debounce armed) and "saving" (request in flight) are an
-  // implementation detail. To a player both mean "it's handling it", so
-  // both read "Saving…". The old "Unsaved" label described the debounce
-  // accurately and reassured nobody — it reads as "your progress is lost",
-  // which is how players took it.
-  if (status === "pending" || status === "saving") { label = "Saving…"; kind = "saving"; }
-  else if (status === "error")  { label = "Offline"; kind = "error"; }
-  else {
-    const ago = lastSavedAt ? Math.max(0, Math.round((now - lastSavedAt) / 1000)) : 0;
-    label = ago < 5 ? "Saved" : ago < 60 ? `${ago}s` : `${Math.round(ago / 60)}m`;
-    kind = "saved";
+function SaveStatusDot({ status }: { status: SaveStatus }) {
+  // WHEN SAVING WORKS, SAVING IS INVISIBLE.
+  //
+  // There is no "Saved", no "Saving…", no "12s ago". A status light exists
+  // to apologise for a save system you do not trust, and narrating a
+  // debounce gives the player an implementation detail they cannot act on.
+  // Autosave is a guarantee; you do not put a light on a guarantee.
+  //
+  // What is left is only the cases where the game genuinely cannot keep the
+  // player's progress and they deserve to know. Those are not decoration,
+  // so they are not a dot — they say what broke and what to do.
+  if (status === "rejected") {
+    // Permanent: the server refuses this save and always will. Retrying is
+    // pointless, and the player must not be told to check their wifi.
+    return (
+      <span className="channel-header-save save-status-error" role="alert" title="This game's servers rejected your save. Your progress is safe on this device, but it is not being backed up. Please report this.">
+        <span className="channel-header-save-dot" aria-hidden />
+        <span>Not backing up</span>
+      </span>
+    );
   }
-  return (
-    <span className={`channel-header-save save-status-${kind}`} role="status" aria-live="polite" title={`Save status: ${label}`}>
-      <span className="channel-header-save-dot" aria-hidden />
-      <span>{label}</span>
-    </span>
-  );
+  if (status === "conflict") {
+    // Another device wrote. Progress is intact locally; the cloud copy is
+    // simply not ours right now.
+    return (
+      <span className="channel-header-save save-status-error" role="alert" title="Your progress is open in another tab or on another device, which is the one saving to the cloud. Close the others and reload to sync this one.">
+        <span className="channel-header-save-dot" aria-hidden />
+        <span>Open elsewhere</span>
+      </span>
+    );
+  }
+  // "error" is transient (offline / 5xx). It retries on its own, and
+  // localStorage is written unconditionally regardless, so there is nothing
+  // for the player to do and nothing at risk. Say nothing.
+  return null;
 }

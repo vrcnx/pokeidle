@@ -71,6 +71,24 @@ export function perfectIVs(): IVs {
 //   fluctuating= piecewise (rare; e.g. Magikarp historically)
 // `expForLevel(100)` should give: fast=800000, mediumFast=1000000,
 // mediumSlow=1059860, slow=1250000, erratic=600000, fluctuating=1640000.
+// The most exp a Pokemon can meaningfully hold: the level-100 baseline for
+// its curve.
+//
+// levelUpsForExp caps the LEVEL at 100 but nothing capped the EXP, so a
+// level-100 mon kept accumulating totalExp forever — while the server hard-
+// rejects any save containing totalExp > 2,000,000 (saveValidation.ts:86),
+// rejecting the WHOLE save, permanently, for one over-cap mon. That is the
+// terminal state of an idle game, not an edge case: when this was written
+// the highest real mon sat at 1,998,384 of 2,000,000 — about 1,600 exp, or
+// minutes of idling, from bricking that account's cloud saves forever.
+//
+// Above the level-100 baseline totalExp is inert: nothing reads it but the
+// level calculation and the progress bar, both of which stop at 100. So
+// clamping loses no player-visible progress.
+export function capTotalExp(totalExp: number, growthRate: GrowthRate): number {
+  return Math.min(totalExp, expForLevel(100, growthRate));
+}
+
 export function expForLevel(level: number, growthRate: GrowthRate): number {
   if (level <= 1) return 0;
   const n = level;
