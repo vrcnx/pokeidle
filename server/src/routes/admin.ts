@@ -42,12 +42,41 @@ app.get("/me", (c) => {
 
 // ── Users ──────────────────────────────────────────────────────────────
 // Paginated list with optional search across username/email/name.
+// Sortable columns. An allow-list rather than passing the query param
+// through to Prisma — `orderBy` takes a field name, and forwarding user
+// input there lets a caller order by any column on the model.
+const USER_SORTS = {
+  createdAt:          (dir: "asc" | "desc") => ({ createdAt: dir }),
+  lastSeenAt:         (dir: "asc" | "desc") => ({ lastSeenAt: dir }),
+  accountLevel:       (dir: "asc" | "desc") => ({ accountLevel: dir }),
+  pokedexCaughtCount: (dir: "asc" | "desc") => ({ pokedexCaughtCount: dir }),
+  totalCaughtLevels:  (dir: "asc" | "desc") => ({ totalCaughtLevels: dir }),
+  username:           (dir: "asc" | "desc") => ({ username: dir }),
+} as const;
+type UserSort = keyof typeof USER_SORTS;
+
 app.get("/users", async (c) => {
   const q = (c.req.query("q") ?? "").trim();
   const page = Math.max(0, parseInt(c.req.query("page") ?? "0", 10));
   const pageSize = Math.min(100, Math.max(10, parseInt(c.req.query("pageSize") ?? "25", 10)));
 
-  const where = q
+  // Sorting was hardcoded to createdAt desc, so the operator could only
+  // ever see the newest 25 accounts — there was no way to ask "who has
+  // the highest level" (the shape a cheat looks like) or "who has not
+  // played in a month".
+  const sortRaw = (c.req.query("sort") ?? "createdAt") as UserSort;
+  const sort: UserSort = sortRaw in USER_SORTS ? sortRaw : "createdAt";
+  const dir: "asc" | "desc" = c.req.query("dir") === "asc" ? "asc" : "desc";
+
+  // Filters. `banned` and `admin` are the two the operator actually
+  // reaches for — "show me everyone I have banned", "who has admin".
+  const filter = (c.req.query("filter") ?? "").trim();
+  const filterWhere =
+      filter === "banned" ? { bannedUntil: { gt: new Date() } }
+    : filter === "admins" ? { isAdmin: true }
+    : {};
+
+  const searchWhere = q
     ? {
         OR: [
           { username: { contains: q, mode: "insensitive" as const } },
@@ -56,12 +85,13 @@ app.get("/users", async (c) => {
         ],
       }
     : {};
+  const where = { ...searchWhere, ...filterWhere };
 
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: USER_SORTS[sort](dir),
       skip: page * pageSize,
       take: pageSize,
       select: {
@@ -179,6 +209,61 @@ app.post("/users/:id/ban", async (c) => {
   } catch {
     return c.json({ error: "user not found" }, 404);
   }
+});
+
+// Bulk ban / unban. A cheat wave is never one account, and banning them
+// one detail-panel-at-a-time is both slow and error-prone (the operator
+// loses their place in the list after each one).
+//
+// Deliberately NOT a bulk delete: delete cascades and is unrecoverable,
+// and a bulk unrecoverable action is a footgun with no upside — a
+// mis-selected checkbox would be unrecoverable across N accounts. Bans
+// are reversible, so bulk is safe here and only here.
+const BulkBanBody = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(100),
+  until: z.string().datetime().nullable(),
+  reason: z.string().max(500).nullable().optional(),
+});
+
+app.post("/users/bulk-ban", async (c) => {
+  const me = c.get("user");
+  const parsed = BulkBanBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const { until, reason } = parsed.data;
+  // Never let the operator ban themselves out of the dashboard, even by
+  // accident inside a 100-id selection. Mirrors the single-ban guard.
+  const userIds = parsed.data.userIds.filter((id) => id !== me.id);
+  const skippedSelf = userIds.length !== parsed.data.userIds.length;
+
+  const untilDate = until ? new Date(until) : null;
+  if (until && Number.isNaN(untilDate!.getTime())) {
+    return c.json({ error: "invalid until date" }, 400);
+  }
+
+  const result = await prisma.user.updateMany({
+    where: { id: { in: userIds } },
+    data: { bannedUntil: untilDate, banReason: reason ?? null },
+  });
+
+  void makeAudit(c)(me.id, untilDate ? "user.bulk_ban" : "user.bulk_unban", null, {
+    count: result.count,
+    userIds,
+    until: untilDate?.toISOString() ?? null,
+    reason: reason ?? null,
+  });
+
+  // Kick their live sockets so the ban is immediate, matching single-ban
+  // behaviour. Best-effort per user; a socket-layer failure must not
+  // roll back a completed ban.
+  if (untilDate && untilDate.getTime() > Date.now()) {
+    for (const id of userIds) {
+      try { kickUser(id, reason ?? "banned"); } catch { /* */ }
+    }
+  }
+
+  return c.json({ ok: true, count: result.count, skippedSelf });
 });
 
 // Hard delete (cascades to sessions, accounts, friendships, messages).

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -32,7 +32,27 @@ export function UsersPage({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(focusUserId ?? null);
+  const [sort, setSort] = useState<UserSortKey>("createdAt");
+  const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const [filter, setFilter] = useState<UserFilter>("all");
+  // Checkbox selection for bulk actions. Keyed by id, and deliberately
+  // NOT cleared on page change so the operator can gather offenders
+  // across pages before acting once.
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [bulkErr, setBulkErr] = useState<string | null>(null);
   const PAGE_SIZE = 25;
+
+  const toggleSort = (key: UserSortKey) => {
+    if (sort === key) {
+      setDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSort(key);
+      // Text sorts read naturally A→Z; numeric/date sorts are almost
+      // always "biggest/newest first" when you first click them.
+      setDir(key === "username" ? "asc" : "desc");
+    }
+    setPage(0);
+  };
 
   // Re-focus when the operator drills in again from another page while
   // Users is already mounted — a second "Ban" click from chat must move
@@ -56,7 +76,7 @@ export function UsersPage({
     const seq = ++reqSeq.current;
     setBusy(true);
     setErr(null);
-    api.listUsers(q, page, PAGE_SIZE)
+    api.listUsers(q, page, PAGE_SIZE, { sort, dir, filter })
       .then((d) => {
         if (seq !== reqSeq.current) return;   // superseded — drop it
         setData({ total: d.total, users: d.users });
@@ -78,7 +98,11 @@ export function UsersPage({
     const t = window.setTimeout(reload, q ? 250 : 0);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, page]);
+  }, [q, page, sort, dir, filter]);
+
+  const pageIds = (data?.users ?? []).map((u) => u.id);
+  const pageAllChecked = pageIds.length > 0 && pageIds.every((id) => checked.has(id));
+  const pageSomeChecked = pageIds.some((id) => checked.has(id));
 
   // Detail view — full page replaces the list.
   if (selected) {
@@ -107,21 +131,83 @@ export function UsersPage({
           value={q}
           onChange={(e) => { setQ(e.target.value); setPage(0); }}
         />
+        <div className="seg-tabs" role="tablist" aria-label="Filter users">
+          {(["all", "banned", "admins"] as UserFilter[]).map((f) => (
+            <button
+              key={f}
+              role="tab"
+              aria-selected={filter === f}
+              className={`seg-tab ${filter === f ? "active" : ""}`}
+              onClick={() => { setFilter(f); setPage(0); }}
+            >
+              {f === "all" ? "All" : f === "banned" ? "Banned" : "Admins"}
+            </button>
+          ))}
+        </div>
         <button className="btn-primary" onClick={reload} disabled={busy}>Refresh</button>
       </div>
 
       {err && <div className="page-err">Error: {err}</div>}
+      {bulkErr && <div className="page-err">{bulkErr}</div>}
+
+      {checked.size > 0 && (
+        <BulkBar
+          count={checked.size}
+          onClear={() => setChecked(new Set())}
+          onBan={async (days, reason) => {
+            setBulkErr(null);
+            const until = new Date(Date.now() + days * 86400000).toISOString();
+            try {
+              const res = await api.bulkBan([...checked], until, reason);
+              setChecked(new Set());
+              reload();
+              if (res.skippedSelf) {
+                setBulkErr("Your own account was in the selection and was skipped.");
+              }
+            } catch (e) {
+              setBulkErr(`Bulk ban failed: ${(e as Error).message}`);
+            }
+          }}
+          onUnban={async () => {
+            setBulkErr(null);
+            try {
+              await api.bulkBan([...checked], null, null);
+              setChecked(new Set());
+              reload();
+            } catch (e) {
+              setBulkErr(`Bulk unban failed: ${(e as Error).message}`);
+            }
+          }}
+        />
+      )}
 
       <table className="users-table">
         <thead>
           <tr>
-            <th>Username</th>
+            <th className="users-check-col">
+              <input
+                type="checkbox"
+                aria-label="Select all on this page"
+                checked={pageAllChecked}
+                ref={(el) => { if (el) el.indeterminate = pageSomeChecked && !pageAllChecked; }}
+                onChange={(e) => {
+                  const ids = (data?.users ?? []).map((u) => u.id);
+                  setChecked((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) ids.forEach((id) => next.add(id));
+                    else ids.forEach((id) => next.delete(id));
+                    return next;
+                  });
+                }}
+              />
+            </th>
+            <SortTh label="Username"  col="username"           sort={sort} dir={dir} onSort={toggleSort} />
             <th>Email</th>
-            <th>Lv</th>
-            <th>Dex</th>
+            <SortTh label="Lv"        col="accountLevel"       sort={sort} dir={dir} onSort={toggleSort} />
+            <SortTh label="Dex"       col="pokedexCaughtCount" sort={sort} dir={dir} onSort={toggleSort} />
             <th>Status</th>
-            <th>Created</th>
-            <th>Last seen</th>
+            <SortTh label="Created"   col="createdAt"          sort={sort} dir={dir} onSort={toggleSort} />
+            <SortTh label="Last seen" col="lastSeenAt"         sort={sort} dir={dir} onSort={toggleSort} />
             <th></th>
           </tr>
         </thead>
@@ -131,7 +217,22 @@ export function UsersPage({
               key={u.id}
               onClick={() => setSelected(u.id)}
               style={{ cursor: "pointer" }}
+              className={checked.has(u.id) ? "is-checked" : ""}
             >
+              <td className="users-check-col" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${u.username}`}
+                  checked={checked.has(u.id)}
+                  onChange={(e) => {
+                    setChecked((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(u.id); else next.delete(u.id);
+                      return next;
+                    });
+                  }}
+                />
+              </td>
               <td>
                 <strong>{u.name ?? u.username}</strong>
                 <div className="dim small">@{u.username}</div>
@@ -150,7 +251,7 @@ export function UsersPage({
             </tr>
           ))}
           {data && data.users.length === 0 && (
-            <tr><td colSpan={8} className="dim center">No users match.</td></tr>
+            <tr><td colSpan={9} className="dim center">No users match.</td></tr>
           )}
         </tbody>
       </table>
@@ -159,6 +260,86 @@ export function UsersPage({
         <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ Prev</button>
         <span className="dim">Page {page + 1} of {totalPages}</span>
         <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next ›</button>
+      </div>
+    </div>
+  );
+}
+
+// Sortable column header. Sorting is server-side (an allow-listed
+// orderBy), so this only owns the affordance + which way the arrow
+// points. Rendered as a real button so it is keyboard-reachable.
+function SortTh({
+  label, col, sort, dir, onSort,
+}: {
+  label: string;
+  col: UserSortKey;
+  sort: UserSortKey;
+  dir: "asc" | "desc";
+  onSort: (c: UserSortKey) => void;
+}) {
+  const active = sort === col;
+  return (
+    <th
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      className={active ? "sort-th is-active" : "sort-th"}
+    >
+      <button type="button" className="sort-th-btn" onClick={() => onSort(col)}>
+        {label}
+        <span className="sort-th-arrow" aria-hidden>
+          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+// Bulk action bar — appears only when rows are selected.
+//
+// Ban only. Bulk delete is deliberately absent: delete cascades and is
+// unrecoverable, so one mis-clicked checkbox would be unrecoverable
+// across N accounts. Bans are reversible, which is exactly what makes
+// them safe to do in bulk.
+function BulkBar({
+  count, onClear, onBan, onUnban,
+}: {
+  count: number;
+  onClear: () => void;
+  onBan: (days: number, reason: string | null) => void;
+  onUnban: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const run = async (fn: () => void | Promise<void>) => {
+    setBusy(true);
+    try { await fn(); } finally { setBusy(false); }
+  };
+  return (
+    <div className="bulk-bar" role="region" aria-label="Bulk actions">
+      <strong className="tabular">{count}</strong>
+      <span>selected</span>
+      <button className="linklike" onClick={onClear}>Clear</button>
+      <div className="bulk-bar-actions">
+        <button
+          className="btn-danger btn-small"
+          disabled={busy}
+          onClick={() => {
+            const reason = window.prompt(
+              `Ban ${count} account${count === 1 ? "" : "s"} for 7 days?
+
+` +
+              `Reason (optional) — OK to ban, Cancel to abort.`
+            );
+            if (reason === null) return;   // Cancel must abort, not ban
+            void run(() => onBan(7, reason.trim() || null));
+          }}
+        >Ban 7 days</button>
+        <button
+          className="btn-ghost btn-small"
+          disabled={busy}
+          onClick={() => {
+            if (!window.confirm(`Unban ${count} account${count === 1 ? "" : "s"}?`)) return;
+            void run(onUnban);
+          }}
+        >Unban</button>
       </div>
     </div>
   );

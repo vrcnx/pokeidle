@@ -79,6 +79,12 @@ export interface ChatMessage {
   user: { id: string; username: string; name: string | null; isAdmin: boolean };
 }
 
+/** Mirrors the server's USER_SORTS allow-list. */
+export type UserSortKey =
+  | "createdAt" | "lastSeenAt" | "accountLevel"
+  | "pokedexCaughtCount" | "totalCaughtLevels" | "username";
+export type UserFilter = "all" | "banned" | "admins";
+
 export interface AdminUser {
   id: string;
   username: string;
@@ -165,10 +171,30 @@ export const api = {
   signOut: () => req<void>("POST", "/api/auth/sign-out"),
 
   // Users
-  listUsers: (q: string, page = 0, pageSize = 25) =>
-    req<{ total: number; page: number; pageSize: number; users: AdminUser[] }>(
+  listUsers: (
+    q: string,
+    page = 0,
+    pageSize = 25,
+    opts?: { sort?: UserSortKey; dir?: "asc" | "desc"; filter?: UserFilter },
+  ) => {
+    const p = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+    if (opts?.sort) p.set("sort", opts.sort);
+    if (opts?.dir) p.set("dir", opts.dir);
+    if (opts?.filter && opts.filter !== "all") p.set("filter", opts.filter);
+    return req<{ total: number; page: number; pageSize: number; users: AdminUser[] }>(
       "GET",
-      `/api/admin/users?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`
+      `/api/admin/users?${p.toString()}`
+    );
+  },
+
+  /** Bulk ban/unban. `until: null` unbans. Bans only — bulk delete is
+   *  deliberately not offered, since delete is unrecoverable and a
+   *  mis-selected checkbox would be unrecoverable across N accounts. */
+  bulkBan: (userIds: string[], until: string | null, reason: string | null) =>
+    req<{ ok: true; count: number; skippedSelf: boolean }>(
+      "POST",
+      "/api/admin/users/bulk-ban",
+      { userIds, until, reason },
     ),
   getUser: (id: string) => req<any>("GET", `/api/admin/users/${id}`),
   setAdmin: (id: string, isAdmin: boolean) =>

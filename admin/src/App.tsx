@@ -28,24 +28,92 @@ export interface NavParams {
   query?: string;
 }
 
+const PAGES: Page[] = [
+  "analytics", "liveops", "users", "map", "chat",
+  "bugs", "errors", "tournaments", "audit", "announcements",
+];
+
+// ── Hash routing ──────────────────────────────────────────────────────
+// Navigation used to live entirely in useState, which meant: no deep
+// links (you could not send a colleague "look at this user"), browser
+// Back exited the whole dashboard to the previous site, and a refresh
+// mid-investigation dumped you back on Analytics. That was the
+// lowest-scoring dimension in the audit alongside destructive actions.
+//
+// A hash router rather than history/pushState on purpose: the admin app
+// is a static SPA behind whatever host it lands on, and hash routes need
+// zero server rewrite rules to survive a hard refresh on a deep link.
+//
+//   #/users
+//   #/users?userId=abc123
+//   #/audit?query=user.ban
+function parseHash(): { page: Page; params: NavParams } {
+  const raw = window.location.hash.replace(/^#\/?/, "");
+  const [path, qs] = raw.split("?");
+  const page = (PAGES as string[]).includes(path) ? (path as Page) : "analytics";
+  const sp = new URLSearchParams(qs ?? "");
+  const params: NavParams = {};
+  const userId = sp.get("userId");
+  const query = sp.get("query");
+  if (userId) params.userId = userId;
+  if (query) params.query = query;
+  return { page, params };
+}
+
+function buildHash(page: Page, params: NavParams): string {
+  const sp = new URLSearchParams();
+  if (params.userId) sp.set("userId", params.userId);
+  if (params.query) sp.set("query", params.query);
+  const qs = sp.toString();
+  return `#/${page}${qs ? `?${qs}` : ""}`;
+}
+
 // Module-scoped navigation bus so any page can request a tab switch
-// without prop-drilling through every component. App subscribes once on
-// mount and routes the request through its own state setters.
+// without prop-drilling through every component. It now writes the hash
+// and lets the hashchange listener drive state, so programmatic
+// navigation and manual URL edits go through exactly one code path —
+// and every jump lands in browser history.
 type NavRequest = { page: Page; params: NavParams };
 const _navListeners = new Set<(r: NavRequest) => void>();
 export function navigateTo(p: Page, params: NavParams = {}): void {
-  for (const fn of _navListeners) fn({ page: p, params });
+  const next = buildHash(p, params);
+  if (window.location.hash !== next) {
+    window.location.hash = next;   // hashchange → state update
+  } else {
+    // Same URL (e.g. re-clicking the current row): no hashchange event
+    // will fire, so notify directly or the click would appear dead.
+    for (const fn of _navListeners) fn({ page: p, params });
+  }
 }
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<AdminMe | null>(null);
-  const [page, setPage] = useState<Page>("analytics");
-  const [navParams, setNavParams] = useState<NavParams>({});
+  // Seed straight from the URL so a deep link or a refresh lands where
+  // the operator actually was, not on Analytics.
+  const [route, setRoute] = useState<{ page: Page; params: NavParams }>(parseHash);
+  const page = route.page;
+  const navParams = route.params;
 
-  // Wire the module-scoped nav helper to this App's state.
+  // The hash is the single source of truth. Browser Back/Forward and
+  // manual URL edits both emit hashchange, and navigateTo writes the
+  // hash rather than setting state, so all three paths converge here.
   useEffect(() => {
-    const onNav = (r: NavRequest) => { setPage(r.page); setNavParams(r.params); };
+    const onHash = () => setRoute(parseHash());
+    window.addEventListener("hashchange", onHash);
+    // Normalise a bare "/" or garbage path into a real route so the URL
+    // always reflects what is on screen.
+    if (!window.location.hash) {
+      window.history.replaceState(null, "", buildHash(route.page, route.params));
+    }
+    return () => window.removeEventListener("hashchange", onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Direct notifications from navigateTo for the same-URL case, where no
+  // hashchange fires.
+  useEffect(() => {
+    const onNav = (r: NavRequest) => setRoute(r);
     _navListeners.add(onNav);
     return () => { _navListeners.delete(onNav); };
   }, []);
@@ -54,7 +122,7 @@ export function App() {
   // must clear any pending target — otherwise navigating Chat → Users
   // (focusing a player) and then clicking Users in the sidebar would
   // silently re-open that same player instead of the list.
-  const gotoPage = (p: Page) => { setPage(p); setNavParams({}); };
+  const gotoPage = (p: Page) => navigateTo(p);
 
   const checkAuth = () => {
     setStatus("loading");
