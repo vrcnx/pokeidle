@@ -15655,3 +15655,172 @@ html, body {
   .changelog-head, .changelog-body, .changelog-foot { padding-left: 14px; padding-right: 14px; }
   .changelog-date { margin-left: 0; width: 100%; }
 }
+
+/* =================================================================
+   Giveaways — a hype surface, not a form.
+   ================================================================= */
+.giveaway-modal {
+  width: min(620px, 95vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.giveaway-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.10), transparent);
+}
+.giveaway-eyebrow {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #c084fc;
+  margin-bottom: 4px;
+}
+.giveaway-head h2 { margin: 0; font-size: 21px; }
+.giveaway-body { flex: 1; overflow-y: auto; padding: 16px 22px 20px; display: flex; flex-direction: column; gap: 12px; }
+.giveaway-err { color: #fca5a5; font-size: 13px; margin: 0; }
+.giveaway-section-head {
+  margin: 10px 0 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.giveaway-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 40px 20px;
+}
+.giveaway-empty-icon { font-size: 40px; opacity: 0.5; }
+
+/* Card */
+.giveaway-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+/* A live giveaway must not look like a past one at a glance. */
+.giveaway-card.is-live {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), var(--panel-2) 60%);
+  box-shadow: inset 0 0 0 1px rgba(192, 132, 252, 0.35);
+}
+.giveaway-card.is-won { box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55); }
+.giveaway-won-banner {
+  margin: -16px -16px 0;
+  padding: 7px 16px;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  color: #1a0e00;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.giveaway-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.giveaway-card-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.giveaway-card-title h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.giveaway-status {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.giveaway-status--open  { background: rgba(192, 132, 252, 0.22); color: #d8b4fe; }
+.giveaway-status--drawn { background: rgba(251, 191, 36, 0.18); color: #fde68a; }
+.giveaway-status--closed{ background: rgba(255,255,255,0.07);  color: var(--text-dim); }
+.giveaway-countdown {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* Last hour goes red — a deadline you can watch is one you act on. */
+.giveaway-countdown.urgent { color: #fca5a5; font-weight: 700; }
+.giveaway-countdown.ended  { color: var(--text-dim); }
+.giveaway-desc { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+
+.giveaway-prize {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.giveaway-prize-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.giveaway-prize-value { font-size: 15px; font-weight: 700; color: #fde68a; }
+
+.giveaway-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* Social proof: "412 trainers entered" does more work than any copy. */
+.giveaway-entries strong { color: var(--text); }
+.giveaway-enter {
+  background: linear-gradient(180deg, #a855f7, #7c3aed);
+  color: #fff;
+  border: 0;
+  padding: 9px 22px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.giveaway-enter:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(168, 85, 247, 0.5); }
+.giveaway-enter:active:not(:disabled) { transform: translateY(1px); }
+.giveaway-enter:disabled { opacity: 0.55; cursor: not-allowed; }
+.giveaway-entered { font-size: 12px; font-weight: 700; color: #86efac; }
+
+.giveaway-winners {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.09);
+}
+.giveaway-winners-label { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #fde68a; }
+.giveaway-winners-list { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.giveaway-fair { margin-top: 4px; }
+.giveaway-fair summary { cursor: pointer; }
+.giveaway-fair p { margin: 6px 0; line-height: 1.5; }
+.giveaway-seed {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  word-break: break-all;
+  background: rgba(0,0,0,0.4);
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+.giveaway-gate { margin: 0; }
+
+@media (max-width: 600px) {
+  .giveaway-head, .giveaway-body { padding-left: 14px; padding-right: 14px; }
+  .giveaway-card-head { flex-direction: column; gap: 6px; }
+}

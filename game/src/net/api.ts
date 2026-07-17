@@ -123,6 +123,14 @@ export const api = {
   // Public — no auth required. Used by the pre-sign-in landing screen.
   publicOnlineCount: () => request<{ count: number }>("GET", "/api/public/online"),
 
+  // Giveaways
+  listGiveaways: () => request<{ giveaways: PublicGiveaway[] }>("GET", "/api/giveaways"),
+  enterGiveaway: (id: string) =>
+    request<{ ok: true; alreadyEntered: boolean; entryCount?: number }>(
+      "POST",
+      `/api/giveaways/${id}/enter`,
+    ),
+
   // Saves
   getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string }>(
     "GET",
@@ -238,6 +246,36 @@ export interface PvpReplayMatch {
   loserId: string | null;
   endReason: string | null;
   log: string[];             // Showdown protocol lines
+}
+
+export interface GiveawayPrize {
+  kind: "item" | "money" | "pokemon";
+  itemId?: string;
+  quantity?: number;
+  amount?: number;
+  label?: string;
+}
+
+export interface PublicGiveaway {
+  id: string;
+  title: string;
+  description: string;
+  status: "open" | "closed" | "drawn";
+  startsAt: string | null;
+  endsAt: string | null;
+  drawnAt: string | null;
+  winnerCount: number;
+  minAccountLevel: number | null;
+  prizes: GiveawayPrize[];
+  prizeSummary: string;
+  entryCount: number;
+  hasEntered: boolean;
+  youWon: boolean;
+  /** Public once drawn. Losers are never listed. */
+  winners: string[];
+  /** Published after the draw so the result can be independently
+   *  recomputed and checked. Null until drawn. */
+  drawSeed: string | null;
 }
 
 export interface PvpHistoryRow {

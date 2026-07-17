@@ -2712,3 +2712,113 @@ input[type="checkbox"], input[type="radio"] {
 }
 .bulk-bar > strong { font-size: 15px; }
 .bulk-bar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+/* =================================================================
+   Giveaways (admin)
+   ================================================================= */
+.giveaways-page { max-width: 1000px; margin: 0 auto; }
+.gv-list { display: flex; flex-direction: column; gap: 12px; }
+.gv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+/* A live giveaway must not look like a draft at a glance. */
+.gv-card--open  { box-shadow: inset 2px 0 0 #a855f7, var(--shadow-1); }
+.gv-card--drawn { opacity: 0.82; }
+.gv-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gv-card-title { display: flex; align-items: center; gap: 9px; }
+.gv-card-title strong { font-size: 14.5px; }
+.gv-status--draft     { background: var(--surface-3);              color: var(--text-muted); }
+.gv-status--open      { background: rgba(168, 85, 247, 0.2);       color: #d8b4fe; }
+.gv-status--closed    { background: var(--warn-soft);              color: #fde68a; }
+.gv-status--drawn     { background: var(--good-soft);              color: #86efac; }
+.gv-status--cancelled { background: var(--bad-soft);               color: #fca5a5; }
+.gv-card-desc { margin: 0; }
+.gv-card-prize {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.gv-prize-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.gv-card-prize strong { font-size: 13px; color: #fde68a; }
+.gv-card-result {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  background: var(--good-soft);
+  border-radius: var(--radius-sm);
+}
+.gv-winners-label { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: #86efac; }
+.gv-winner { font-size: 12.5px; font-weight: 600; margin-right: 8px; }
+/* A winner whose grant failed must be impossible to miss — they are
+   owed a prize the system did not deliver. */
+.gv-winner--unpaid { color: #fca5a5; }
+.gv-seed-details { margin-top: 4px; }
+.gv-seed-details summary { cursor: pointer; }
+.gv-seed {
+  display: block;
+  font-size: 10px;
+  word-break: break-all;
+  background: var(--surface-0);
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin: 5px 0;
+  color: var(--text-muted);
+}
+.gv-card-foot { display: flex; gap: 8px; flex-wrap: wrap; }
+.gv-draw { margin-left: auto; }
+
+.gv-create { margin-bottom: 16px; padding: 20px 22px; }
+.gv-form-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.gv-field { display: flex; flex-direction: column; gap: 5px; }
+.gv-field > span { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.gv-field input, .gv-field textarea {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.gv-prize-builder { margin: 14px 0; }
+.gv-prize-builder h3 { margin: 0 0 8px; font-size: 12px; }
+.gv-prize-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.gv-prize-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.gv-prize-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gv-prize-add input { background: var(--surface-2); border-radius: var(--radius-sm); padding: 7px 9px; color: var(--text); }
+.gv-shiny-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+.gv-create-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.combo-opt { padding: 6px 8px; }
+.combo-opt.hl { background: var(--surface-3); }
+
+@media (max-width: 900px) {
+  .gv-form-grid { grid-template-columns: 1fr 1fr; }
+}

@@ -10,6 +10,7 @@ import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
 import { openChangelog } from "./ChangelogModal";
+import { openGiveaways } from "./GiveawayModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
@@ -376,6 +377,22 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
                   <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
                   <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+                </section>
+
+                <section className="g-card">
+                  <h3>Giveaways</h3>
+                  <p className="g-help" style={{ marginTop: 0 }}>
+                    Free prize draws — Master Balls, cash, and rare Pokemon.
+                    One entry each, drawn fairly, winners announced in global chat.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button
+                      className="g-btn-primary g-btn-small"
+                      onClick={() => { onClose(); openGiveaways(); }}
+                    >
+                      🎁 View giveaways
+                    </button>
+                  </div>
                 </section>
 
                 <section className="g-card">

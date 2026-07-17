@@ -162,6 +162,41 @@ export interface Analytics {
   };
 }
 
+export type GiveawayPrizeInput =
+  | { kind: "item"; itemId: string; quantity: number }
+  | { kind: "money"; amount: number }
+  /** The full mon, built client-side by createPokemon — the server has
+   *  no stat formula and must not fabricate one. `label` is carried for
+   *  display so listing a prize never parses the mon. */
+  | { kind: "pokemon"; label: string; mon: Record<string, unknown> };
+
+export interface AdminGiveawayEntry {
+  id: string;
+  userId: string;
+  username: string;
+  isWinner: boolean;
+  /** null on a winner = prize grant failed; they still need paying. */
+  claimedAt: string | null;
+}
+
+export interface AdminGiveaway {
+  id: string;
+  createdAt: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  drawnAt: string | null;
+  title: string;
+  description: string;
+  status: "draft" | "open" | "closed" | "drawn" | "cancelled";
+  winnerCount: number;
+  minAccountLevel: number | null;
+  drawSeed: string | null;
+  prizes: GiveawayPrizeInput[];
+  prizeSummary: string;
+  entryCount: number;
+  entries: AdminGiveawayEntry[];
+}
+
 export interface AdminMe { id: string; username: string; isAdmin: boolean }
 
 export const api = {
@@ -286,6 +321,25 @@ export const api = {
       `/api/admin/announce`,
       { content },
     ),
+
+  // Giveaways
+  listGiveawaysAdmin: () => req<{ giveaways: AdminGiveaway[] }>("GET", "/api/admin/giveaways"),
+  createGiveaway: (body: {
+    title: string; description: string; winnerCount: number;
+    prizes: GiveawayPrizeInput[]; minAccountLevel?: number | null;
+    startsAt?: string | null; endsAt?: string | null;
+  }) => req<{ giveaway: AdminGiveaway }>("POST", "/api/admin/giveaways", body),
+  patchGiveaway: (id: string, body: Record<string, unknown>) =>
+    req<{ giveaway: AdminGiveaway }>("PATCH", `/api/admin/giveaways/${id}`, body),
+  deleteGiveaway: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/giveaways/${id}`),
+  /** Irreversible. Picks winners from a stored seed and writes prizes
+   *  into their saves. Returns per-winner grant results so a partial
+   *  payout is visible rather than assumed. */
+  drawGiveaway: (id: string) =>
+    req<{
+      ok: true; seed: string; entryCount: number;
+      winners: { username: string; ok: boolean; error?: string }[];
+    }>("POST", `/api/admin/giveaways/${id}/draw`),
 
   // Live ops — real-time snapshot of who is connected + last 30
   // minutes of activity (chat, signups, trades, PvP). Polled by the

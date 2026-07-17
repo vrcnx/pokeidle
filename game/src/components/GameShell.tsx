@@ -12,6 +12,7 @@ import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
 import { useAchievementTracker } from "../state/achievements";
 import { AchievementToast } from "./AchievementToast";
 import { AchievementsModal } from "./AchievementsModal";
+import { GiveawayModal } from "./GiveawayModal";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
@@ -111,6 +112,7 @@ export function GameShell() {
       <PvpSpectatorModal />
       <ReportBugModal />
       <AchievementsModal />
+      <GiveawayModal />
       <AchievementToast />
     </div>
   );
