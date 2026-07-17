@@ -131,6 +131,22 @@ export interface Analytics {
    *  engagement (a long-lived session logs in once) but every point is
    *  a real event on a real day. */
   loginSeries: Record<string, number>;
+  /** REAL daily-active users, from the DailyActive event table. Only
+   *  contains days since collection began — a missing day means "we
+   *  weren't recording", not "nobody played". Null if the table does
+   *  not exist yet. */
+  dauSeries: Record<string, number> | null;
+  /** ISO date collection started, or null if no rows yet. */
+  dauCollectingSince: string | null;
+  /** Percentages, or null where the cohort's check-day predates
+   *  collection (reporting 0% for days we weren't watching would read
+   *  as catastrophic churn). */
+  retention: {
+    d1: number | null;
+    d7: number | null;
+    d30: number | null;
+    cohortSizes: { d1: number; d7: number; d30: number };
+  } | null;
   pvpSeries: Record<string, number>;
   tradeSeries: Record<string, number>;
   levelBuckets: { label: string; count: number }[];

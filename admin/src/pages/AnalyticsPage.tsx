@@ -13,21 +13,29 @@ import { navigateTo, type Page } from "../App";
 // the operator toggles which series they want to see. PvP & Trades
 // still get a dedicated secondary row so power-users can compare.
 
-type HeroSeries = "logins" | "signups" | "pvp" | "trades" | "lastSeen";
+type HeroSeries = "dau" | "logins" | "signups" | "pvp" | "trades" | "lastSeen";
 
-// "Daily Active" is gone. It was charting `dauSeries`, which bucketed
-// each user by their single `lastSeenAt` scalar — so it plotted "days
-// since last seen", not activity, and rose toward today by construction
-// whether the game was booming or dying. Real DAU needs a per-day event
-// row that does not exist yet (see the DailyActive TODO in the
-// /analytics endpoint); it cannot be recovered from the data we keep.
-//
-// Logins is the honest replacement: a true count of a real event on a
-// real day. Last seen is still available, but labelled for what it
-// actually is and no longer the default.
+// Series semantics, because three of these look interchangeable and
+// are not:
+//   dau      — REAL daily actives, from the DailyActive event table.
+//              Only offered once that table has rows; a day missing
+//              from it means "we were not recording", not "nobody
+//              played", so it is never zero-filled.
+//   logins   — true count of login events (Session.createdAt).
+//              Undercounts engagement: one long session = one login.
+//   lastSeen — players grouped by the day they were LAST online. This
+//              is a churn distribution and rises toward today by
+//              construction. It was previously shipped as the hero
+//              "Daily Active" chart, which was a confident wrong
+//              answer to the main question on the page. Kept, but
+//              labelled honestly and carrying an inline caveat.
 const HERO_OPTIONS: { key: HeroSeries; label: string; color: string; note?: string }[] = [
-  { key: "logins",   label: "Logins",      color: "var(--brand)"       },
-  { key: "signups",  label: "Signups",     color: "var(--brand-hover)" },
+  // Real DAU, from the DailyActive event table. Only offered once the
+  // table has rows — until then the option is hidden rather than
+  // rendering an empty chart that looks like zero players.
+  { key: "dau",      label: "Daily Active", color: "var(--brand)"      },
+  { key: "logins",   label: "Logins",      color: "var(--brand-hover)" },
+  { key: "signups",  label: "Signups",     color: "#a5b4fc"            },
   { key: "pvp",      label: "PvP Matches", color: "#fbbf24"            },
   { key: "trades",   label: "Trades",      color: "#f472b6"            },
   { key: "lastSeen", label: "Last seen",   color: "#94a3b8",
@@ -66,8 +74,15 @@ export function AnalyticsPage() {
   if (err) return <div className="page-err">Error: {err}</div>;
   if (!data) return <div className="page-loading">Loading analytics…</div>;
 
+  // DAU only exists from the day the DailyActive table started
+  // recording. Offering the option before then would chart an empty
+  // series that reads as "zero players", so hide it until it is real.
+  const dauReady = !!data.dauSeries && Object.keys(data.dauSeries).length > 0;
+  const heroOptions = HERO_OPTIONS.filter((o) => o.key !== "dau" || dauReady);
+
   const seriesFor = (k: HeroSeries) => {
     switch (k) {
+      case "dau":      return seriesFromMap(data.dauSeries ?? {});
       case "logins":   return seriesFromMap(data.loginSeries);
       case "signups":  return seriesFromMap(data.signupSeries);
       case "pvp":      return seriesFromMap(data.pvpSeries);
@@ -76,8 +91,12 @@ export function AnalyticsPage() {
     }
   };
   const logins = seriesFromMap(data.loginSeries);
-  const heroChart = seriesFor(heroSeries);
-  const heroOption = HERO_OPTIONS.find((o) => o.key === heroSeries)!;
+  // Guard against a persisted choice that is no longer offered (e.g.
+  // "dau" saved before the table existed, or keys from an old build).
+  const effectiveHero: HeroSeries =
+    heroOptions.some((o) => o.key === heroSeries) ? heroSeries : "logins";
+  const heroChart = seriesFor(effectiveHero);
+  const heroOption = HERO_OPTIONS.find((o) => o.key === effectiveHero)!;
   const heroColor = heroOption.color;
 
   // "Active today" is a rolling 24h count (lastSeenAt >= now-24h) and is
@@ -117,6 +136,15 @@ export function AnalyticsPage() {
         </div>
       </header>
 
+      {/* Retention — the metric an idle/collection game lives or dies on.
+          Signups with no retention only tell you how many people arrived,
+          not whether a single one stayed. Rendered above the pulse row
+          because it outranks every count below it. */}
+      <RetentionRow
+        retention={data.retention}
+        collectingSince={data.dauCollectingSince}
+      />
+
       {/* Pulse row — 1 hero KPI + 4 compact KPIs */}
       <section className="analytics-grid pulse-row">
         <article className="kpi-card kpi-card--hero" style={{ gridColumn: "span 4" }}>
@@ -141,12 +169,12 @@ export function AnalyticsPage() {
           <header className="chart-card__header">
             <h3>Trend · {heroOption.label}</h3>
             <div className="seg-toggle" role="tablist" aria-label="Hero series">
-              {HERO_OPTIONS.map((o) => (
+              {heroOptions.map((o) => (
                 <button
                   key={o.key}
                   role="tab"
-                  aria-selected={heroSeries === o.key}
-                  className={`seg-tab ${heroSeries === o.key ? "active" : ""}`}
+                  aria-selected={effectiveHero === o.key}
+                  className={`seg-tab ${effectiveHero === o.key ? "active" : ""}`}
                   onClick={() => setHeroSeries(o.key)}
                   title={o.note}
                 >
@@ -294,6 +322,75 @@ function KpiCompact({ label, value, sub }: { label: string; value: number; sub?:
       <strong className="kpi-value">{value.toLocaleString()}</strong>
       {sub && <span className="kpi-sub">{sub}</span>}
     </article>
+  );
+}
+
+// Retention — D1/D7/D30 for the trailing signup cohorts.
+//
+// Every value can legitimately be "unknown", and each reason is
+// different, so this never renders a number it cannot stand behind:
+//   * no DailyActive table yet  → tell the operator how to start it
+//   * check-day predates collection → "collecting" (NOT 0%, which would
+//     read as every player churning)
+//   * empty cohort (nobody signed up that day) → "no cohort"
+function RetentionRow({
+  retention, collectingSince,
+}: {
+  retention: Analytics["retention"];
+  collectingSince: string | null;
+}) {
+  if (!retention || !collectingSince) {
+    return (
+      <section className="retention-row retention-row--empty">
+        <div>
+          <span className="kpi-label">Retention</span>
+          <p className="dim small" style={{ margin: "4px 0 0" }}>
+            Not collecting yet. Retention needs per-day activity rows, which
+            start accumulating once the <code>DailyActive</code> table exists —
+            run <code>npx tsx scripts/ensure-daily-active.ts</code> on the
+            server. Historical retention cannot be backfilled.
+          </p>
+        </div>
+      </section>
+    );
+  }
+  const cells: { label: string; value: number | null; size: number; hint: string }[] = [
+    { label: "D1",  value: retention.d1,  size: retention.cohortSizes.d1,
+      hint: "Share of players who signed up 2 days ago and came back the next day. The single best predictor of whether the game compounds." },
+    { label: "D7",  value: retention.d7,  size: retention.cohortSizes.d7,
+      hint: "Share of the 8-days-ago signup cohort still playing on day 7." },
+    { label: "D30", value: retention.d30, size: retention.cohortSizes.d30,
+      hint: "Share of the 31-days-ago signup cohort still playing on day 30." },
+  ];
+  return (
+    <section className="retention-row">
+      <div className="retention-row__head">
+        <span className="kpi-label">Retention</span>
+        <span className="dim small">collecting since {collectingSince}</span>
+      </div>
+      <div className="retention-cells">
+        {cells.map((c) => (
+          <div key={c.label} className="retention-cell" title={c.hint}>
+            <span className="retention-cell__label">{c.label}</span>
+            {c.value === null ? (
+              <>
+                <strong className="retention-cell__value retention-cell__value--na">
+                  {c.size === 0 ? "—" : "…"}
+                </strong>
+                <span className="dim small">
+                  {c.size === 0 ? "no cohort" : "collecting"}
+                </span>
+              </>
+            ) : (
+              <>
+                <strong className="retention-cell__value">{c.value.toFixed(0)}%</strong>
+                <span className="dim small">{c.size} signup{c.size === 1 ? "" : "s"}</span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

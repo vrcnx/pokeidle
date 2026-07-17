@@ -608,8 +608,7 @@ app.get("/analytics", async (c) => {
   // This is not DAU either: an idle player with a long-lived session
   // logs in once and plays for days, so it undercounts engagement. But
   // unlike lastSeenSeries it is a true count of a real event on a real
-  // day, so it is honest and it is the best signal available until a
-  // DailyActive table exists.
+  // day, so it is honest.
   const sessionRows = await prisma.session.findMany({
     where: { createdAt: { gte: thirtyDaysAgo } },
     select: { createdAt: true },
@@ -622,6 +621,93 @@ app.get("/analytics", async (c) => {
   for (const row of sessionRows) {
     const k = row.createdAt.toISOString().slice(0, 10);
     if (k in loginSeries) loginSeries[k]++;
+  }
+
+  // ── Real DAU + retention, from the DailyActive event table ─────────
+  //
+  // Everything above is a workaround for not having per-day activity
+  // rows. This is the real thing. Both are wrapped in a tolerant try:
+  // the table is created by scripts/ensure-daily-active.ts, and if the
+  // code is deployed ahead of that, analytics must degrade rather than
+  // 500 the operator's landing page.
+  //
+  // `dauCollectingSince` is the honest disclaimer. The table only knows
+  // about days since it existed, and no amount of querying recovers
+  // history that was never recorded — so the UI states the start date
+  // instead of rendering 30 buckets and implying the zeroes are real.
+  let dauSeries: Record<string, number> | null = null;
+  let dauCollectingSince: string | null = null;
+  let retention: { d1: number | null; d7: number | null; d30: number | null; cohortSizes: { d1: number; d7: number; d30: number } } | null = null;
+
+  try {
+    const dauRows = await prisma.$queryRaw<{ day: Date; count: bigint }[]>`
+      SELECT "day", COUNT(DISTINCT "userId")::bigint AS count
+        FROM "DailyActive"
+       WHERE "day" >= ${thirtyDaysAgo}
+       GROUP BY "day"
+       ORDER BY "day" ASC
+    `;
+    const [firstRow] = await prisma.$queryRaw<{ day: Date }[]>`
+      SELECT "day" FROM "DailyActive" ORDER BY "day" ASC LIMIT 1
+    `;
+    dauCollectingSince = firstRow ? firstRow.day.toISOString().slice(0, 10) : null;
+
+    dauSeries = {};
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(now.getTime() - i * day);
+      const k = d.toISOString().slice(0, 10);
+      // Only emit buckets from days we were actually recording. A zero
+      // on a day that predates the table is not "nobody played", it is
+      // "we do not know", and charting the two identically is the same
+      // class of lie the old dauSeries told.
+      if (dauCollectingSince && k >= dauCollectingSince) dauSeries[k] = 0;
+    }
+    for (const r of dauRows) {
+      const k = r.day.toISOString().slice(0, 10);
+      if (k in dauSeries) dauSeries[k] = Number(r.count);
+    }
+
+    // Retention: of the players who signed up N+1 days ago, what share
+    // came back on exactly day N after signup? Only computed for cohorts
+    // whose day-N window is fully inside the collection period —
+    // otherwise we would report 0% for players we simply were not
+    // watching, which reads as catastrophic churn.
+    const retentionFor = async (n: number): Promise<{ rate: number | null; size: number }> => {
+      const cohortStart = new Date(now.getTime() - (n + 1) * day);
+      cohortStart.setUTCHours(0, 0, 0, 0);
+      const cohortEnd = new Date(cohortStart.getTime() + day);
+      const checkDay = new Date(cohortStart.getTime() + n * day);
+      if (!dauCollectingSince || checkDay.toISOString().slice(0, 10) < dauCollectingSince) {
+        return { rate: null, size: 0 };
+      }
+      const cohort = await prisma.user.findMany({
+        where: { createdAt: { gte: cohortStart, lt: cohortEnd } },
+        select: { id: true },
+      });
+      if (cohort.length === 0) return { rate: null, size: 0 };
+      const ids = cohort.map((u) => u.id);
+      const [{ count }] = await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT "userId")::bigint AS count
+          FROM "DailyActive"
+         WHERE "day" = ${checkDay}
+           AND "userId" = ANY(${ids})
+      `;
+      return { rate: (Number(count) / cohort.length) * 100, size: cohort.length };
+    };
+
+    const [r1, r7, r30] = await Promise.all([
+      retentionFor(1), retentionFor(7), retentionFor(30),
+    ]);
+    retention = {
+      d1: r1.rate, d7: r7.rate, d30: r30.rate,
+      cohortSizes: { d1: r1.size, d7: r7.size, d30: r30.size },
+    };
+  } catch (e) {
+    if (!/does not exist|no such table/i.test(String(e))) {
+      console.error("[analytics] DailyActive query failed", String(e));
+    }
+    // Leave dauSeries/retention null — the dashboard renders a
+    // "not collecting yet" state rather than a fake zero series.
   }
 
   // Account-level distribution — bucket users by 10-level bands so the
@@ -726,6 +812,9 @@ app.get("/analytics", async (c) => {
     signupSeries,
     lastSeenSeries,
     loginSeries,
+    dauSeries,
+    dauCollectingSince,
+    retention,
     pvpSeries,
     tradeSeries,
     levelBuckets,

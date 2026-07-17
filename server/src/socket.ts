@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { auth } from "./auth.js";
 import { prisma } from "./db.js";
+import { recordDailyActive } from "./lib/presence.js";
 import { canAccessChannel, GLOBAL_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
@@ -386,6 +387,11 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     await prisma.user
       .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
       .catch(() => undefined);
+    // lastSeenAt is a scalar — it gets overwritten, so it can only ever
+    // answer "when did they last play". Append a per-day activity row
+    // too, which is what real DAU is computed from. Idempotent per
+    // (user, UTC day); never allowed to fail the connection.
+    void recordDailyActive(user.id);
 
     // Send the current count to the freshly-connected socket so the
     // chat header has a value to show immediately, before any other
@@ -1231,6 +1237,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         await prisma.user
           .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
           .catch(() => undefined);
+        void recordDailyActive(user.id);
         const friends = await prisma.friend.findMany({
           where: {
             status: "accepted",

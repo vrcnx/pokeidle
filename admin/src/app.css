@@ -2579,3 +2579,45 @@ input[type="checkbox"], input[type="radio"] {
   outline: 2px solid var(--brand);
   outline-offset: -2px;
 }
+
+/* Retention row — sits above the pulse row because for an idle game it
+   outranks every raw count below it. */
+.retention-row {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: var(--surface-1);
+  border-radius: var(--radius-card, 12px);
+  padding: 16px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-1);
+}
+.retention-row--empty { display: block; }
+.retention-row__head { display: flex; flex-direction: column; gap: 3px; min-width: 150px; }
+.retention-cells { display: flex; gap: 32px; flex-wrap: wrap; }
+.retention-cell { display: flex; flex-direction: column; gap: 2px; min-width: 84px; }
+.retention-cell__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: var(--text-muted);
+}
+.retention-cell__value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.05;
+}
+/* An unknown value must not look like a measured one. */
+.retention-cell__value--na { color: var(--text-dim); }
+.retention-row code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .retention-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+}

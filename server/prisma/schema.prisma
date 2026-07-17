@@ -14,6 +14,29 @@ datasource db {
 }
 
 // ── Auth tables (Better Auth schema) ─────────────────────────────────────
+// One row per (user, UTC day) on which the user was actually online.
+// This is the table that makes real DAU possible.
+//
+// `User.lastSeenAt` is a single scalar overwritten on every connect, so
+// it can only ever answer "when did they last play" — bucketing it by
+// day yields a churn histogram, not activity. That was shipped as the
+// hero "Daily Active" chart and was wrong by construction. Activity is
+// an event, and events need rows.
+//
+// Written on socket connect (idempotent per day via the compound
+// unique). Deliberately narrow — one row per user per active day is
+// ~1 row/day/DAU, trivial to store and cheap to group by.
+model DailyActive {
+  id     String   @id @default(cuid())
+  userId String
+  /** UTC midnight of the day this activity happened. */
+  day    DateTime
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
 model User {
   id              String    @id
   email           String    @unique
@@ -51,6 +74,7 @@ model User {
   friendsRequested  Friend[]      @relation("Requester")
   friendsReceived   Friend[]      @relation("Receiver")
   messages          ChatMessage[]
+  dailyActive       DailyActive[]
 }
 
 model Session {
