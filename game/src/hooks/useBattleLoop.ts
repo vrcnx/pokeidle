@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { rollEncounter, routeHasEncounters } from "../utils/encounters";
 import { createPokemon } from "../utils/pokemon";
 import { rollShiny, hasShinyCharm } from "../utils/pokemon";
+import { pushToast } from "../components/Toast";
 import { ballForAutoCatch, shouldAutoCatch } from "../utils/catching";
 import { routes } from "../data/routes";
 import { getRouteTrainers, buildTeam, trainerSprite } from "../utils/trainerFactory";
@@ -35,6 +36,9 @@ function manualWaiting(s: GameState): boolean {
 }
 
 export function useBattleLoop(): void {
+  // True while we have wanted a ball and had none. Reset as soon as a
+  // ball is available again, so each dry spell warns exactly once.
+  const outOfBallsRef = useRef(false);
   const { state, dispatch } = useGame();
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -164,9 +168,28 @@ export function useBattleLoop(): void {
         ) {
           const ball = ballForAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.isShiny);
           if (ball) {
+            outOfBallsRef.current = false;
             dispatch({ type: "TRY_CATCH", payload: { ballId: ball } });
             schedule();
             return;
+          }
+          // We WANTED to catch this and had no ball for it. Previously
+          // this just fell through to EXECUTE_TURN, so the game quietly
+          // stopped catching anything — forever — and never said why.
+          // An idle game going silently dead is the worst failure mode
+          // there is: the player leaves it running for an hour and
+          // comes back to nothing.
+          //
+          // Warn once per dry spell (the ref resets the moment a ball
+          // is available again) so it is impossible to miss but never
+          // spams the log every encounter.
+          if (!outOfBallsRef.current) {
+            outOfBallsRef.current = true;
+            pushToast({
+              kind: "warn",
+              icon: "🎣",
+              text: "Out of Poké Balls — auto-catch is paused. Restock at any Mart.",
+            });
           }
         }
         if (manualWaiting(cur)) { repoll(); return; }

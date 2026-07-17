@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
+import { REPEL_IDS } from "../utils/encounters";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl, trainerSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { rarityFromRate } from "../utils/rarity";
@@ -600,7 +601,7 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
   for (const e of state.activeEffects) {
     if (e.routeKey !== routeKey) continue;
     if (!effects[e.speciesKey]) effects[e.speciesKey] = {};
-    if (e.itemId === "repel") effects[e.speciesKey].repel = true;
+    if (REPEL_IDS.has(e.itemId)) effects[e.speciesKey].repel = true;
     if (e.itemId === "honey") effects[e.speciesKey].honey = true;
   }
 

@@ -1,6 +1,11 @@
 import { encounters as encounterTable } from "../data/encounters";
 import type { ActiveEffect } from "../types";
 
+// Every id in the repel line. Kept beside the logic that consumes it
+// so adding a new tier to consumables.ts without adding it here is an
+// obvious omission rather than a silent no-op.
+export const REPEL_IDS = new Set(["repel", "superrepel", "maxrepel"]);
+
 interface RouteEncounter {
   speciesKey: string;
   weight: number;
@@ -21,7 +26,12 @@ function adjustWeights(
     for (const eff of effects) {
       if (eff.routeKey && eff.routeKey !== routeKey) continue;
       if (eff.speciesKey !== e.speciesKey) continue;
-      if (eff.itemId === "repel") weight *= 0.5;
+      // Match the repel FAMILY, not the literal id. Super Repel and Max
+      // Repel are sold in five marts but were only ever compared against
+      // "repel" here, so they applied no weighting — players paid $500 /
+      // $700 for an item that did nothing. The tiers differ in duration
+      // (see data/consumables.ts), not in strength.
+      if (REPEL_IDS.has(eff.itemId)) weight *= 0.5;
       else if (eff.itemId === "honey") weight *= 2;
     }
     return { ...e, weight };
