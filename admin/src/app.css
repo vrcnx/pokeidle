@@ -31,11 +31,20 @@
   --panel-4:      var(--surface-4);
   --bg-panel:     var(--surface-1);
 
-  /* Text */
+  /* Text
+     --text-dim was #6c6c7a, which measured 2.94-3.59:1 against the
+     surfaces it is actually used on — failing WCAG AA (4.5:1) on every
+     single one, including the default card surface. It carries real
+     content across the dashboard (timestamps, counts, secondary labels,
+     "no cohort" states), not decoration, so it has to be legible.
+     #9a9aa8 is the first hue-matched value that clears AA against the
+     worst surface it lands on (4.83:1 on --surface-4).
+     --text-faint is decorative-only (dividers, disabled glyphs) and is
+     deliberately NOT promoted — see the .dimmer note below. */
   --text:         #fafafa;
-  --text-muted:   #a8a8b5;
-  --text-dim:     #6c6c7a;
-  --text-faint:   #4a4a55;
+  --text-muted:   #a8a8b5;   /* 6.46-7.89:1 — passes AA everywhere */
+  --text-dim:     #9a9aa8;   /* 4.83-6.05:1 — passes AA everywhere */
+  --text-faint:   #4a4a55;   /* decorative only — never body text */
 
   /* Accent (indigo). The brand colour for the whole admin app. */
   --brand:        #6366f1;
@@ -2620,4 +2629,41 @@ input[type="checkbox"], input[type="radio"] {
 }
 @media (max-width: 900px) {
   .retention-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+}
+
+/* Server-unreachable gate — shown instead of ejecting the operator to
+   the game when /me fails for a non-auth reason. */
+.admin-shell--centered { display: grid; place-items: center; min-height: 100vh; }
+.admin-unreachable {
+  max-width: 420px;
+  text-align: center;
+  background: var(--surface-1);
+  padding: 28px 32px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+.admin-unreachable h2 { margin: 0 0 8px; font-size: 18px; }
+.admin-unreachable p { margin: 0 0 16px; font-size: 13px; line-height: 1.5; }
+
+/* Map editor: the backdrop failing must be loud. Dragging markers onto
+   an invisible map still writes real coordinates. */
+.map-img-error {
+  position: absolute;
+  inset: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 20px;
+  background: var(--bad-soft);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+.map-img-error code {
+  background: rgba(0,0,0,0.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  word-break: break-all;
 }

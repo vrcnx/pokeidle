@@ -12,7 +12,7 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 
-type Status = "loading" | "anon" | "forbidden" | "ok";
+type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
 export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "audit" | "announcements";
 
 // What a page can be asked to focus on when navigated to. The bus used
@@ -56,18 +56,43 @@ export function App() {
   // silently re-open that same player instead of the list.
   const gotoPage = (p: Page) => { setPage(p); setNavParams({}); };
 
-  useEffect(() => {
+  const checkAuth = () => {
+    setStatus("loading");
     api.me()
       .then((m) => { setMe(m); setStatus("ok"); })
       .catch((e: ApiError) => {
+        // Only a real auth verdict may eject the operator. This used to
+        // `else setStatus("anon")`, so ANY other failure — a network
+        // blip, a 500, a timeout, the server restarting mid-deploy —
+        // silently redirected them out of the dashboard to the game.
+        // Losing your admin session because wifi hiccuped, while you
+        // are mid-incident, is the worst possible time for it.
         if (e.status === 401) setStatus("anon");
         else if (e.status === 403) setStatus("forbidden");
-        else setStatus("anon");
+        else setStatus("unreachable");
       });
-  }, []);
+  };
+  useEffect(checkAuth, []);
 
   if (status === "loading") {
     return <div className="admin-shell"><p className="dim">Loading…</p></div>;
+  }
+  // The server said nothing useful — keep the operator here and let them
+  // retry, rather than bouncing them to the game and making them sign in
+  // again for what may have been a two-second blip.
+  if (status === "unreachable") {
+    return (
+      <div className="admin-shell admin-shell--centered">
+        <div className="admin-unreachable">
+          <h2>Can’t reach the server</h2>
+          <p className="dim">
+            The admin API didn’t respond. This is usually a network blip or a
+            deploy restarting — your session is probably still fine.
+          </p>
+          <button className="btn-primary" onClick={checkAuth}>Retry</button>
+        </div>
+      </div>
+    );
   }
   // Anonymous (not signed in) and Forbidden (signed in but not admin)
   // share an outcome: bounce them to the live game. We countdown

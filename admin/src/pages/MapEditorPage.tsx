@@ -7,7 +7,18 @@ interface Pos { x: number; y: number }
 type Positions = Record<string, Pos>;
 interface Crop { x: number; y: number; w: number; h: number }
 
-const MAP_IMG = "http://localhost:5173/ui/townmap.png";
+// The town map asset is served by the GAME frontend, not the admin app.
+// This was hardcoded to http://localhost:5173, so in production the
+// editor rendered a broken image over which the operator was still
+// dragging markers — saving coordinates against a backdrop they could
+// not see. Resolve the game origin the same way App.tsx does for its
+// redirect, and let VITE_GAME_URL override.
+const GAME_ORIGIN: string =
+  (import.meta as any).env?.VITE_GAME_URL
+  ?? (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? "https://pokeidle.com"
+    : "http://localhost:5173");
+const MAP_IMG = `${GAME_ORIGIN.replace(/\/$/, "")}/ui/townmap.png`;
 
 // Editing modes — markers (drag pins around) vs crop (drag a rectangle
 // over the playable region of the source image so the game cuts away
@@ -16,6 +27,7 @@ type Mode = "markers" | "crop";
 
 export function MapEditorPage() {
   const [positions, setPositions] = useState<Positions>({});
+  const [mapImgFailed, setMapImgFailed] = useState(false);
   const [crop, setCrop] = useState<Crop | null>(null);
   const [mode, setMode] = useState<Mode>("markers");
   const [loaded, setLoaded] = useState(false);
@@ -241,7 +253,25 @@ export function MapEditorPage() {
           className={`map-canvas ${mode === "crop" ? "crop-mode" : ""}`}
           onMouseDown={startCropCreate}
         >
-          <img className="map-img" src={MAP_IMG} alt="" draggable={false} />
+          <img
+            className="map-img"
+            src={MAP_IMG}
+            alt=""
+            draggable={false}
+            onLoad={() => setMapImgFailed(false)}
+            onError={() => setMapImgFailed(true)}
+          />
+          {mapImgFailed && (
+            <div className="map-img-error" role="alert">
+              <strong>Map image failed to load</strong>
+              <span className="dim small">
+                Tried <code>{MAP_IMG}</code>. Marker positions below are still
+                real and still saveable, but you are placing them without the
+                backdrop — set <code>VITE_GAME_URL</code> if the game is served
+                from a different origin.
+              </span>
+            </div>
+          )}
 
           {/* Grid overlay — 2% minor lines, 10% major lines. Helps the
               admin eyeball positions and crop boundaries. Always
