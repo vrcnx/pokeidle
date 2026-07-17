@@ -10031,24 +10031,43 @@ input:focus, textarea:focus, select:focus {
    typical viewport.
    ─────────────────────────────────────────────────────────────────── */
 .g-modal {
+  /* Soft-slate modal skin — cool near-black, cards lift on shadow, no hard
+     outlines. Scoped to .g-modal so it restyles every popup that uses these
+     primitives without touching the game's own panels. */
+  --m-bg: #16181d;
+  --m-surface: #1e2027;
+  --m-surface-2: #262a33;
+  --m-text: #eef0f4;
+  --m-muted: #8b8f9a;
+  --m-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --m-hairline: rgba(255, 255, 255, 0.05);
+  /* Remap the game's own tokens within the modal so every popup's bespoke
+     content inherits the cool palette and the near-invisible border. */
+  --panel: #16181d;
+  --panel-2: #1e2027;
+  --panel-3: #262a33;
+  --border: rgba(255, 255, 255, 0.06);
+  --text: #eef0f4;
+  --text-muted: #8b8f9a;
+  --text-dim: #6b6f7a;
   width: min(760px, 96vw);
   max-height: 90vh;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35);
+  background: var(--m-bg);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   font-family: var(--font-body);
-  color: var(--text);
+  color: var(--m-text);
 }
 .g-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 15px 18px 13px;
+  border-bottom: 1px solid var(--m-hairline);
   flex-shrink: 0;
 }
 .g-modal-head h2 {
@@ -10110,19 +10129,20 @@ input:focus, textarea:focus, select:focus {
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--m-surface, #1e2027);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--m-shadow, 0 4px 16px rgba(0, 0, 0, 0.35));
 }
 .g-avatar {
   width: 52px; height: 52px;
   display: grid; place-items: center;
-  background: var(--panel-3, #222);
-  color: var(--text);
+  background: var(--m-surface-2, #262a33);
+  color: var(--m-text, #eef0f4);
   font-size: 22px;
   font-weight: 700;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: none;
 }
 .g-profile-info { min-width: 0; }
 .g-profile-name {
@@ -10145,10 +10165,10 @@ input:focus, textarea:focus, select:focus {
 }
 .g-stat-pill {
   min-width: 64px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel-2, #1a1a1a);
+  padding: 7px 10px;
+  border: none;
+  border-radius: 9px;
+  background: var(--m-surface-2, #262a33);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -10224,14 +10244,15 @@ input:focus, textarea:focus, select:focus {
   }
 }
 .g-card {
-  background: var(--panel-2, #1a1a1a);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
+  background: var(--m-surface, #1e2027);
+  border: none;
+  border-radius: 12px;
+  padding: 13px 15px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  box-shadow: var(--m-shadow, 0 4px 16px rgba(0, 0, 0, 0.35));
 }
 .g-card h3 {
   margin: 0 0 6px;
@@ -13908,30 +13929,33 @@ html, body {
    on. */
 .settings-hero { margin: 0 18px 0; }
 .settings-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 12px 18px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 3px;
+  margin: 2px 18px 0;
+  padding: 4px;
+  background: var(--m-surface, #1e2027);
+  border-radius: 11px;
+  box-shadow: var(--m-shadow, 0 4px 16px rgba(0, 0, 0, 0.35));
 }
 .settings-tab {
   position: relative;
   background: transparent;
   border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 9px 14px;
+  border-radius: 8px;
+  padding: 7px 15px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.4px;
-  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  color: var(--m-muted, #8b8f9a);
   cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease;
-  margin-bottom: -1px;
+  transition: color 140ms ease, background 140ms ease;
 }
-.settings-tab:hover { color: var(--text); }
+.settings-tab:hover { color: var(--m-text, #eef0f4); }
 .settings-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--gold);
+  color: var(--m-text, #eef0f4);
+  background: var(--m-surface-2, #262a33);
 }
 .settings-tab:focus-visible {
   outline: 2px solid var(--gold);
