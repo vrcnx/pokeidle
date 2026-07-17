@@ -5133,6 +5133,64 @@ body.dnd-active {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold, #fbbf24) 25%, transparent);
   vertical-align: middle;
 }
+
+/* ── New-version reload prompt ────────────────────────────────────── */
+.update-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 9000;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border-radius: 999px;
+  background: #16181d;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  color: var(--text);
+  max-width: calc(100vw - 24px);
+}
+.update-notice-icon { font-size: 14px; line-height: 1; }
+.update-notice-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.update-notice-btn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--gold, #fbbf24);
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.update-notice-btn:hover { filter: brightness(1.08); }
+
+/* ── Subtle desktop version badge (bottom-left) ───────────────────── */
+.version-badge {
+  position: fixed;
+  left: 8px;
+  bottom: 6px;
+  z-index: 40;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim, #6b6b6b);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.version-badge:hover { opacity: 1; color: var(--text-muted, #9c9c9c); }
+/* Space is precious on phones — the version lives in Settings there. */
+@media (max-width: 900px) {
+  .version-badge { display: none; }
+}
 .modal.evolution img { animation: pulse 0.7s infinite alternate; }
 @keyframes pulse {
   from { transform: scale(1); filter: brightness(1); }
@@ -10741,10 +10799,19 @@ input:focus, textarea:focus, select:focus {
   color: #ffffff !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
-/* Mart action buttons (Buy, +/-, etc.) keep white text on the dark
+/* Mart action buttons (+/-, +10, Max) keep white text on the dark
    button surface. */
 .mart-tab button {
   color: #ffffff !important;
+}
+/* EXCEPT the Buy and confirm buttons, which have a near-white accent/gold
+   background (--accent is #f5f5f5) and are designed for DARK text. The rule
+   above forced white text onto them — white on near-white, illegible. Put
+   the dark text back; higher specificity wins over `.mart-tab button`. */
+.mart-tab .mart-buy-btn,
+.mart-tab .mart-qty-confirm {
+  color: #0e1014 !important;
+  text-shadow: none !important;
 }
 /* Mart rows — frosted card treatment matching the bag. */
 .mart-tab .mart-list,

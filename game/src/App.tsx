@@ -8,6 +8,8 @@ import { GameShell } from "./components/GameShell";
 import { ContextMenuHost } from "./components/ContextMenu";
 import { MusicPlayer } from "./components/MusicPlayer";
 import { ToastHost } from "./components/Toast";
+import { UpdateNotice } from "./components/UpdateNotice";
+import { VersionBadge } from "./components/VersionBadge";
 
 // Evolution is opt-in. EventDriver consumes pendingEvents at typewriter pace.
 // useAutoProceed travels to newly unlocked routes when the toggle is on.
@@ -25,6 +27,8 @@ export function App() {
       <ContextMenuHost />
       <MusicPlayer />
       <ToastHost />
+      <UpdateNotice />
+      <VersionBadge />
     </>
   );
 }
