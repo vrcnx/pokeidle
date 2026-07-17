@@ -45,6 +45,13 @@ export const changelog: ChangelogEntry[] = [
           ],
         },
         {
+          heading: "🔥 Daily rewards",
+          items: [
+            "Log in each day for a reward — money and Poké Balls on a 7-day cycle, building to an Ultra Ball haul on day seven",
+            "Claim on consecutive days to build a streak; the longer you keep it going, the more the rewards grow. Find it in Settings, or it pops up when there's one waiting",
+          ],
+        },
+        {
           heading: "New here?",
           items: [
             "New trainers now get a quick 'How to play' guide on their first visit — the whole game in about thirty seconds. You can reopen it any time from Settings",
