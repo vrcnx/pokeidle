@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.7.0";
+export const CURRENT_VERSION = "0.8.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,27 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.8.0",
+      subtitle: "Your team trains while you're away",
+      date: "2026-07-17",
+      highlight: true,
+      sections: [
+        {
+          heading: "💤 Offline progress",
+          items: [
+            "It's an idle game, so it now idles. Come back after a while and your team will have kept battling — you'll see a 'While you were away' summary of the EXP and levels they earned",
+            "Capped and fair: being away counts for up to 8 hours, a single trip grants at most 15 levels, and it's always slower than actually playing — so there's no reason to leave, just no penalty for having a life",
+          ],
+        },
+        {
+          heading: "New here?",
+          items: [
+            "New trainers now get a quick 'How to play' guide on their first visit — the whole game in about thirty seconds. You can reopen it any time from Settings",
+          ],
+        },
+      ],
+    },
     {
       version: "0.7.0",
       subtitle: "Your progress now actually saves",
