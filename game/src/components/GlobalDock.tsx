@@ -10,6 +10,7 @@ import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
 import { openChangelog } from "./ChangelogModal";
+import { openHowToPlay } from "./HowToPlayModal";
 import { openGiveaways } from "./GiveawayModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
@@ -391,6 +392,21 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                       onClick={() => { onClose(); openGiveaways(); }}
                     >
                       🎁 View giveaways
+                    </button>
+                  </div>
+                </section>
+
+                <section className="g-card">
+                  <h3>New here?</h3>
+                  <p className="g-help" style={{ marginTop: 4 }}>
+                    A thirty-second guide to how the game works.
+                  </p>
+                  <div className="settings-legal-links">
+                    <button
+                      className="g-btn-ghost g-btn-small"
+                      onClick={() => { onClose(); openHowToPlay(); }}
+                    >
+                      How to play
                     </button>
                   </div>
                 </section>

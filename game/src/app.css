@@ -4944,6 +4944,71 @@ body.dnd-active {
   justify-content: flex-end;
 }
 .changelog-dismiss { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 6px 16px; }
+
+/* ── How to play (onboarding) ─────────────────────────────────────── */
+.howto-modal {
+  max-width: 520px;
+  width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 720px);
+}
+.howto-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 0;
+}
+.howto-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--gold, #fbbf24);
+}
+.howto-head-text h2 { margin: 2px 0 0; font-size: 22px; }
+.howto-intro {
+  padding: 4px 20px 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.howto-steps {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 4px 20px 8px;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.howto-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.howto-step-icon {
+  font-size: 20px;
+  line-height: 1.2;
+  flex-shrink: 0;
+  width: 26px;
+  text-align: center;
+}
+.howto-step-text h3 { margin: 0 0 2px; font-size: 14px; font-weight: 650; color: var(--text); }
+.howto-step-text p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.howto-foot {
+  padding: 12px 20px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+.howto-dismiss { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 8px 20px; font-weight: 700; }
 .modal.evolution img { animation: pulse 0.7s infinite alternate; }
 @keyframes pulse {
   from { transform: scale(1); filter: brightness(1); }
