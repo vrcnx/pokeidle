@@ -10822,6 +10822,9 @@ input:focus, textarea:focus, select:focus {
 .dex-tab .dex-search-wrap input {
   color: #ffffff;
   padding: 8px 12px;
+  /* 16px so iOS Safari doesn't auto-zoom on focus — the base .dex-search
+     rule is 12px, the same bug already fixed for the mobile chat input. */
+  font-size: 16px;
 }
 .dex-tab .dex-search-wrap input::placeholder { color: rgba(255,255,255,0.55); }
 
@@ -13812,6 +13815,12 @@ html, body {
   .friend-row button {
     min-height: 44px;
     min-width: 56px;
+  }
+  /* Mobile chat's Global/Local tabs — the primary nav inside the mobile
+     Chat tab, done constantly — were stuck at 24px, half the floor every
+     other control in this block already gets. */
+  .mini-chat-tab {
+    min-height: 44px !important;
   }
 }
 
