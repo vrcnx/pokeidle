@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { subscribeUnlock } from "../state/achievements";
 import { TIER_COLOR, type Achievement } from "../data/achievements";
+import { useT } from "../i18n/useT";
 
 // Top-right slide-in toast that fires whenever a fresh achievement
 // unlock is detected. Auto-dismisses after 5s. Up to 3 toasts can
@@ -40,6 +41,8 @@ export function AchievementToast() {
     return () => window.clearInterval(t);
   }, [items.length]);
 
+  const t = useT();
+
   if (items.length === 0) return null;
 
   return (
@@ -58,7 +61,7 @@ export function AchievementToast() {
             <div className="achievement-toast-glow" />
             <div className="achievement-toast-icon">{it.achievement.icon}</div>
             <div className="achievement-toast-body">
-              <span className="achievement-toast-eyebrow">Achievement unlocked</span>
+              <span className="achievement-toast-eyebrow">{t("Achievement unlocked")}</span>
               <strong className="achievement-toast-name">{it.achievement.name}</strong>
               <span className="achievement-toast-desc">{it.achievement.description}</span>
             </div>

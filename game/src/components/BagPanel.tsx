@@ -8,11 +8,13 @@ import { encounters } from "../data/encounters";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { getItemInfo } from "../utils/items";
 import { pushToast } from "./Toast";
+import { useT } from "../i18n/useT";
 
 // Bag — use stones on party members, apply repels/honey to encounter species
 // on the current route.
 export function BagPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const [pickStone, setPickStone] = useState<string | null>(null);
   const [pickEffect, setPickEffect] = useState<string | null>(null);
 
@@ -42,11 +44,11 @@ export function BagPanel() {
 
   return (
     <div className="bag-panel">
-      <h2>Bag</h2>
+      <h2>{t("Bag")}</h2>
 
-      <h3>Evolution stones</h3>
+      <h3>{t("Evolution stones")}</h3>
       {stones.length === 0 ? (
-        <p className="dim">No stones. Buy them from the Reward Shop after gym wins.</p>
+        <p className="dim">{t("No stones. Buy them from the Reward Shop after gym wins.")}</p>
       ) : (
         <>
           <ul className="bag-list">
@@ -58,17 +60,17 @@ export function BagPanel() {
             ))}
           </ul>
           <p className="dim small">
-            Click a Pokémon in your party or box to use a stone.
+            {t("Click a Pokémon in your party or box to use a stone.")}
           </p>
         </>
       )}
 
-      <h3>Repel / Honey (current route)</h3>
+      <h3>{t("Repel / Honey (current route)")}</h3>
       {effectItems.length === 0 ? (
-        <p className="dim">No consumables. Buy them from a Mart.</p>
+        <p className="dim">{t("No consumables. Buy them from a Mart.")}</p>
       ) : pickEffect ? (
         <>
-          <p>Apply {getItemInfo(pickEffect).name} to which species on this route?</p>
+          <p>{t("Apply")} {getItemInfo(pickEffect).name} {t("to which species on this route?")}</p>
           <div className="bag-target-grid">
             {routeEncounters.map((e) => (
               <button key={e.speciesKey} onClick={() => applyEffect(e.speciesKey)}>
@@ -83,7 +85,7 @@ export function BagPanel() {
               </button>
             ))}
           </div>
-          <button onClick={() => setPickEffect(null)}>Cancel</button>
+          <button onClick={() => setPickEffect(null)}>{t("Cancel")}</button>
         </>
       ) : (
         <ul className="bag-list">
@@ -93,22 +95,22 @@ export function BagPanel() {
                 {getItemInfo(id).name} × {state.inventory[id]} —{" "}
                 <span className="dim">{getItemInfo(id).description}</span>
               </span>
-              <button onClick={() => setPickEffect(id)}>Use</button>
+              <button onClick={() => setPickEffect(id)}>{t("Use")}</button>
             </li>
           ))}
         </ul>
       )}
 
-      <h3>Active effects</h3>
+      <h3>{t("Active effects")}</h3>
       {state.activeEffects.length === 0 ? (
-        <p className="dim">None.</p>
+        <p className="dim">{t("None.")}</p>
       ) : (
         <ul className="bag-list">
           {state.activeEffects.map((e, i) => (
             <li key={i}>
-              {getItemInfo(e.itemId).name} on{" "}
+              {getItemInfo(e.itemId).name} {t("on")}{" "}
               {pokemonTable[e.speciesKey]?.name ?? e.speciesKey}
-              {e.routeKey ? ` @ ${e.routeKey}` : ""} — {e.battlesRemaining} battles left
+              {e.routeKey ? ` @ ${e.routeKey}` : ""} — {e.battlesRemaining} {t("battles left")}
             </li>
           ))}
         </ul>

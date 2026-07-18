@@ -8,6 +8,7 @@ import { resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 import type { CatchMode, CatchSettings } from "../types";
 
 // Imperative open/close for modal state, matching ManageMovesModal pattern.
@@ -90,18 +91,19 @@ function CatchSettingsDialog({
 }) {
   const { state, dispatch } = useGame();
   const dialogRef = useModalEnter(".g-card");
+  const t = useT();
   const routeName = routes[routeKey]?.name ?? routeKey;
   return (
     <div ref={dialogRef} className="g-modal catch-settings-modal-v2" onClick={(e) => e.stopPropagation()}>
       <header className="g-modal-head">
-        <h2>Catch Settings <span className="dim" style={{ fontWeight: 500, fontSize: 13 }}>· {routeName}</span></h2>
-        <button className="g-modal-close" onClick={closeCatchSettings} aria-label="Close">×</button>
+        <h2>{t("Catch Settings")} <span className="dim" style={{ fontWeight: 500, fontSize: 13 }}>· {routeName}</span></h2>
+        <button className="g-modal-close" onClick={closeCatchSettings} aria-label={t("Close")}>×</button>
       </header>
 
       <div className="g-modal-body">
         <div className="g-grid">
           <section className="g-card">
-            <h3>Mode</h3>
+            <h3>{t("Mode")}</h3>
             <button
               className={`shiny-toggle ${state.alwaysCatchShinies ? "active" : ""}`}
               onClick={() =>
@@ -111,7 +113,7 @@ function CatchSettingsDialog({
                 })
               }
             >
-              ★ Always catch shinies
+              {t("★ Always catch shinies")}
             </button>
             <div className="catch-mode-section">
               {MODES.map((m) => (
@@ -121,7 +123,7 @@ function CatchSettingsDialog({
                     checked={defaults.mode === m.value}
                     onChange={() => updateDefault({ mode: m.value })}
                   />
-                  <span>{m.label}</span>
+                  <span>{t(m.label)}</span>
                   {m.value === "level_threshold" && defaults.mode === "level_threshold" && (
                     <input
                       type="number"
@@ -139,7 +141,7 @@ function CatchSettingsDialog({
           </section>
 
           <section className="g-card">
-            <h3>Balls</h3>
+            <h3>{t("Balls")}</h3>
             <div className="catch-balls-row">
               {BALL_ORDER.map((b) => {
                 const owned = state.inventory[b] ?? 0;
@@ -173,14 +175,14 @@ function CatchSettingsDialog({
               })}
             </div>
             <p className="g-help" style={{ marginTop: 6 }}>
-              Auto-throws cycle through enabled balls in this order — Master &gt; Ultra &gt; Great &gt; Poké.
+              {t("Auto-throws cycle through enabled balls in this order — Master > Ultra > Great > Poké.")}
             </p>
           </section>
         </div>
 
         <section className="g-card g-card-full">
           <header className="ctx-row-head" style={{ marginBottom: 8 }}>
-            <h3 style={{ margin: 0 }}>Pokémon on this route</h3>
+            <h3 style={{ margin: 0 }}>{t("Pokémon on this route")}</h3>
             <div className="catch-bulk">
               <button
                 className="g-btn-ghost g-btn-small"
@@ -191,7 +193,7 @@ function CatchSettingsDialog({
                   })
                 }
               >
-                All
+                {t("All")}
               </button>
               <button
                 className="g-btn-ghost g-btn-small"
@@ -202,12 +204,12 @@ function CatchSettingsDialog({
                   })
                 }
               >
-                None
+                {t("None")}
               </button>
             </div>
           </header>
           {encList.length === 0 ? (
-            <p className="g-help">No wild Pokémon on this route.</p>
+            <p className="g-help">{t("No wild Pokémon on this route.")}</p>
           ) : (
             <ul className="catch-species-list">
               {encList.map((e) => {
@@ -231,7 +233,7 @@ function CatchSettingsDialog({
                       <span className="catch-name">{seen ? sp.name : "???"}</span>
                       {rule.mode === "level_threshold" && (
                         <label className="catch-lvl">
-                          ≥ Lv
+                          {t("≥ Lv")}
                           <input
                             type="number"
                             min={1}
@@ -250,13 +252,13 @@ function CatchSettingsDialog({
                     <button
                       className={`catch-toggle ${rule.enabled ? "on" : "off"}`}
                       title={rule.enabled
-                        ? "Auto-catch is ON for this species. Click to skip."
-                        : "Auto-catch is OFF for this species. Click to enable."}
+                        ? t("Auto-catch is ON for this species. Click to skip.")
+                        : t("Auto-catch is OFF for this species. Click to enable.")}
                       onClick={() =>
                         setRule(e.speciesKey, { ...rule, enabled: !rule.enabled })
                       }
                     >
-                      {rule.enabled ? "✓ CATCH" : "✗ SKIP"}
+                      {rule.enabled ? t("✓ CATCH") : t("✗ SKIP")}
                     </button>
                   </li>
                 );
@@ -267,7 +269,7 @@ function CatchSettingsDialog({
       </div>
 
       <footer className="g-modal-foot">
-        <button className="g-btn-primary" onClick={closeCatchSettings}>Done</button>
+        <button className="g-btn-primary" onClick={closeCatchSettings}>{t("Done")}</button>
       </footer>
     </div>
   );

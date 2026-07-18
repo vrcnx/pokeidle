@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { sfxManager } from "../utils/sfx";
 import { musicManager } from "../utils/music";
+import { useT } from "../i18n/useT";
 
 // In-scene heal animation. The heal video is the source of truth for
 // timing — we play it through completely and fire COMPLETE_HEALING on
@@ -20,6 +21,7 @@ const FALLBACK_DURATION_MS = 6000;
 
 export function HealOverlay() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const sessionRef = useRef<number>(-1);
   const active = state.phase === "healing" && !!state.healingState;
@@ -96,9 +98,9 @@ export function HealOverlay() {
   if (!active) return null;
   const step = state.healingState!.step;
   const caption =
-    step >= 2 ? "Your Pokémon are fully healed!"
-    : step >= 1 ? "Healing your Pokémon…"
-    : "Welcome to the Pokémon Center.";
+    step >= 2 ? t("Your Pokémon are fully healed!")
+    : step >= 1 ? t("Healing your Pokémon…")
+    : t("Welcome to the Pokémon Center.");
 
   return (
     <div className="heal-scene-overlay">

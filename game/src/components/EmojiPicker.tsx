@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n/useT";
 
 // Emoji already work end-to-end through chat (composer -> socket
 // sanitizer -> Postgres text column -> render) — this just makes them
@@ -15,6 +16,7 @@ const EMOJI = [
 export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -31,8 +33,8 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
         type="button"
         className="emoji-picker-btn"
         onClick={() => setOpen((v) => !v)}
-        title="Insert an emoji"
-        aria-label="Insert an emoji"
+        title={t("Insert an emoji")}
+        aria-label={t("Insert an emoji")}
         aria-expanded={open}
       >🙂</button>
       {open && (

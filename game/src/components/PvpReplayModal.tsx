@@ -3,6 +3,7 @@ import { api, type PvpReplayMatch } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 // Module-scoped open() so any component (the history list) can launch
 // a replay. Holds the match id; the modal fetches the full payload
@@ -45,6 +46,7 @@ export function PvpReplayModal() {
   const matchId = useOpenId();
   const dialogRef = useModalEnter(".g-card");
   const { me } = useAuth();
+  const t = useT();
   const [match, setMatch] = useState<PvpReplayMatch | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,7 +69,7 @@ export function PvpReplayModal() {
     setErr(null);
     api.matchReplay(matchId)
       .then((d) => setMatch(d.match))
-      .catch((e) => setErr(e?.message ?? "Could not load replay."))
+      .catch((e) => setErr(e?.message ?? t("Could not load replay.")))
       .finally(() => setBusy(false));
   }, [matchId]);
 
@@ -79,8 +81,8 @@ export function PvpReplayModal() {
       return;
     }
     const ms = STEP_RATES_MS[speed];
-    const t = setTimeout(() => setCursor((c) => Math.min(match.log.length, c + 1)), ms);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCursor((c) => Math.min(match.log.length, c + 1)), ms);
+    return () => clearTimeout(timer);
   }, [match, cursor, speed, paused]);
 
   // Press Escape to close.
@@ -102,22 +104,22 @@ export function PvpReplayModal() {
         className="g-modal pvp-replay-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Match replay"
+        aria-label={t("Match replay")}
       >
         <header className="g-modal-head">
           <h2>
-            Replay
+            {t("Replay")}
             {match && (
               <span className="dim small" style={{ marginLeft: 12 }}>
                 {match.userAUsername} vs {match.userBUsername}
               </span>
             )}
           </h2>
-          <button className="g-modal-close" onClick={closeReplay} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={closeReplay} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="g-modal-body">
-          {busy && <p className="dim">Loading replay…</p>}
+          {busy && <p className="dim">{t("Loading replay…")}</p>}
           {err && <div className="page-err" style={{ color: "#fca5a5" }}>{err}</div>}
           {match && (
             <ReplayBody
@@ -135,28 +137,28 @@ export function PvpReplayModal() {
               onClick={() => setCursor(0)}
               disabled={cursor === 0}
             >
-              ⟲ Restart
+              {t("⟲ Restart")}
             </button>
             <button
               className="g-btn-ghost"
               onClick={() => setPaused((p) => !p)}
               disabled={cursor >= match.log.length}
             >
-              {paused ? "▶ Play" : "❚❚ Pause"}
+              {paused ? t("▶ Play") : t("❚❚ Pause")}
             </button>
             <button
               className="g-btn-ghost"
               onClick={() => setCursor((c) => Math.min(match.log.length, c + 1))}
               disabled={cursor >= match.log.length}
             >
-              ⏵ Step
+              {t("⏵ Step")}
             </button>
             <button
               className="g-btn-ghost"
               onClick={() => setCursor(match.log.length)}
               disabled={cursor >= match.log.length}
             >
-              ⏭ End
+              {t("⏭ End")}
             </button>
             <span style={{ flex: 1 }} />
             <select
@@ -166,7 +168,7 @@ export function PvpReplayModal() {
               <option value="1x">1x</option>
               <option value="2x">2x</option>
               <option value="4x">4x</option>
-              <option value="instant">Instant</option>
+              <option value="instant">{t("Instant")}</option>
             </select>
             <span className="dim small">
               {cursor} / {match.log.length}
@@ -187,6 +189,7 @@ export function PvpReplayModal() {
 // We track this in pure state (no refs) so a cursor scrub recomputes
 // from scratch — keeps replay honest and idempotent.
 function ReplayBody({ match, cursor, meId }: { match: PvpReplayMatch; cursor: number; meId: string | null }) {
+  const t = useT();
   // From the player's POV, "side a" is whichever side I was on if I
   // played in this match; otherwise default to "a" so both sides
   // are visible from the recorder's seat.
@@ -209,7 +212,7 @@ function ReplayBody({ match, cursor, meId }: { match: PvpReplayMatch; cursor: nu
               faint={view[opponentSide].active!.faint}
             />
           ) : (
-            <p className="dim small">Waiting for first switch…</p>
+            <p className="dim small">{t("Waiting for first switch…")}</p>
           )}
         </div>
         <div className="pvp-side pvp-side-you">
@@ -223,13 +226,13 @@ function ReplayBody({ match, cursor, meId }: { match: PvpReplayMatch; cursor: nu
               faint={view[mySide].active!.faint}
             />
           ) : (
-            <p className="dim small">Waiting for first switch…</p>
+            <p className="dim small">{t("Waiting for first switch…")}</p>
           )}
         </div>
       </div>
 
       <section className="g-card g-card-full pvp-log-card">
-        <h3>Battle log</h3>
+        <h3>{t("Battle log")}</h3>
         <ReplayLog lines={view.lines} mySide={mySide} />
       </section>
     </>
@@ -237,6 +240,7 @@ function ReplayBody({ match, cursor, meId }: { match: PvpReplayMatch; cursor: nu
 }
 
 function ReplayLog({ lines, mySide }: { lines: string[]; mySide: "a" | "b" }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement | null>(null);
   // Auto-scroll on every new line so the latest event stays visible.
   useEffect(() => {
@@ -245,7 +249,7 @@ function ReplayLog({ lines, mySide }: { lines: string[]; mySide: "a" | "b" }) {
   }, [lines.length]);
   return (
     <div className="pvp-log" ref={ref}>
-      {lines.length === 0 && <div className="dim small">Press ▶ to start playback.</div>}
+      {lines.length === 0 && <div className="dim small">{t("Press ▶ to start playback.")}</div>}
       {lines.map((raw, i) => {
         const decoded = decodeForReplay(raw, mySide);
         if (!decoded) return null;

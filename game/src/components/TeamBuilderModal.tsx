@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 import type { Pokemon } from "../types";
 
 // Modal for picking a 1-6 Pokémon team for PvP. Selection is constrained
@@ -57,6 +58,7 @@ export function TeamBuilderModal() {
   const req = useRequest();
   const { state } = useGame();
   const dialogRef = useModalEnter(".g-card");
+  const t = useT();
   // Selected Pokémon ids — order matters for lead vs. bench. We store
   // ids rather than indices because the box can be re-sorted.
   const [picked, setPicked] = useState<string[]>([]);
@@ -115,10 +117,10 @@ export function TeamBuilderModal() {
   };
 
   const title =
-    req.mode === "invite"     ? "Pick a team to send"
-    : req.mode === "accept"   ? "Accept battle — pick a team"
-    : req.mode === "queue"    ? "Random battle — pick a team"
-    :                            "Tournament — pick a team";
+    req.mode === "invite"     ? t("Pick a team to send")
+    : req.mode === "accept"   ? t("Accept battle — pick a team")
+    : req.mode === "queue"    ? t("Random battle — pick a team")
+    :                            t("Tournament — pick a team");
 
   const ready = picked.length >= 1;
 
@@ -133,23 +135,23 @@ export function TeamBuilderModal() {
       >
         <header className="g-modal-head">
           <h2>{title}</h2>
-          <button className="g-modal-close" onClick={cancel} aria-label="Cancel">×</button>
+          <button className="g-modal-close" onClick={cancel} aria-label={t("Cancel")}>×</button>
         </header>
 
         <div className="g-modal-body">
           {req.levelCap != null && (
             <p className="dim small team-builder-cap">
-              Levels in this match are capped to <strong>Lv {req.levelCap}</strong>
-              . Your saved Pokémon are unchanged.
+              {t("Levels in this match are capped to")} <strong>{t("Lv")} {req.levelCap}</strong>
+              {t(". Your saved Pokémon are unchanged.")}
             </p>
           )}
 
           {/* Picked-team strip */}
           <section className="g-card g-card-full team-builder-strip">
-            <h3>Your team <span className="dim small">({picked.length}/6)</span></h3>
+            <h3>{t("Your team")} <span className="dim small">({picked.length}/6)</span></h3>
             {picked.length === 0 ? (
               <p className="dim small team-builder-empty">
-                Tap up to 6 Pokémon below. The first one you pick is sent out first.
+                {t("Tap up to 6 Pokémon below. The first one you pick is sent out first.")}
               </p>
             ) : (
               <ol className="team-builder-strip-list">
@@ -169,25 +171,25 @@ export function TeamBuilderModal() {
                       />
                       <div className="team-builder-strip-info">
                         <strong>{p.nickname ?? p.name}{p.isShiny ? " ✨" : ""}</strong>
-                        <small className="dim">Lv {p.level}</small>
+                        <small className="dim">{t("Lv")} {p.level}</small>
                       </div>
                       <div className="team-builder-strip-actions">
                         <button
                           className="g-btn-ghost g-btn-tiny"
                           onClick={() => move(id, -1)}
                           disabled={i === 0}
-                          title="Move up"
+                          title={t("Move up")}
                         >↑</button>
                         <button
                           className="g-btn-ghost g-btn-tiny"
                           onClick={() => move(id, +1)}
                           disabled={i === picked.length - 1}
-                          title="Move down"
+                          title={t("Move down")}
                         >↓</button>
                         <button
                           className="g-btn-ghost g-btn-tiny"
                           onClick={() => toggle(id)}
-                          title="Remove"
+                          title={t("Remove")}
                         >×</button>
                       </div>
                     </li>
@@ -199,9 +201,9 @@ export function TeamBuilderModal() {
 
           {/* Available pool — party first, then box */}
           <section className="g-card g-card-full team-builder-pool">
-            <h3>Pick from your party + box</h3>
+            <h3>{t("Pick from your party + box")}</h3>
             <div className="team-builder-pool-grid">
-              {all.length === 0 && <p className="dim">No Pokémon yet.</p>}
+              {all.length === 0 && <p className="dim">{t("No Pokémon yet.")}</p>}
               {all.map(({ source, mon }) => {
                 const sel = picked.includes(mon.id);
                 const slotNum = sel ? picked.indexOf(mon.id) + 1 : null;
@@ -221,7 +223,7 @@ export function TeamBuilderModal() {
                       style={{ imageRendering: "pixelated" }}
                     />
                     <strong>{mon.nickname ?? mon.name}{mon.isShiny ? " ✨" : ""}</strong>
-                    <small className="dim">Lv {mon.level} · {source}</small>
+                    <small className="dim">{t("Lv")} {mon.level} · {source}</small>
                     {sel && <span className="team-builder-pool-slot">{slotNum}</span>}
                   </button>
                 );
@@ -231,15 +233,15 @@ export function TeamBuilderModal() {
         </div>
 
         <footer className="g-modal-foot">
-          <button className="g-btn-ghost" onClick={cancel}>Cancel</button>
+          <button className="g-btn-ghost" onClick={cancel}>{t("Cancel")}</button>
           <span style={{ flex: 1 }} />
           <button
             className="g-btn-primary"
             onClick={confirm}
             disabled={!ready}
-            title={ready ? undefined : "Pick at least one Pokémon."}
+            title={ready ? undefined : t("Pick at least one Pokémon.")}
           >
-            Confirm team
+            {t("Confirm team")}
           </button>
         </footer>
       </div>

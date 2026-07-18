@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
+import { useT } from "../i18n/useT";
 
 // Battle juice — picks up "grew to Lv N", "X was caught!", and "earned
 // $N" messages from the battle log and overlays a transient celebratory
@@ -17,6 +18,7 @@ type Burst =
 
 export function BattleJuice() {
   const { state } = useGame();
+  const t = useT();
   const prevLen = useRef(state.battleLog.length);
   const [burst, setBurst] = useState<Burst | null>(null);
 
@@ -33,7 +35,7 @@ export function BattleJuice() {
       // Catch wins highest priority (rarest + most celebratory).
       const catchMatch = /^(.+?) was caught!$/.exec(line);
       if (catchMatch) {
-        next = { key: Date.now() + i, kind: "catch", text: "GOT IT!" };
+        next = { key: Date.now() + i, kind: "catch", text: t("GOT IT!") };
         break;
       }
 
@@ -55,8 +57,8 @@ export function BattleJuice() {
     if (!next) return;
     setBurst(next);
     const dwell = state.speed >= 5 ? 900 : state.speed >= 2 ? 1200 : 1500;
-    const t = setTimeout(() => setBurst(null), dwell);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setBurst(null), dwell);
+    return () => clearTimeout(timer);
   }, [state.battleLog, state.speed]);
 
   if (!burst) return null;

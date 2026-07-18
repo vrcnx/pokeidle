@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
+import { useT } from "../i18n/useT";
 import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { routes } from "../data/routes";
 import { useDamageFlash } from "../hooks/useDamageFlash";
@@ -42,6 +43,7 @@ function bossBg(state: ReturnType<typeof useGame>["state"]): string | null {
 
 export function BattleScene() {
   const { state } = useGame();
+  const t = useT();
   const route = routes[state.currentLocation];
   const locationBg = `/backgrounds/${state.currentLocation}.webp`;
   const fallbackBg = fallbackBgFor(route?.type);
@@ -53,7 +55,7 @@ export function BattleScene() {
 
   const player = state.playerPokemon;
   const enemy = state.enemyPokemon;
-  const status = statusLine(state);
+  const status = statusLine(state, t);
 
   // Damage flash counters re-trigger when HP drops; reset on Pokemon switch.
   const playerBump = useDamageFlash(player?.id, player?.currentHp);
@@ -102,9 +104,9 @@ export function BattleScene() {
                     <img
                       key={i}
                       src={itemSpriteUrl("pokeball")}
-                      alt={i < spent ? "fainted" : "ready"}
+                      alt={i < spent ? t("fainted") : t("ready")}
                       className={`trainer-ball ${i < spent ? "spent" : ""}`}
-                      title={i < spent ? "fainted" : "ready"}
+                      title={i < spent ? t("fainted") : t("ready")}
                       width={12}
                       height={12}
                       draggable={false}
@@ -163,7 +165,7 @@ export function BattleScene() {
       <MoveAnimation />
       {state.battleWeather && (
         <div className={`weather-badge weather-${state.battleWeather.type}`}>
-          {weatherLabel(state.battleWeather.type)} <small>{state.battleWeather.turnsRemaining}T</small>
+          {weatherLabel(state.battleWeather.type, t)} <small>{state.battleWeather.turnsRemaining}T</small>
         </div>
       )}
       <ExpGainFlash />
@@ -228,6 +230,7 @@ function DamageFlash({ side }: { side: "player" | "enemy" }) {
 // the time we re-render.
 function ExpGainFlash() {
   const { state } = useGame();
+  const t = useT();
   const prevLen = useRef(state.battleLog.length);
   const [pop, setPop] = useState<{ key: number; amount: number; share: boolean } | null>(null);
   useEffect(() => {
@@ -273,7 +276,7 @@ function ExpGainFlash() {
       style={{ animationDuration: `${animMs}ms` }}
       aria-hidden
     >
-      +{pop.amount} EXP
+      +{pop.amount} {t("EXP")}
     </div>
   );
 }
@@ -292,6 +295,7 @@ type EffPop =
 
 function EffectivenessFlash() {
   const { state } = useGame();
+  const t = useT();
   const prevLen = useRef(state.battleLog.length);
   const [pop, setPop] = useState<EffPop | null>(null);
   useEffect(() => {
@@ -306,18 +310,18 @@ function EffectivenessFlash() {
     for (let i = start; i < end; i++) {
       const line = state.battleLog[i] ?? "";
       if (line === "A critical hit!") crit = true;
-      else if (line === "It's super effective!")     eff = { kind: "se",   text: "Super effective!" };
-      else if (line === "It's not very effective...") eff = { kind: "nve",  text: "Not very effective" };
-      else if (line === "It had no effect!")          eff = { kind: "none", text: "No effect" };
+      else if (line === "It's super effective!")     eff = { kind: "se",   text: t("Super effective!") };
+      else if (line === "It's not very effective...") eff = { kind: "nve",  text: t("Not very effective") };
+      else if (line === "It had no effect!")          eff = { kind: "none", text: t("No effect") };
     }
     if (!crit && !eff) return;
     const next: EffPop = crit
-      ? { key: Date.now(), kind: "crit", text: "Critical hit!" }
+      ? { key: Date.now(), kind: "crit", text: t("Critical hit!") }
       : { key: Date.now(), kind: eff!.kind, text: eff!.text };
     setPop(next);
     const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
-    const t = setTimeout(() => setPop(null), ms);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setPop(null), ms);
+    return () => clearTimeout(timer);
   }, [state.battleLog, state.speed]);
   if (!pop) return null;
   const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
@@ -333,12 +337,12 @@ function EffectivenessFlash() {
   );
 }
 
-function weatherLabel(w: string): string {
+function weatherLabel(w: string, t: (str: string) => string): string {
   switch (w) {
-    case "sun":  return "☀ Sun";
-    case "rain": return "☂ Rain";
-    case "sand": return "🌪 Sand";
-    case "hail": return "❄ Hail";
+    case "sun":  return t("☀ Sun");
+    case "rain": return t("☂ Rain");
+    case "sand": return t("🌪 Sand");
+    case "hail": return t("❄ Hail");
     default: return w;
   }
 }
@@ -356,6 +360,7 @@ function weatherLabel(w: string): string {
 //   5. .catch-crack  — bright vertical crack on failure
 function CatchAnimation() {
   const { state } = useGame();
+  const t = useT();
   const anim = state.catchAnim;
   if (!anim) return null;
   const resultClass = anim.success ? "result-success" : "result-fail";
@@ -381,7 +386,7 @@ function CatchAnimation() {
           <span className="catch-spark s8" />
           <span className="catch-success-flash" />
           <span className="catch-success-ring2" />
-          <span className="catch-success-caption">Gotcha!</span>
+          <span className="catch-success-caption">{t("Gotcha!")}</span>
         </>
       ) : (
         <>
@@ -423,26 +428,27 @@ function Typewriter({ text }: { text: string }) {
 }
 
 function HpCard({ pokemon, className }: { pokemon: Pokemon; className: string }) {
+  const t = useT();
   const hpPct = (pokemon.currentHp / pokemon.maxHp) * 100;
   const hpClass = hpPct > 50 ? "ok" : hpPct > 20 ? "warn" : "low";
   return (
     <div className={`hp-card ${className}`}>
       <div className="hp-card-name">
         <strong>{pokemon.name.toUpperCase()}{pokemon.isShiny ? " ✨" : ""}</strong>
-        <span>Lv.{pokemon.level}</span>
+        <span>{t("Lv.")}{pokemon.level}</span>
       </div>
       <div className="hp-card-row">
-        <span className="hp-card-label">HP</span>
+        <span className="hp-card-label">{t("HP")}</span>
         <div className={`hp-card-bar ${hpClass}`}>
           <div className="hp-card-fill" style={{ width: `${hpPct}%` }} />
         </div>
         {pokemon.status && (
           <span className={`hp-status-badge status-${pokemon.status}`}>
-            {statusBadgeLabel(pokemon.status)}
+            {statusBadgeLabel(pokemon.status, t)}
           </span>
         )}
         {(pokemon.confusedTurns ?? 0) > 0 && (
-          <span className="hp-status-badge status-confused">CNF</span>
+          <span className="hp-status-badge status-confused">{t("CNF")}</span>
         )}
       </div>
       <StatStagesRow stages={pokemon.statStages} />
@@ -485,14 +491,14 @@ function statStageLabel(stat: string): string {
   }
 }
 
-function statusBadgeLabel(status: string): string {
+function statusBadgeLabel(status: string, t: (str: string) => string): string {
   switch (status) {
-    case "paralyzed":     return "PAR";
-    case "asleep":        return "SLP";
-    case "burned":        return "BRN";
-    case "frozen":        return "FRZ";
-    case "poisoned":      return "PSN";
-    case "badlyPoisoned": return "TOX";
+    case "paralyzed":     return t("PAR");
+    case "asleep":        return t("SLP");
+    case "burned":        return t("BRN");
+    case "frozen":        return t("FRZ");
+    case "poisoned":      return t("PSN");
+    case "badlyPoisoned": return t("TOX");
     default: return status.slice(0, 3).toUpperCase();
   }
 }
@@ -503,13 +509,14 @@ function statusBadgeLabel(status: string): string {
 // HP card or log line. CSS handles the corner placement + colour-coded
 // pulse animation per status.
 function SpriteStatusBadge({ status }: { status: string }) {
+  const t = useT();
   return (
     <span
       className={`sprite-status-badge status-${status}`}
       aria-label={`Status: ${status}`}
       title={`Status: ${status}`}
     >
-      {statusBadgeLabel(status)}
+      {statusBadgeLabel(status, t)}
     </span>
   );
 }
@@ -523,13 +530,13 @@ const BOOT_LOG_LINES = new Set(["Game loaded!", "Welcome back!"]);
 
 // battle-log line whenever there is one, falling back to a contextual phase
 // message when the log is empty (e.g. just-started game).
-function statusLine(state: ReturnType<typeof useGame>["state"]): string {
+function statusLine(state: ReturnType<typeof useGame>["state"], t: (str: string) => string): string {
   const last = state.battleLog[state.battleLog.length - 1];
   if (last && !BOOT_LOG_LINES.has(last)) return last;
-  if (state.awaitingSwitch) return "Choose your next Pokémon!";
-  if (state.paused) return "Paused.";
-  if (state.phase === "evolution") return "Evolving…";
-  if (state.phase === "healing") return "Healing…";
+  if (state.awaitingSwitch) return t("Choose your next Pokémon!");
+  if (state.paused) return t("Paused.");
+  if (state.phase === "evolution") return t("Evolving…");
+  if (state.phase === "healing") return t("Healing…");
   // Manual mode mid-battle with no pending events: the player is being
   // asked to pick a move. Canonical Pokémon games show this prompt.
   // Without it the scene reads as idle even though the moves panel is
@@ -547,5 +554,5 @@ function statusLine(state: ReturnType<typeof useGame>["state"]): string {
   ) {
     return `What will ${state.playerPokemon.name} do?`;
   }
-  return "Looking for trainers…";
+  return t("Looking for trainers…");
 }

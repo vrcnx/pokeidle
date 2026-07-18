@@ -10,6 +10,7 @@ import { playTradeAnimation } from "./TradeAnimation";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import { pushToast } from "./Toast";
 import type { Pokemon } from "../types";
+import { useT } from "../i18n/useT";
 
 // Live two-sided trade UI. Mounts whenever there's an active room in
 // the trade state (set by trade:start from the server after both sides
@@ -34,6 +35,7 @@ export function TradeRoomModal() {
 
 function TradeRoomDialog({ room }: { room: RoomState }) {
   const { state, dispatch } = useGame();
+  const t = useT();
   const dialogRef = useModalEnter(".g-card");
   const [now, setNow] = useState(Date.now());
   // Cancelling a trade was previously instant — clicking the X or the
@@ -61,11 +63,11 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
     const c = room.completion;
     const sent = state.party.find((p) => p.id === c.sentMonId)
       ?? state.box.find((p) => p.id === c.sentMonId);
-    const sentName = sent?.nickname ?? sent?.name ?? "your Pokémon";
+    const sentName = sent?.nickname ?? sent?.name ?? t("your Pokémon");
     const received = c.received as unknown as Pokemon;
     playTradeAnimation({
       from: {
-        name: "You",
+        name: t("You"),
         pokemonName: sentName,
         speciesKey: sent?.speciesKey ?? "pidgey",
         isShiny: sent?.isShiny ?? false,
@@ -129,11 +131,11 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
         className="g-modal trade-room-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Trade room"
+        aria-label={t("Trade room")}
       >
         <header className="g-modal-head">
           <h2>
-            Trading with{" "}
+            {t("Trading with")}{" "}
             <button
               type="button"
               className="pvp-opponent-link"
@@ -144,19 +146,19 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
             </button>
           </h2>
           <span className="dim small trade-room-timer">{secondsLeft}s</span>
-          <button className="g-modal-close" onClick={requestCancel} aria-label="Cancel">×</button>
+          <button className="g-modal-close" onClick={requestCancel} aria-label={t("Cancel")}>×</button>
         </header>
         {confirmingCancel && (
-          <div className="trade-cancel-confirm" role="alertdialog" aria-label="Confirm cancel">
+          <div className="trade-cancel-confirm" role="alertdialog" aria-label={t("Confirm cancel")}>
             <span>
-              Cancel this trade? Both sides will lose any locked offers.
+              {t("Cancel this trade? Both sides will lose any locked offers.")}
             </span>
             <div className="trade-cancel-confirm-actions">
               <button className="g-btn-ghost g-btn-small" onClick={onAbortCancel}>
-                Keep trading
+                {t("Keep trading")}
               </button>
               <button className="g-btn-danger-ghost g-btn-small" onClick={onConfirmCancel}>
-                Yes, cancel
+                {t("Yes, cancel")}
               </button>
             </div>
           </div>
@@ -165,7 +167,7 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
         <div className="g-modal-body">
           <div className="trade-room-board">
             <SidePanel
-              title="Your offer"
+              title={t("Your offer")}
               offer={room.myOffer}
               locked={room.myLocked}
               onUnpick={room.myOffer && !room.myLocked ? onUnpick : undefined}
@@ -180,10 +182,10 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
           </div>
 
           <section className="g-card g-card-full">
-            <h3>Pick a Pokémon to send</h3>
+            <h3>{t("Pick a Pokémon to send")}</h3>
             {room.myLocked ? (
               <p className="g-help">
-                You've locked your offer. Unlock to change your selection.
+                {t("You've locked your offer. Unlock to change your selection.")}
               </p>
             ) : (
               <ul className="trade-room-party">
@@ -204,7 +206,7 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
                       />
                       <div className="trade-room-party-info">
                         <strong>{p.nickname ?? p.name}{p.isShiny ? " ✨" : ""}</strong>
-                        <small className="dim">Lv {p.level} · {p.name}</small>
+                        <small className="dim">{t("Lv ")}{p.level} · {p.name}</small>
                       </div>
                       {p.heldItem && (
                         <span
@@ -225,15 +227,14 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
                         onClick={() => onPick(p)}
                         disabled={selected}
                       >
-                        {selected ? "Selected" : "Select"}
+                        {selected ? t("Selected") : t("Select")}
                       </button>
                     </li>
                   );
                 })}
                 {state.party.length <= 1 && (
                   <li className="dim small" style={{ padding: 8 }}>
-                    Need at least 2 party Pokémon to trade — your last mon
-                    can't be traded away.
+                    {t("Need at least 2 party Pokémon to trade — your last mon can't be traded away.")}
                   </li>
                 )}
               </ul>
@@ -242,19 +243,19 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
         </div>
 
         <footer className="g-modal-foot">
-          <button className="g-btn-danger-ghost" onClick={requestCancel}>Cancel trade</button>
+          <button className="g-btn-danger-ghost" onClick={requestCancel}>{t("Cancel trade")}</button>
           <span style={{ flex: 1 }} />
           <button
             className={room.myLocked ? "g-btn-ghost" : "g-btn-primary"}
             onClick={onToggleLock}
             disabled={!room.myOffer || state.party.length <= 1}
             title={
-              !room.myOffer ? "Pick a Pokémon first"
-              : state.party.length <= 1 ? "Need at least 2 party Pokémon"
+              !room.myOffer ? t("Pick a Pokémon first")
+              : state.party.length <= 1 ? t("Need at least 2 party Pokémon")
               : undefined
             }
           >
-            {room.myLocked ? "Unlock" : "Lock in offer"}
+            {room.myLocked ? t("Unlock") : t("Lock in offer")}
           </button>
         </footer>
       </div>
@@ -271,13 +272,14 @@ function SidePanel({
   onUnpick?: () => void;
   isMine?: boolean;
 }) {
+  const t = useT();
   const heldName = offer?.heldItem ? itemsCatalog[offer.heldItem]?.name : null;
   return (
     <section className="g-card trade-side-card">
       <header className="trade-side-head">
         <strong>{title}</strong>
         <span className={`trade-side-status ${locked ? "locked" : "open"}`}>
-          {locked ? "✓ Locked" : isMine ? "Choosing…" : "Waiting…"}
+          {locked ? t("✓ Locked") : isMine ? t("Choosing…") : t("Waiting…")}
         </span>
       </header>
       {offer ? (
@@ -292,10 +294,10 @@ function SidePanel({
           />
           <div className="trade-side-info">
             <strong>{offer.nickname ?? offer.name}{offer.isShiny ? " ✨" : ""}</strong>
-            <small className="dim">Lv {offer.level}</small>
+            <small className="dim">{t("Lv ")}{offer.level}</small>
             {heldName && (
               <small className="dim trade-side-held">
-                Holding {heldName}
+                {t("Holding ")}{heldName}
               </small>
             )}
           </div>
@@ -304,13 +306,13 @@ function SidePanel({
               className="g-btn-ghost g-btn-small trade-side-unpick"
               onClick={onUnpick}
             >
-              Change
+              {t("Change")}
             </button>
           )}
         </div>
       ) : (
         <p className="dim small trade-side-empty">
-          {isMine ? "Pick a Pokémon below." : "Waiting for them to choose…"}
+          {isMine ? t("Pick a Pokémon below.") : t("Waiting for them to choose…")}
         </p>
       )}
     </section>

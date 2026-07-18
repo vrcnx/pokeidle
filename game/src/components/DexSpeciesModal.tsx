@@ -8,6 +8,7 @@ import { raidLegendaries, MYTHICAL_MIN_LEVEL } from "../data/raidLegendaries";
 import { STARTER_KEYS } from "../state/initialState";
 import { abilitiesFor, abilityInfo } from "../data/abilities";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 import type { PokemonType, EvolutionTrigger } from "../types";
 
 const TYPE_COLOR: Record<PokemonType, string> = {
@@ -44,6 +45,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
   const { state } = useGame();
   const sp = pokemonTable[speciesKey];
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+  const t = useT();
   if (!sp) return null;
 
   const caught = state.pokedexCaught.includes(speciesKey);
@@ -101,7 +103,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
             <span className="dex-species-id">#{String(sp.id).padStart(3, "0")}</span>
             <span style={{ marginLeft: 8 }}>{sp.name}</span>
           </h2>
-          <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="g-modal-body">
@@ -127,9 +129,9 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
                   </span>
                 ))}
                 <span className="dex-species-status-inline">
-                  {caught && <span className="dex-status-tag caught">✓ Caught</span>}
-                  {!caught && seen && <span className="dex-status-tag seen">Seen</span>}
-                  {shiny && <span className="dex-status-tag shiny">✨ Shiny</span>}
+                  {caught && <span className="dex-status-tag caught">{t("✓ Caught")}</span>}
+                  {!caught && seen && <span className="dex-status-tag seen">{t("Seen")}</span>}
+                  {shiny && <span className="dex-status-tag shiny">{t("✨ Shiny")}</span>}
                 </span>
               </div>
             </div>
@@ -137,7 +139,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
 
           <div className="g-grid">
             <section className="g-card">
-              <h3>Base Stats</h3>
+              <h3>{t("Base Stats")}</h3>
               <ul className="dex-species-stats">
                 {(["hp","attack","defense","spAttack","spDefense","speed"] as const).map((stat) => {
                   const val = sp.baseStats[stat];
@@ -157,7 +159,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
 
             {ab && (
               <section className="g-card">
-                <h3>Abilities</h3>
+                <h3>{t("Abilities")}</h3>
                 <ul className="dex-species-abilities">
                   {ab.primary.map((id) => {
                     const info = abilityInfo[id];
@@ -173,7 +175,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
                     <li className="dex-ability-hidden">
                       <span className="dex-ability-name">
                         {abilityInfo[ab.hidden].name}
-                        <span className="dim small"> · Hidden</span>
+                        <span className="dim small">{t(" · Hidden")}</span>
                       </span>
                       <span className="dim dex-ability-desc">{abilityInfo[ab.hidden].description}</span>
                     </li>
@@ -184,9 +186,9 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
           </div>
 
           <section className="g-card g-card-full">
-            <h3>Where to Find</h3>
+            <h3>{t("Where to Find")}</h3>
             {!hasAnySource && (
-              <p className="g-help">No known source.</p>
+              <p className="g-help">{t("No known source.")}</p>
             )}
 
             {foundIn.length > 0 && (
@@ -209,19 +211,19 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
               <ul className="dex-species-routes" style={{ marginTop: foundIn.length > 0 ? 6 : 0 }}>
                 {isStarter && (
                   <li>
-                    <span>Starter</span>
-                    <span className="dim">Prof. Oak's gift</span>
+                    <span>{t("Starter")}</span>
+                    <span className="dim">{t("Prof. Oak's gift")}</span>
                   </li>
                 )}
                 {evolvesFrom.map((ev) => (
                   <li key={ev.fromKey}>
-                    <span>Evolve {ev.fromName}</span>
+                    <span>{t("Evolve ")}{ev.fromName}</span>
                     <span className="dim">{evolutionLabel(ev.trigger)}</span>
                   </li>
                 ))}
                 {raidEntry && (
                   <li>
-                    <span>Raid</span>
+                    <span>{t("Raid")}</span>
                     <span className="dim">
                       {raidEntry.mythical ? `Lv ${MYTHICAL_MIN_LEVEL}+ raid` : `Lv ${raidEntry.level}+ raid`}
                     </span>
@@ -233,7 +235,7 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
         </div>
 
         <footer className="g-modal-foot">
-          <button className="g-btn-primary" onClick={onClose}>Close</button>
+          <button className="g-btn-primary" onClick={onClose}>{t("Close")}</button>
         </footer>
       </div>
     </div>

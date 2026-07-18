@@ -3,6 +3,7 @@ import { api, type RatingRow, type LeaderboardRow, type PvpHistoryRow, type Publ
 import { useAuth } from "../auth/AuthContext";
 import { useGame } from "../state/GameContext";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 import {
   joinRandomQueue,
   leaveRandomQueue,
@@ -56,6 +57,7 @@ export function PvpHubModal() {
   const pvp = usePvpState();
   const game = useGame();
   const { me } = useAuth();
+  const t = useT();
 
   const [rating, setRating]   = useState<RatingRow | null>(null);
   const [history, setHistory] = useState<PvpHistoryRow[]>([]);
@@ -126,7 +128,7 @@ export function PvpHubModal() {
       onConfirm: (team) => {
         joinRandomQueue(team, (res) => {
           if (!res.ok) {
-            window.alert(res.error ? `Couldn't queue: ${res.error}` : "Couldn't queue.");
+            window.alert(res.error ? `Couldn't queue: ${res.error}` : t("Couldn't queue."));
             leaveRandomQueue();
           }
         });
@@ -152,18 +154,18 @@ export function PvpHubModal() {
         className={`g-modal pvp-hub-arena2 ${inQueue ? "is-queued" : ""}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="PvP battle hub"
+        aria-label={t("PvP battle hub")}
       >
         {/* HEADER */}
         <header className="pvp2-head">
           <div className="pvp2-head-title">
             <IconSwords size={14} />
-            <span>BATTLE HUB</span>
+            <span>{t("BATTLE HUB")}</span>
           </div>
           {!isUnranked && rating && (
-            <span className="pvp2-elo-chip">{rating.matchesPlayed} matches</span>
+            <span className="pvp2-elo-chip">{rating.matchesPlayed} {t("matches")}</span>
           )}
-          <button className="pvp2-close" onClick={closePvpHub} aria-label="Close">
+          <button className="pvp2-close" onClick={closePvpHub} aria-label={t("Close")}>
             <IconClose size={18} />
           </button>
         </header>
@@ -194,35 +196,35 @@ export function PvpHubModal() {
             {/* CENTER: identity + stats grid */}
             <div className="pvp2-identity">
               <div className="pvp2-name-row">
-                <strong className="pvp2-name">{me?.name ?? me?.username ?? "Trainer"}</strong>
+                <strong className="pvp2-name">{me?.name ?? me?.username ?? t("Trainer")}</strong>
                 <span
                   className="pvp2-tier-chip"
                   style={{ color: tier.color, boxShadow: `inset 0 0 0 1px ${tier.color}55, 0 0 10px ${tier.glow}` }}
                 >
-                  {isUnranked ? "UNRANKED" : tier.name.toUpperCase()}
+                  {isUnranked ? t("UNRANKED") : tier.name.toUpperCase()}
                 </span>
               </div>
               <div className="pvp2-stats">
                 <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">RATING</span>
+                  <span className="pvp2-stat-label">{t("RATING")}</span>
                   <strong className="tabular">{isUnranked ? "—" : ratingValue}</strong>
                 </div>
                 <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">W / L</span>
+                  <span className="pvp2-stat-label">{t("W / L")}</span>
                   <strong className="tabular">{wins} / {losses}</strong>
                 </div>
                 <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">PEAK</span>
+                  <span className="pvp2-stat-label">{t("PEAK")}</span>
                   <strong className="tabular">{peak}</strong>
                 </div>
                 <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">STREAK</span>
+                  <span className="pvp2-stat-label">{t("STREAK")}</span>
                   <strong className="tabular">{streak > 0 ? `🔥 ${streak}` : "—"}</strong>
                 </div>
               </div>
               {!isUnranked && toNext && (
                 <div className="pvp2-next-tier">
-                  <span className="dim small">Next tier in</span>
+                  <span className="dim small">{t("Next tier in")}</span>
                   <strong>+{toNext.gap}</strong>
                   <span className="dim small">→ {toNext.next.name}</span>
                 </div>
@@ -231,7 +233,7 @@ export function PvpHubModal() {
 
             {/* RIGHT: team strip (6 mini sprites) */}
             <div className="pvp2-team-strip">
-              <span className="pvp2-team-label">TEAM</span>
+              <span className="pvp2-team-label">{t("TEAM")}</span>
               <div className="pvp2-team-row">
                 {Array.from({ length: 6 }).map((_, i) => {
                   const mon = teamForStrip[i];
@@ -260,7 +262,7 @@ export function PvpHubModal() {
 
         {/* MODE CHIPS + READY UP — tighter row, less hero space */}
         <section className="pvp2-cta">
-          <div className="pvp-mode-chips" role="tablist" aria-label="Match mode">
+          <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
             {(["ranked", "casual", "tournament"] as Mode[]).map((m) => (
               <button
                 key={m}
@@ -291,7 +293,7 @@ export function PvpHubModal() {
           {/* Match tape — horizontal */}
           <div className="pvp2-panel pvp2-tape">
             <header className="pvp2-panel-head">
-              <h4>LAST 10</h4>
+              <h4>{t("LAST 10")}</h4>
               {history.length > 0 && (
                 <span className="dim small">
                   {history.filter((h) => h.result === "win").length}W
@@ -300,7 +302,7 @@ export function PvpHubModal() {
               )}
             </header>
             {history.length === 0 ? (
-              <p className="dim small pvp2-empty">No matches yet. Ready up to start your record.</p>
+              <p className="dim small pvp2-empty">{t("No matches yet. Ready up to start your record.")}</p>
             ) : (
               <ul className="pvp2-pip-row">
                 {history.slice(0, 10).map((m) => (
@@ -320,11 +322,11 @@ export function PvpHubModal() {
           {/* Top 3 */}
           <div className="pvp2-panel pvp2-top3">
             <header className="pvp2-panel-head">
-              <h4>TOP 3</h4>
-              {myRank && <span className="dim small">YOU · #{myRank}</span>}
+              <h4>{t("TOP 3")}</h4>
+              {myRank && <span className="dim small">{t("YOU · #")}{myRank}</span>}
             </header>
             {leaderboard.length === 0 ? (
-              <p className="dim small pvp2-empty">{loaded ? "No ranked players yet — be the first." : "Loading…"}</p>
+              <p className="dim small pvp2-empty">{loaded ? t("No ranked players yet — be the first.") : t("Loading…")}</p>
             ) : (
               <ul className="pvp2-podium-list">
                 {leaderboard.slice(0, 3).map((r) => (
@@ -337,7 +339,7 @@ export function PvpHubModal() {
                 ))}
                 {me && !myRank && (
                   <li className="pvp2-podium-row pvp2-podium-you">
-                    <span className="pvp2-podium-rank">YOU</span>
+                    <span className="pvp2-podium-rank">{t("YOU")}</span>
                     <strong className="pvp2-podium-name">{me.name ?? me.username}</strong>
                     <span className="pvp2-podium-rating tabular">{isUnranked ? "—" : ratingValue}</span>
                   </li>
@@ -352,7 +354,7 @@ export function PvpHubModal() {
           <section className="pvp2-live">
             <header className="pvp2-panel-head">
               <span className="pvp-live-dot" aria-hidden />
-              <h4 style={{ color: "#fca5a5" }}>LIVE NOW</h4>
+              <h4 style={{ color: "#fca5a5" }}>{t("LIVE NOW")}</h4>
               <span className="dim small">{liveBattles.length} battle{liveBattles.length === 1 ? "" : "s"}</span>
             </header>
             <div className="pvp2-live-cards">
@@ -362,24 +364,24 @@ export function PvpHubModal() {
                   <article key={b.battleId} className="pvp2-live-card">
                     <div className="pvp2-live-vs">
                       <span className="pvp2-live-trainer">{b.a.username}</span>
-                      <span className="pvp2-live-vs-tag">VS</span>
+                      <span className="pvp2-live-vs-tag">{t("VS")}</span>
                       <span className="pvp2-live-trainer">{b.b.username}</span>
                     </div>
-                    <div className="dim small">{b.spectatorCount} watching</div>
+                    <div className="dim small">{b.spectatorCount} {t("watching")}</div>
                     <button
                       className="g-btn-primary g-btn-small"
                       disabled={isParticipant}
                       onClick={() => {
                         joinSpectator(b.battleId, (res) => {
                           if (!res.ok) {
-                            window.alert(res.error ? `Couldn't watch: ${res.error}` : "Couldn't watch.");
+                            window.alert(res.error ? `Couldn't watch: ${res.error}` : t("Couldn't watch."));
                             return;
                           }
                           closePvpHub();
                         });
                       }}
                     >
-                      Watch
+                      {t("Watch")}
                     </button>
                   </article>
                 );
@@ -396,8 +398,8 @@ export function PvpHubModal() {
             aria-expanded={tickerOpen}
           >
             <span className="pvp-tour-icon">🏆</span>
-            <span>TOURNAMENTS</span>
-            <span className="dim small">· {openTournaments.length} open</span>
+            <span>{t("TOURNAMENTS")}</span>
+            <span className="dim small">· {openTournaments.length} {t("open")}</span>
             <span className="pvp-tour-chev">{tickerOpen ? "▾" : "▸"}</span>
           </button>
           {tickerOpen && (
@@ -408,8 +410,8 @@ export function PvpHubModal() {
         {/* QUEUE OVERLAY */}
         {inQueue && (
           <div className="pvp-queue-overlay">
-            <div className="pvp-queue-heartbeat">SCANNING FOR OPPONENT…</div>
-            <button className="g-btn-ghost g-btn-small" onClick={cancelQueue}>Stand Down</button>
+            <div className="pvp-queue-heartbeat">{t("SCANNING FOR OPPONENT…")}</div>
+            <button className="g-btn-ghost g-btn-small" onClick={cancelQueue}>{t("Stand Down")}</button>
           </div>
         )}
       </div>
@@ -427,11 +429,12 @@ function ReadyUpSlab({
   onReady:  () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   if (noTeam) {
     return (
       <button className="pvp-slab pvp-slab-warn" onClick={() => { closePvpHub(); openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } }); }}>
-        <span className="pvp-slab-title">BUILD A TEAM FIRST</span>
-        <span className="pvp-slab-sub">You need at least one Pokémon</span>
+        <span className="pvp-slab-title">{t("BUILD A TEAM FIRST")}</span>
+        <span className="pvp-slab-sub">{t("You need at least one Pokémon")}</span>
       </button>
     );
   }
@@ -439,83 +442,84 @@ function ReadyUpSlab({
     return (
       <button className="pvp-slab pvp-slab-live" disabled>
         <span className="pvp-slab-dot" />
-        <span className="pvp-slab-title">IN BATTLE</span>
-        <span className="pvp-slab-sub">Return to your battle modal</span>
+        <span className="pvp-slab-title">{t("IN BATTLE")}</span>
+        <span className="pvp-slab-sub">{t("Return to your battle modal")}</span>
       </button>
     );
   }
   if (inQueue) {
     return (
       <button className="pvp-slab pvp-slab-queued" onClick={onCancel}>
-        <span className="pvp-slab-title">STAND DOWN</span>
-        <span className="pvp-slab-sub">Cancel queue</span>
+        <span className="pvp-slab-title">{t("STAND DOWN")}</span>
+        <span className="pvp-slab-sub">{t("Cancel queue")}</span>
       </button>
     );
   }
   if (mode === "tournament") {
     return (
       <button className="pvp-slab pvp-slab-secondary" disabled>
-        <span className="pvp-slab-title">PICK A TOURNAMENT</span>
-        <span className="pvp-slab-sub">Open the tournament list below</span>
+        <span className="pvp-slab-title">{t("PICK A TOURNAMENT")}</span>
+        <span className="pvp-slab-sub">{t("Open the tournament list below")}</span>
       </button>
     );
   }
   return (
     <button className="pvp-slab" onClick={onReady}>
-      <span className="pvp-slab-title">READY UP</span>
-      <span className="pvp-slab-sub">{mode === "ranked" ? "Ranked · Lv 50" : "Casual · Friends only"}</span>
+      <span className="pvp-slab-title">{t("READY UP")}</span>
+      <span className="pvp-slab-sub">{mode === "ranked" ? t("Ranked · Lv 50") : t("Casual · Friends only")}</span>
     </button>
   );
 }
 
 function TournamentList({ list, onChange }: { list: PublicTournament[]; onChange: (l: PublicTournament[]) => void }) {
   const { me } = useAuth();
+  const t = useT();
   const [acting, setActing] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const reload = () => {
     api.listTournaments()
       .then((d) => onChange(d.tournaments))
-      .catch((e) => setMsg(e?.message ?? "Couldn't reload."));
+      .catch((e) => setMsg(e?.message ?? t("Couldn't reload.")));
   };
   const join = async (id: string) => {
     setActing(id); setMsg(null);
-    try { await api.joinTournament(id); setMsg("Joined."); reload(); }
-    catch (e: any) { setMsg(e?.message ?? "Couldn't join."); }
+    try { await api.joinTournament(id); setMsg(t("Joined.")); reload(); }
+    catch (e: any) { setMsg(e?.message ?? t("Couldn't join.")); }
     finally { setActing(null); }
   };
   const leave = async (id: string) => {
     setActing(id); setMsg(null);
-    try { await api.leaveTournament(id); setMsg("Withdrew."); reload(); }
-    catch (e: any) { setMsg(e?.message ?? "Couldn't leave."); }
+    try { await api.leaveTournament(id); setMsg(t("Withdrew.")); reload(); }
+    catch (e: any) { setMsg(e?.message ?? t("Couldn't leave.")); }
     finally { setActing(null); }
   };
 
   if (list.length === 0) {
-    return <p className="dim small" style={{ padding: "12px 16px" }}>No tournaments scheduled right now.</p>;
+    return <p className="dim small" style={{ padding: "12px 16px" }}>{t("No tournaments scheduled right now.")}</p>;
   }
   return (
     <ul className="pvp-tour-list">
-      {list.map((t) => {
-        const joined = !!me && t.entries.some((e: any) => e.userId === me.id);
-        const isOpen = t.status === "open";
+      {list.map((row) => {
+        const joined = !!me && row.entries.some((e: any) => e.userId === me.id);
+        const isOpen = row.status === "open";
         return (
-          <li key={t.id} className="pvp-tour-row">
+          <li key={row.id} className="pvp-tour-row">
             <div className="pvp-tour-row-info">
-              <strong>{t.name}</strong>
+              <strong>{row.name}</strong>
               <span className="dim small">
-                {t.status.toUpperCase()} · {t.entries.length} entries
-                {t.levelCap != null && ` · Lv ${t.levelCap}`}
+                {row.status.toUpperCase()} · {row.entries.length} {t("entries")}
+                {row.levelCap != null && ` · Lv ${row.levelCap}`}
               </span>
             </div>
             <div className="pvp-tour-row-actions">
               {joined ? (
-                <button className="g-btn-ghost g-btn-small" disabled={acting === t.id || !isOpen} onClick={() => leave(t.id)}>
-                  {acting === t.id ? "…" : "Withdraw"}
+                <button className="g-btn-ghost g-btn-small" disabled={acting === row.id || !isOpen} onClick={() => leave(row.id)}>
+                  {acting === row.id ? "…" : t("Withdraw")}
                 </button>
               ) : (
-                <button className="g-btn-primary g-btn-small" disabled={acting === t.id || !isOpen} onClick={() => join(t.id)}>
-                  {acting === t.id ? "…" : "Join"}
+                <button className="g-btn-primary g-btn-small" disabled={acting === row.id || !isOpen} onClick={() => join(row.id)}>
+                  {acting === row.id ? "…" : t("Join")}
                 </button>
               )}
             </div>

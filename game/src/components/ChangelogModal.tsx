@@ -5,6 +5,7 @@ import {
   CURRENT_VERSION,
   LAST_SEEN_VERSION_KEY,
 } from "../data/changelog";
+import { useT } from "../i18n/useT";
 import type { ChangelogEntry } from "../types";
 
 // What's New.
@@ -42,6 +43,7 @@ export function ChangelogModal() {
   // "full" = opened from Settings (whole history).
   const [mode, setMode] = useState<null | "auto" | "full">(null);
   const [newEntries, setNewEntries] = useState<ChangelogEntry[]>([]);
+  const t = useT();
 
   useEffect(() => {
     _openFull = () => setMode("full");
@@ -101,19 +103,19 @@ export function ChangelogModal() {
         className="g-modal changelog-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="What's new"
+        aria-label={t("What's new")}
       >
         <header className="changelog-head">
           <div className="changelog-head-text">
             <span className="changelog-eyebrow">
-              {isAuto ? "Updated while you were away" : "Release history"}
+              {isAuto ? t("Updated while you were away") : t("Release history")}
             </span>
             <h2>
-              {isAuto ? "What's new" : "Changelog"}
+              {isAuto ? t("What's new") : t("Changelog")}
               <span className="changelog-version-pill">v{CURRENT_VERSION}</span>
             </h2>
           </div>
-          <button className="g-modal-close" onClick={dismiss} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={dismiss} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="changelog-body">
@@ -144,18 +146,18 @@ export function ChangelogModal() {
             </article>
           ))}
           {entries.length === 0 && (
-            <p className="dim">Nothing to report yet — you're up to date.</p>
+            <p className="dim">{t("Nothing to report yet — you're up to date.")}</p>
           )}
         </div>
 
         <footer className="changelog-foot">
           {isAuto && (
             <button className="g-btn-ghost g-btn-small" onClick={() => setMode("full")}>
-              See full history
+              {t("See full history")}
             </button>
           )}
           <button className="g-btn-primary changelog-dismiss" onClick={dismiss}>
-            {isAuto ? "Let's play" : "Close"}
+            {isAuto ? t("Let's play") : t("Close")}
           </button>
         </footer>
       </div>

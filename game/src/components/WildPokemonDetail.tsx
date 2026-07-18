@@ -5,6 +5,7 @@ import { pokemonSpriteUrl } from "../utils/sprites";
 import { calcAllStats, perfectIVs } from "../utils/stats";
 import { catchProbability } from "../utils/catching";
 import { rarityFromRate, RARITY_LABEL, rateForSpecies } from "../utils/rarity";
+import { useT } from "../i18n/useT";
 
 // Inline detail panel that renders below the Wild Pokemon grid when a tile
 // is clicked. Mirrors the original: rarity tier, encounter % rate, types,
@@ -28,6 +29,7 @@ const STAT_COLOR: Record<string, string> = {
 
 export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
   const { state, dispatch } = useGame();
+  const t = useT();
   const species = pokemonTable[speciesKey];
   const route = encounterTable[routeKey];
   if (!species || !route) return null;
@@ -79,7 +81,7 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
         <div>
           <h3>
             {seen ? species.name : "???"}
-            <small> Lv {encounter.minLevel}–{encounter.maxLevel}</small>
+            <small> {t("Lv")} {encounter.minLevel}–{encounter.maxLevel}</small>
           </h3>
           <div className="wild-detail-types">
             {species.types.map((t) => (
@@ -88,7 +90,7 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
           </div>
           <div className={`wild-detail-rarity rarity-${rarity}`}>
             {RARITY_LABEL[rarity]} · {ratePct.toFixed(1)}%
-            {caught && <span className="check"> ✓ caught</span>}
+            {caught && <span className="check">{t(" ✓ caught")}</span>}
           </div>
         </div>
       </div>
@@ -97,32 +99,32 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
         <button
           disabled={!repelOwned}
           className={repelActive ? "active" : ""}
-          title="Halves this species' encounter weight on this route for 500 battles"
+          title={t("Halves this species' encounter weight on this route for 500 battles")}
           onClick={() => dispatch({
             type: "USE_EFFECT_ITEM",
             payload: { itemId: "repel", speciesKey, routeKey },
           })}
         >
-          Repel ({repelOwned}){repelActive && ` · ${repelActive.battlesRemaining} left`}
+          {t("Repel")} ({repelOwned}){repelActive && ` · ${repelActive.battlesRemaining} left`}
         </button>
         <button
           disabled={!honeyOwned}
           className={honeyActive ? "active" : ""}
-          title="Doubles this species' encounter weight on this route for 500 battles"
+          title={t("Doubles this species' encounter weight on this route for 500 battles")}
           onClick={() => dispatch({
             type: "USE_EFFECT_ITEM",
             payload: { itemId: "honey", speciesKey, routeKey },
           })}
         >
-          Honey ({honeyOwned}){honeyActive && ` · ${honeyActive.battlesRemaining} left`}
+          {t("Honey")} ({honeyOwned}){honeyActive && ` · ${honeyActive.battlesRemaining} left`}
         </button>
       </div>
 
       <div className="wild-detail-stats">
-        <small className="dim">Stats at L{encounter.maxLevel} (perfect IVs):</small>
+        <small className="dim">{t("Stats at L")}{encounter.maxLevel}{t(" (perfect IVs):")}</small>
         {(Object.keys(stats) as (keyof typeof stats)[]).map((key) => (
           <div key={key} className="wild-stat-row">
-            <span className="wild-stat-label">{statLabel(key)}</span>
+            <span className="wild-stat-label">{statLabel(key, t)}</span>
             <div className="wild-stat-bar">
               <div
                 className="wild-stat-fill"
@@ -138,20 +140,20 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
       </div>
 
       <div className="wild-detail-catch">
-        <small className="dim">Catch chance with Poké Ball: <strong>{catchPct}%</strong></small>
+        <small className="dim">{t("Catch chance with Poké Ball: ")}<strong>{catchPct}%</strong></small>
       </div>
     </div>
   );
 }
 
-function statLabel(key: string): string {
+function statLabel(key: string, t: (str: string) => string): string {
   switch (key) {
-    case "hp":        return "HP";
-    case "attack":    return "Atk";
-    case "defense":   return "Def";
-    case "spAttack":  return "SpA";
-    case "spDefense": return "SpD";
-    case "speed":     return "Spd";
+    case "hp":        return t("HP");
+    case "attack":    return t("Atk");
+    case "defense":   return t("Def");
+    case "spAttack":  return t("SpA");
+    case "spDefense": return t("SpD");
+    case "speed":     return t("Spd");
     default:          return key;
   }
 }

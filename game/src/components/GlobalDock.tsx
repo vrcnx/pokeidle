@@ -23,6 +23,8 @@ import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
 import { sfxManager } from "../utils/sfx";
+import { LANGUAGES, getLanguage, setLanguage, subscribeLanguage, type Language } from "../i18n/language";
+import { useT } from "../i18n/useT";
 import type { ReactNode } from "react";
 
 // Action dock split across columns:
@@ -276,6 +278,34 @@ function ChatPrefsCard() {
   );
 }
 
+// Language preference. Lives in Account since it's a device-level
+// setting, not chat-specific — same localStorage pub/sub pattern as
+// ChatPrefsCard above.
+function LanguagePrefsCard() {
+  const [lang, setLang] = useState<Language>(() => getLanguage());
+  useEffect(() => subscribeLanguage(setLang), []);
+  const t = useT();
+  return (
+    <section className="g-card">
+      <h3>{t("Language")}</h3>
+      <p className="g-help" style={{ marginTop: 0 }}>
+        {t("Choose your preferred language for menus and game text. Pokémon, move, and item names stay in English for now.")}
+      </p>
+      <div className="settings-legal-links">
+        {LANGUAGES.map((l) => (
+          <button
+            key={l.code}
+            className={l.code === lang ? "g-btn-primary g-btn-small" : "g-btn-ghost g-btn-small"}
+            onClick={() => setLanguage(l.code)}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DockButton({ icon, label, active, disabled, title, badge, onClick }: DockBtnProps) {
   return (
     <button
@@ -484,6 +514,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                     <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
                   </section>
                 )}
+
+                <LanguagePrefsCard />
 
                 <section className="g-card">
                   <h3>Help &amp; Feedback</h3>

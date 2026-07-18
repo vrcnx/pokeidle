@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 import { computeUnlocked } from "../state/achievements";
 import {
   ACHIEVEMENTS, ACHIEVEMENTS_BY_CATEGORY, CATEGORY_LABEL, TIER_COLOR,
@@ -35,6 +36,7 @@ export function AchievementsModal() {
   const isOpen = useOpen();
   const dialogRef = useModalEnter(".achievement-card");
   const { state } = useGame();
+  const t = useT();
   const [filter, setFilter] = useState<CategoryFilter>("all");
   const [showLocked, setShowLocked] = useState(true);
   const [extras, setExtras] = useState<AchievementExtras>({});
@@ -100,12 +102,12 @@ export function AchievementsModal() {
         className="g-modal achievements-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Achievements"
+        aria-label={t("Achievements")}
       >
         <header className="achievements-head">
           <div>
-            <span className="achievements-eyebrow">TROPHY GALLERY</span>
-            <h2>Achievements</h2>
+            <span className="achievements-eyebrow">{t("TROPHY GALLERY")}</span>
+            <h2>{t("Achievements")}</h2>
           </div>
           <div className="achievements-summary">
             <div className="achievements-ring">
@@ -124,10 +126,10 @@ export function AchievementsModal() {
             </div>
             <div className="achievements-count">
               <strong className="tabular">{unlockedCount}</strong>
-              <span className="dim small">of {totalCount} unlocked</span>
+              <span className="dim small">{t("of")} {totalCount} {t("unlocked")}</span>
             </div>
           </div>
-          <button className="g-modal-close" onClick={closeAchievements} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={closeAchievements} aria-label={t("Close")}>×</button>
         </header>
 
         <nav className="achievements-categories" role="tablist">
@@ -139,16 +141,16 @@ export function AchievementsModal() {
               className={`achievements-category ${filter === c ? "active" : ""}`}
               onClick={() => setFilter(c)}
             >
-              {c === "all" ? "All" : CATEGORY_LABEL[c]}
+              {c === "all" ? t("All") : CATEGORY_LABEL[c]}
             </button>
           ))}
-          <label className="achievements-toggle" title="Show locked achievements">
+          <label className="achievements-toggle" title={t("Show locked achievements")}>
             <input
               type="checkbox"
               checked={showLocked}
               onChange={(e) => setShowLocked(e.target.checked)}
             />
-            Show locked
+            {t("Show locked")}
           </label>
         </nav>
 
@@ -163,7 +165,7 @@ export function AchievementsModal() {
           ))}
           {list.length === 0 && (
             <p className="dim small" style={{ gridColumn: "1 / -1", textAlign: "center", padding: 24 }}>
-              Nothing here yet — flip "Show locked" on to see what's available.
+              {t("Nothing here yet — flip \"Show locked\" on to see what's available.")}
             </p>
           )}
         </div>

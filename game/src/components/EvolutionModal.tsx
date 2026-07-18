@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 
 // Evolution flow:
 //   step 0 — setup: original sprite, intro text, slow pulse
@@ -41,6 +42,7 @@ export function EvolutionModal() {
 
 function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number; toSpeciesKey: string } }) {
   const dialogRef = useModalEnter();
+  const t = useT();
   const fromSp = pokemonTable[p.speciesKey];
   const toSp = pokemonTable[ev.toSpeciesKey];
 
@@ -64,7 +66,7 @@ function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number;
         className="g-modal evolution-modal-v2"
         data-stage={ev.step}
         role="dialog"
-        aria-label="Evolution"
+        aria-label={t("Evolution")}
       >
         <div className="evo-stage" data-stage={ev.step}>
           {/* Radiating light rays — visible during silhouette flicker and peak. */}
@@ -88,13 +90,13 @@ function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number;
 
           <div className="evo-caption">
             {ev.step === 0 && (
-              <>What? <strong>{fromSp?.name}</strong> is evolving!</>
+              <>{t("What? ")}<strong>{fromSp?.name}</strong>{t(" is evolving!")}</>
             )}
             {ev.step >= 1 && ev.step <= 3 && (
               <span className="evo-caption-pulse">…</span>
             )}
             {ev.step >= 4 && (
-              <>Congratulations! <strong>{fromSp?.name}</strong> evolved into <strong>{toSp?.name}</strong>!</>
+              <>{t("Congratulations! ")}<strong>{fromSp?.name}</strong>{t(" evolved into ")}<strong>{toSp?.name}</strong>{t("!")}</>
             )}
           </div>
         </div>

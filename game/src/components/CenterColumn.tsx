@@ -4,6 +4,7 @@ import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { BottomTabs } from "./BottomTabs";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
 import { sfxManager } from "../utils/sfx";
+import { useT } from "../i18n/useT";
 
 // Center column: battle arena → toolbar → moves → bottom tabs (Map / Mart /
 // Bag / PC / Pokédex). The toolbar (speed/heal/manage) is its own bar above
@@ -32,6 +33,7 @@ export function CenterColumn() {
 
 function MusicToggleButton() {
   const [s, setS] = useState<MusicState>(() => musicManager.snapshot());
+  const t = useT();
   useEffect(() => musicManager.subscribe(setS), []);
   const on = s.enabled;
   return (
@@ -39,8 +41,8 @@ function MusicToggleButton() {
       type="button"
       className={`battle-audio-btn ${on ? "" : "muted"}`}
       onClick={() => musicManager.setEnabled(!on)}
-      title={on ? "Mute music" : "Unmute music"}
-      aria-label={on ? "Mute music" : "Unmute music"}
+      title={on ? t("Mute music") : t("Unmute music")}
+      aria-label={on ? t("Mute music") : t("Unmute music")}
       aria-pressed={!on}
     >
       {on ? <NoteIcon /> : <NoteOffIcon />}
@@ -50,6 +52,7 @@ function MusicToggleButton() {
 
 function SfxToggleButton() {
   const [s, setS] = useState(() => sfxManager.snapshot());
+  const t = useT();
   useEffect(() => sfxManager.subscribe(setS), []);
   const on = s.enabled;
   return (
@@ -57,8 +60,8 @@ function SfxToggleButton() {
       type="button"
       className={`battle-audio-btn ${on ? "" : "muted"}`}
       onClick={() => sfxManager.setEnabled(!on)}
-      title={on ? "Mute sound effects" : "Unmute sound effects"}
-      aria-label={on ? "Mute sound effects" : "Unmute sound effects"}
+      title={on ? t("Mute sound effects") : t("Unmute sound effects")}
+      aria-label={on ? t("Mute sound effects") : t("Unmute sound effects")}
       aria-pressed={!on}
     >
       {on ? <SpeakerIcon /> : <SpeakerOffIcon />}

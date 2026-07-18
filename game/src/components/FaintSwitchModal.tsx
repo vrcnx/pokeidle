@@ -1,5 +1,6 @@
 import { useGame } from "../state/GameContext";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 // No ESC handler / close button on this modal — the player MUST pick a
 // new active Pokémon to continue the battle. Closing without a pick
@@ -7,6 +8,7 @@ import { pokemonSpriteUrl } from "../utils/sprites";
 // path to fix it.
 export function FaintSwitchModal() {
   const { state, dispatch } = useGame();
+  const t = useT();
   if (!state.awaitingSwitch) return null;
 
   const choices = state.party
@@ -19,14 +21,14 @@ export function FaintSwitchModal() {
         className="g-modal faint-switch-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Choose next Pokémon"
+        aria-label={t("Choose next Pokémon")}
       >
         <header className="g-modal-head">
-          <h2>{state.playerPokemon?.name} fainted!</h2>
+          <h2>{state.playerPokemon?.name} {t("fainted!")}</h2>
         </header>
         <div className="g-modal-body">
           <p className="dim small" style={{ margin: "0 0 8px" }}>
-            Choose your next Pokémon:
+            {t("Choose your next Pokémon:")}
           </p>
           <div className="faint-switch-grid">
             {choices.map(({ p, idx }) => (
@@ -47,9 +49,9 @@ export function FaintSwitchModal() {
                   height={48}
                   style={{ imageRendering: "pixelated" }}
                 />
-                <span><strong>{p.name}</strong> <small className="dim">Lv {p.level}</small></span>
+                <span><strong>{p.name}</strong> <small className="dim">{t("Lv")} {p.level}</small></span>
                 <small className="dim">
-                  HP {p.currentHp} / {p.maxHp}
+                  {t("HP")} {p.currentHp} / {p.maxHp}
                 </small>
               </button>
             ))}

@@ -3,10 +3,12 @@ import { useGame } from "../state/GameContext";
 import { raidLegendaries, RAID_COOLDOWN_MS } from "../data/raidLegendaries";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 export function RaidPanel() {
   const { state, dispatch } = useGame();
   const [now, setNow] = useState(() => Date.now());
+  const t = useT();
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -16,8 +18,8 @@ export function RaidPanel() {
   if (!state.championDefeated) {
     return (
       <div className="raid-panel">
-        <h2>Raid Island</h2>
-        <p className="dim">Defeat the Champion to unlock legendary raids.</p>
+        <h2>{t("Raid Island")}</h2>
+        <p className="dim">{t("Defeat the Champion to unlock legendary raids.")}</p>
       </div>
     );
   }
@@ -33,18 +35,18 @@ export function RaidPanel() {
 
   return (
     <div className="raid-panel">
-      <h2>🏝️ Raid Island</h2>
+      <h2>{t("🏝️ Raid Island")}</h2>
       <p className="dim">
-        Battle a legendary at full power. Win and you can try to catch it.
-        {RAID_COOLDOWN_MS / 60000}-minute cooldown between raids.
+        {t("Battle a legendary at full power. Win and you can try to catch it.")}
+        {RAID_COOLDOWN_MS / 60000}{t("-minute cooldown between raids.")}
       </p>
       {state.inRaid && state.raidLegendary ? (
         <p>
-          <strong>In raid:</strong>{" "}
+          <strong>{t("In raid:")}</strong>{" "}
           {pokemonTable[state.raidLegendary.speciesKey]?.name} L{state.raidLevel}
         </p>
       ) : cooldownRemaining > 0 ? (
-        <p>Cooldown: {Math.ceil(cooldownRemaining / 1000)}s</p>
+        <p>{t("Cooldown: ")}{Math.ceil(cooldownRemaining / 1000)}s</p>
       ) : null}
       <div className="raid-grid">
         {raidLegendaries.map((l) => {
@@ -64,7 +66,7 @@ export function RaidPanel() {
                 style={{ imageRendering: "pixelated" }}
               />
               <strong>{sp?.name ?? l.speciesKey}</strong>
-              <small>Level {l.level}</small>
+              <small>{t("Level ")}{l.level}</small>
               <small className="dim">{sp?.types.join(" / ")}</small>
             </button>
           );
@@ -73,10 +75,10 @@ export function RaidPanel() {
       {state.inRaid && (
         <button
           onClick={() => {
-            if (confirm("Flee the raid?")) dispatch({ type: "END_RAID" });
+            if (confirm(t("Flee the raid?"))) dispatch({ type: "END_RAID" });
           }}
         >
-          Flee
+          {t("Flee")}
         </button>
       )}
     </div>

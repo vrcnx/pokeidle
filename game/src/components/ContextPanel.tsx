@@ -23,6 +23,7 @@ import { gymLeaders } from "../data/gymLeaders";
 import { openRewardShop } from "./RewardShopPanel";
 import type { BossBattle } from "../types";
 import type { ReactNode } from "react";
+import { useT } from "../i18n/useT";
 
 // Adaptive right column. Replaces the old Location/Gyms tab switcher with
 // a panel whose body is determined by getUIPhase. The header is always the
@@ -57,6 +58,9 @@ export function ContextPanel() {
 
 function BattleTrainerPanel() {
   const { state, dispatch } = useGame();
+  // Named `translate` (not `t`) to avoid shadowing the `trainerBattle`
+  // local below, which has used the name `t` throughout this component.
+  const translate = useT();
   const t = state.trainerBattle;
   if (!t) return null;
 
@@ -68,14 +72,14 @@ function BattleTrainerPanel() {
       <>
         <LeagueCard />
         <section className="ctx-section">
-          <h4>Currently battling</h4>
+          <h4>{translate("Currently battling")}</h4>
           <p className="dim small" style={{ margin: 0 }}>
             <strong>{t.trainerName}</strong> ({t.trainerClass})
           </p>
           <TeamBalls
             total={t.trainerTeam.length}
             spent={t.currentTrainerPokemonIndex}
-            label="Their team"
+            label={translate("Their team")}
           />
         </section>
       </>
@@ -93,7 +97,7 @@ function BattleTrainerPanel() {
     const lockedByBadges = !defeated && reqBadges > haveBadges;
     return (
       <section className="ctx-section">
-        <h4>Gym Leader</h4>
+        <h4>{translate("Gym Leader")}</h4>
         <div className="ctx-trainer-card">
           <img
             src={trainerSpriteUrl(leader.spriteKey)}
@@ -114,8 +118,8 @@ function BattleTrainerPanel() {
               lockedByBadges
                 ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
                 : defeated
-                ? "You've already beaten this gym — challenge again for the rematch"
-                : "Bails out of any active battle, heals your party, and starts the gym fight"
+                ? translate("You've already beaten this gym — challenge again for the rematch")
+                : translate("Bails out of any active battle, heals your party, and starts the gym fight")
             }
             onClick={() => {
               if (lockedByBadges) return;
@@ -133,16 +137,16 @@ function BattleTrainerPanel() {
               });
             }}
           >
-            {lockedByBadges ? `🔒 ${reqBadges} badges` : defeated ? "Rematch" : "Challenge"}
+            {lockedByBadges ? `🔒 ${reqBadges} badges` : defeated ? translate("Rematch") : translate("Challenge")}
           </button>
         </div>
         <p className="dim small" style={{ margin: "6px 0 0" }}>
-          Currently battling <strong>{t.trainerName}</strong> ({t.trainerClass}).
+          {translate("Currently battling ")}<strong>{t.trainerName}</strong> ({t.trainerClass}).
         </p>
         <TeamBalls
           total={t.trainerTeam.length}
           spent={t.currentTrainerPokemonIndex}
-          label="Their team"
+          label={translate("Their team")}
         />
       </section>
     );
@@ -151,7 +155,7 @@ function BattleTrainerPanel() {
   // No gym in this location — fall back to the original trainer card.
   return (
     <section className="ctx-section">
-      <h4>Trainer battle</h4>
+      <h4>{translate("Trainer battle")}</h4>
       <div className="ctx-trainer-card">
         <img
           src={trainerSpriteUrl(t.spriteKey)}
@@ -169,7 +173,7 @@ function BattleTrainerPanel() {
       <TeamBalls
         total={t.trainerTeam.length}
         spent={t.currentTrainerPokemonIndex}
-        label="Their team"
+        label={translate("Their team")}
       />
     </section>
   );
@@ -177,12 +181,13 @@ function BattleTrainerPanel() {
 
 function BattleBossPanel() {
   const { state } = useGame();
+  const t = useT();
   const b = state.bossBattle;
   if (!b) return null;
   const queueLeft = state.bossQueue.length;
   return (
     <section className="ctx-section">
-      <h4>{b.bossType === "champion" ? "Champion" : b.bossType === "e4" ? "Elite Four" : "Gym Leader"}</h4>
+      <h4>{b.bossType === "champion" ? t("Champion") : b.bossType === "e4" ? t("Elite Four") : t("Gym Leader")}</h4>
       <div className="ctx-trainer-card">
         <img
           src={trainerSpriteUrl(b.spriteKey)}
@@ -200,11 +205,11 @@ function BattleBossPanel() {
       <TeamBalls
         total={b.trainerTeam.length}
         spent={b.currentTrainerPokemonIndex}
-        label="Their team"
+        label={t("Their team")}
       />
       {queueLeft > 0 && (
         <p className="dim small" style={{ margin: "6px 0 0" }}>
-          {queueLeft} fight{queueLeft === 1 ? "" : "s"} left in this gauntlet.
+          {queueLeft}{t(" fight")}{queueLeft === 1 ? "" : "s"}{t(" left in this gauntlet.")}
         </p>
       )}
     </section>
@@ -224,6 +229,7 @@ function IdleRoutePanel() {
 
 function IdleTownPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const here = state.currentLocation;
   const route = routes[here];
   const leader = getGymLeaderForLocation(here);
@@ -257,7 +263,7 @@ function IdleTownPanel() {
       {here === "indigoPlat" && <LeagueCard />}
       {leader && leader.name && (
         <section className="ctx-section">
-          <h4>Gym Leader</h4>
+          <h4>{t("Gym Leader")}</h4>
           <div className="ctx-trainer-card">
             <img
               src={trainerSpriteUrl(leader.spriteKey)}
@@ -278,14 +284,14 @@ function IdleTownPanel() {
               title={
                 lockedByBadges
                   ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
-                  : "Bails out of any active battle, heals your party, and starts the gym fight"
+                  : t("Bails out of any active battle, heals your party, and starts the gym fight")
               }
             >
               {lockedByBadges
                 ? `🔒 ${reqBadges} badges`
                 : defeatedHere
-                  ? "Rematch"
-                  : "Challenge"}
+                  ? t("Rematch")
+                  : t("Challenge")}
             </button>
           </div>
         </section>
@@ -296,6 +302,7 @@ function IdleTownPanel() {
 
 function IdleRaidPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const route = routes[state.currentLocation];
 
   // Default the picker to the first unlocked tier the player has access
@@ -347,12 +354,12 @@ function IdleRaidPanel() {
     <>
       <section className="ctx-section ctx-section-with-info">
         <h4 className="ctx-section-h4-with-info">
-          Legendary Raids
+          {t("Legendary Raids")}
           <button
             type="button"
             className="ctx-info-btn"
             title={tierInfo}
-            aria-label="About Legendary Raids"
+            aria-label={t("About Legendary Raids")}
             onClick={(e) => {
               // Mobile / tap-to-expand: surface the tooltip text inline
               // because hover doesn't exist. Toggles the popover open
@@ -373,9 +380,9 @@ function IdleRaidPanel() {
           <div className="raid-cooldown-banner" role="status">
             <span className="raid-cooldown-icon" aria-hidden>⏱</span>
             <div className="raid-cooldown-text">
-              <strong>On cooldown</strong>
+              <strong>{t("On cooldown")}</strong>
               <span className="raid-cooldown-time">
-                {formatCooldown(cdLeft)} <span className="dim">until next raid</span>
+                {formatCooldown(cdLeft)} <span className="dim">{t("until next raid")}</span>
               </span>
             </div>
           </div>
@@ -416,7 +423,7 @@ function IdleRaidPanel() {
           <select
             value={selectedTier}
             onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
-            aria-label="Raid tier"
+            aria-label={t("Raid tier")}
           >
             {raidTiersOrdered.map((t) => {
               const unlocked = isTierUnlocked(t, state);
@@ -444,18 +451,18 @@ function IdleRaidPanel() {
           title={
             !canRaid
               ? onCooldown
-                ? "On cooldown"
-                : "Already raiding"
+                ? t("On cooldown")
+                : t("Already raiding")
               : !tierUnlocked
                 ? tierUnlockHint(tier)
                 : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
           }
         >
-          ⚡ Begin raid
+          {t("⚡ Begin raid")}
         </button>
 
         <div className="raid-lineup-label dim small">
-          Possible spawns ({lineup.length})
+          {t("Possible spawns (")}{lineup.length})
         </div>
         <ul className="raid-lineup">
           {lineup.map(({ speciesKey, weight }) => {
@@ -554,10 +561,11 @@ function formatCooldown(ms: number): string {
 
 function MetaPanel() {
   const { state } = useGame();
+  const t = useT();
   const label =
-    state.phase === "healing" ? "Healing your party…"
-    : state.phase === "evolution" ? "A Pokémon is evolving…"
-    : state.phase === "starterSelect" ? "Pick your starter."
+    state.phase === "healing" ? t("Healing your party…")
+    : state.phase === "evolution" ? t("A Pokémon is evolving…")
+    : state.phase === "starterSelect" ? t("Pick your starter.")
     : "—";
   return (
     <section className="ctx-section">
@@ -571,6 +579,7 @@ function MetaPanel() {
 // ---------------------------------------------------------------------------
 
 function TeamBalls({ total, spent, label }: { total: number; spent: number; label: string }) {
+  const t = useT();
   return (
     <div className="ctx-team-balls">
       <span className="dim small">{label}</span>
@@ -579,7 +588,7 @@ function TeamBalls({ total, spent, label }: { total: number; spent: number; labe
           <img
             key={i}
             src={itemSpriteUrl("pokeball")}
-            alt={i < spent ? "fainted" : "ready"}
+            alt={i < spent ? t("fainted") : t("ready")}
             className={i < spent ? "spent" : ""}
             width={14}
             height={14}
@@ -592,6 +601,7 @@ function TeamBalls({ total, spent, label }: { total: number; spent: number; labe
 
 function WildPokemonSection({ routeKey }: { routeKey: string }) {
   const { state } = useGame();
+  const t = useT();
   const enc = encounters[routeKey]?.encounters ?? [];
   const [selected, setSelected] = useState<string | null>(null);
   const totalWeight = enc.reduce((s, e) => s + e.weight, 0);
@@ -608,13 +618,13 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
   return (
     <section className="ctx-section">
       <header className="ctx-row-head">
-        <h4>Wild Pokémon</h4>
+        <h4>{t("Wild Pokémon")}</h4>
         <button
           type="button"
           className="ctx-link"
           onClick={() => openCatchSettings(routeKey)}
         >
-          Catch settings →
+          {t("Catch settings →")}
         </button>
       </header>
       <div className="wild-grid">
@@ -683,6 +693,7 @@ function readCollapsed(): boolean {
 
 export function UnlockHint() {
   const { state } = useGame();
+  const t = useT();
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggle = () => {
     setCollapsed((prev) => {
@@ -703,14 +714,14 @@ export function UnlockHint() {
     // the player isn't left with a generic "go fill the dex" pat.
     return (
       <section className="ctx-section unlock-hint">
-        <h4>Goal</h4>
-        <strong>All locations unlocked!</strong>
+        <h4>{t("Goal")}</h4>
+        <strong>{t("All locations unlocked!")}</strong>
         {state.championDefeated ? (
           <>
             <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
-              <li>Battle legendaries at <strong>Raid Island</strong> (top-right of the map).</li>
-              <li>Spend Victory Tokens at the <strong>Reward Shop</strong>.</li>
-              <li>Finish the Pokédex — every species still counts toward the Shiny Charm.</li>
+              <li>{t("Battle legendaries at ")}<strong>{t("Raid Island")}</strong>{t(" (top-right of the map).")}</li>
+              <li>{t("Spend Victory Tokens at the ")}<strong>{t("Reward Shop")}</strong>.</li>
+              <li>{t("Finish the Pokédex — every species still counts toward the Shiny Charm.")}</li>
             </ul>
             {/* Direct affordance — the Reward Shop was previously
                 reachable only via the LeagueCard at Indigo Plateau.
@@ -721,14 +732,14 @@ export function UnlockHint() {
               className="ctx-link"
               onClick={openRewardShop}
               style={{ marginTop: 8, fontSize: 11 }}
-              title="Spend Victory Tokens on stones, items, and tokens"
+              title={t("Spend Victory Tokens on stones, items, and tokens")}
             >
-              Open Reward Shop · {state.victoryTokens} 🎟 →
+              {t("Open Reward Shop · ")}{state.victoryTokens} 🎟 →
             </button>
           </>
         ) : (
           <p className="dim small" style={{ margin: "4px 0 0" }}>
-            Defeat the Elite Four and become Champion.
+            {t("Defeat the Elite Four and become Champion.")}
           </p>
         )}
       </section>
@@ -745,7 +756,7 @@ export function UnlockHint() {
   return (
     <section className={`ctx-section unlock-hint ${collapsed ? "collapsed" : ""}`}>
       <button type="button" className="unlock-header" onClick={toggle} aria-expanded={!collapsed}>
-        <span className="unlock-header-label">Next Goal</span>
+        <span className="unlock-header-label">{t("Next Goal")}</span>
         <strong className="unlock-header-target">
           <span className="unlock-target-icon">{iconFor(next.type)}</span>
           <span>{next.name}</span>
@@ -773,7 +784,7 @@ export function UnlockHint() {
           </ul>
           {peek && (
             <p className="unlock-peek dim small">
-              After this → <strong>{peek.name}</strong>
+              {t("After this → ")}<strong>{peek.name}</strong>
             </p>
           )}
         </div>
@@ -827,6 +838,7 @@ function iconFor(type?: string): ReactNode {
 // first fight (the rest chain automatically through bossQueue).
 function LeagueCard() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const allBadges = state.defeatedGyms.length >= gymLeaders.length;
   const eliteCleared = state.defeatedEliteFour.length >= eliteFour.length;
   const championBeaten = state.championDefeated;
@@ -872,10 +884,10 @@ function LeagueCard() {
 
   return (
     <section className="ctx-section">
-      <h4>Pokémon League</h4>
+      <h4>{t("Pokémon League")}</h4>
       {!allBadges ? (
         <p className="dim small" style={{ margin: 0 }}>
-          Earn all 8 Gym Badges to challenge the Elite Four. ({state.defeatedGyms.length}/{gymLeaders.length})
+          {t("Earn all 8 Gym Badges to challenge the Elite Four. (")}{state.defeatedGyms.length}/{gymLeaders.length})
         </p>
       ) : (
         <>
@@ -907,7 +919,7 @@ function LeagueCard() {
                 style={{ imageRendering: "pixelated" }}
               />
               <span className="league-name">
-                {champion.name} <small className="dim">Champion</small>
+                {champion.name} <small className="dim">{t("Champion")}</small>
                 {championBeaten && <span className="league-check"> ✓</span>}
               </span>
             </li>
@@ -916,17 +928,17 @@ function LeagueCard() {
             type="button"
             className="league-gauntlet-btn"
             onClick={startGauntlet}
-            title="Bails out of any active battle, heals your party, and starts the gauntlet — no healing between fights."
+            title={t("Bails out of any active battle, heals your party, and starts the gauntlet — no healing between fights.")}
           >
-            {eliteCleared && championBeaten ? "Rematch league" : "Begin gauntlet"}
+            {eliteCleared && championBeaten ? t("Rematch league") : t("Begin gauntlet")}
           </button>
           <button
             type="button"
             onClick={openRewardShop}
             style={{ width: "100%", marginTop: 6 }}
-            title="Trade Victory Tokens for evolution stones and other utility items"
+            title={t("Trade Victory Tokens for evolution stones and other utility items")}
           >
-            Reward Shop · {state.victoryTokens} 🎟
+            {t("Reward Shop · ")}{state.victoryTokens} 🎟
           </button>
         </>
       )}

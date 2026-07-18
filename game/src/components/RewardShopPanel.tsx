@@ -4,6 +4,7 @@ import { rewardShopCatalog } from "../data/eliteFour";
 import { getItemInfo, itemSpriteSlug } from "../utils/items";
 import { itemSpriteUrl } from "../utils/sprites";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 
 // The Reward Shop trades Victory Tokens (earned from gym + champion wins)
 // for utility items: Exp Share and evolution stones (including Moon
@@ -42,33 +43,33 @@ export function RewardShopModal() {
 function RewardShopDialog() {
   const { state, dispatch } = useGame();
   const dialogRef = useModalEnter(".g-card");
+  const t = useT();
   return (
     <div
       ref={dialogRef}
       className="g-modal reward-shop-modal-v2"
       onClick={(e) => e.stopPropagation()}
       role="dialog"
-      aria-label="Reward Shop"
+      aria-label={t("Reward Shop")}
     >
       <header className="g-modal-head">
-        <h2>Reward Shop</h2>
-        <button className="g-modal-close" onClick={closeRewardShop} aria-label="Close">×</button>
+        <h2>{t("Reward Shop")}</h2>
+        <button className="g-modal-close" onClick={closeRewardShop} aria-label={t("Close")}>×</button>
       </header>
 
       <div className="g-modal-body">
         <section className="g-card g-card-full">
           <div className="reward-token-row">
             <strong className="reward-token-count">{state.victoryTokens}</strong>
-            <span className="dim">Victory Tokens</span>
+            <span className="dim">{t("Victory Tokens")}</span>
           </div>
           <p className="g-help" style={{ marginTop: 0 }}>
-            Earn tokens by defeating Gym Leaders and the Champion. Trade
-            them here for utility items not sold in any town mart.
+            {t("Earn tokens by defeating Gym Leaders and the Champion. Trade them here for utility items not sold in any town mart.")}
           </p>
         </section>
 
         <section className="g-card g-card-full">
-          <h3>Catalog</h3>
+          <h3>{t("Catalog")}</h3>
           <ul className="reward-shop-list">
             {rewardShopCatalog.map((entry) => {
               const info = getItemInfo(entry.itemId);
@@ -89,7 +90,7 @@ function RewardShopDialog() {
                   </div>
                   <span className="reward-item-owned">×{owned}</span>
                   <span className="reward-item-cost">
-                    {entry.tokenCost} <span className="dim">Token{entry.tokenCost > 1 ? "s" : ""}</span>
+                    {entry.tokenCost} <span className="dim">{t("Token")}{entry.tokenCost > 1 ? "s" : ""}</span>
                   </span>
                   <button
                     className="g-btn-primary g-btn-small"
@@ -101,7 +102,7 @@ function RewardShopDialog() {
                       })
                     }
                   >
-                    Buy
+                    {t("Buy")}
                   </button>
                 </li>
               );
@@ -111,7 +112,7 @@ function RewardShopDialog() {
       </div>
 
       <footer className="g-modal-foot">
-        <button className="g-btn-primary" onClick={closeRewardShop}>Done</button>
+        <button className="g-btn-primary" onClick={closeRewardShop}>{t("Done")}</button>
       </footer>
     </div>
   );

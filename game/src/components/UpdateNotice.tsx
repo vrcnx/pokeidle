@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n/useT";
 
 // Detects when a newer build has deployed and prompts the player to reload.
 //
@@ -29,6 +30,7 @@ async function isNewBuildAvailable(): Promise<boolean> {
 }
 
 export function UpdateNotice() {
+  const t = useT();
   const [available, setAvailable] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const availableRef = useRef(false);
@@ -63,9 +65,9 @@ export function UpdateNotice() {
   return (
     <div className="update-notice" role="status" aria-live="polite">
       <span className="update-notice-icon" aria-hidden>✨</span>
-      <span className="update-notice-text">A new version of the game is available.</span>
+      <span className="update-notice-text">{t("A new version of the game is available.")}</span>
       <button className="update-notice-btn" type="button" onClick={() => window.location.reload()}>
-        Reload
+        {t("Reload")}
       </button>
       {/* This is a fixed-position pill that used to have no way to go away
           short of reloading — on mobile it sat directly over the bottom
@@ -73,7 +75,7 @@ export function UpdateNotice() {
           without this a deploy could make navigation unreliable for the
           rest of the session. Dismissing just hides it; the next reload
           the player does on their own picks up the new build regardless. */}
-      <button className="update-notice-dismiss" type="button" onClick={() => setDismissed(true)} aria-label="Dismiss">
+      <button className="update-notice-dismiss" type="button" onClick={() => setDismissed(true)} aria-label={t("Dismiss")}>
         ×
       </button>
     </div>

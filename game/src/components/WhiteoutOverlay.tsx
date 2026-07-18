@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useGame } from "../state/GameContext";
+import { useT } from "../i18n/useT";
 
 // Plays a brief fade-to-black "You fainted!" overlay whenever the team gets
 // wiped out. Triggered via state.whiteoutAnim (set in handleFaint white-out
@@ -11,6 +12,7 @@ const WHITEOUT_DURATION_MS = 1800;
 export function WhiteoutOverlay() {
   const { state, dispatch } = useGame();
   const anim = state.whiteoutAnim;
+  const t = useT();
 
   useEffect(() => {
     if (!anim) return;
@@ -27,7 +29,7 @@ export function WhiteoutOverlay() {
   if (!anim) return null;
   return (
     <div className="whiteout-overlay" key={anim.key} role="alert" aria-live="assertive">
-      <span className="whiteout-text">You fainted!</span>
+      <span className="whiteout-text">{t("You fainted!")}</span>
     </div>
   );
 }

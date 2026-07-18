@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 // Trade cinematic — plays the classic Pokemon trade sequence whenever
 // a finalised peer-to-peer trade resolves. The overlay is deliberately
@@ -60,6 +61,7 @@ function useTradeRequest(): TradeRequest | null {
 
 export function TradeAnimation() {
   const req = useTradeRequest();
+  const t = useT();
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -174,29 +176,29 @@ export function TradeAnimation() {
         <div className={`trade-flash stage-${step}`} aria-hidden />
 
         <div className="trade-caption">
-          {step === 0 && <>Trade in progress…</>}
+          {step === 0 && <>{t("Trade in progress…")}</>}
           {step === 1 && (
             <>
-              Sending <strong>{req.from.pokemonName}</strong>…
+              {t("Sending ")}<strong>{req.from.pokemonName}</strong>…
             </>
           )}
-          {step === 2 && <>The Pokémon are being traded…</>}
+          {step === 2 && <>{t("The Pokémon are being traded…")}</>}
           {step === 3 && (
             <>
-              <strong>{req.to.name}</strong> sent{" "}
+              <strong>{req.to.name}</strong>{t(" sent")}{" "}
               <strong>{req.to.pokemonName}</strong>!
             </>
           )}
           {step === 4 && (
             <>
-              Take good care of{" "}
+              {t("Take good care of")}{" "}
               <strong>{req.to.pokemonName}</strong>!
             </>
           )}
           {step === 5 && (
             <>
               <strong>{req.from.evolveInto ? req.from.pokemonName : req.to.pokemonName}</strong>{" "}
-              is evolving!
+              {t("is evolving!")}
             </>
           )}
         </div>

@@ -10,6 +10,7 @@ import {
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { moves as movesTable } from "../data/moves";
 import { openPublicTrainerCard } from "./TrainerCardModal";
+import { useT } from "../i18n/useT";
 
 // Live PvP battle UI. Mounts whenever the pvp store has an active
 // `room`. The actual simulation runs server-side via @pkmn/sim — this
@@ -28,6 +29,7 @@ export function PvpBattleModal() {
 function PvpBattleDialog({ room }: { room: BattleRoom }) {
   const [confirmingForfeit, setConfirmingForfeit] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
 
   // Auto-scroll the battle log on every new event.
   useEffect(() => {
@@ -82,11 +84,11 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
         className="g-modal pvp-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="PvP battle"
+        aria-label={t("PvP battle")}
       >
         <header className="g-modal-head">
           <h2>
-            Battle vs{" "}
+            {t("Battle vs")}{" "}
             <button
               type="button"
               className="pvp-opponent-link"
@@ -100,18 +102,18 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
           <button
             className="g-modal-close"
             onClick={() => setConfirmingForfeit(true)}
-            aria-label="Forfeit"
-            title="Forfeit"
+            aria-label={t("Forfeit")}
+            title={t("Forfeit")}
             disabled={!!room.result}
           >×</button>
         </header>
 
         {confirmingForfeit && !room.result && (
           <div className="trade-cancel-confirm" role="alertdialog">
-            <span>Forfeit the battle? Your opponent gets the win.</span>
+            <span>{t("Forfeit the battle? Your opponent gets the win.")}</span>
             <div className="trade-cancel-confirm-actions">
-              <button className="g-btn-ghost g-btn-small" onClick={() => setConfirmingForfeit(false)}>Keep fighting</button>
-              <button className="g-btn-danger-ghost g-btn-small" onClick={() => { setConfirmingForfeit(false); cancelBattle(room.battleId); }}>Yes, forfeit</button>
+              <button className="g-btn-ghost g-btn-small" onClick={() => setConfirmingForfeit(false)}>{t("Keep fighting")}</button>
+              <button className="g-btn-danger-ghost g-btn-small" onClick={() => { setConfirmingForfeit(false); cancelBattle(room.battleId); }}>{t("Yes, forfeit")}</button>
             </div>
           </div>
         )}
@@ -123,11 +125,11 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
               {foeMon ? (
                 <PvpFighter name={foeMon.name} speciesKey={foeMon.speciesKey} hpPct={foeMon.hpPct} status={foeMon.status} faint={foeMon.faint} />
               ) : (
-                <div className="dim small">Waiting for opponent…</div>
+                <div className="dim small">{t("Waiting for opponent…")}</div>
               )}
             </div>
             <div className="pvp-side pvp-side-you">
-              <div className="pvp-side-name">You</div>
+              <div className="pvp-side-name">{t("You")}</div>
               {myActiveMon ? (
                 <PvpFighter
                   name={cleanName(myActiveMon.ident)}
@@ -137,22 +139,22 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
                   faint={myActiveMon.condition.includes("fnt")}
                 />
               ) : (
-                <div className="dim small">Loading your Pokémon…</div>
+                <div className="dim small">{t("Loading your Pokémon…")}</div>
               )}
             </div>
           </div>
 
           <section className="g-card g-card-full pvp-log-card">
-            <h3>Battle log</h3>
+            <h3>{t("Battle log")}</h3>
             <div className="pvp-log" ref={logRef}>
-              {room.log.length === 0 && <div className="dim small">Waiting for the first turn…</div>}
+              {room.log.length === 0 && <div className="dim small">{t("Waiting for the first turn…")}</div>}
               {room.log.map((entry, i) => <LogLine key={i} entry={entry} />)}
             </div>
           </section>
 
           {!room.result && (
             <section className="g-card g-card-full pvp-chooser-card">
-              {isWaiting && <p className="dim">Waiting for opponent's choice…</p>}
+              {isWaiting && <p className="dim">{t("Waiting for opponent's choice…")}</p>}
 
               {!isWaiting && forceSwitch && mySidePoke.length > 0 && (
                 <SwitchPicker
@@ -172,7 +174,7 @@ function PvpBattleDialog({ room }: { room: BattleRoom }) {
               )}
 
               {!isWaiting && !forceSwitch && !myActive && (
-                <p className="dim">Pick your team order…</p>
+                <p className="dim">{t("Pick your team order…")}</p>
               )}
             </section>
           )}
@@ -206,9 +208,10 @@ function MovePicker({
   onMove: (idx: number) => void;
   onSwitch: (slot: number) => void;
 }) {
+  const t = useT();
   return (
     <>
-      <h3>Pick a move</h3>
+      <h3>{t("Pick a move")}</h3>
       <div className="pvp-moves">
         {active.moves.map((m: ActiveMove, i: number) => {
           const def = movesTable[m.id];
@@ -224,7 +227,7 @@ function MovePicker({
               <span className="pvp-move-name">{m.move}</span>
               <span className="pvp-move-meta">
                 <span>{type ?? "?"}</span>
-                <span>{m.pp}/{m.maxpp} PP</span>
+                <span>{m.pp}/{m.maxpp} {t("PP")}</span>
               </span>
             </button>
           );
@@ -232,7 +235,7 @@ function MovePicker({
       </div>
       {pokemon.length > 1 && (
         <details className="pvp-switch-details">
-          <summary>Switch out instead</summary>
+          <summary>{t("Switch out instead")}</summary>
           <SwitchPicker pokemon={pokemon} onChoose={onSwitch} disabledOnly />
         </details>
       )}

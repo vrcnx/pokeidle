@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { IconSliders } from "./Icon";
+import { useT } from "../i18n/useT";
 
 // Lightweight controls dropdown — replaces the old "More" popover.
 // Holds battle mode (manual/auto) + auto-proceed only. Catch settings
@@ -12,6 +13,7 @@ export function ControlsPopover() {
   const { state, dispatch } = useGame();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -37,39 +39,39 @@ export function ControlsPopover() {
         className={`more-actions-trigger ${open ? "active" : ""}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        title="Battle and travel controls"
+        title={t("Battle and travel controls")}
       >
         <IconSliders size={13} />
-        <span>Controls</span>
+        <span>{t("Controls")}</span>
       </button>
       {open && (
-        <div className="more-actions-popover" role="dialog" aria-label="Controls">
+        <div className="more-actions-popover" role="dialog" aria-label={t("Controls")}>
           <div className="more-actions-body">
             <div className="hud-section">
-              <span className="hud-label">Battle</span>
+              <span className="hud-label">{t("Battle")}</span>
               <div className="hud-row">
                 <button
                   className={state.battleMode === "manual" ? "active" : ""}
                   onClick={() => dispatch({ type: "SET_BATTLE_MODE", payload: { mode: "manual" } })}
                 >
-                  Manual
+                  {t("Manual")}
                 </button>
                 <button
                   className={state.battleMode === "auto" ? "active" : ""}
                   onClick={() => dispatch({ type: "SET_BATTLE_MODE", payload: { mode: "auto" } })}
                 >
-                  Auto
+                  {t("Auto")}
                 </button>
               </div>
             </div>
             <div className="hud-section">
-              <span className="hud-label">Travel</span>
+              <span className="hud-label">{t("Travel")}</span>
               <div className="hud-row">
                 <button
                   className={state.autoProceed ? "active" : ""}
                   onClick={() => dispatch({ type: "TOGGLE_AUTO_PROCEED" })}
                 >
-                  {state.autoProceed ? "Auto-Proceed: ON" : "Auto-Proceed: OFF"}
+                  {state.autoProceed ? t("Auto-Proceed: ON") : t("Auto-Proceed: OFF")}
                 </button>
               </div>
             </div>

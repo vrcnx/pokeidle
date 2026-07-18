@@ -13,12 +13,14 @@ import { pokemonSpriteUrl } from "../utils/sprites";
 import { expForLevel } from "../utils/stats";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
+import { useT } from "../i18n/useT";
 
 // Held item row + assignment popover. Lets the player give/take a held
 // item from the open Pokémon. The picker filters the player's inventory
 // to held-category items with implemented effects.
 function HeldItemRow({ pokemon }: { pokemon: Pokemon }) {
   const { state, dispatch } = useGame();
+  const t = useT();
   const [picking, setPicking] = useState(false);
   const heldId = pokemon.heldItem;
   const heldDef = heldId ? itemsCatalog[heldId] : null;
@@ -41,7 +43,7 @@ function HeldItemRow({ pokemon }: { pokemon: Pokemon }) {
 
   return (
     <div className="detail-held">
-      <span className="dim">Held:</span>{" "}
+      <span className="dim">{t("Held:")}</span>{" "}
       {heldDef ? (
         <>
           <img
@@ -55,17 +57,17 @@ function HeldItemRow({ pokemon }: { pokemon: Pokemon }) {
           <span className="detail-held-name" title={heldDef.description}>
             {heldDef.name}
           </span>
-          <button className="detail-held-btn" onClick={take}>Take</button>
+          <button className="detail-held-btn" onClick={take}>{t("Take")}</button>
         </>
       ) : (
         <button className="detail-held-btn" onClick={() => setPicking(!picking)}>
-          {picking ? "Cancel" : "Give item…"}
+          {picking ? t("Cancel") : t("Give item…")}
         </button>
       )}
       {picking && (
         <div className="detail-held-picker">
           {ownedHeld.length === 0 ? (
-            <span className="dim small">No held items in bag.</span>
+            <span className="dim small">{t("No held items in bag.")}</span>
           ) : (
             ownedHeld.map((it) => (
               <button
@@ -327,6 +329,7 @@ function PokemonDetailDialog({
   onRelease,
 }: any) {
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+  const t = useT();
   // Box → Party swap picker. Opens an inline list of party slots so the
   // player can pick which mon to swap out without leaving the detail
   // sheet. Especially useful on mobile where drag-and-drop swaps are
@@ -342,7 +345,7 @@ function PokemonDetailDialog({
     >
       <header className="g-modal-head">
         <h2><NicknameField pokemon={p} /></h2>
-        <button className="g-modal-close" onClick={closePokemonDetail} aria-label="Close">×</button>
+        <button className="g-modal-close" onClick={closePokemonDetail} aria-label={t("Close")}>×</button>
       </header>
 
       <div className="g-modal-body">
@@ -367,9 +370,9 @@ function PokemonDetailDialog({
             </div>
           </div>
           <div className="g-profile-stats">
-            <div className="g-stat-pill"><strong>{p.level}</strong><span>Level</span></div>
-            <div className="g-stat-pill"><strong>{p.currentHp}/{p.maxHp}</strong><span>HP</span></div>
-            <div className="g-stat-pill"><strong>{Math.round(expPct)}%</strong><span>EXP</span></div>
+            <div className="g-stat-pill"><strong>{p.level}</strong><span>{t("Level")}</span></div>
+            <div className="g-stat-pill"><strong>{p.currentHp}/{p.maxHp}</strong><span>{t("HP")}</span></div>
+            <div className="g-stat-pill"><strong>{Math.round(expPct)}%</strong><span>{t("EXP")}</span></div>
           </div>
         </section>
 
@@ -377,13 +380,13 @@ function PokemonDetailDialog({
           <div className="pokemon-meta-row">
             {p.nature && (
               <div className="pokemon-meta-item">
-                <span className="dim">Nature</span>
+                <span className="dim">{t("Nature")}</span>
                 <strong>{p.nature}</strong>
               </div>
             )}
             {p.ability && abilityInfo[p.ability] && (
               <div className="pokemon-meta-item" title={abilityInfo[p.ability].description}>
-                <span className="dim">Ability</span>
+                <span className="dim">{t("Ability")}</span>
                 <strong>{abilityInfo[p.ability].name}</strong>
               </div>
             )}
@@ -392,7 +395,7 @@ function PokemonDetailDialog({
             </div>
           </div>
           <div className="pokemon-exp-row">
-            <span className="dim small">EXP to next</span>
+            <span className="dim small">{t("EXP to next")}</span>
             <div className="exp-bar">
               <div className="exp-fill" style={{ width: `${expPct}%` }} />
             </div>
@@ -402,26 +405,26 @@ function PokemonDetailDialog({
 
         <div className="g-grid">
           <section className="g-card">
-            <h3>Stats</h3>
+            <h3>{t("Stats")}</h3>
             <ul className="detail-stats">
-              <StatRow label="HP" value={p.maxHp} pokemon={p} stat="hp" />
-              <StatRow label="Attack" value={p.attack} pokemon={p} stat="attack" />
-              <StatRow label="Defense" value={p.defense} pokemon={p} stat="defense" />
-              <StatRow label="Sp. Atk" value={p.spAttack} pokemon={p} stat="spAttack" />
-              <StatRow label="Sp. Def" value={p.spDefense} pokemon={p} stat="spDefense" />
-              <StatRow label="Speed" value={p.speed} pokemon={p} stat="speed" />
+              <StatRow label={t("HP")} value={p.maxHp} pokemon={p} stat="hp" />
+              <StatRow label={t("Attack")} value={p.attack} pokemon={p} stat="attack" />
+              <StatRow label={t("Defense")} value={p.defense} pokemon={p} stat="defense" />
+              <StatRow label={t("Sp. Atk")} value={p.spAttack} pokemon={p} stat="spAttack" />
+              <StatRow label={t("Sp. Def")} value={p.spDefense} pokemon={p} stat="spDefense" />
+              <StatRow label={t("Speed")} value={p.speed} pokemon={p} stat="speed" />
             </ul>
           </section>
 
           <section className="g-card">
-            <h3>EV training</h3>
+            <h3>{t("EV training")}</h3>
             <EvRadar evs={p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 }} ivs={p.ivs} />
           </section>
         </div>
 
         <section className="g-card g-card-full">
           <div className="detail-moves-header">
-            <h3>Moves</h3>
+            <h3>{t("Moves")}</h3>
             {selected.type === "party" && !inBattle && (
               <button
                 className="g-btn-ghost g-btn-small"
@@ -429,9 +432,9 @@ function PokemonDetailDialog({
                   closePokemonDetail();
                   openManageMoves({ type: "party", index: selected.index });
                 }}
-                title="Open the move manager for this Pokémon"
+                title={t("Open the move manager for this Pokémon")}
               >
-                Manage moves
+                {t("Manage moves")}
               </button>
             )}
           </div>
@@ -457,7 +460,7 @@ function PokemonDetailDialog({
 
         {allEvolutions.length > 0 && (
           <section className="g-card g-card-full">
-            <h3>Evolution</h3>
+            <h3>{t("Evolution")}</h3>
             <ul className="detail-evos">
               {allEvolutions.map((e: any) => {
                 const target = pokemonTable[e.trigger.into];
@@ -481,19 +484,19 @@ function PokemonDetailDialog({
                       disabled={!isPartySelection || inBattle || !e.eligible}
                       title={
                         !e.eligible ? e.reason :
-                        !isPartySelection ? "Move to party first" :
+                        !isPartySelection ? t("Move to party first") :
                         undefined
                       }
                       onClick={() => e.eligible && evolveTo(e.trigger)}
                     >
-                      Evolve
+                      {t("Evolve")}
                     </button>
                   </li>
                 );
               })}
             </ul>
             {!isPartySelection && allEvolutions.some((e: any) => e.eligible) && (
-              <p className="g-help">Move this Pokémon to your party to evolve it.</p>
+              <p className="g-help">{t("Move this Pokémon to your party to evolve it.")}</p>
             )}
           </section>
         )}
@@ -504,7 +507,7 @@ function PokemonDetailDialog({
           <div className="swap-picker">
             <header className="swap-picker-head">
               <strong>Swap {p.name} with…</strong>
-              <button className="g-modal-close" onClick={() => setSwapPicking(false)} aria-label="Cancel">×</button>
+              <button className="g-modal-close" onClick={() => setSwapPicking(false)} aria-label={t("Cancel")}>×</button>
             </header>
             <ul className="swap-picker-list">
               {(party as Pokemon[]).map((m, i) => (
@@ -535,23 +538,23 @@ function PokemonDetailDialog({
       )}
 
       <footer className="g-modal-foot">
-        <button className="g-btn-danger-ghost" onClick={onRelease}>Release</button>
+        <button className="g-btn-danger-ghost" onClick={onRelease}>{t("Release")}</button>
         <span style={{ flex: 1 }} />
         {selected.type === "party" && !isActive && p.currentHp > 0 && !inBattle && (
-          <button className="g-btn-ghost g-btn-small" onClick={onSwitch}>Make active</button>
+          <button className="g-btn-ghost g-btn-small" onClick={onSwitch}>{t("Make active")}</button>
         )}
         {selected.type === "party" && partySize > 1 && !inBattle && (
-          <button className="g-btn-ghost g-btn-small" onClick={onPartyToBox}>→ Box</button>
+          <button className="g-btn-ghost g-btn-small" onClick={onPartyToBox}>{t("→ Box")}</button>
         )}
         {selected.type === "box" && partySize < 6 && !inBattle && (
-          <button className="g-btn-ghost g-btn-small" onClick={onBoxToParty}>→ Party</button>
+          <button className="g-btn-ghost g-btn-small" onClick={onBoxToParty}>{t("→ Party")}</button>
         )}
         {selected.type === "box" && partySize > 0 && !inBattle && (
           <button className="g-btn-ghost g-btn-small" onClick={() => setSwapPicking(true)}>
-            Swap with party
+            {t("Swap with party")}
           </button>
         )}
-        <button className="g-btn-primary" onClick={closePokemonDetail}>Close</button>
+        <button className="g-btn-primary" onClick={closePokemonDetail}>{t("Close")}</button>
       </footer>
     </div>
   );
@@ -594,6 +597,7 @@ function StatRow({
 // Inline rename input. Submits on blur or Enter.
 function NicknameField({ pokemon }: { pokemon: Pokemon }) {
   const { dispatch } = useGame();
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(pokemon.nickname ?? "");
 
@@ -630,7 +634,7 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
     );
   }
   return (
-    <h2 onClick={() => setEditing(true)} title="Click to rename" style={{ cursor: "text" }}>
+    <h2 onClick={() => setEditing(true)} title={t("Click to rename")} style={{ cursor: "text" }}>
       {pokemon.nickname || pokemon.name}{pokemon.isShiny ? " ✨" : ""}
       <small> Lv. {pokemon.level}</small>
     </h2>
@@ -650,15 +654,16 @@ function EvRadar({
   evs: { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
   ivs: { hp: number; attack: number; defense: number; spAttack: number; spDefense: number; speed: number };
 }) {
+  const t = useT();
   // Six-stat vertices. Order matches the canonical Showdown radar:
   // HP (top), Atk, Def, SpA, SpD, Spe. We rotate so HP is at the top.
   const STAT_LABELS: Array<{ key: keyof typeof evs; short: string; full: string }> = [
-    { key: "hp",        short: "HP",  full: "HP" },
-    { key: "attack",    short: "Atk", full: "Attack" },
-    { key: "defense",   short: "Def", full: "Defense" },
-    { key: "spAttack",  short: "SpA", full: "Sp. Atk" },
-    { key: "spDefense", short: "SpD", full: "Sp. Def" },
-    { key: "speed",     short: "Spe", full: "Speed" },
+    { key: "hp",        short: t("HP"),  full: "HP" },
+    { key: "attack",    short: t("Atk"), full: "Attack" },
+    { key: "defense",   short: t("Def"), full: "Defense" },
+    { key: "spAttack",  short: t("SpA"), full: "Sp. Atk" },
+    { key: "spDefense", short: t("SpD"), full: "Sp. Def" },
+    { key: "speed",     short: t("Spe"), full: "Speed" },
   ];
   const N = STAT_LABELS.length;
   const SIZE = 220;
@@ -702,7 +707,7 @@ function EvRadar({
 
   return (
     <div className="ev-radar-wrap">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="ev-radar" aria-label="EV radar">
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="ev-radar" aria-label={t("EV radar")}>
         {/* Background hex grid rings */}
         {gridLevels.map((lvl, ringIdx) => {
           const points = STAT_LABELS.map((_, i) => {
@@ -778,12 +783,12 @@ function EvRadar({
 
       <div className="ev-radar-totals">
         <div>
-          <span>EV total</span>
-          <strong>{evTotal} <span className="dim">/ 510</span></strong>
+          <span>{t("EV total")}</span>
+          <strong>{evTotal} <span className="dim">{t("/ 510")}</span></strong>
         </div>
         <div>
-          <span>IV total</span>
-          <strong>{ivTotal} <span className="dim">/ 186</span></strong>
+          <span>{t("IV total")}</span>
+          <strong>{ivTotal} <span className="dim">{t("/ 186")}</span></strong>
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import { useMuteList } from "../utils/mute";
 import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
+import { useT } from "../i18n/useT";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -114,6 +115,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
   // Hooks have to be called unconditionally — keep the early-return below
   // the hook so opening/closing the panel re-runs the entrance.
   const dialogRef = useModalEnter(undefined, open);
+  const t = useT();
 
   if (!open) return null;
   if (!me) return null;
@@ -127,7 +129,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
         className="g-modal social-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Social"
+        aria-label={t("Social")}
       >
         <header className="g-modal-head">
           <div className="g-tabs">
@@ -138,7 +140,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
               className={`g-tab ${tab === "chat" ? "active" : ""}`}
               onClick={() => setTab("chat")}
             >
-              Chat
+              {t("Chat")}
             </button>
             <button
               type="button"
@@ -147,7 +149,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
               className={`g-tab ${tab === "friends" ? "active" : ""}`}
               onClick={() => setTab("friends")}
             >
-              Friends
+              {t("Friends")}
               {incomingCount > 0 && <span className="g-tab-pill">{incomingCount}</span>}
             </button>
             <button
@@ -157,10 +159,10 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
               className={`g-tab ${tab === "directory" ? "active" : ""}`}
               onClick={() => setTab("directory")}
             >
-              Trainers
+              {t("Trainers")}
             </button>
           </div>
-          <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
         {tab === "chat" && (
@@ -212,10 +214,11 @@ function ChatTab({
   const [sending, setSending] = useState(false);
   const mute = useMuteList();
   void mute.version; // re-renders when mute list changes
+  const t = useT();
 
   const channels = useMemo(() => {
     const list: { key: ChannelKey; label: string; sub?: "online" | "offline"; userId?: string }[] = [
-      { key: "global", label: "Global" },
+      { key: "global", label: t("Global") },
     ];
     if (friends) {
       for (const f of friends.accepted) {
@@ -241,12 +244,12 @@ function ChatTab({
     setDraft("");
   };
 
-  const activeLabel = channels.find((c) => c.key === activeChannel)?.label ?? "Channel";
+  const activeLabel = channels.find((c) => c.key === activeChannel)?.label ?? t("Channel");
 
   return (
     <div className="g-chat-shell">
       <aside className="g-chat-sidebar">
-        <div className="g-chat-sidebar-head">Channels</div>
+        <div className="g-chat-sidebar-head">{t("Channels")}</div>
         {channels.map((c) => {
           const unread = c.key === activeChannel ? 0 : unreadFor(c.key);
           return (
@@ -276,12 +279,12 @@ function ChatTab({
         <div className="g-chat-thread-head">
           <strong>{activeLabel}</strong>
           {activeChannel === "global"
-            ? <span className="dim">Server-wide chat</span>
-            : <span className="dim">Direct message</span>}
+            ? <span className="dim">{t("Server-wide chat")}</span>
+            : <span className="dim">{t("Direct message")}</span>}
         </div>
         <div className="g-chat-messages" ref={messagesRef}>
           {messages.length === 0 && (
-            <div className="g-chat-empty">No messages yet — say hi!</div>
+            <div className="g-chat-empty">{t("No messages yet — say hi!")}</div>
           )}
           {messages.map((m) => {
             const mine = m.user.id === me.id;
@@ -302,7 +305,7 @@ function ChatTab({
                         className="g-chat-msg-system-action"
                         onClick={() => openGiveaways(m.meta?.giveawayId)}
                       >
-                        View Giveaway
+                        {t("View Giveaway")}
                       </button>
                     )}
                     {m.kind === "gift" && m.meta?.username && (
@@ -311,7 +314,7 @@ function ChatTab({
                         className="g-chat-msg-system-action"
                         onClick={() => openPublicTrainerCard(m.meta!.username!)}
                       >
-                        View Trainer
+                        {t("View Trainer")}
                       </button>
                     )}
                   </div>
@@ -329,7 +332,7 @@ function ChatTab({
                   >
                     <strong>{m.user.name ?? m.user.username}</strong>
                   </button>
-                  <span className="g-chat-msg-lv">Lv {m.user.accountLevel}</span>
+                  <span className="g-chat-msg-lv">{t("Lv ")}{m.user.accountLevel}</span>
                   <span className="g-chat-msg-time">{new Date(m.createdAt).toLocaleTimeString()}</span>
                 </div>
                 <div className="g-chat-msg-body">{m.content}</div>
@@ -349,7 +352,7 @@ function ChatTab({
             maxLength={500}
           />
           <EmojiPicker onPick={(e) => setDraft((d) => (d + e).slice(0, 500))} />
-          <button type="submit" className="g-btn-primary" disabled={!draft.trim() || sending}>Send</button>
+          <button type="submit" className="g-btn-primary" disabled={!draft.trim() || sending}>{t("Send")}</button>
         </form>
       </main>
     </div>
@@ -365,6 +368,7 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
   const [usernameInput, setUsernameInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   const sendRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -376,7 +380,7 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
       setUsernameInput("");
       await refresh();
     } catch (err: any) {
-      setError(err?.message || "Failed");
+      setError(err?.message || t("Failed"));
     } finally {
       setBusy(false);
     }
@@ -387,26 +391,26 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
       <form className="g-friend-add" onSubmit={sendRequest}>
         <input
           type="text"
-          placeholder="Add friend by username"
+          placeholder={t("Add friend by username")}
           value={usernameInput}
           onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
           maxLength={20}
         />
-        <button type="submit" className="g-btn-primary" disabled={busy}>Add</button>
+        <button type="submit" className="g-btn-primary" disabled={busy}>{t("Add")}</button>
       </form>
       {error && <div className="g-error">{error}</div>}
 
       {friends?.incoming?.length ? (
         <section className="g-card">
-          <h3>Incoming requests</h3>
+          <h3>{t("Incoming requests")}</h3>
           {friends.incoming.map((f) => (
             <FriendRow
               key={f.friendshipId}
               entry={f}
               presence={presence}
               actions={[
-                { label: "Accept", onClick: async () => { await api.acceptFriend(f.friendshipId); refresh(); }, primary: true },
-                { label: "Decline", onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
+                { label: t("Accept"), onClick: async () => { await api.acceptFriend(f.friendshipId); refresh(); }, primary: true },
+                { label: t("Decline"), onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
               ]}
             />
           ))}
@@ -415,14 +419,14 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
 
       {friends?.outgoing?.length ? (
         <section className="g-card">
-          <h3>Pending</h3>
+          <h3>{t("Pending")}</h3>
           {friends.outgoing.map((f) => (
             <FriendRow
               key={f.friendshipId}
               entry={f}
               presence={presence}
               actions={[
-                { label: "Cancel", onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
+                { label: t("Cancel"), onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
               ]}
             />
           ))}
@@ -430,7 +434,7 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
       ) : null}
 
       <section className="g-card">
-        <h3>Friends</h3>
+        <h3>{t("Friends")}</h3>
         {friends?.accepted?.length ? (
           friends.accepted.map((f) => (
             <FriendRow
@@ -438,13 +442,13 @@ function FriendsTab({ friends, refresh, presence, startDmWith }: {
               entry={f}
               presence={presence}
               actions={[
-                { label: "Chat", onClick: () => startDmWith(f.id), primary: true },
-                { label: "Remove", onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
+                { label: t("Chat"), onClick: () => startDmWith(f.id), primary: true },
+                { label: t("Remove"), onClick: async () => { await api.removeFriend(f.friendshipId); refresh(); } },
               ]}
             />
           ))
         ) : (
-          <p className="g-help">No friends yet. Add someone by username above.</p>
+          <p className="g-help">{t("No friends yet. Add someone by username above.")}</p>
         )}
       </section>
     </div>
@@ -458,6 +462,7 @@ function FriendRow({ entry, presence, actions }: {
 }) {
   const online = presence[entry.id] ?? false;
   const initial = (entry.name ?? entry.username ?? "?")[0]?.toUpperCase() ?? "?";
+  const t = useT();
   return (
     <div className="g-friend-row">
       <button
@@ -477,10 +482,10 @@ function FriendRow({ entry, presence, actions }: {
       >
         <div className="g-friend-name">
           <strong>{entry.name ?? entry.username}</strong>
-          <span className={`g-presence ${online ? "on" : "off"}`}>{online ? "online" : "offline"}</span>
+          <span className={`g-presence ${online ? "on" : "off"}`}>{online ? t("online") : t("offline")}</span>
         </div>
         <div className="g-friend-meta">
-          @{entry.username} · Lv {entry.accountLevel} · {entry.pokedexCaughtCount}/151 dex
+          @{entry.username} {t("· Lv")} {entry.accountLevel} · {entry.pokedexCaughtCount}{t("/151 dex")}
         </div>
       </button>
       <div className="g-friend-actions">
@@ -507,6 +512,7 @@ function DirectoryTab() {
   const [sort, setSort] = useState<DirectorySort>("level");
   const [trainers, setTrainers] = useState<import("../net/api").PublicProfile[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const t = useT();
   useEffect(() => {
     let cancelled = false;
     setTrainers(null);
@@ -519,40 +525,40 @@ function DirectoryTab() {
   return (
     <div className="g-social-body trainer-directory">
       <div className="trainer-directory-controls">
-        <span className="dim small">Sort by:</span>
-        <DirSortBtn label="Level"          val="level"  active={sort} onPick={setSort} />
-        <DirSortBtn label="Pokédex"        val="dex"    active={sort} onPick={setSort} />
-        <DirSortBtn label="Σ Mon levels"   val="sigma"  active={sort} onPick={setSort} />
+        <span className="dim small">{t("Sort by:")}</span>
+        <DirSortBtn label={t("Level")}          val="level"  active={sort} onPick={setSort} />
+        <DirSortBtn label={t("Pokédex")}        val="dex"    active={sort} onPick={setSort} />
+        <DirSortBtn label={t("Σ Mon levels")}   val="sigma"  active={sort} onPick={setSort} />
       </div>
       {trainers === null && !err && (
-        <p className="dim small" style={{ padding: "0 14px" }}>Loading…</p>
+        <p className="dim small" style={{ padding: "0 14px" }}>{t("Loading…")}</p>
       )}
-      {err && <p className="dim small" style={{ padding: "0 14px" }}>Couldn't load directory.</p>}
+      {err && <p className="dim small" style={{ padding: "0 14px" }}>{t("Couldn't load directory.")}</p>}
       {trainers && trainers.length === 0 && (
-        <p className="dim small" style={{ padding: "0 14px" }}>No active trainers yet.</p>
+        <p className="dim small" style={{ padding: "0 14px" }}>{t("No active trainers yet.")}</p>
       )}
       {trainers && trainers.length > 0 && (
         <ol className="trainer-directory-list">
-          {trainers.map((t, i) => (
-            <li key={t.id} className="trainer-directory-row">
+          {trainers.map((trainer, i) => (
+            <li key={trainer.id} className="trainer-directory-row">
               <span className="trainer-directory-rank">{i + 1}</span>
               <button
                 type="button"
                 className="trainer-directory-name g-friend-info-btn"
-                onClick={() => openPublicTrainerCard(t.username)}
-                title={`View ${t.username}'s trainer card`}
+                onClick={() => openPublicTrainerCard(trainer.username)}
+                title={`View ${trainer.username}'s trainer card`}
               >
-                <strong>{t.name ?? t.username}</strong>
-                <small className="dim">@{t.username}</small>
+                <strong>{trainer.name ?? trainer.username}</strong>
+                <small className="dim">@{trainer.username}</small>
               </button>
-              <span className="trainer-directory-stat" title="Account level">
-                Lv <strong>{t.accountLevel}</strong>
+              <span className="trainer-directory-stat" title={t("Account level")}>
+                {t("Lv ")}<strong>{trainer.accountLevel}</strong>
               </span>
-              <span className="trainer-directory-stat" title="Pokédex caught">
-                <strong>{t.pokedexCaughtCount}</strong>/151
+              <span className="trainer-directory-stat" title={t("Pokédex caught")}>
+                <strong>{trainer.pokedexCaughtCount}</strong>/151
               </span>
-              <span className="trainer-directory-stat" title="Total Pokémon levels">
-                Σ <strong>{(t.totalCaughtLevels ?? 0).toLocaleString()}</strong>
+              <span className="trainer-directory-stat" title={t("Total Pokémon levels")}>
+                Σ <strong>{(trainer.totalCaughtLevels ?? 0).toLocaleString()}</strong>
               </span>
             </li>
           ))}

@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { useDailyStatus, setDailyStatus, bindDailies } from "../state/dailies";
 import { api } from "../net/api";
 import { pushToast } from "./Toast";
+import { useT } from "../i18n/useT";
 
 // Daily reward. Auto-opens once on login when a claim is available (wired via
 // bindDailies), and can be reopened from Settings. The server owns the streak
@@ -21,6 +22,7 @@ export function DailyRewardModal() {
   const status = useDailyStatus();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     bindDailies(() => setOpen(true));
@@ -46,7 +48,7 @@ export function DailyRewardModal() {
       // 409 = already claimed (e.g. claimed on another device). Refresh so
       // the UI reflects reality instead of offering a claim that will fail.
       if (e?.status === 409 && e?.body?.status) setDailyStatus(e.body.status);
-      else pushToast({ kind: "warn", text: "Couldn't claim right now — try again in a moment." });
+      else pushToast({ kind: "warn", text: t("Couldn't claim right now — try again in a moment.") });
     } finally {
       setBusy(false);
     }
@@ -56,12 +58,12 @@ export function DailyRewardModal() {
 
   return (
     <div className="modal-overlay" onClick={() => setOpen(false)}>
-      <div className="g-modal daily-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Daily reward">
+      <div className="g-modal daily-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("Daily reward")}>
         <header className="daily-head">
-          <span className="daily-eyebrow">Daily reward</span>
-          <h2>{status.claimedToday ? "See you tomorrow" : "Welcome back"}</h2>
+          <span className="daily-eyebrow">{t("Daily reward")}</span>
+          <h2>{status.claimedToday ? t("See you tomorrow") : t("Welcome back")}</h2>
           {status.streak > 0 && (
-            <p className="daily-streak" title="Consecutive days claimed">
+            <p className="daily-streak" title={t("Consecutive days claimed")}>
               🔥 {status.claimedToday ? status.streak : status.streakIfClaimed}-day streak
               {status.longestStreak > status.streak && <span className="dim small"> · best {status.longestStreak}</span>}
             </p>
@@ -85,7 +87,7 @@ export function DailyRewardModal() {
         </div>
 
         <div className="daily-reward-box">
-          <span className="dim small">{status.claimedToday ? "Claimed today" : `Day ${dayOfCycle} reward`}</span>
+          <span className="dim small">{status.claimedToday ? t("Claimed today") : `Day ${dayOfCycle} reward`}</span>
           <strong className="daily-reward-label">{status.todayReward.label}</strong>
         </div>
 
@@ -98,7 +100,7 @@ export function DailyRewardModal() {
             )
             : (
               <button className="g-btn-primary daily-claim" onClick={claim} disabled={busy}>
-                {busy ? "Claiming…" : "Claim reward"}
+                {busy ? t("Claiming…") : t("Claim reward")}
               </button>
             )}
         </footer>

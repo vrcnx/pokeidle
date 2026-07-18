@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { useOnlineCount } from "../state/presence";
 import { useAnnouncement } from "../state/announcement";
 import { openGiveaways } from "./GiveawayModal";
+import { useT } from "../i18n/useT";
 import type { SaveStatus } from "../state/GameContext";
 import type { Announcement, AnnouncementType } from "../net/api";
 
@@ -17,6 +18,7 @@ export function ChannelHeader() {
   const online = useOnlineCount();
   const announcement = useAnnouncement();
   const dismissed = useDismissed(announcement?.id ?? null);
+  const t = useT();
 
   const showBanner = !!announcement && !(dismissed && META[announcement.type].dismissible);
 
@@ -24,11 +26,11 @@ export function ChannelHeader() {
     <div
       className={`channel-header${showBanner ? ` channel-header--announce ann-${announcement!.type}` : ""}`}
       role="banner"
-      aria-label={showBanner ? "Announcement" : "Chat"}
+      aria-label={showBanner ? t("Announcement") : t("Chat")}
     >
       {showBanner
         ? <AnnouncementBody a={announcement!} onDismiss={() => dismiss(announcement!.id)} />
-        : <span className="channel-header-label">CHAT</span>}
+        : <span className="channel-header-label">{t("CHAT")}</span>}
 
       <span className="channel-header-meta">
         <SaveStatusDot status={saveStatus} />
@@ -36,7 +38,7 @@ export function ChannelHeader() {
           <span className="channel-header-online" title={`${online} player${online === 1 ? "" : "s"} online`}>
             <span className="channel-header-online-dot" />
             <span className="tabular">{online}</span>
-            <span className="dim small">online</span>
+            <span className="dim small">{t("online")}</span>
           </span>
         )}
       </span>
@@ -56,6 +58,7 @@ const META: Record<AnnouncementType, { icon: string; label: string; dismissible:
 };
 
 function AnnouncementBody({ a, onDismiss }: { a: Announcement; onDismiss: () => void }) {
+  const t = useT();
   const meta = META[a.type] ?? META.info;
   const cta = resolveCta(a);
   return (
@@ -82,8 +85,8 @@ function AnnouncementBody({ a, onDismiss }: { a: Announcement; onDismiss: () => 
           className="channel-header-announce-x"
           type="button"
           onClick={onDismiss}
-          aria-label="Dismiss announcement"
-          title="Dismiss"
+          aria-label={t("Dismiss announcement")}
+          title={t("Dismiss")}
         >
           ×
         </button>
@@ -145,19 +148,20 @@ function useDismissed(currentId: string | null): boolean {
 // keep the player's progress — see the long note that used to live here.
 // When saving works, saving is invisible.
 function SaveStatusDot({ status }: { status: SaveStatus }) {
+  const t = useT();
   if (status === "rejected") {
     return (
-      <span className="channel-header-save save-status-error" role="alert" title="This game's servers rejected your save. Your progress is safe on this device, but it is not being backed up. Please report this.">
+      <span className="channel-header-save save-status-error" role="alert" title={t("This game's servers rejected your save. Your progress is safe on this device, but it is not being backed up. Please report this.")}>
         <span className="channel-header-save-dot" aria-hidden />
-        <span>Not backing up</span>
+        <span>{t("Not backing up")}</span>
       </span>
     );
   }
   if (status === "conflict") {
     return (
-      <span className="channel-header-save save-status-error" role="alert" title="Your progress is open in another tab or on another device, which is the one saving to the cloud. Close the others and reload to sync this one.">
+      <span className="channel-header-save save-status-error" role="alert" title={t("Your progress is open in another tab or on another device, which is the one saving to the cloud. Close the others and reload to sync this one.")}>
         <span className="channel-header-save-dot" aria-hidden />
-        <span>Open elsewhere</span>
+        <span>{t("Open elsewhere")}</span>
       </span>
     );
   }

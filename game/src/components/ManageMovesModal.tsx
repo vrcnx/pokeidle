@@ -5,6 +5,7 @@ import { moves as movesTable } from "../data/moves";
 import { learnableMovesUpToLevel, type LearnedMove } from "../utils/moves";
 import { useModalEnter } from "../utils/animate";
 import { pokemonTable } from "../data/pokemon";
+import { useT } from "../i18n/useT";
 
 // Imperative open/close — same pattern as PokemonDetailModal.
 type Target = { type: "party"; index: number };
@@ -162,18 +163,19 @@ function ManageMovesDialog({
   hasChanges: boolean;
 }) {
   const dialogRef = useModalEnter();
+  const t = useT();
   return (
     <div ref={dialogRef} className="g-modal manage-moves-modal-v2" onClick={(e) => e.stopPropagation()}>
       <header className="g-modal-head">
-        <h2>Manage Moves</h2>
-        <button className="g-modal-close" onClick={closeManageMoves} aria-label="Close">×</button>
+        <h2>{t("Manage Moves")}</h2>
+        <button className="g-modal-close" onClick={closeManageMoves} aria-label={t("Close")}>×</button>
       </header>
 
       <div className="g-modal-body">
         <section className="g-card g-card-full">
-          <h3>{pokemon.name} <span className="dim">— Lv. {pokemon.level}</span></h3>
+          <h3>{pokemon.name} <span className="dim">{t("— Lv. ")}{pokemon.level}</span></h3>
           <div className="manage-current-v2">
-            <span className="dim small" style={{ marginBottom: 4 }}>Current ({draft.length}/4)</span>
+            <span className="dim small" style={{ marginBottom: 4 }}>{t("Current (")}{draft.length}{t("/4)")}</span>
             {[0, 1, 2, 3].map((slot) => {
               const id = draft[slot];
               const def = id ? movesTable[id] : null;
@@ -190,13 +192,13 @@ function ManageMovesDialog({
                         {def.name}
                       </span>
                       <div className="cs-actions">
-                        <button title="Move up" onClick={() => reorderInDraft(slot, -1)} disabled={slot === 0}>↑</button>
-                        <button title="Move down" onClick={() => reorderInDraft(slot, 1)} disabled={slot === draft.length - 1}>↓</button>
-                        <button title="Remove" onClick={() => toggleMove(id)}>✕</button>
+                        <button title={t("Move up")} onClick={() => reorderInDraft(slot, -1)} disabled={slot === 0}>↑</button>
+                        <button title={t("Move down")} onClick={() => reorderInDraft(slot, 1)} disabled={slot === draft.length - 1}>↓</button>
+                        <button title={t("Remove")} onClick={() => toggleMove(id)}>✕</button>
                       </div>
                     </>
                   ) : (
-                    <span className="cs-empty">empty</span>
+                    <span className="cs-empty">{t("empty")}</span>
                   )}
                 </div>
               );
@@ -205,10 +207,10 @@ function ManageMovesDialog({
         </section>
 
         <section className="g-card g-card-full">
-          <h3>Available Moves</h3>
+          <h3>{t("Available Moves")}</h3>
           <ul className="manage-available">
             {learnable.length === 0 && (
-              <li className="g-help">No moves learned yet.</li>
+              <li className="g-help">{t("No moves learned yet.")}</li>
             )}
             {learnable.map((lm) => {
               const def = movesTable[lm.moveId];
@@ -224,7 +226,7 @@ function ManageMovesDialog({
                   <span className="ma-cat">{CATEGORY_ICON[def.category]}</span>
                   <span className="ma-name">{def.name}</span>
                   <span className="ma-stats">
-                    Pwr {def.power || "—"} · {def.accuracy}% · Lv.{lm.learnLevel}
+                    {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}{t("% · Lv.")}{lm.learnLevel}
                   </span>
                   <span className="ma-action">{equipped ? "✓" : "+"}</span>
                 </li>
@@ -239,19 +241,19 @@ function ManageMovesDialog({
           className="g-btn-ghost g-btn-small"
           onClick={optimize}
           disabled={learnable.length === 0}
-          title="Auto-pick the four highest-impact moves (STAB + power + type diversity)"
+          title={t("Auto-pick the four highest-impact moves (STAB + power + type diversity)")}
         >
-          ⚡ Optimize
+          {t("⚡ Optimize")}
         </button>
-        <button className="g-btn-ghost g-btn-small" onClick={reset} disabled={!hasChanges}>Reset</button>
+        <button className="g-btn-ghost g-btn-small" onClick={reset} disabled={!hasChanges}>{t("Reset")}</button>
         <span style={{ flex: 1 }} />
-        <button className="g-btn-ghost g-btn-small" onClick={closeManageMoves}>Cancel</button>
+        <button className="g-btn-ghost g-btn-small" onClick={closeManageMoves}>{t("Cancel")}</button>
         <button
           className="g-btn-primary"
           onClick={confirm}
           disabled={!hasChanges || draft.length === 0}
         >
-          Save
+          {t("Save")}
         </button>
       </footer>
     </div>

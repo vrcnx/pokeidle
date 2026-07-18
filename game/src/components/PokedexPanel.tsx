@@ -1,14 +1,16 @@
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 export function PokedexPanel() {
   const { state } = useGame();
+  const t = useT();
   const all = Object.values(pokemonTable).sort((a, b) => a.id - b.id);
   return (
     <div className="pokedex-panel">
       <h2>
-        Pokédex — Caught {state.pokedexCaught.length} / {all.length} · Seen{" "}
+        {t("Pokédex — Caught ")}{state.pokedexCaught.length} / {all.length}{t(" · Seen")}{" "}
         {state.pokedexSeen.length}
       </h2>
       <div className="pokedex-grid">
@@ -36,7 +38,7 @@ export function PokedexPanel() {
                 <div className="dex-cell-blank">?</div>
               )}
               <small>#{String(sp.id).padStart(3, "0")}</small>
-              <small>{caught ? sp.name : seen ? "(seen)" : "—"}</small>
+              <small>{caught ? sp.name : seen ? t("(seen)") : "—"}</small>
               {shiny && <span className="dex-shiny">✨</span>}
             </div>
           );

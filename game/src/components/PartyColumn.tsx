@@ -13,6 +13,7 @@ import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
 import { InventoryRibbon } from "./InventoryRibbon";
 import type { Pokemon, GameState, StatusCondition } from "../types";
+import { useT } from "../i18n/useT";
 
 // Returns true when this party member can evolve right now — either
 // it has reached the level threshold, or it has a stone-evolution
@@ -68,11 +69,12 @@ function statusBadgeClass(s: StatusCondition): string {
 // works on touch.
 export function PartyColumn() {
   const { state } = useGame();
+  const t = useT();
   return (
     <div className="party-column control-column">
       <MetaDock />
       <section className="ctx-section party-card">
-        <h4>Party</h4>
+        <h4>{t("Party")}</h4>
         <ul className="party-list">
           {state.party.map((p, idx) => (
             <PartyRow key={p.id} pokemon={p} index={idx} />
@@ -89,6 +91,7 @@ export function PartyColumn() {
 
 function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number }) {
   const { state, dispatch } = useGame();
+  const t = useT();
   const sp = pokemonTable[p.speciesKey];
   const hpPct = (p.currentHp / p.maxHp) * 100;
   const hpClass = hpPct > 50 ? "ok" : hpPct > 20 ? "warn" : "low";
@@ -156,23 +159,23 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
         const partySize = state.party.length;
         openContextMenu(e, [
           {
-            label: "View details",
+            label: t("View details"),
             onClick: () => openPokemonDetail({ type: "party", index: idx }),
           },
           {
-            label: "Send out next",
+            label: t("Send out next"),
             disabled: isFront || p.currentHp <= 0,
             onClick: () =>
               dispatch({ type: "REORDER_PARTY", payload: { from: idx, to: 0 } }),
           },
           {
-            label: "Move to PC",
+            label: t("Move to PC"),
             disabled: partySize <= 1,
             onClick: () =>
               dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: idx } }),
           },
           {
-            label: "Release",
+            label: t("Release"),
             danger: true,
             disabled: partySize <= 1,
             onClick: () => {
@@ -186,7 +189,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
           },
         ]);
       }}
-      title="Tap for details · hold-and-drag to reorder · right-click for actions"
+      title={t("Tap for details · hold-and-drag to reorder · right-click for actions")}
     >
       <div className="party-row-sprite">
         <img
@@ -217,17 +220,17 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
               <span key={t} className={`party-type-chip type-${t.toLowerCase()}`}>{t}</span>
             ))}
           </span>
-          <span className="party-row-level">Lv{p.level}</span>
+          <span className="party-row-level">{t("Lv")}{p.level}</span>
         </div>
         <div className="party-bar-wrap">
-          <span className="party-bar-label">HP</span>
+          <span className="party-bar-label">{t("HP")}</span>
           <div className={`party-bar hp ${hpClass}`}>
             <div className="party-bar-fill" style={{ width: `${hpPct}%` }} />
           </div>
           <span className="party-bar-num">{p.currentHp}/{p.maxHp}</span>
         </div>
         <div className="party-bar-wrap">
-          <span className="party-bar-label">EXP</span>
+          <span className="party-bar-label">{t("EXP")}</span>
           <div className="party-bar exp">
             <div
               className="party-bar-fill"

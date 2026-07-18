@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type PublicGiveaway } from "../net/api";
 import { useModalEnter } from "../utils/animate";
 import { pushToast } from "./Toast";
+import { useT } from "../i18n/useT";
 
 // Player-facing giveaways.
 //
@@ -26,6 +27,7 @@ export function GiveawayModal() {
   const [entering, setEntering] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const dialogRef = useModalEnter(".giveaway-card");
+  const t = useT();
 
   useEffect(() => {
     _open = (targetId) => { setOpen(true); setHighlightId(targetId ?? null); };
@@ -47,7 +49,7 @@ export function GiveawayModal() {
   const load = () => {
     api.listGiveaways()
       .then((d) => { setList(d.giveaways); setErr(null); })
-      .catch((e) => setErr(e?.message ?? "Couldn't load giveaways."));
+      .catch((e) => setErr(e?.message ?? t("Couldn't load giveaways.")));
   };
   useEffect(() => { if (open) load(); }, [open]);
 
@@ -67,13 +69,13 @@ export function GiveawayModal() {
       pushToast({
         kind: "success",
         icon: "🎟",
-        text: res.alreadyEntered ? "You're already entered!" : `Entered — good luck!`,
+        text: res.alreadyEntered ? t("You're already entered!") : `Entered — good luck!`,
       });
       load();
     } catch (e: any) {
       // The server explains WHY (not open yet / closed / level gate),
       // and that reason is far more useful than a generic failure.
-      pushToast({ kind: "warn", icon: "⚠", text: e?.details?.reason ?? e?.message ?? "Couldn't enter." });
+      pushToast({ kind: "warn", icon: "⚠", text: e?.details?.reason ?? e?.message ?? t("Couldn't enter.") });
     } finally {
       setEntering(null);
     }
@@ -89,27 +91,26 @@ export function GiveawayModal() {
         className="g-modal giveaway-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Giveaways"
+        aria-label={t("Giveaways")}
       >
         <header className="giveaway-head">
           <div>
-            <span className="giveaway-eyebrow">Free to enter</span>
-            <h2>Giveaways</h2>
+            <span className="giveaway-eyebrow">{t("Free to enter")}</span>
+            <h2>{t("Giveaways")}</h2>
           </div>
-          <button className="g-modal-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={() => setOpen(false)} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="giveaway-body">
           {err && <p className="giveaway-err">{err}</p>}
-          {!list && !err && <p className="dim">Loading…</p>}
+          {!list && !err && <p className="dim">{t("Loading…")}</p>}
 
           {list && live.length === 0 && past.length === 0 && (
             <div className="giveaway-empty">
               <span className="giveaway-empty-icon">🎁</span>
-              <strong>No giveaways running right now</strong>
+              <strong>{t("No giveaways running right now")}</strong>
               <p className="dim small">
-                Check back soon — and keep an eye on global chat, that's where
-                we announce them.
+                {t("Check back soon — and keep an eye on global chat, that's where we announce them.")}
               </p>
             </div>
           )}
@@ -126,7 +127,7 @@ export function GiveawayModal() {
 
           {past.length > 0 && (
             <>
-              <h3 className="giveaway-section-head">Past giveaways</h3>
+              <h3 className="giveaway-section-head">{t("Past giveaways")}</h3>
               {past.map((g) => (
                 <GiveawayCard key={g.id} g={g} busy={false} onEnter={() => {}} highlighted={g.id === highlightId} />
               ))}
@@ -146,6 +147,7 @@ function GiveawayCard({
   onEnter: () => void;
   highlighted?: boolean;
 }) {
+  const t = useT();
   const isLive = g.status === "open";
   const drawn = g.status === "drawn";
   return (
@@ -153,13 +155,13 @@ function GiveawayCard({
       id={`giveaway-${g.id}`}
       className={`giveaway-card ${isLive ? "is-live" : ""} ${g.youWon ? "is-won" : ""} ${highlighted ? "is-highlighted" : ""}`}
     >
-      {g.youWon && <div className="giveaway-won-banner">🏆 You won this one!</div>}
+      {g.youWon && <div className="giveaway-won-banner">{t("🏆 You won this one!")}</div>}
 
       <header className="giveaway-card-head">
         <div className="giveaway-card-title">
           <h3>{g.title}</h3>
           <span className={`giveaway-status giveaway-status--${g.status}`}>
-            {isLive ? "LIVE" : drawn ? "DRAWN" : "CLOSED"}
+            {isLive ? t("LIVE") : drawn ? t("DRAWN") : t("CLOSED")}
           </span>
         </div>
         {isLive && g.endsAt && (
@@ -170,25 +172,25 @@ function GiveawayCard({
       {g.description && <p className="giveaway-desc">{g.description}</p>}
 
       <div className="giveaway-prize">
-        <span className="giveaway-prize-label">Prize</span>
+        <span className="giveaway-prize-label">{t("Prize")}</span>
         <strong className="giveaway-prize-value">{g.prizeSummary}</strong>
         {g.winnerCount > 1 && (
-          <span className="dim small">{g.winnerCount} winners</span>
+          <span className="dim small">{g.winnerCount}{t(" winners")}</span>
         )}
       </div>
 
       <footer className="giveaway-card-foot">
         <span className="giveaway-entries dim small">
           <strong className="tabular">{g.entryCount.toLocaleString()}</strong>
-          {" "}trainer{g.entryCount === 1 ? "" : "s"} entered
+          {" "}{t("trainer")}{g.entryCount === 1 ? "" : "s"}{t(" entered")}
         </span>
 
         {isLive && (
           g.hasEntered ? (
-            <span className="giveaway-entered">✓ Entered</span>
+            <span className="giveaway-entered">{t("✓ Entered")}</span>
           ) : (
             <button className="giveaway-enter" onClick={onEnter} disabled={busy}>
-              {busy ? "…" : "Enter"}
+              {busy ? "…" : t("Enter")}
             </button>
           )
         )}
@@ -198,16 +200,13 @@ function GiveawayCard({
           next giveaway feel worth entering. */}
       {drawn && g.winners.length > 0 && (
         <div className="giveaway-winners">
-          <span className="giveaway-winners-label">🎉 Winner{g.winners.length === 1 ? "" : "s"}</span>
+          <span className="giveaway-winners-label">{t("🎉 Winner")}{g.winners.length === 1 ? "" : "s"}</span>
           <span className="giveaway-winners-list">{g.winners.map((w) => `@${w}`).join(", ")}</span>
           {g.drawSeed && (
             <details className="giveaway-fair">
-              <summary className="dim small">Was this fair?</summary>
+              <summary className="dim small">{t("Was this fair?")}</summary>
               <p className="dim small">
-                Winners are picked by hashing this draw seed against every entry
-                and taking the lowest results — nobody, including us, can change
-                the outcome after the seed is set. It's published here so the
-                draw can be checked.
+                {t("Winners are picked by hashing this draw seed against every entry and taking the lowest results — nobody, including us, can change the outcome after the seed is set. It's published here so the draw can be checked.")}
               </p>
               <code className="giveaway-seed">{g.drawSeed}</code>
             </details>
@@ -216,7 +215,7 @@ function GiveawayCard({
       )}
 
       {isLive && g.minAccountLevel != null && (
-        <p className="giveaway-gate dim small">Account level {g.minAccountLevel}+ only</p>
+        <p className="giveaway-gate dim small">{t("Account level ")}{g.minAccountLevel}{t("+ only")}</p>
       )}
     </article>
   );
@@ -226,19 +225,20 @@ function GiveawayCard({
 // a deadline you can watch is a deadline you act on.
 function Countdown({ to }: { to: string }) {
   const [, force] = useState(0);
+  const t = useT();
   useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(timer);
   }, []);
   const ms = new Date(to).getTime() - Date.now();
-  if (ms <= 0) return <span className="giveaway-countdown ended">Closing…</span>;
+  if (ms <= 0) return <span className="giveaway-countdown ended">{t("Closing…")}</span>;
   const d = Math.floor(ms / 86400000);
   const h = Math.floor((ms % 86400000) / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
   return (
     <span className={`giveaway-countdown ${ms < 3600000 ? "urgent" : ""}`}>
-      {d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`} left
+      {d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`}{t(" left")}
     </span>
   );
 }

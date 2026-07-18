@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTradeState, respondToInvite } from "../state/trade";
+import { useT } from "../i18n/useT";
 
 // Toast that floats in the top-right when another player invites you to
 // trade. Auto-dismisses on the server-side 60s expiry; the client also
@@ -7,16 +8,17 @@ import { useTradeState, respondToInvite } from "../state/trade";
 export function TradeInviteToast() {
   const { invite, cancelMessage } = useTradeState();
   const [now, setNow] = useState(Date.now());
+  const t = useT();
   useEffect(() => {
     if (!invite) return;
-    const t = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(t);
+    const intervalId = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(intervalId);
   }, [invite]);
 
   if (cancelMessage) {
     return (
       <div className="trade-toast trade-toast-cancel" role="status">
-        <strong>Trade cancelled</strong>
+        <strong>{t("Trade cancelled")}</strong>
         <small>{cancelMessage}</small>
       </div>
     );
@@ -28,24 +30,24 @@ export function TradeInviteToast() {
   return (
     <div className="trade-toast" role="alert" aria-live="polite">
       <div className="trade-toast-head">
-        <strong>Trade request</strong>
+        <strong>{t("Trade request")}</strong>
         <span className="dim small trade-toast-timer">{secondsLeft}s</span>
       </div>
       <div className="trade-toast-body">
-        <strong>{invite.from.username}</strong> wants to trade with you.
+        <strong>{invite.from.username}</strong>{t(" wants to trade with you.")}
       </div>
       <div className="trade-toast-actions">
         <button
           className="g-btn-ghost g-btn-small"
           onClick={() => respondToInvite(invite.tradeId, false)}
         >
-          Decline
+          {t("Decline")}
         </button>
         <button
           className="g-btn-primary g-btn-small"
           onClick={() => respondToInvite(invite.tradeId, true)}
         >
-          Accept
+          {t("Accept")}
         </button>
       </div>
     </div>

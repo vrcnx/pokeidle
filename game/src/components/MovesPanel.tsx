@@ -9,6 +9,7 @@ import { animatePop } from "../utils/animate";
 import { typeEffectiveness } from "../utils/typing";
 import { pokemonTable } from "../data/pokemon";
 import type { PokemonType } from "../types";
+import { useT } from "../i18n/useT";
 
 // Manual-mode predicate. When the player needs to pick a move to advance the
 // turn, every move slot becomes a clickable button. Anything else (recharge,
@@ -115,6 +116,7 @@ function moveTooltip(
 // from the moves card so it reads as a global controls strip.
 export function MovesToolbar() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const player = state.playerPokemon;
   const activeIdx = state.activePlayerPokemonIndex;
   const healBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -124,8 +126,8 @@ export function MovesToolbar() {
   const healDisabled = state.phase === "healing" || !player;
 
   return (
-    <div className="moves-toolbar" role="toolbar" aria-label="Game controls">
-      <div className="moves-toolbar-group speed-segment" role="group" aria-label="Game speed">
+    <div className="moves-toolbar" role="toolbar" aria-label={t("Game controls")}>
+      <div className="moves-toolbar-group speed-segment" role="group" aria-label={t("Game speed")}>
         {[1, 2, 5].map((s) => (
           <button
             key={s}
@@ -148,27 +150,27 @@ export function MovesToolbar() {
             if (healBtnRef.current) animatePop(healBtnRef.current, 1.15);
             dispatch({ type: "START_HEALING" });
           }}
-          title={healDisabled ? "Cannot heal right now" : "Heal your party"}
+          title={healDisabled ? t("Cannot heal right now") : t("Heal your party")}
         >
           <IconPlus size={14} strokeWidth={2.5} />
-          <span>Heal</span>
+          <span>{t("Heal")}</span>
         </button>
         <button
           className="toolbar-btn manage-moves-btn"
           disabled={!player}
           onClick={() => openManageMoves({ type: "party", index: activeIdx })}
-          title="Manage moves"
+          title={t("Manage moves")}
         >
           <IconEdit size={13} />
-          <span>Manage</span>
+          <span>{t("Manage")}</span>
         </button>
         <button
           className="toolbar-btn"
           onClick={() => openCatchSettings(state.currentLocation)}
-          title="Catch settings for the current area"
+          title={t("Catch settings for the current area")}
         >
           <IconTarget size={13} />
-          <span>Catch</span>
+          <span>{t("Catch")}</span>
         </button>
         <ControlsPopover />
       </div>
@@ -185,6 +187,7 @@ export function MovesToolbar() {
 // badge ("2×", "½×", "Immune") computed against the opponent's typing.
 export function MovesPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const player = state.playerPokemon;
   const slots = [...(player?.moves ?? [])];
   while (slots.length < 4) slots.push(null as unknown as (typeof slots)[number]);
@@ -230,7 +233,7 @@ export function MovesPanel() {
           : effMult <= 0.5 ? "eff-resist"
           : "eff-neutral";
         const effLabel =
-          effMult === 0 ? "Immune"
+          effMult === 0 ? t("Immune")
           : effMult >= 4 ? "4×"
           : effMult >= 2 ? "2×"
           : effMult === 0.25 ? "¼×"
@@ -255,10 +258,10 @@ export function MovesPanel() {
               )}
             </div>
             <div className="move-slot-stats">
-              <span>Pow {def.power || "—"}</span>
+              <span>{t("Pow")} {def.power || "—"}</span>
               <span>{def.type}</span>
               <span className={`move-pp ${ppLow ? "low" : ""} ${!hasPP ? "out" : ""}`}>
-                PP {m.pp}/{m.maxPp}
+                {t("PP")} {m.pp}/{m.maxPp}
               </span>
             </div>
           </button>

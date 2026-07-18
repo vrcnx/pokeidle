@@ -6,6 +6,7 @@ import { resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import type { CatchMode, CatchSettings } from "../types";
+import { useT } from "../i18n/useT";
 
 const MODE_OPTIONS: { value: CatchMode; label: string }[] = [
   { value: "always",          label: "Always catch" },
@@ -17,6 +18,7 @@ const MODE_OPTIONS: { value: CatchMode; label: string }[] = [
 // Per-route, per-species rules. Default falls through to globalCatchDefaults.
 export function CatchSettingsPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const route = state.currentRoute;
   const list = encounters[route]?.encounters ?? [];
 
@@ -40,21 +42,21 @@ export function CatchSettingsPanel() {
 
   return (
     <div className="catch-settings-panel">
-      <h2>Catch settings — {route}</h2>
-      <p className="dim">Per-species rules for this route. Falls back to global defaults.</p>
+      <h2>{t("Catch settings — ")}{route}</h2>
+      <p className="dim">{t("Per-species rules for this route. Falls back to global defaults.")}</p>
 
       <div className="catch-row global">
-        <strong>Global default</strong>
+        <strong>{t("Global default")}</strong>
         <CatchEditor settings={state.globalCatchDefaults} onChange={updateGlobalDefaults} />
       </div>
 
       {list.length === 0 ? (
-        <p className="dim">No wild encounters configured for this route.</p>
+        <p className="dim">{t("No wild encounters configured for this route.")}</p>
       ) : (
         <>
           <div className="catch-bulk">
-            <button onClick={() => toggleAll(true)}>Enable all on this route</button>
-            <button onClick={() => toggleAll(false)}>Disable all</button>
+            <button onClick={() => toggleAll(true)}>{t("Enable all on this route")}</button>
+            <button onClick={() => toggleAll(false)}>{t("Disable all")}</button>
           </div>
           <ul className="catch-list">
             {list.map((e) => {
@@ -71,7 +73,7 @@ export function CatchSettingsPanel() {
                   <div>
                     <strong>{pokemonTable[e.speciesKey]?.name ?? e.speciesKey}</strong>
                     <small className="dim">
-                      L{e.minLevel}–{e.maxLevel} · weight {e.weight}
+                      L{e.minLevel}–{e.maxLevel}{t(" · weight ")}{e.weight}
                     </small>
                   </div>
                   <CatchEditor
@@ -95,6 +97,7 @@ function CatchEditor({
   settings: CatchSettings;
   onChange: (s: CatchSettings) => void;
 }) {
+  const t = useT();
   return (
     <div className="catch-editor">
       <label>
@@ -103,7 +106,7 @@ function CatchEditor({
           checked={settings.enabled}
           onChange={(e) => onChange({ ...settings, enabled: e.target.checked })}
         />{" "}
-        Auto-catch
+        {t("Auto-catch")}
       </label>
       <select
         value={settings.mode}
@@ -112,7 +115,7 @@ function CatchEditor({
         }
       >
         {MODE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>{t(o.label)}</option>
         ))}
       </select>
       {settings.mode === "level_threshold" && (

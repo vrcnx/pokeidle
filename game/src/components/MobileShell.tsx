@@ -12,6 +12,7 @@ import { MiniChat } from "./MiniChat";
 import {
   IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor, IconCart, IconBook,
 } from "./Icon";
+import { useT } from "../i18n/useT";
 
 // Mobile single-column layout. Battle scene + moves are always pinned
 // at the top; the bottom area swaps between six top-level tabs that
@@ -22,14 +23,6 @@ type MobileTab = "world" | "party" | "mart" | "bag" | "pc" | "chat";
 // "world" merges the old Here + Map tabs into a single bottom-bar slot
 // with an internal sub-tab toggle so we don't overflow into a second
 // row on phones. Six tabs comfortably fit a 360px viewport.
-const TABS: { id: MobileTab; label: string }[] = [
-  { id: "world", label: "World" },
-  { id: "party", label: "Party" },
-  { id: "mart",  label: "Mart" },
-  { id: "bag",   label: "Bag" },
-  { id: "pc",    label: "PC" },
-  { id: "chat",  label: "Chat" },
-];
 
 // Compact money formatter for the mobile header strip — keeps the
 // stats row readable on narrow screens. The full amount is in the
@@ -55,6 +48,15 @@ function tabIcon(id: MobileTab) {
 
 export function MobileShell() {
   const { state } = useGame();
+  const t = useT();
+  const TABS: { id: MobileTab; label: string }[] = [
+    { id: "world", label: t("World") },
+    { id: "party", label: t("Party") },
+    { id: "mart",  label: t("Mart") },
+    { id: "bag",   label: t("Bag") },
+    { id: "pc",    label: t("PC") },
+    { id: "chat",  label: t("Chat") },
+  ];
   const [tab, setTab] = useState<MobileTab>("world");
   // Sub-tab inside the World tab: "here" shows the location/raid
   // panel, "map" shows the world map. Persisted across the World
@@ -94,7 +96,7 @@ export function MobileShell() {
               <span className="mobile-stat-icon">🎟</span>{state.victoryTokens}
             </span>
           )}
-          {state.championDefeated && <span title="Champion">👑</span>}
+          {state.championDefeated && <span title={t("Champion")}>👑</span>}
         </div>
         <div className="mobile-meta-buttons">
           <MetaDock />
@@ -117,7 +119,7 @@ export function MobileShell() {
                 className={worldView === "here" ? "active" : ""}
                 onClick={() => setWorldView("here")}
               >
-                <IconPin size={14} /> <span>Here</span>
+                <IconPin size={14} /> <span>{t("Here")}</span>
               </button>
               <button
                 role="tab"
@@ -125,7 +127,7 @@ export function MobileShell() {
                 className={worldView === "map" ? "active" : ""}
                 onClick={() => setWorldView("map")}
               >
-                <IconMap size={14} /> <span>Map</span>
+                <IconMap size={14} /> <span>{t("Map")}</span>
               </button>
             </div>
             <div className="mobile-world-body">
@@ -160,7 +162,7 @@ export function MobileShell() {
                 className={pcView === "box" ? "active" : ""}
                 onClick={() => setPcView("box")}
               >
-                <IconMonitor size={14} /> <span>Box</span>
+                <IconMonitor size={14} /> <span>{t("Box")}</span>
               </button>
               <button
                 role="tab"
@@ -168,7 +170,7 @@ export function MobileShell() {
                 className={pcView === "dex" ? "active" : ""}
                 onClick={() => setPcView("dex")}
               >
-                <IconBook size={14} /> <span>Dex</span>
+                <IconBook size={14} /> <span>{t("Dex")}</span>
               </button>
             </div>
             {pcView === "box" ? <PCTab /> : <DexTab />}

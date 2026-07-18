@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { useT } from "../i18n/useT";
 
 // Pokémon Center healing scene. We dispatch the same step transitions the
 // reducer expects (START_HEALING already moved phase→"healing"; we drive
@@ -12,6 +13,7 @@ import { useGame } from "../state/GameContext";
 //   t=3750ms  → COMPLETE_HEALING (party is restored, phase returns to idle)
 export function HealingModal() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const active = state.phase === "healing" && !!state.healingState;
@@ -38,16 +40,16 @@ export function HealingModal() {
   if (!active) return null;
   const step = state.healingState!.step;
   const label =
-    step >= 2 ? "Your Pokémon are fully healed!"
-    : step >= 1 ? "Healing your Pokémon…"
-    : "Welcome to the Pokémon Center.";
+    step >= 2 ? t("Your Pokémon are fully healed!")
+    : step >= 1 ? t("Healing your Pokémon…")
+    : t("Welcome to the Pokémon Center.");
 
   return (
     <div className="modal-overlay heal-overlay">
       <div className="modal healing">
         <header className="heal-head">
           <span className="heal-cross" aria-hidden>+</span>
-          <strong>Pokémon Center</strong>
+          <strong>{t("Pokémon Center")}</strong>
         </header>
         <div className="heal-video-frame">
           <video

@@ -1,6 +1,7 @@
 import type { Pokemon } from "../types";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
+import { useT } from "../i18n/useT";
 
 interface Props {
   pokemon: Pokemon;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function PokemonCard({ pokemon, isBack = false, small = false }: Props) {
+  const t = useT();
   const sp = pokemonTable[pokemon.speciesKey];
   const hpPct = Math.max(0, (pokemon.currentHp / pokemon.maxHp) * 100);
   const hpClass = hpPct > 50 ? "ok" : hpPct > 20 ? "warn" : "low";
@@ -19,7 +21,7 @@ export function PokemonCard({ pokemon, isBack = false, small = false }: Props) {
           {pokemon.name}
           {pokemon.isShiny ? " ✨" : ""}
         </strong>
-        <span>Lv. {pokemon.level}</span>
+        <span>{t("Lv. ")}{pokemon.level}</span>
       </div>
       <div className="pokemon-card-types">{sp?.types.join(" / ")}</div>
       <img

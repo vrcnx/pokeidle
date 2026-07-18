@@ -1,16 +1,18 @@
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
+import { useT } from "../i18n/useT";
 
 export function MapPanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const ordered = Object.values(routes).sort(
     (a, b) => a.unlockOrder - b.unlockOrder
   );
   return (
     <div className="map-panel">
-      <h2>Map</h2>
+      <h2>{t("Map")}</h2>
       <p>
-        Currently at: <strong>{routes[state.currentLocation]?.name ?? state.currentLocation}</strong>
+        {t("Currently at: ")}<strong>{routes[state.currentLocation]?.name ?? state.currentLocation}</strong>
       </p>
       <div className="map-grid">
         {ordered.map((r) => {

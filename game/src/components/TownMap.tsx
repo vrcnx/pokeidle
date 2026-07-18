@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { api } from "../net/api";
+import { useT } from "../i18n/useT";
 
 // Optional crop loaded from the admin dashboard. Caches the result on
 // the module so it persists across TownMap mounts (otherwise we'd hit
@@ -36,6 +37,7 @@ interface RouteNode {
 
 export function TownMap() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const [crop, setCrop] = useState<Crop>(cachedCrop ?? null);
   useEffect(() => {
     loadCrop();
@@ -71,7 +73,7 @@ export function TownMap() {
   return (
     <div className="town-map">
       <header className="town-map-header">
-        <span className="town-map-label-left">TOWN MAP</span>
+        <span className="town-map-label-left">{t("TOWN MAP")}</span>
         <strong className="town-map-current-name">
           {routes[state.currentLocation]?.name ?? state.currentLocation}
         </strong>
@@ -133,7 +135,7 @@ export function TownMap() {
               style={{ left: `${lx}%`, top: `${ly}%` }}
               disabled={!unlocked}
               onClick={() => travel(n.id)}
-              title={unlocked ? n.name : "???"}
+              title={unlocked ? n.name : t("???")}
             >
               <span className="town-map-marker" />
               {unlocked && (

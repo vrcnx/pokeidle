@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
+import { useT } from "../i18n/useT";
 import type { GameState } from "../types";
 
 // How to play.
@@ -84,6 +85,7 @@ const STEPS: Step[] = [
 export function HowToPlayModal() {
   const { state } = useGame();
   const [open, setOpen] = useState(false);
+  const t = useT();
 
   // On-demand opener wiring.
   useEffect(() => {
@@ -123,18 +125,18 @@ export function HowToPlayModal() {
         className="g-modal howto-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="How to play"
+        aria-label={t("How to play")}
       >
         <header className="howto-head">
           <div className="howto-head-text">
-            <span className="howto-eyebrow">Welcome, trainer</span>
-            <h2>How to play</h2>
+            <span className="howto-eyebrow">{t("Welcome, trainer")}</span>
+            <h2>{t("How to play")}</h2>
           </div>
-          <button className="g-modal-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+          <button className="g-modal-close" onClick={() => setOpen(false)} aria-label={t("Close")}>×</button>
         </header>
 
         <p className="howto-intro">
-          The basics in thirty seconds. You can reopen this any time from Settings.
+          {t("The basics in thirty seconds. You can reopen this any time from Settings.")}
         </p>
 
         <ol className="howto-steps">
@@ -142,8 +144,8 @@ export function HowToPlayModal() {
             <li key={s.title} className="howto-step">
               <span className="howto-step-icon" aria-hidden>{s.icon}</span>
               <div className="howto-step-text">
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
+                <h3>{t(s.title)}</h3>
+                <p>{t(s.body)}</p>
               </div>
             </li>
           ))}
@@ -151,7 +153,7 @@ export function HowToPlayModal() {
 
         <footer className="howto-foot">
           <button className="g-btn-primary howto-dismiss" onClick={() => setOpen(false)}>
-            Start playing
+            {t("Start playing")}
           </button>
         </footer>
       </div>

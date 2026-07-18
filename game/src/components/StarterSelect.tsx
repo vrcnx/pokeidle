@@ -3,14 +3,16 @@ import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { rollShiny, hasShinyCharm } from "../utils/pokemon";
 import { STARTER_KEYS } from "../state/initialState";
+import { useT } from "../i18n/useT";
 
 export function StarterSelect() {
   const { state, dispatch } = useGame();
   const charm = hasShinyCharm(state.pokedexCaught);
+  const t = useT();
   return (
     <div className="game-window starter-select">
-      <h1>Pokémon Idle</h1>
-      <p>Choose your starter:</p>
+      <h1>{t("Pokémon Idle")}</h1>
+      <p>{t("Choose your starter:")}</p>
       <div className="starter-options">
         {STARTER_KEYS.map((key) => {
           const sp = pokemonTable[key];

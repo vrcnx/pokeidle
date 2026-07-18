@@ -23,6 +23,7 @@ import { pushToast } from "./Toast";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { useDraggable, useDropTarget } from "../hooks/useDrag";
+import { useT } from "../i18n/useT";
 import type { Pokemon } from "../types";
 import type { ReactNode } from "react";
 
@@ -44,20 +45,21 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
 
 export function BottomTabs() {
   const [active, setActive] = useState<TabId>("map");
+  const t = useT();
 
   return (
     <div className="bottom-tabs">
       <nav className="bottom-tab-strip" role="tablist">
-        {TABS.map((t) => (
+        {TABS.map((tab) => (
           <button
-            key={t.id}
+            key={tab.id}
             role="tab"
-            aria-selected={active === t.id}
-            className={`bottom-tab ${active === t.id ? "active" : ""}`}
-            onClick={() => setActive(t.id)}
+            aria-selected={active === tab.id}
+            className={`bottom-tab ${active === tab.id ? "active" : ""}`}
+            onClick={() => setActive(tab.id)}
           >
-            <span className="bottom-tab-icon">{t.icon}</span>
-            <span className="bottom-tab-label">{t.label}</span>
+            <span className="bottom-tab-icon">{tab.icon}</span>
+            <span className="bottom-tab-label">{t(tab.label)}</span>
           </button>
         ))}
       </nav>
@@ -81,6 +83,7 @@ export function BottomTabs() {
 // ---------------------------------------------------------------------------
 export function MartTab() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const here = state.currentLocation;
   const route = routes[here];
   // When the player hits Buy, the row swaps into a quantity adjuster so
@@ -124,20 +127,20 @@ export function MartTab() {
   return (
     <div className="tab-pane mart-tab">
       <TabPaneHead
-        title="Poké Mart"
+        title={t("Poké Mart")}
         meta={
           <span className="mart-wallet">
             💰 ${state.money.toLocaleString()}
             <span className="dim small" style={{ marginLeft: 8 }}>
-              · {unified.visitedTownsWithMart} town{unified.visitedTownsWithMart === 1 ? "" : "s"} visited
+              · {unified.visitedTownsWithMart} {t("town")}{unified.visitedTownsWithMart === 1 ? "" : "s"} {t("visited")}
             </span>
           </span>
         }
       />
       {unified.visitedTownsWithMart === 0 ? (
-        <p className="dim small">No mart has opened to you yet. Visit Viridian City to unlock your first stock.</p>
+        <p className="dim small">{t("No mart has opened to you yet. Visit Viridian City to unlock your first stock.")}</p>
       ) : sortedItems.length === 0 ? (
-        <p className="dim small">No items available yet.</p>
+        <p className="dim small">{t("No items available yet.")}</p>
       ) : (
         <ul className="mart-list">
           {sortedItems.map((entry) => {
@@ -165,12 +168,12 @@ export function MartTab() {
                   <strong>{info.name}</strong>
                   {locked ? (
                     <small className="dim">
-                      Unlocks at {entry.unlockWildBattlesWon} wild battles ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
+                      {t("Unlocks at")} {entry.unlockWildBattlesWon} {t("wild battles")} ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
                     </small>
                   ) : (
                     <small className="dim">
                       {resolved.description}
-                      <span style={{ opacity: 0.7 }}> · First found at {entry.firstSoldAtName}</span>
+                      <span style={{ opacity: 0.7 }}> · {t("First found at")} {entry.firstSoldAtName}</span>
                     </small>
                   )}
                 </div>
@@ -191,8 +194,8 @@ export function MartTab() {
                       })
                     }
                     disabled={qty <= 1 || locked}
-                    title="Shift-click for −10"
-                    aria-label="Decrease quantity"
+                    title={t("Shift-click for −10")}
+                    aria-label={t("Decrease quantity")}
                   >
                     −
                   </button>
@@ -207,8 +210,8 @@ export function MartTab() {
                       })
                     }
                     disabled={qty >= maxAffordable || locked}
-                    title="Shift-click for +10"
-                    aria-label="Increase quantity"
+                    title={t("Shift-click for +10")}
+                    aria-label={t("Increase quantity")}
                   >
                     +
                   </button>
@@ -219,7 +222,7 @@ export function MartTab() {
                       setPending({ itemId: entry.itemId, qty: Math.min(maxAffordable, qty + 10) })
                     }
                     disabled={qty >= maxAffordable || locked}
-                    aria-label="Add ten"
+                    aria-label={t("Add ten")}
                   >
                     +10
                   </button>
@@ -229,9 +232,9 @@ export function MartTab() {
                     onClick={() => setPending({ itemId: entry.itemId, qty: maxAffordable })}
                     disabled={qty >= maxAffordable || locked}
                     title={`Buy as many as you can afford (${maxAffordable})`}
-                    aria-label="Maximum affordable"
+                    aria-label={t("Maximum affordable")}
                   >
-                    Max
+                    {t("Max")}
                   </button>
                   <button
                     type="button"
@@ -261,7 +264,7 @@ export function MartTab() {
                       ? `Buy 1 for $${resolved.price.toLocaleString()}`
                       : `Buy ${qty} for $${total.toLocaleString()}`}
                   >
-                    Buy{qty > 1 ? ` ${qty}` : ""}
+                    {t("Buy")}{qty > 1 ? ` ${qty}` : ""}
                   </button>
                 </div>
               </li>
@@ -278,6 +281,7 @@ export function MartTab() {
 // ---------------------------------------------------------------------------
 export function BagTab() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const items = Object.entries(state.inventory).filter(([, n]) => n > 0);
   // Group by catalog category. Items the catalog doesn't know about land in
   // "utility" so the Bag still shows them.
@@ -295,7 +299,7 @@ export function BagTab() {
   return (
     <div className="tab-pane bag-tab">
       <TabPaneHead
-        title="Bag"
+        title={t("Bag")}
         meta={`${items.length} item type${items.length === 1 ? "" : "s"}`}
       />
 
@@ -304,7 +308,7 @@ export function BagTab() {
           when they don't want it consuming battles. */}
       {state.activeEffects.length > 0 && (
         <section className="bag-category bag-effects">
-          <h4 className="bag-category-head">Active Effects</h4>
+          <h4 className="bag-category-head">{t("Active Effects")}</h4>
           <ul className="bag-list-v2">
             {state.activeEffects.map((eff) => {
               const info = getItemInfo(eff.itemId);
@@ -319,16 +323,16 @@ export function BagTab() {
                   />
                   <span className="bag-row-name">
                     {info.name}
-                    {eff.paused && <small className="dim" style={{ marginLeft: 8 }}>paused</small>}
+                    {eff.paused && <small className="dim" style={{ marginLeft: 8 }}>{t("paused")}</small>}
                   </span>
-                  <span className="bag-row-count">{eff.battlesRemaining} battles</span>
+                  <span className="bag-row-count">{eff.battlesRemaining} {t("battles")}</span>
                   <button
                     type="button"
                     className="effect-toggle-btn"
                     onClick={() => dispatch({ type: "TOGGLE_EFFECT_PAUSED", payload: { itemId: eff.itemId } })}
-                    title={eff.paused ? "Resume — start ticking down again" : "Pause — keep battles remaining without consuming"}
+                    title={eff.paused ? t("Resume — start ticking down again") : t("Pause — keep battles remaining without consuming")}
                   >
-                    {eff.paused ? "Resume" : "Pause"}
+                    {eff.paused ? t("Resume") : t("Pause")}
                   </button>
                 </li>
               );
@@ -338,7 +342,7 @@ export function BagTab() {
       )}
 
       {items.length === 0 ? (
-        <p className="dim small">Nothing in your bag.</p>
+        <p className="dim small">{t("Nothing in your bag.")}</p>
       ) : (
         <div className="bag-categories">
           {CATEGORY_ORDER.map((cat) => {
@@ -380,7 +384,7 @@ export function BagTab() {
                             onClick={() => setSellPending({ itemId: id, qty: 1 })}
                             title={`Sell for $${sellPrice.toLocaleString()} each`}
                           >
-                            Sell
+                            {t("Sell")}
                           </button>
                         )}
                         {isPending && (
@@ -390,7 +394,7 @@ export function BagTab() {
                               className="mart-qty-step"
                               onClick={() => setSellPending({ itemId: id, qty: Math.max(1, sellQty - 1) })}
                               disabled={sellQty <= 1}
-                              aria-label="Decrease quantity"
+                              aria-label={t("Decrease quantity")}
                             >
                               −
                             </button>
@@ -400,7 +404,7 @@ export function BagTab() {
                               className="mart-qty-step"
                               onClick={() => setSellPending({ itemId: id, qty: Math.min(count, sellQty + 1) })}
                               disabled={sellQty >= count}
-                              aria-label="Increase quantity"
+                              aria-label={t("Increase quantity")}
                             >
                               +
                             </button>
@@ -421,13 +425,13 @@ export function BagTab() {
                               }}
                               title={`Sell ${sellQty} for $${sellTotal.toLocaleString()}`}
                             >
-                              Sell ${sellTotal.toLocaleString()}
+                              {t("Sell")} ${sellTotal.toLocaleString()}
                             </button>
                             <button
                               type="button"
                               className="bag-sell-cancel"
                               onClick={() => setSellPending(null)}
-                              aria-label="Cancel selling"
+                              aria-label={t("Cancel selling")}
                             >
                               ×
                             </button>
@@ -453,6 +457,7 @@ export function BagTab() {
 // ---------------------------------------------------------------------------
 export function PCTab() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const PER_PAGE = 30;
   const [page, setPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(state.box.length / PER_PAGE));
@@ -465,24 +470,24 @@ export function PCTab() {
   return (
     <div className="tab-pane pc-tab">
       <TabPaneHead
-        title="Pokémon Storage"
+        title={t("Pokémon Storage")}
         meta={`${state.box.length} stored`}
         tools={
           <>
-            <span className="dim small" style={{ marginRight: 4 }}>Sort</span>
-            <button title="Sort by Pokédex number" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "id" } })}>
-              Dex#
+            <span className="dim small" style={{ marginRight: 4 }}>{t("Sort")}</span>
+            <button title={t("Sort by Pokédex number")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "id" } })}>
+              {t("Dex#")}
             </button>
-            <button title="Sort by level (highest first)" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "level" } })}>
-              Lv
+            <button title={t("Sort by level (highest first)")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "level" } })}>
+              {t("Lv")}
             </button>
-            <button title="Sort alphabetically" onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "name" } })}>
-              A–Z
+            <button title={t("Sort alphabetically")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "name" } })}>
+              {t("A–Z")}
             </button>
             {pageCount > 1 && (
               <span className="pc-pager" style={{ marginLeft: "auto" }}>
                 <button onClick={() => setPage((i) => Math.max(0, i - 1))} disabled={page === 0}>‹</button>
-                <span className="dim small">Box {page + 1}/{pageCount}</span>
+                <span className="dim small">{t("Box")} {page + 1}/{pageCount}</span>
                 <button onClick={() => setPage((i) => Math.min(pageCount - 1, i + 1))} disabled={page >= pageCount - 1}>›</button>
               </span>
             )}
@@ -497,7 +502,7 @@ export function PCTab() {
         })}
       </div>
       <p className="dim small" style={{ margin: "6px 0 0", textAlign: "center" }}>
-        Drag from your party (left column) to deposit, or drag from here to your party.
+        {t("Drag from your party (left column) to deposit, or drag from here to your party.")}
       </p>
     </div>
   );
@@ -505,6 +510,7 @@ export function PCTab() {
 
 function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; index: number }) {
   const { state, dispatch } = useGame();
+  const t = useT();
 
   // The slot div is a drop target whether or not it holds a Pokémon —
   // empty cells accept party deposits, occupied cells swap.
@@ -560,17 +566,17 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
             const partyFull = state.party.length >= 6;
             openContextMenu(e, [
               {
-                label: "View details",
+                label: t("View details"),
                 onClick: () => openPokemonDetail({ type: "box", index: real }),
               },
               {
-                label: partyFull ? "Send to party (full)" : "Send to party",
+                label: partyFull ? t("Send to party (full)") : t("Send to party"),
                 disabled: partyFull,
                 onClick: () =>
                   dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: real } }),
               },
               {
-                label: "Release",
+                label: t("Release"),
                 danger: true,
                 onClick: () => {
                   if (window.confirm(`Release ${p.name}? This cannot be undone.`)) {
@@ -643,6 +649,7 @@ const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
 
 export function DexTab() {
   const { state } = useGame();
+  const t = useT();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [filter, setFilter] = useState<DexFilter>("all");
@@ -711,19 +718,19 @@ export function DexTab() {
         </div>
         <div className="dex-hero-stats">
           <div>
-            <span className="dex-hero-label">Caught</span>
+            <span className="dex-hero-label">{t("Caught")}</span>
             <strong className="tabular">{state.pokedexCaught.length}<span className="dim"> / {all.length}</span></strong>
           </div>
           <div>
-            <span className="dex-hero-label">Seen</span>
+            <span className="dex-hero-label">{t("Seen")}</span>
             <strong className="tabular">{state.pokedexSeen.length}</strong>
           </div>
           <div>
-            <span className="dex-hero-label">Shinies</span>
+            <span className="dex-hero-label">{t("Shinies")}</span>
             <strong className="tabular">{state.shinyCaught.length}</strong>
           </div>
         </div>
-        <div className="dex-hero-milestones" aria-label="Milestones">
+        <div className="dex-hero-milestones" aria-label={t("Milestones")}>
           {DEX_MILESTONES.map((m) => {
             const done = state.pokedexCaught.length >= m.count;
             const active = nextMilestone && nextMilestone.count === m.count;
@@ -771,10 +778,10 @@ export function DexTab() {
               className={`dex-filter ${filter === f ? "active" : ""}`}
               onClick={() => setFilter(f)}
             >
-              {f === "all"     ? "All"
-                : f === "caught"  ? "Caught"
-                : f === "seen"    ? "Seen"
-                : f === "shiny"   ? "✨ Shiny"
+              {f === "all"     ? t("All")
+                : f === "caught"  ? t("Caught")
+                : f === "seen"    ? t("Seen")
+                : f === "shiny"   ? t("✨ Shiny")
                 :                   "???"}
             </button>
           ))}
@@ -783,7 +790,7 @@ export function DexTab() {
           <input
             type="search"
             className="dex-search"
-            placeholder="Search by name or dex #"
+            placeholder={t("Search by name or dex #")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -792,7 +799,7 @@ export function DexTab() {
               type="button"
               className="dex-search-clear"
               onClick={() => setQuery("")}
-              aria-label="Clear search"
+              aria-label={t("Clear search")}
             >×</button>
           )}
         </div>
@@ -802,7 +809,7 @@ export function DexTab() {
       <div className="dex-tab-grid">
         {filtered.length === 0 && (
           <p className="dim small" style={{ gridColumn: "1 / -1" }}>
-            Nothing matches the current filter.
+            {t("Nothing matches the current filter.")}
           </p>
         )}
         {filtered.map(([key, sp]) => {

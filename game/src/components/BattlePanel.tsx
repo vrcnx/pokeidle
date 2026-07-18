@@ -4,9 +4,11 @@ import { pokeballs } from "../data/pokeballs";
 import { BALL_ORDER } from "../utils/items";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
+import { useT } from "../i18n/useT";
 
 export function BattlePanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const route = routes[state.currentRoute];
   const routeName = encounters[state.currentRoute]?.name ?? route?.name ?? state.currentRoute;
   const bgImg = backgroundFor(route?.type);
@@ -15,15 +17,15 @@ export function BattlePanel() {
     <div className="battle-panel" style={{ backgroundImage: `url(${bgImg})` }}>
       <div className="battle-panel-header">
         <span>{routeName}</span>
-        <span>Phase: {state.phase}</span>
-        {state.paused && <span className="badge-paused">PAUSED</span>}
+        <span>{t("Phase: ")}{state.phase}</span>
+        {state.paused && <span className="badge-paused">{t("PAUSED")}</span>}
       </div>
       <div className="battle-arena">
         <div className="enemy-slot">
           {state.enemyPokemon ? (
             <PokemonCard pokemon={state.enemyPokemon} />
           ) : (
-            <div className="placeholder">Looking for wild Pokémon…</div>
+            <div className="placeholder">{t("Looking for wild Pokémon…")}</div>
           )}
         </div>
         <div className="player-slot">
@@ -49,13 +51,13 @@ export function BattlePanel() {
       )}
       {(state.phase === "trainerBattle" || state.phase === "bossBattle") && state.enemyPokemon && (
         <div className="ball-row">
-          <span className="dim">Trainer battle — can't catch.</span>
+          <span className="dim">{t("Trainer battle — can't catch.")}</span>
         </div>
       )}
 
       <div className="battle-controls">
         <button onClick={() => dispatch({ type: "TOGGLE_PAUSE" })}>
-          {state.paused ? "Resume" : "Pause"}
+          {state.paused ? t("Resume") : t("Pause")}
         </button>
         {[1, 2, 5].map((s) => (
           <button
@@ -66,7 +68,7 @@ export function BattlePanel() {
             ×{s}
           </button>
         ))}
-        <button onClick={() => dispatch({ type: "HEAL_PARTY" })}>Heal Party</button>
+        <button onClick={() => dispatch({ type: "HEAL_PARTY" })}>{t("Heal Party")}</button>
       </div>
     </div>
   );

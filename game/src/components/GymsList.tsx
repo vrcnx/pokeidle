@@ -5,6 +5,7 @@ import { routes } from "../data/routes";
 import { trainerSpriteUrl } from "../utils/sprites";
 import { buildTeam } from "../utils/trainerFactory";
 import type { BossBattle } from "../types";
+import { useT } from "../i18n/useT";
 
 // Gyms tab — shows badges, all gym leaders (with Challenge buttons for any
 // unlocked + undefeated), and a League block to launch the E4 → Champion
@@ -12,6 +13,7 @@ import type { BossBattle } from "../types";
 
 export function GymsList() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const inBattle =
     state.phase === "battle" ||
     state.phase === "trainerBattle" ||
@@ -133,12 +135,12 @@ export function GymsList() {
             style={{
               background: state.defeatedGyms.includes(g.id) ? g.badgeColor : "#3a3027",
             }}
-            title={state.defeatedGyms.includes(g.id) ? g.badgeName : "Locked"}
+            title={state.defeatedGyms.includes(g.id) ? g.badgeName : t("Locked")}
           />
         ))}
       </div>
 
-      <h4>Gym Leaders</h4>
+      <h4>{t("Gym Leaders")}</h4>
       <ul className="gym-list">
         {gymLeaders.map((g) => {
           const beaten = state.defeatedGyms.includes(g.id);
@@ -162,7 +164,7 @@ export function GymsList() {
                 <small className="dim">
                   {unlocked
                     ? `${routes[g.locationKey]?.name ?? g.locationKey}`
-                    : "Locked"}
+                    : t("Locked")}
                 </small>
               </div>
               {beaten ? (
@@ -174,8 +176,8 @@ export function GymsList() {
                   onClick={() => challengeGym(g)}
                 >
                   {activeBoss?.bossType === "gym" && activeBoss.bossId === g.id
-                    ? "Fighting…"
-                    : "Fight"}
+                    ? t("Fighting…")
+                    : t("Fight")}
                 </button>
               ) : null}
             </li>
@@ -183,10 +185,10 @@ export function GymsList() {
         })}
       </ul>
 
-      <h4>Elite Four & Champion</h4>
+      <h4>{t("Elite Four & Champion")}</h4>
       <p className="dim small" style={{ margin: "0 0 4px" }}>
         {allBadges
-          ? "Fight any Elite Four member directly, or run the full Gauntlet for one continuous run."
+          ? t("Fight any Elite Four member directly, or run the full Gauntlet for one continuous run.")
           : `Earn all 8 badges to enter (${state.defeatedGyms.length}/${gymLeaders.length}).`}
       </p>
       <ul className="gym-list">
@@ -219,8 +221,8 @@ export function GymsList() {
                   onClick={() => challengeE4Member(m)}
                 >
                   {activeBoss?.bossType === "e4" && activeBoss.bossId === m.id
-                    ? "Fighting…"
-                    : "Fight"}
+                    ? t("Fighting…")
+                    : t("Fight")}
                 </button>
               ) : null}
             </li>
@@ -251,7 +253,7 @@ export function GymsList() {
               disabled={inBattle}
               onClick={challengeChampion}
             >
-              {activeBoss?.bossType === "champion" ? "Fighting…" : "Fight"}
+              {activeBoss?.bossType === "champion" ? t("Fighting…") : t("Fight")}
             </button>
           ) : null}
         </li>
@@ -264,10 +266,10 @@ export function GymsList() {
         onClick={beginGauntlet}
       >
         {inGauntlet
-          ? "In Gauntlet…"
+          ? t("In Gauntlet…")
           : state.championDefeated && allE4
-          ? "Already conquered"
-          : "Begin Gauntlet"}
+          ? t("Already conquered")
+          : t("Begin Gauntlet")}
       </button>
     </div>
   );

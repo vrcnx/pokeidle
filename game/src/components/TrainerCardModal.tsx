@@ -12,6 +12,7 @@ import { sendTradeInvite, useTradeState } from "../state/trade";
 import { sendBattleInvite, usePvpState } from "../state/pvp";
 import { openTeamBuilder } from "./TeamBuilderModal";
 import { useMuteList } from "../utils/mute";
+import { useT } from "../i18n/useT";
 
 // Trainer card. Two modes:
 //   self    — full card with badges, sign-out, etc. (the one the
@@ -69,6 +70,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
   const totalDex = Object.keys(pokemonTable).length;
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+  const t = useT();
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -77,7 +79,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         className="g-modal trainer-card-modal-v2"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Trainer Card"
+        aria-label={t("Trainer Card")}
       >
         {/* SVG filter referenced by .g-badge-disc img — adds a 1px
             black stroke INSIDE the image silhouette to clean up the
@@ -100,8 +102,8 @@ function SelfCard({ onClose }: { onClose: () => void }) {
           </defs>
         </svg>
         <header className="g-modal-head">
-          <h2>Trainer Card</h2>
-          <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
+          <h2>{t("Trainer Card")}</h2>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="g-modal-body">
@@ -113,13 +115,13 @@ function SelfCard({ onClose }: { onClose: () => void }) {
                 <div className="g-profile-handle">@{me.username}</div>
               </div>
               <div className="g-profile-stats">
-                <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>Level</span></div>
-                <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>Money</span></div>
+                <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>{t("Level")}</span></div>
+                <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>{t("Money")}</span></div>
                 <div className="g-stat-pill">
                   <strong className={state.championDefeated ? "g-stat-on" : ""}>
-                    {state.championDefeated ? "Champ" : "—"}
+                    {state.championDefeated ? t("Champ") : "—"}
                   </strong>
-                  <span>Status</span>
+                  <span>{t("Status")}</span>
                 </div>
               </div>
             </section>
@@ -127,30 +129,30 @@ function SelfCard({ onClose }: { onClose: () => void }) {
 
           <div className="g-grid">
             <section className="g-card">
-              <h3>Battle Record</h3>
-              <div className="g-row"><span>Wild victories</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>Trainer victories</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {totalE4}</span></strong></div>
-              <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+              <h3>{t("Battle Record")}</h3>
+              <div className="g-row"><span>{t("Wild victories")}</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
+              <div className="g-row"><span>{t("Trainer victories")}</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
+              <div className="g-row"><span>{t("Elite Four")}</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {totalE4}</span></strong></div>
+              <div className="g-row"><span>{t("Champion")}</span><strong>{state.championDefeated ? t("Defeated") : <span className="dim">{t("Pending")}</span>}</strong></div>
             </section>
 
             <section className="g-card">
-              <h3>Collection</h3>
-              <div className="g-row"><span>Caught</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
-              <div className="g-row"><span>Seen</span><strong>{state.pokedexSeen.length}</strong></div>
-              <div className="g-row"><span>Shiny</span><strong>{state.shinyCaught.length}</strong></div>
-              <div className="g-row"><span>Badges</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
+              <h3>{t("Collection")}</h3>
+              <div className="g-row"><span>{t("Caught")}</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
+              <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
+              <div className="g-row"><span>{t("Shiny")}</span><strong>{state.shinyCaught.length}</strong></div>
+              <div className="g-row"><span>{t("Badges")}</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
               {/* Σ Pokémon levels — the same headline collection stat
                   the public Trainer Card shows. Players complained they
                   couldn't see this on their own card. */}
               {me && (
-                <div className="g-row"><span>Σ Pokémon levels</span><strong>{(me.totalCaughtLevels ?? 0).toLocaleString()}</strong></div>
+                <div className="g-row"><span>{t("Σ Pokémon levels")}</span><strong>{(me.totalCaughtLevels ?? 0).toLocaleString()}</strong></div>
               )}
             </section>
           </div>
 
           <section className="g-card g-card-full">
-            <h3>Gym Badges</h3>
+            <h3>{t("Gym Badges")}</h3>
             <div className="g-badge-grid">
               {gymLeaders.map((g, i) => {
                 const earned = state.defeatedGyms.includes(g.id);
@@ -176,7 +178,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
                         style={{ imageRendering: "pixelated" }}
                       />
                     </div>
-                    <div className="g-badge-name">{earned ? g.badgeName : "Locked"}</div>
+                    <div className="g-badge-name">{earned ? g.badgeName : t("Locked")}</div>
                     <div className="g-badge-leader">{g.name}</div>
                   </div>
                 );
@@ -189,7 +191,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         </div>
 
         <footer className="g-modal-foot">
-          <button className="g-btn-primary" onClick={onClose}>Close</button>
+          <button className="g-btn-primary" onClick={onClose}>{t("Close")}</button>
         </footer>
       </div>
     </div>
@@ -202,19 +204,20 @@ function SelfCard({ onClose }: { onClose: () => void }) {
 // is a follow-up; this one ships today.
 function BattleHistorySection() {
   const entries = useBattleHistory();
+  const t = useT();
   if (entries.length === 0) {
     return (
       <section className="g-card g-card-full battle-history-section">
-        <h3>Recent Battles</h3>
+        <h3>{t("Recent Battles")}</h3>
         <p className="dim small" style={{ margin: 0 }}>
-          No battles logged yet — wins start appearing here as you encounter Pokémon.
+          {t("No battles logged yet — wins start appearing here as you encounter Pokémon.")}
         </p>
       </section>
     );
   }
   return (
     <section className="g-card g-card-full battle-history-section">
-      <h3>Recent Battles</h3>
+      <h3>{t("Recent Battles")}</h3>
       <ul className="battle-history-list">
         {entries.slice(0, 12).map((e) => (
           <li key={e.at} className={`battle-history-row battle-history-${e.type}`}>
@@ -239,7 +242,7 @@ function BattleHistorySection() {
               </small>
             </div>
             <span className="battle-history-kind dim">
-              {e.type === "wild" ? "Wild" : e.type === "trainer" ? "Trainer" : e.type === "boss" ? "Boss" : "Raid"}
+              {e.type === "wild" ? t("Wild") : e.type === "trainer" ? t("Trainer") : e.type === "boss" ? t("Boss") : t("Raid")}
             </span>
           </li>
         ))}
@@ -255,6 +258,7 @@ function BattleHistorySection() {
 function TradeHistorySection() {
   const [trades, setTrades] = useState<TradeHistoryRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const t = useT();
   useEffect(() => {
     let cancelled = false;
     api.myTradeHistory()
@@ -264,16 +268,16 @@ function TradeHistorySection() {
   }, []);
   return (
     <section className="g-card g-card-full trade-history-section">
-      <h3>Trade History</h3>
+      <h3>{t("Trade History")}</h3>
       {trades === null && !err && (
-        <p className="dim small" style={{ margin: 0 }}>Loading recent trades…</p>
+        <p className="dim small" style={{ margin: 0 }}>{t("Loading recent trades…")}</p>
       )}
       {err && (
-        <p className="dim small" style={{ margin: 0 }}>Couldn't load trade history.</p>
+        <p className="dim small" style={{ margin: 0 }}>{t("Couldn't load trade history.")}</p>
       )}
       {trades && trades.length === 0 && (
         <p className="dim small" style={{ margin: 0 }}>
-          No trades yet — invite a friend from the Social panel and offer a Pokémon.
+          {t("No trades yet — invite a friend from the Social panel and offer a Pokémon.")}
         </p>
       )}
       {trades && trades.length > 0 && (
@@ -323,6 +327,7 @@ type FriendRel = "none" | "outgoing" | "incoming" | "accepted";
 
 function PublicCard({ username, onClose }: { username: string; onClose?: () => void }) {
   const { me } = useAuth();
+  const t = useT();
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -373,7 +378,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         else setFriendRel("none");
       }
     }).catch((e) => {
-      if (!cancelled) setError(e?.message ?? "Could not load profile.");
+      if (!cancelled) setError(e?.message ?? t("Could not load profile."));
     });
     return () => { cancelled = true; };
   }, [username]);
@@ -386,7 +391,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
   const requestBattle = () => {
     if (!profile || isSelf || inActiveBattle) return;
     if (game.state.party.length + game.state.box.length < 1) {
-      setError("You need at least one Pokémon to battle.");
+      setError(t("You need at least one Pokémon to battle."));
       return;
     }
     // Open the team builder rather than auto-using the party — lets
@@ -399,7 +404,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         sendBattleInvite(profile.id, team, "anything-goes", (res) => {
           setBusy(false);
           if (res.ok) setBattleInviteSent(true);
-          else setError(res.error ?? "Could not send battle invite.");
+          else setError(res.error ?? t("Could not send battle invite."));
         });
       },
     });
@@ -414,7 +419,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
       if (res.ok) {
         setInviteSent(true);
       } else {
-        setError(res.error ?? "Could not send invite.");
+        setError(res.error ?? t("Could not send invite."));
       }
     });
   };
@@ -439,7 +444,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         setFriendRel(res.status === "accepted" ? "accepted" : "outgoing");
       }
     } catch (e: any) {
-      setError(e?.message ?? "Could not send friend request.");
+      setError(e?.message ?? t("Could not send friend request."));
     } finally {
       setFriendBusy(false);
     }
@@ -457,13 +462,13 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
         aria-label={`Trainer card for ${username}`}
       >
         <header className="g-modal-head">
-          <h2>Trainer Card</h2>
-          <button className="g-modal-close" onClick={close} aria-label="Close">×</button>
+          <h2>{t("Trainer Card")}</h2>
+          <button className="g-modal-close" onClick={close} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="g-modal-body">
           {!profile && !error && (
-            <p className="dim small" style={{ padding: 16 }}>Loading…</p>
+            <p className="dim small" style={{ padding: 16 }}>{t("Loading…")}</p>
           )}
           {error && <p className="auth-error">{error}</p>}
           {profile && (
@@ -475,34 +480,34 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
                   <div className="g-profile-handle">@{profile.username}</div>
                 </div>
                 <div className="g-profile-stats">
-                  <div className="g-stat-pill"><strong><CountUp value={profile.accountLevel} /></strong><span>Level</span></div>
-                  <div className="g-stat-pill"><strong><CountUp value={profile.pokedexCaughtCount} /></strong><span>Caught</span></div>
-                  <div className="g-stat-pill"><strong><CountUp value={profile.totalCaughtLevels} /></strong><span>Σ Lv</span></div>
+                  <div className="g-stat-pill"><strong><CountUp value={profile.accountLevel} /></strong><span>{t("Level")}</span></div>
+                  <div className="g-stat-pill"><strong><CountUp value={profile.pokedexCaughtCount} /></strong><span>{t("Caught")}</span></div>
+                  <div className="g-stat-pill"><strong><CountUp value={profile.totalCaughtLevels} /></strong><span>{t("Σ Lv")}</span></div>
                 </div>
               </section>
 
               <section className="g-card g-card-full">
-                <h3>Trainer</h3>
-                <div className="g-row"><span>Joined</span><strong>{new Date(profile.createdAt).toLocaleDateString()}</strong></div>
-                <div className="g-row"><span>Last seen</span><strong>{new Date(profile.lastSeenAt).toLocaleString()}</strong></div>
-                <div className="g-row"><span>Pokémon caught</span><strong>{profile.pokedexCaughtCount}</strong></div>
-                <div className="g-row"><span>Σ Pokémon levels</span><strong>{profile.totalCaughtLevels.toLocaleString()}</strong></div>
+                <h3>{t("Trainer")}</h3>
+                <div className="g-row"><span>{t("Joined")}</span><strong>{new Date(profile.createdAt).toLocaleDateString()}</strong></div>
+                <div className="g-row"><span>{t("Last seen")}</span><strong>{new Date(profile.lastSeenAt).toLocaleString()}</strong></div>
+                <div className="g-row"><span>{t("Pokémon caught")}</span><strong>{profile.pokedexCaughtCount}</strong></div>
+                <div className="g-row"><span>{t("Σ Pokémon levels")}</span><strong>{profile.totalCaughtLevels.toLocaleString()}</strong></div>
               </section>
 
               {pvpStats && (
                 <section className="g-card g-card-full pvp-trainer-card">
-                  <h3>PvP rating</h3>
+                  <h3>{t("PvP rating")}</h3>
                   {pvpStats.unranked ? (
-                    <p className="dim small">Unranked — hasn't played a Random Battle yet.</p>
+                    <p className="dim small">{t("Unranked — hasn't played a Random Battle yet.")}</p>
                   ) : (
                     <>
-                      <div className="g-row"><span>Rating</span><strong>{pvpStats.rating}</strong></div>
-                      <div className="g-row"><span>Peak</span><strong>{pvpStats.peak}</strong></div>
+                      <div className="g-row"><span>{t("Rating")}</span><strong>{pvpStats.rating}</strong></div>
+                      <div className="g-row"><span>{t("Peak")}</span><strong>{pvpStats.peak}</strong></div>
                       <div className="g-row">
-                        <span>Record</span>
+                        <span>{t("Record")}</span>
                         <strong>{pvpStats.wins}W / {pvpStats.losses}L</strong>
                       </div>
-                      <div className="g-row"><span>Matches</span><strong>{pvpStats.matchesPlayed}</strong></div>
+                      <div className="g-row"><span>{t("Matches")}</span><strong>{pvpStats.matchesPlayed}</strong></div>
                     </>
                   )}
                 </section>
@@ -523,49 +528,49 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
                   friendRel === "outgoing"
                 }
                 title={
-                  friendRel === "accepted" ? "Already friends"
-                  : friendRel === "outgoing" ? "Friend request sent — waiting for response"
-                  : friendRel === "incoming" ? "Accept their pending friend request"
-                  : "Send a friend request"
+                  friendRel === "accepted" ? t("Already friends")
+                  : friendRel === "outgoing" ? t("Friend request sent — waiting for response")
+                  : friendRel === "incoming" ? t("Accept their pending friend request")
+                  : t("Send a friend request")
                 }
               >
                 {friendBusy ? "…"
-                  : friendRel === "accepted" ? "✓ Friends"
-                  : friendRel === "outgoing" ? "Request sent"
-                  : friendRel === "incoming" ? "Accept friend"
-                  : "Add friend"}
+                  : friendRel === "accepted" ? t("✓ Friends")
+                  : friendRel === "outgoing" ? t("Request sent")
+                  : friendRel === "incoming" ? t("Accept friend")
+                  : t("Add friend")}
               </button>
               <button
                 className="g-btn-primary"
                 onClick={requestTrade}
                 disabled={busy || inviteSent || inActiveTrade || friendRel !== "accepted"}
                 title={
-                  friendRel !== "accepted" ? "Add as friend before trading"
-                  : inActiveTrade ? "You're already in a trade"
-                  : inviteSent ? "Invite sent — waiting for response"
+                  friendRel !== "accepted" ? t("Add as friend before trading")
+                  : inActiveTrade ? t("You're already in a trade")
+                  : inviteSent ? t("Invite sent — waiting for response")
                   : undefined
                 }
               >
-                {inviteSent ? "Invite sent ✓" : busy ? "…" : "Request trade"}
+                {inviteSent ? t("Invite sent ✓") : busy ? "…" : t("Request trade")}
               </button>
               <button
                 className="g-btn-secondary"
                 onClick={requestBattle}
                 disabled={busy || battleInviteSent || inActiveBattle || friendRel !== "accepted"}
                 title={
-                  friendRel !== "accepted" ? "Add as friend before battling"
-                  : inActiveBattle ? "You're already in a battle"
-                  : battleInviteSent ? "Battle invite sent — waiting for response"
+                  friendRel !== "accepted" ? t("Add as friend before battling")
+                  : inActiveBattle ? t("You're already in a battle")
+                  : battleInviteSent ? t("Battle invite sent — waiting for response")
                   : undefined
                 }
               >
-                {battleInviteSent ? "Battle sent ✓" : "Battle"}
+                {battleInviteSent ? t("Battle sent ✓") : t("Battle")}
               </button>
               <MuteButton username={profile.username} />
             </>
           )}
           <span style={{ flex: 1 }} />
-          <button className="g-btn-ghost" onClick={close}>Close</button>
+          <button className="g-btn-ghost" onClick={close}>{t("Close")}</button>
         </footer>
       </div>
     </div>
@@ -579,6 +584,7 @@ function PublicCard({ username, onClose }: { username: string; onClose?: () => v
 function MuteButton({ username }: { username: string }) {
   const mute = useMuteList();
   const muted = mute.isMuted(username);
+  const t = useT();
   return (
     <button
       className={muted ? "g-btn-ghost" : "g-btn-danger-ghost"}
@@ -587,7 +593,7 @@ function MuteButton({ username }: { username: string }) {
         ? `Unmute ${username} — their chat messages will reappear`
         : `Mute ${username} — hides their chat messages on your client`}
     >
-      {muted ? "Unmute" : "Mute"}
+      {muted ? t("Unmute") : t("Mute")}
     </button>
   );
 }

@@ -4,12 +4,14 @@ import { gymLeaders } from "../data/gymLeaders";
 import { trainerSpriteUrl } from "../utils/sprites";
 import { buildTeam } from "../utils/trainerFactory";
 import type { BossBattle } from "../types";
+import { useT } from "../i18n/useT";
 
 // The Pokemon League: Indigo Plateau gauntlet of Elite Four + Champion.
 // Unlocked after all 8 gym badges. Battles run as a queue with no healing
 // between fights (the reducer's BOSS_BATTLE_END handles the chaining).
 export function LeaguePanel() {
   const { state, dispatch } = useGame();
+  const t = useT();
   const inBattle =
     state.phase === "battle" || state.phase === "trainerBattle" || state.phase === "bossBattle";
 
@@ -67,9 +69,9 @@ export function LeaguePanel() {
   if (!allBadges) {
     return (
       <div className="league-panel">
-        <h2>🏆 Pokémon League</h2>
+        <h2>{t("🏆 Pokémon League")}</h2>
         <p className="dim">
-          Earn all 8 Gym Badges to challenge the Elite Four. ({state.defeatedGyms.length}/{gymLeaders.length} earned)
+          {t("Earn all 8 Gym Badges to challenge the Elite Four. (")}{state.defeatedGyms.length}/{gymLeaders.length}{t(" earned)")}
         </p>
       </div>
     );
@@ -77,14 +79,12 @@ export function LeaguePanel() {
 
   return (
     <div className="league-panel">
-      <h2>🏆 Pokémon League — Indigo Plateau</h2>
+      <h2>{t("🏆 Pokémon League — Indigo Plateau")}</h2>
       <p className="dim">
-        Battle the Elite Four and Champion in sequence with no healing between fights.
-        Defeat all four E4 to unlock the Champion. Each E4 win earns no token; the
-        Champion win earns 1 Victory Token and the title.
+        {t("Battle the Elite Four and Champion in sequence with no healing between fights. Defeat all four E4 to unlock the Champion. Each E4 win earns no token; the Champion win earns 1 Victory Token and the title.")}
       </p>
 
-      <h3>Elite Four</h3>
+      <h3>{t("Elite Four")}</h3>
       <div className="trainers-grid">
         {eliteFour.map((m) => {
           const beaten = state.defeatedEliteFour.includes(m.id);
@@ -111,7 +111,7 @@ export function LeaguePanel() {
         })}
       </div>
 
-      <h3>Champion</h3>
+      <h3>{t("Champion")}</h3>
       <div className={`trainer-card boss ${championBeaten ? "defeated" : ""}`}>
         <img
           src={trainerSpriteUrl(champion.spriteKey)}
@@ -138,20 +138,20 @@ export function LeaguePanel() {
           onClick={startGauntlet}
         >
           {eliteCleared && championBeaten
-            ? "Already conquered"
+            ? t("Already conquered")
             : eliteCleared
-            ? "Challenge Champion"
-            : "Begin Gauntlet"}
+            ? t("Challenge Champion")
+            : t("Begin Gauntlet")}
         </button>
         {eliteCleared && (
           <button
             onClick={() => {
-              if (confirm("Reset Elite Four progress so you can re-challenge them?")) {
+              if (confirm(t("Reset Elite Four progress so you can re-challenge them?"))) {
                 dispatch({ type: "RESET_ELITE_FOUR" });
               }
             }}
           >
-            Reset E4 progress
+            {t("Reset E4 progress")}
           </button>
         )}
       </div>

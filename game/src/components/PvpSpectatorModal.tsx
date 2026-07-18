@@ -7,6 +7,7 @@ import {
   type BattleLogEntry,
 } from "../state/pvp";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { useT } from "../i18n/useT";
 
 // Read-only viewer of an in-progress battle as a spectator. Mounts
 // whenever pvp state has a `spectate` room. Mirrors PvpBattleModal's
@@ -24,6 +25,7 @@ export function PvpSpectatorModal() {
 
 function SpectatorDialog({ spec }: { spec: SpectateRoom }) {
   const logRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
 
   useEffect(() => {
     if (!logRef.current) return;
@@ -33,8 +35,8 @@ function SpectatorDialog({ spec }: { spec: SpectateRoom }) {
   // Auto-close shortly after the result lands.
   useEffect(() => {
     if (!spec.result) return;
-    const t = setTimeout(() => clearSpectator(), 4000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => clearSpectator(), 4000);
+    return () => clearTimeout(timer);
   }, [spec.result]);
 
   // Derive each side's currently-active mon from the omniscient log.
@@ -45,7 +47,7 @@ function SpectatorDialog({ spec }: { spec: SpectateRoom }) {
   const verdict = spec.result
     ? spec.result.winnerId === spec.a.userId ? `${spec.a.username} wins`
     : spec.result.winnerId === spec.b.userId ? `${spec.b.username} wins`
-    : "Battle ended"
+    : t("Battle ended")
     : null;
 
   const leave = () => {
@@ -59,34 +61,34 @@ function SpectatorDialog({ spec }: { spec: SpectateRoom }) {
         className="g-modal pvp-modal pvp-spectator-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Spectator view"
+        aria-label={t("Spectator view")}
       >
         <header className="g-modal-head">
           <h2>
-            Spectating
+            {t("Spectating")}
             <span className="dim small" style={{ marginLeft: 12 }}>
               {spec.a.username} vs {spec.b.username}
             </span>
           </h2>
-          <button className="g-modal-close" onClick={leave} aria-label="Leave">×</button>
+          <button className="g-modal-close" onClick={leave} aria-label={t("Leave")}>×</button>
         </header>
 
         <div className="g-modal-body">
           <div className="pvp-board">
             <div className="pvp-side pvp-side-foe">
               <div className="pvp-side-name">{spec.a.username}</div>
-              {aMon ? <Fighter mon={aMon} /> : <div className="dim small">Waiting…</div>}
+              {aMon ? <Fighter mon={aMon} /> : <div className="dim small">{t("Waiting…")}</div>}
             </div>
             <div className="pvp-side pvp-side-you">
               <div className="pvp-side-name">{spec.b.username}</div>
-              {bMon ? <Fighter mon={bMon} /> : <div className="dim small">Waiting…</div>}
+              {bMon ? <Fighter mon={bMon} /> : <div className="dim small">{t("Waiting…")}</div>}
             </div>
           </div>
 
           <section className="g-card g-card-full pvp-log-card">
-            <h3>Battle log</h3>
+            <h3>{t("Battle log")}</h3>
             <div className="pvp-log" ref={logRef}>
-              {spec.log.length === 0 && <div className="dim small">Waiting for the next turn…</div>}
+              {spec.log.length === 0 && <div className="dim small">{t("Waiting for the next turn…")}</div>}
               {spec.log.map((entry, i) => <SpectatorLogLine key={i} entry={entry} a={spec.a.username} b={spec.b.username} />)}
             </div>
           </section>
@@ -100,7 +102,7 @@ function SpectatorDialog({ spec }: { spec: SpectateRoom }) {
 
         <footer className="g-modal-foot">
           <span style={{ flex: 1 }} />
-          <button className="g-btn-ghost" onClick={leave}>Leave spectator</button>
+          <button className="g-btn-ghost" onClick={leave}>{t("Leave spectator")}</button>
         </footer>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { consumables } from "../data/consumables";
 import { getItemInfo } from "../utils/items";
 import { itemSpriteUrl } from "../utils/sprites";
 import { itemSpriteSlug } from "../utils/items";
+import { useT } from "../i18n/useT";
 
 // "Progressional" Poké Mart — instead of having to travel to a specific
 // town to access its stock, the mart shows the UNION of every town the
@@ -52,13 +53,15 @@ export function ShopPanel() {
     [state.unlockedLocations],
   );
 
+  const t = useT();
+
   if (unified.visitedTownsWithMart === 0) {
     return (
       <div className="shop-panel">
         <header className="shop-panel-head">
-          <h2>Poké Mart</h2>
+          <h2>{t("Poké Mart")}</h2>
         </header>
-        <p className="dim">No mart has opened to you yet. Visit Viridian City to unlock your first stock.</p>
+        <p className="dim">{t("No mart has opened to you yet. Visit Viridian City to unlock your first stock.")}</p>
       </div>
     );
   }
@@ -80,18 +83,18 @@ export function ShopPanel() {
     <div className="shop-panel mart-v2">
       <header className="mart-head">
         <div className="mart-head-title">
-          <h2>Poké Mart</h2>
+          <h2>{t("Poké Mart")}</h2>
           <p className="dim small">
             Universal stock · {unified.visitedTownsWithMart} town{unified.visitedTownsWithMart === 1 ? "" : "s"} visited
           </p>
         </div>
-        <div className="mart-money" title="Money on hand">
+        <div className="mart-money" title={t("Money on hand")}>
           <span className="mart-money-coin">$</span>
           <strong>{state.money.toLocaleString()}</strong>
         </div>
       </header>
 
-      <nav className="mart-categories" role="tablist" aria-label="Mart category">
+      <nav className="mart-categories" role="tablist" aria-label={t("Mart category")}>
         {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => {
           const count = c === "all" ? items.length : items.filter((i) => categorize(i.itemId) === c).length;
           if (c !== "all" && count === 0) return null;
@@ -103,7 +106,7 @@ export function ShopPanel() {
               className={`mart-category ${category === c ? "active" : ""}`}
               onClick={() => setCategory(c)}
             >
-              {CATEGORY_LABEL[c]}
+              {t(CATEGORY_LABEL[c])}
               <span className="mart-category-count">{count}</span>
             </button>
           );
@@ -161,7 +164,7 @@ export function ShopPanel() {
                   disabled={!canBuy1}
                   onClick={() => dispatch({ type: "BUY_ITEM", payload: { itemId: entry.itemId, quantity: 1 } })}
                 >
-                  Buy
+                  {t("Buy")}
                 </button>
                 <button
                   className="mart-buy-btn mart-buy-x10"
@@ -175,7 +178,7 @@ export function ShopPanel() {
           );
         })}
         {filtered.length === 0 && (
-          <li className="dim small mart-empty">No items in this category yet.</li>
+          <li className="dim small mart-empty">{t("No items in this category yet.")}</li>
         )}
       </ul>
 

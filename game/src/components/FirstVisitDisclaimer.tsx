@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useModalEnter } from "../utils/animate";
+import { useT } from "../i18n/useT";
 
 // First-visit fan-game disclaimer. Shown once per browser (localStorage-
 // flagged). Doesn't gate the app — the user clicks "I understand" and
@@ -28,6 +29,7 @@ function setAcked(): void {
 export function FirstVisitDisclaimer() {
   const [open, setOpen] = useState(() => !isAcked());
   const dialogRef = useModalEnter();
+  const t = useT();
 
   // Lock body scroll while the disclaimer is open so the player can't
   // scroll the page underneath. Restore on unmount.
@@ -51,35 +53,29 @@ export function FirstVisitDisclaimer() {
         ref={dialogRef}
         className="g-modal disclaimer-modal"
         role="dialog"
-        aria-label="Fan-game disclaimer"
+        aria-label={t("Fan-game disclaimer")}
         aria-modal="true"
       >
         <header className="g-modal-head">
-          <h2>Welcome, trainer</h2>
+          <h2>{t("Welcome, trainer")}</h2>
         </header>
         <div className="g-modal-body disclaimer-body">
           <p className="disclaimer-lead">
-            Pokémon Idle is an <strong>unofficial fan project</strong>. It
-            isn't affiliated with, endorsed by, or sponsored by Nintendo,
-            Game Freak, Creatures Inc., or The Pokémon Company.
+            {t("Pokémon Idle is an ")}<strong>{t("unofficial fan project")}</strong>{t(". It isn't affiliated with, endorsed by, or sponsored by Nintendo, Game Freak, Creatures Inc., or The Pokémon Company.")}
           </p>
           <ul className="disclaimer-points">
             <li>
-              Pokémon names, sprites, and type icons are trademarks of
-              their respective owners. They're used here non-commercially
-              in a fan-built browser game.
+              {t("Pokémon names, sprites, and type icons are trademarks of their respective owners. They're used here non-commercially in a fan-built browser game.")}
             </li>
             <li>
-              No copyrighted Pokémon assets are stored on our servers —
-              sprites load at runtime from public third-party CDNs.
+              {t("No copyrighted Pokémon assets are stored on our servers — sprites load at runtime from public third-party CDNs.")}
             </li>
             <li>
-              The Service is free. No ads, no payments, no virtual
-              currency that maps to real money.
+              {t("The Service is free. No ads, no payments, no virtual currency that maps to real money.")}
             </li>
           </ul>
           <p className="disclaimer-contact">
-            Issues, bug reports, or takedown requests?{" "}
+            {t("Issues, bug reports, or takedown requests?")}{" "}
             <a href="mailto:contact@pokeidle.com">contact@pokeidle.com</a>
           </p>
         </div>
@@ -90,7 +86,7 @@ export function FirstVisitDisclaimer() {
             onClick={accept}
             autoFocus
           >
-            I understand — let me play
+            {t("I understand — let me play")}
           </button>
         </footer>
       </div>
