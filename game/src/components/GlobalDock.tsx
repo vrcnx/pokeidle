@@ -52,12 +52,13 @@ function useOpen(): [PopupId, (o: PopupId) => void] {
 // Left dock — only Heal lives here now.
 export function GameplayDock() {
   const { dispatch } = useGame();
+  const t = useT();
   return (
-    <div className="dock dock-gameplay" role="toolbar" aria-label="Gameplay actions">
+    <div className="dock dock-gameplay" role="toolbar" aria-label={t("Gameplay actions")}>
       <DockButton
         icon={<IconHeart size={18} />}
-        label="Heal"
-        title="Fully heal party. Bails out of any active battle / raid."
+        label={t("Heal")}
+        title={t("Fully heal party. Bails out of any active battle / raid.")}
         onClick={() => dispatch({ type: "HEAL_PARTY" })}
       />
     </div>
@@ -68,6 +69,7 @@ export function GameplayDock() {
 export function MetaDock() {
   const [open, setOpen] = useOpen();
   const pvp = usePvpState();
+  const t = useT();
   // The PvP button is live-disabled mid-battle (nothing useful to do
   // from the hub then) but stays enabled while queueing — the queue
   // state is fine to inspect / leave from inside the hub.
@@ -79,11 +81,11 @@ export function MetaDock() {
   const { count: incomingRequests } = useIncomingRequestCount();
   return (
     <>
-      <div className="dock dock-meta" role="toolbar" aria-label="Account actions">
+      <div className="dock dock-meta" role="toolbar" aria-label={t("Account actions")}>
         <DockButton
           icon={<IconSwords size={18} />}
-          label="PvP"
-          title={inBattle ? "Already in a PvP battle" : "PvP — battle other players"}
+          label={t("PvP")}
+          title={inBattle ? t("Already in a PvP battle") : t("PvP — battle other players")}
           onClick={() => {
             if (inBattle) return;
             // Hub is its own modal; close any other dock popup so we
@@ -94,17 +96,17 @@ export function MetaDock() {
         />
         <DockButton
           icon={<IconSettings size={18} />}
-          label="Settings"
+          label={t("Settings")}
           active={open === "settings"}
           onClick={() => setOpen(open === "settings" ? null : "settings")}
         />
         <DockButton
           icon={<IconChat size={18} />}
-          label="Social"
+          label={t("Social")}
           active={open === "social"}
           title={incomingRequests > 0
-            ? `Friends & chat · ${incomingRequests} pending request${incomingRequests === 1 ? "" : "s"}`
-            : "Friends & chat"}
+            ? `${t("Friends & chat")} · ${incomingRequests} ${incomingRequests === 1 ? t("pending request") : t("pending requests")}`
+            : t("Friends & chat")}
           badge={incomingRequests}
           onClick={() => setOpen(open === "social" ? null : "social")}
         />
@@ -138,6 +140,7 @@ interface DockBtnProps {
 function AudioPrefsCard() {
   const [state, setState] = useState<MusicState>(() => musicManager.snapshot());
   useEffect(() => musicManager.subscribe(setState), []);
+  const t = useT();
 
   const onVolChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     musicManager.setVolume(parseFloat(e.target.value) / 100);
@@ -147,20 +150,20 @@ function AudioPrefsCard() {
   const label = state.currentTrack
     ? state.currentTrack.replace(/\.mp3$/i, "")
     : state.category
-      ? `Loading…`
-      : "Stopped";
+      ? t("Loading…")
+      : t("Stopped");
 
   return (
     <section className="g-card">
-      <h3>Audio</h3>
+      <h3>{t("Audio")}</h3>
       <div className="g-row">
-        <span>Music</span>
+        <span>{t("Music")}</span>
         <strong className={state.enabled ? "g-tag on" : "g-tag off"}>
-          {state.enabled ? "On" : "Muted"}
+          {state.enabled ? t("On") : t("Muted")}
         </strong>
       </div>
       <div className="audio-volume-row">
-        <span className="dim small">Volume</span>
+        <span className="dim small">{t("Volume")}</span>
         <input
           type="range"
           min={0}
@@ -168,22 +171,22 @@ function AudioPrefsCard() {
           step={1}
           value={Math.round(state.volume * 100)}
           onChange={onVolChange}
-          aria-label="Music volume"
+          aria-label={t("Music volume")}
           disabled={!state.enabled}
         />
         <span className="audio-volume-pct">{Math.round(state.volume * 100)}</span>
       </div>
       <p className="g-help" style={{ marginTop: 4 }}>
-        Now playing: <em>{label}</em>
-        {state.waitingForGesture && " — tap anywhere to start"}
+        {t("Now playing:")} <em>{label}</em>
+        {state.waitingForGesture && t(" — tap anywhere to start")}
       </p>
       <div className="settings-legal-links">
         <button className="g-btn-ghost g-btn-small" onClick={toggle}>
-          {state.enabled ? "Mute music" : "Unmute music"}
+          {state.enabled ? t("Mute music") : t("Unmute music")}
         </button>
         {state.enabled && state.category && (
           <button className="g-btn-ghost g-btn-small" onClick={() => musicManager.next()}>
-            Skip track
+            {t("Skip track")}
           </button>
         )}
       </div>
@@ -193,7 +196,7 @@ function AudioPrefsCard() {
           or vice versa. */}
       <div className="audio-section-divider" />
       <div className="g-row">
-        <span>Sound effects</span>
+        <span>{t("Sound effects")}</span>
         <SfxToggle />
       </div>
       <SfxVolume />
@@ -204,9 +207,10 @@ function AudioPrefsCard() {
 function SfxToggle() {
   const [s, setS] = useState(() => sfxManager.snapshot());
   useEffect(() => sfxManager.subscribe(setS), []);
+  const t = useT();
   return (
     <strong className={s.enabled ? "g-tag on" : "g-tag off"}>
-      {s.enabled ? "On" : "Muted"}
+      {s.enabled ? t("On") : t("Muted")}
     </strong>
   );
 }
@@ -214,10 +218,11 @@ function SfxToggle() {
 function SfxVolume() {
   const [s, setS] = useState(() => sfxManager.snapshot());
   useEffect(() => sfxManager.subscribe(setS), []);
+  const t = useT();
   return (
     <>
       <div className="audio-volume-row">
-        <span className="dim small">Volume</span>
+        <span className="dim small">{t("Volume")}</span>
         <input
           type="range"
           min={0}
@@ -225,7 +230,7 @@ function SfxVolume() {
           step={1}
           value={Math.round(s.volume * 100)}
           onChange={(e) => sfxManager.setVolume(parseFloat(e.target.value) / 100)}
-          aria-label="Sound effects volume"
+          aria-label={t("Sound effects volume")}
           disabled={!s.enabled}
         />
         <span className="audio-volume-pct">{Math.round(s.volume * 100)}</span>
@@ -235,13 +240,13 @@ function SfxVolume() {
           className="g-btn-ghost g-btn-small"
           onClick={() => sfxManager.setEnabled(!s.enabled)}
         >
-          {s.enabled ? "Mute SFX" : "Unmute SFX"}
+          {s.enabled ? t("Mute SFX") : t("Unmute SFX")}
         </button>
         <button
           className="g-btn-ghost g-btn-small"
           onClick={() => sfxManager.play("attack")}
         >
-          Test attack
+          {t("Test attack")}
         </button>
       </div>
     </>
@@ -254,24 +259,23 @@ function SfxVolume() {
 function ChatPrefsCard() {
   const [on, setOn] = useState(() => isProfanityFilterOn());
   useEffect(() => subscribeProfanityFilter(setOn), []);
+  const t = useT();
   return (
     <section className="g-card">
-      <h3>Chat</h3>
+      <h3>{t("Chat")}</h3>
       <div className="g-row">
-        <span>Profanity filter</span>
-        <strong className={on ? "g-tag on" : "g-tag off"}>{on ? "On" : "Off"}</strong>
+        <span>{t("Profanity filter")}</span>
+        <strong className={on ? "g-tag on" : "g-tag off"}>{on ? t("On") : t("Off")}</strong>
       </div>
       <p className="g-help" style={{ marginTop: 4 }}>
-        Censors common slurs and strong language in global and area chat.
-        Each filtered message has a "show" link if you want to read the
-        original.
+        {t("Censors common slurs and strong language in global and area chat. Each filtered message has a \"show\" link if you want to read the original.")}
       </p>
       <div className="settings-legal-links">
         <button
           className="g-btn-ghost g-btn-small"
           onClick={() => setProfanityFilter(!on)}
         >
-          {on ? "Turn off filter" : "Turn on filter"}
+          {on ? t("Turn off filter") : t("Turn on filter")}
         </button>
       </div>
     </section>
@@ -342,6 +346,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
   const { me, signOut } = useAuth();
   const dailyStatus = useDailyStatus();
+  const t = useT();
   const [tab, setTab] = useState<SettingsTab>("stats");
   const totalDex = Object.keys(pokemonTable).length;
   const charm = hasShinyCharm(state.pokedexCaught);
@@ -363,11 +368,11 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         className="g-modal settings-modal-v2"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Settings"
+        aria-label={t("Settings")}
       >
         <header className="g-modal-head">
-          <h2>Settings</h2>
-          <button className="g-modal-close" onClick={onClose} aria-label="Close">×</button>
+          <h2>{t("Settings")}</h2>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
         {me && (
@@ -378,18 +383,18 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               <div className="g-profile-handle">@{me.username}</div>
             </div>
             <div className="g-profile-stats">
-              <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>Level</span></div>
-              <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>Money</span></div>
-              <div className="g-stat-pill"><strong><CountUp value={state.defeatedGyms.length} />/{gymLeaders.length}</strong><span>Badges</span></div>
+              <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>{t("Level")}</span></div>
+              <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>{t("Money")}</span></div>
+              <div className="g-stat-pill"><strong><CountUp value={state.defeatedGyms.length} />/{gymLeaders.length}</strong><span>{t("Badges")}</span></div>
             </div>
           </section>
         )}
 
-        <nav className="settings-tabs" role="tablist" aria-label="Settings sections">
-          <SettingsTabBtn label="Stats"   tab="stats"   active={tab} onPick={setTab} />
-          <SettingsTabBtn label="Audio"   tab="audio"   active={tab} onPick={setTab} />
-          <SettingsTabBtn label="Chat"    tab="chat"    active={tab} onPick={setTab} />
-          <SettingsTabBtn label="Account" tab="account" active={tab} onPick={setTab} />
+        <nav className="settings-tabs" role="tablist" aria-label={t("Settings sections")}>
+          <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label={t("Audio")}   tab="audio"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
+          <SettingsTabBtn label={t("Account")} tab="account" active={tab} onPick={setTab} />
         </nav>
 
         <div className="g-modal-body">
@@ -397,105 +402,102 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             {tab === "stats" && (
               <>
                 <section className="g-card">
-                  <h3>Pokédex</h3>
-                  <div className="g-row"><span>Caught</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
-                  <div className="g-row"><span>Completion</span><strong>{dexPct}%</strong></div>
-                  <div className="g-row"><span>Seen</span><strong>{state.pokedexSeen.length}</strong></div>
-                  <div className="g-row"><span>Shiny seen</span><strong>{state.shinySeen.length}</strong></div>
-                  <div className="g-row"><span>Shiny caught</span><strong>{state.shinyCaught.length}</strong></div>
+                  <h3>{t("Pokédex")}</h3>
+                  <div className="g-row"><span>{t("Caught")}</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
+                  <div className="g-row"><span>{t("Completion")}</span><strong>{dexPct}%</strong></div>
+                  <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
+                  <div className="g-row"><span>{t("Shiny seen")}</span><strong>{state.shinySeen.length}</strong></div>
+                  <div className="g-row"><span>{t("Shiny caught")}</span><strong>{state.shinyCaught.length}</strong></div>
                 </section>
 
                 <section className="g-card">
-                  <h3>Battles</h3>
-                  <div className="g-row"><span>Wild won</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
-                  <div className="g-row"><span>Trainer won</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
-                  <div className="g-row"><span>Elite Four</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
-                  <div className="g-row"><span>Champion</span><strong>{state.championDefeated ? "Defeated" : <span className="dim">Pending</span>}</strong></div>
+                  <h3>{t("Battles")}</h3>
+                  <div className="g-row"><span>{t("Wild won")}</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
+                  <div className="g-row"><span>{t("Trainer won")}</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
+                  <div className="g-row"><span>{t("Elite Four")}</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
+                  <div className="g-row"><span>{t("Champion")}</span><strong>{state.championDefeated ? t("Defeated") : <span className="dim">{t("Pending")}</span>}</strong></div>
                 </section>
 
                 <section className="g-card">
-                  <h3>Giveaways</h3>
+                  <h3>{t("Giveaways")}</h3>
                   <p className="g-help" style={{ marginTop: 0 }}>
-                    Free prize draws — Master Balls, cash, and rare Pokemon.
-                    One entry each, drawn fairly, winners announced in global chat.
+                    {t("Free prize draws — Master Balls, cash, and rare Pokemon. One entry each, drawn fairly, winners announced in global chat.")}
                   </p>
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
                       onClick={() => { onClose(); openGiveaways(); }}
                     >
-                      🎁 View giveaways
+                      🎁 {t("View giveaways")}
                     </button>
                     <button
                       className="g-btn-ghost g-btn-small"
                       onClick={() => { onClose(); openDailyReward(); }}
                     >
-                      🔥 Daily reward{dailyStatus && !dailyStatus.claimedToday && <span className="daily-claimable-dot" aria-label="claim available" />}
+                      🔥 {t("Daily reward")}{dailyStatus && !dailyStatus.claimedToday && <span className="daily-claimable-dot" aria-label={t("claim available")} />}
                     </button>
                   </div>
                 </section>
 
                 <section className="g-card">
-                  <h3>New here?</h3>
+                  <h3>{t("New here?")}</h3>
                   <p className="g-help" style={{ marginTop: 4 }}>
-                    A thirty-second guide to how the game works.
+                    {t("A thirty-second guide to how the game works.")}
                   </p>
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-ghost g-btn-small"
                       onClick={() => { onClose(); openHowToPlay(); }}
                     >
-                      How to play
+                      {t("How to play")}
                     </button>
                   </div>
                 </section>
 
                 <section className="g-card">
-                  <h3>What's new</h3>
+                  <h3>{t("What's new")}</h3>
                   <div className="g-row">
-                    <span>Version</span>
+                    <span>{t("Version")}</span>
                     <strong className="g-mono">v{CURRENT_VERSION}</strong>
                   </div>
                   <p className="g-help" style={{ marginTop: 4 }}>
-                    Every update, newest first. We ship often — most of it comes
-                    straight from player reports.
+                    {t("Every update, newest first. We ship often — most of it comes straight from player reports.")}
                   </p>
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-ghost g-btn-small"
                       onClick={() => { onClose(); openChangelog(); }}
                     >
-                      View changelog
+                      {t("View changelog")}
                     </button>
                   </div>
                 </section>
 
                 <section className="g-card">
-                  <h3>Achievements</h3>
+                  <h3>{t("Achievements")}</h3>
                   <p className="g-help" style={{ marginTop: 0 }}>
-                    Trophy gallery — track your unlocks across catches,
-                    battles, PvP, trading, and the story.
+                    {t("Trophy gallery — track your unlocks across catches, battles, PvP, trading, and the story.")}
                   </p>
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
                       onClick={() => { onClose(); openAchievements(); }}
                     >
-                      Open trophy gallery
+                      {t("Open trophy gallery")}
                     </button>
                   </div>
                 </section>
 
                 <section className="g-card">
-                  <h3>Shiny Charm</h3>
+                  <h3>{t("Shiny Charm")}</h3>
                   <div className="g-row">
-                    <span>Status</span>
-                    <strong className={charm ? "g-tag on" : "g-tag off"}>{charm ? "Active" : "Locked"}</strong>
+                    <span>{t("Status")}</span>
+                    <strong className={charm ? "g-tag on" : "g-tag off"}>{charm ? t("Active") : t("Locked")}</strong>
                   </div>
                   <p className="g-help">
                     {charm
-                      ? "Shiny encounter rate is doubled (1/4096)."
-                      : `Catch all ${totalDex} Pokémon to unlock. ${totalDex - state.pokedexCaught.length} left.`}
+                      ? t("Shiny encounter rate is doubled (1/4096).")
+                      : `${t("Catch all")} ${totalDex} ${t("Pokémon to unlock.")} ${totalDex - state.pokedexCaught.length} ${t("left.")}`}
                   </p>
                 </section>
               </>
@@ -508,44 +510,39 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               <>
                 {me && (
                   <section className="g-card">
-                    <h3>Account</h3>
-                    <div className="g-row"><span>Email</span><strong className="g-mono">{me.email}</strong></div>
-                    <div className="g-row"><span>Caught levels</span><strong>{me.totalCaughtLevels.toLocaleString()}</strong></div>
-                    <div className="g-row"><span>Joined</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
+                    <h3>{t("Account")}</h3>
+                    <div className="g-row"><span>{t("Email")}</span><strong className="g-mono">{me.email}</strong></div>
+                    <div className="g-row"><span>{t("Caught levels")}</span><strong>{me.totalCaughtLevels.toLocaleString()}</strong></div>
+                    <div className="g-row"><span>{t("Joined")}</span><strong>{new Date(me.createdAt).toLocaleDateString()}</strong></div>
                   </section>
                 )}
 
                 <LanguagePrefsCard />
 
                 <section className="g-card">
-                  <h3>Help &amp; Feedback</h3>
+                  <h3>{t("Help & Feedback")}</h3>
                   <p className="g-help" style={{ marginTop: 0 }}>
-                    Found a bug or have feedback? Send a quick report and the
-                    team will look at it. Includes a snapshot of your party
-                    and last few battle log lines so we can reproduce.
+                    {t("Found a bug or have feedback? Send a quick report and the team will look at it. Includes a snapshot of your party and last few battle log lines so we can reproduce.")}
                   </p>
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
                       onClick={() => { onClose(); openReportBug(); }}
                     >
-                      Report a bug
+                      {t("Report a bug")}
                     </button>
                   </div>
                 </section>
 
                 <section className="g-card">
-                  <h3>Legal</h3>
+                  <h3>{t("Legal")}</h3>
                   <p className="g-help" style={{ marginTop: 0 }}>
-                    Unofficial fan project. Not affiliated with, endorsed by, or
-                    sponsored by Nintendo, Game Freak, or The Pokémon Company.
-                    Non-commercial; no copyrighted Pokémon assets are stored on
-                    our servers.
+                    {t("Unofficial fan project. Not affiliated with, endorsed by, or sponsored by Nintendo, Game Freak, or The Pokémon Company. Non-commercial; no copyrighted Pokémon assets are stored on our servers.")}
                   </p>
                   <div className="settings-legal-links">
-                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("terms")}>Terms of Service</button>
-                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("privacy")}>Privacy</button>
-                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("disclaimer")}>Fan-Game Disclaimer</button>
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("terms")}>{t("Terms of Service")}</button>
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("privacy")}>{t("Privacy")}</button>
+                    <button className="g-btn-ghost g-btn-small" onClick={() => openLegal("disclaimer")}>{t("Fan-Game Disclaimer")}</button>
                   </div>
                 </section>
               </>
@@ -555,8 +552,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 
         {me && (
           <footer className="g-modal-foot">
-            <button className="g-btn-danger-ghost" onClick={signOut}>Sign out</button>
-            <button className="g-btn-primary" onClick={onClose}>Close</button>
+            <button className="g-btn-danger-ghost" onClick={signOut}>{t("Sign out")}</button>
+            <button className="g-btn-primary" onClick={onClose}>{t("Close")}</button>
           </footer>
         )}
       </div>
