@@ -1131,7 +1131,7 @@ app.get("/chat/recent", async (c) => {
       where,
       orderBy: { createdAt: "desc" },
       take: limit,
-      include: { user: { select: { id: true, username: true, name: true, isAdmin: true } } },
+      include: { user: { select: { id: true, username: true, name: true, isAdmin: true, accountLevel: true } } },
     }),
     // Channel facets — count messages by channelId so the admin sees
     // which channels are noisiest at a glance. Limit to public channels

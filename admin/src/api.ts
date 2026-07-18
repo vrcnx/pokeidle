@@ -76,7 +76,10 @@ export interface ChatMessage {
   channelId: string;
   content: string;
   createdAt: string;
-  user: { id: string; username: string; name: string | null; isAdmin: boolean };
+  // isAdmin is only ever populated by the REST /chat/recent endpoint —
+  // the server's live socket "chat:message" broadcast (both regular
+  // sends and /announce) never selects it, so treat it as best-effort.
+  user: { id: string; username: string; name: string | null; isAdmin?: boolean; accountLevel: number };
 }
 
 export interface SaveSnapshotRow {

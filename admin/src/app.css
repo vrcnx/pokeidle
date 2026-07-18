@@ -2245,6 +2245,140 @@ input[type="checkbox"], input[type="radio"] {
 .chat-top-name small  { font-size: 10.5px; }
 
 /* =================================================================
+   Chat — Live view (real chat window, socket-pushed)
+   ================================================================= */
+.chat-live-wrap {
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  display: flex;
+  flex-direction: column;
+  height: 72vh;
+  min-height: 480px;
+  overflow: hidden;
+}
+.chat-live-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-wrap: wrap;
+}
+.chat-live-toolbar select {
+  background: var(--surface-2);
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.chat-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.chat-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.chat-live-status.live .chat-live-dot {
+  background: var(--good);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+}
+.chat-live-status.connecting .chat-live-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
+  animation: chat-live-pulse 1.2s ease-in-out infinite;
+}
+.chat-live-status.disconnected .chat-live-dot {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+}
+@keyframes chat-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.chat-live-list {
+  list-style: none;
+  margin: 0;
+  padding: 10px 14px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-live-msg {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 120ms var(--ease);
+}
+.chat-live-msg:hover { background: var(--surface-2); }
+.chat-live-msg:hover .chat-live-del { opacity: 1; }
+.chat-live-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.chat-live-author {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chat-live-author:hover { text-decoration: underline; }
+.chat-live-lv {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #7dd3fc;
+  background: rgba(125, 211, 252, 0.12);
+  border: 1px solid rgba(125, 211, 252, 0.30);
+}
+.chat-live-lv.lv-tier-rookie   { color: #7dd3fc; background: rgba(125, 211, 252, 0.12); border-color: rgba(125, 211, 252, 0.30); }
+.chat-live-lv.lv-tier-veteran  { color: #86efac; background: rgba(134, 239, 172, 0.12); border-color: rgba(134, 239, 172, 0.32); }
+.chat-live-lv.lv-tier-elite    { color: #fcd34d; background: rgba(252, 211, 77, 0.12);  border-color: rgba(252, 211, 77, 0.36); }
+.chat-live-lv.lv-tier-master   { color: #c4b5fd; background: rgba(196, 181, 253, 0.14); border-color: rgba(196, 181, 253, 0.38); }
+.chat-live-lv.lv-tier-champion {
+  color: #fff;
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
+}
+.chat-live-time { margin-left: 2px; }
+.chat-live-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 120ms var(--ease), color 120ms var(--ease), background 120ms var(--ease);
+}
+.chat-live-del:hover { color: #fca5a5; background: var(--bad-soft); }
+.chat-live-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+  padding-left: 1px;
+}
+
+/* =================================================================
    Audit log
    ================================================================= */
 .audit-page { max-width: 1440px; margin: 0 auto; }
