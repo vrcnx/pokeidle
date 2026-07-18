@@ -40,8 +40,14 @@ export function MiniChat() {
   const { me } = useAuth();
 
   const [tab, setTab] = useState<Tab>("global");
+  const activeChannel = tab === "global" ? GLOBAL : TRADE;
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, ChatMessage[]>>({});
-  const [draft, setDraft] = useState("");
+  // Keyed by channel, not a single shared string — a draft typed on
+  // Global must not still be sitting in the box (and postable to the
+  // wrong channel) after switching to Trade, or vice versa.
+  const [draftByChannel, setDraftByChannel] = useState<Record<string, string>>({});
+  const draft = draftByChannel[activeChannel] ?? "";
+  const setDraft = (next: string) => setDraftByChannel((prev) => ({ ...prev, [activeChannel]: next }));
   const [offerMode, setOfferMode] = useState(false);
   const [offering, setOffering] = useState("");
   const [wanting, setWanting] = useState("");
@@ -97,7 +103,6 @@ export function MiniChat() {
     };
   }, [me]);
 
-  const activeChannel = tab === "global" ? GLOBAL : TRADE;
   const messages = messagesByChannel[activeChannel] ?? [];
 
   // Auto-scroll on new message in the active tab.
@@ -128,12 +133,23 @@ export function MiniChat() {
         meta: { offering: o, wanting: w },
       },
       (r: { ok: boolean; error?: string }) => {
-        if (!r.ok) pushToast({ kind: "warn", text: `Couldn't post offer${r.error ? `: ${r.error}` : "."}` });
+        if (!r.ok) {
+          // Keep the typed text on failure (rate-limited, disconnected,
+          // etc.) so the player isn't forced to retype it — only clear
+          // once the server actually confirms the post landed.
+          pushToast({ kind: "warn", text: `Couldn't post offer${r.error ? `: ${r.error}` : "."}` });
+          return;
+        }
+        setOffering("");
+        setWanting("");
+        setOfferMode(false);
       },
     );
+  };
+  const cancelOffer = () => {
+    setOfferMode(false);
     setOffering("");
     setWanting("");
-    setOfferMode(false);
   };
 
   const openTrade = (userId: string, username: string) => {
@@ -236,7 +252,7 @@ export function MiniChat() {
             maxLength={120}
           />
           <div className="mini-chat-offer-actions">
-            <button type="button" className="g-btn-ghost g-btn-small" onClick={() => setOfferMode(false)}>Cancel</button>
+            <button type="button" className="g-btn-ghost g-btn-small" onClick={cancelOffer}>Cancel</button>
             <button type="submit" className="g-btn-primary g-btn-small" disabled={!offering.trim() || !wanting.trim()}>Post</button>
           </div>
         </form>
@@ -257,7 +273,7 @@ export function MiniChat() {
             placeholder={placeholder}
             maxLength={500}
           />
-          <EmojiPicker onPick={(e) => setDraft((d) => (d + e).slice(0, 500))} />
+          <EmojiPicker onPick={(e) => setDraft((draft + e).slice(0, 500))} />
         </form>
       )}
     </section>
@@ -308,8 +324,12 @@ function TradeOfferCard({
         }
       </div>
       <div className="mini-chat-trade-body">
-        <span className="mini-chat-trade-row"><strong>Offering</strong> {message.meta?.offering ?? "—"}</span>
-        <span className="mini-chat-trade-row"><strong>For</strong> {message.meta?.wanting ?? "—"}</span>
+        <span className="mini-chat-trade-row">
+          <strong>Offering</strong> <ChatBody content={message.meta?.offering ?? "—"} />
+        </span>
+        <span className="mini-chat-trade-row">
+          <strong>For</strong> <ChatBody content={message.meta?.wanting ?? "—"} />
+        </span>
       </div>
     </div>
   );

@@ -24,10 +24,16 @@ app.get("/:channelId/history", requireUser, async (c) => {
   rows.reverse();
   return c.json({
     channelId,
+    // kind/meta must round-trip the same way the live socket broadcast
+    // does (server/src/socket.ts) — omitting them here silently downgrades
+    // every historical system/giveaway/trade-offer card to a plain bubble
+    // the instant a player reloads or opens a fresh tab.
     messages: rows.map((m) => ({
       id: m.id,
       channelId: m.channelId,
       content: m.content,
+      kind: m.kind,
+      meta: m.meta ? JSON.parse(m.meta) : null,
       createdAt: m.createdAt,
       user: m.user,
     })),

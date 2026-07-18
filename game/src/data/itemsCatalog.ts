@@ -46,7 +46,7 @@ const items: CatalogItem[] = [
   // nor mid-battle stat-stage items are modeled, so they'd be money sinks.
 
   // ── Held items (only the ones with real mechanics) ───────────────────────
-  { id: "expShare",   name: "Exp. Share",  description: "Activates a 300-battle buff that shares 3% EXP with every non-fainted party member. Sold at the Celadon Dept. Store.", category: "held", buyPrice: 20000, sellPrice: 0, spriteOverride: "exp-share", implemented: true },
+  { id: "expShare",   name: "Exp. Share",  description: "Activates a 300-battle buff that shares 25% EXP with every non-fainted party member. Sold at the Celadon Dept. Store.", category: "held", buyPrice: 20000, sellPrice: 0, spriteOverride: "exp-share", implemented: true },
   { id: "shinycharm", name: "Shiny Charm", description: "Doubles shiny encounter rate. Earned automatically by completing the Pokédex.", category: "held", buyPrice: null, sellPrice: 0, spriteOverride: "shiny-charm", implemented: true },
 
   // Battle held items — equippable on individual Pokémon via the Pokémon Detail modal.

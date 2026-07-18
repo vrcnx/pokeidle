@@ -8,12 +8,14 @@ type Mode = "live" | "search";
 
 function prettyChannel(id: string): string {
   if (id === "global") return "Global";
+  if (id === "trade") return "Trade";
   if (id.startsWith("area:")) return id.slice(5);
   if (id.startsWith("dm:")) return "DM";
   return id;
 }
 function channelClass(id: string): string {
   if (id === "global") return "global";
+  if (id === "trade") return "trade";
   if (id.startsWith("area:")) return "area";
   if (id.startsWith("dm:")) return "dm";
   return "other";
@@ -94,7 +96,7 @@ function LiveChat() {
       setByChannel((prev) => {
         const next: Record<string, ChatMessage[]> = {};
         for (const [k, v] of Object.entries(prev)) {
-          if (k !== "global" && !k.startsWith("area:")) next[k] = v;
+          if (k !== "global" && k !== "trade" && !k.startsWith("area:")) next[k] = v;
         }
         return next;
       });
@@ -200,6 +202,10 @@ function LiveChat() {
             className={`seg-tab ${activeChannel === "global" ? "active" : ""}`}
             onClick={() => setActiveChannel("global")}
           >Global</button>
+          <button
+            className={`seg-tab ${activeChannel === "trade" ? "active" : ""}`}
+            onClick={() => setActiveChannel("trade")}
+          >Trade</button>
           <button
             className={`seg-tab ${activeChannel.startsWith("area:") ? "active" : ""}`}
             onClick={() => setActiveChannel((c) => (c.startsWith("area:") ? c : areaOptions[0]?.id ?? c))}
@@ -352,6 +358,7 @@ function ChatSearch() {
         <div className="seg-tabs">
           <button className={`seg-tab ${channel === "all" ? "active" : ""}`} onClick={() => setChannel("all")}>All</button>
           <button className={`seg-tab ${channel === "global" ? "active" : ""}`} onClick={() => setChannel("global")}>Global</button>
+          <button className={`seg-tab ${channel === "trade" ? "active" : ""}`} onClick={() => setChannel("trade")}>Trade</button>
           <button className={`seg-tab ${channel === "area" ? "active" : ""}`} onClick={() => setChannel("area")}>Area</button>
           <button className={`seg-tab ${channel === "dm" ? "active" : ""}`} onClick={() => setChannel("dm")}>DM</button>
         </div>

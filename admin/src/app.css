@@ -1273,6 +1273,7 @@ input[type="checkbox"], input[type="radio"] {
   color: var(--text-muted);
 }
 .channel-tag.global { background: var(--good-soft);                      color: #6ee7b7; }
+.channel-tag.trade  { background: rgba(192, 132, 252, 0.16);             color: #c084fc; }
 .channel-tag.area   { background: var(--brand-soft);                     color: var(--brand-hover); }
 .channel-tag.dm     { background: rgba(244, 114, 182, 0.18);             color: #f9a8d4; }
 

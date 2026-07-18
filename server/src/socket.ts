@@ -387,22 +387,36 @@ export function attachSocketServer(httpServer: HttpServer): Server {
   startMatchmakingTicker(() => { void tryPairAndSpawnRoom(); }, 3_000);
   io.on("connection", async (socket) => {
     const user = socket.data.user!;
-    const wasFirst = addPresence(user.id, socket.id);
+    // The admin dashboard's Live Chat view opens a real, authenticated
+    // socket on the same server (server/src/routes/admin.ts's REST
+    // calls already share this account's session, so this is nothing
+    // new auth-wise) — but it isn't gameplay, and treating it as one
+    // more of the player's connections would count staff as an online
+    // player and record a DailyActive row for a dashboard visit, not a
+    // play session. admin/src/net/socket.ts sends this auth flag so
+    // that specific connection can skip presence/DAU side effects
+    // while still authenticating, auto-joining chat rooms, and sending/
+    // receiving broadcasts normally — an admin who ALSO has the game
+    // open in another tab still counts fully via that other socket.
+    const isAdminDashboard = socket.handshake.auth?.client === "admin-dashboard";
+    const wasFirst = isAdminDashboard ? false : addPresence(user.id, socket.id);
     if (user.sessionId) {
       let set = socketsBySession.get(user.sessionId);
       if (!set) { set = new Set(); socketsBySession.set(user.sessionId, set); }
       set.add(socket.id);
     }
 
-    // Mark last seen now.
-    await prisma.user
-      .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
-      .catch(() => undefined);
-    // lastSeenAt is a scalar — it gets overwritten, so it can only ever
-    // answer "when did they last play". Append a per-day activity row
-    // too, which is what real DAU is computed from. Idempotent per
-    // (user, UTC day); never allowed to fail the connection.
-    void recordDailyActive(user.id);
+    if (!isAdminDashboard) {
+      // Mark last seen now.
+      await prisma.user
+        .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
+        .catch(() => undefined);
+      // lastSeenAt is a scalar — it gets overwritten, so it can only ever
+      // answer "when did they last play". Append a per-day activity row
+      // too, which is what real DAU is computed from. Idempotent per
+      // (user, UTC day); never allowed to fail the connection.
+      void recordDailyActive(user.id);
+    }
 
     // Send the current count to the freshly-connected socket so the
     // chat header has a value to show immediately, before any other
@@ -478,17 +492,6 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           ack?.({ ok: false, error: "bad payload" });
           return;
         }
-        // A player socket may only ever set "tradeOffer" (or omit kind
-        // entirely for ordinary chat) — "announcement"/"giveaway" are
-        // admin-only and set directly by server/src/routes/admin.ts,
-        // never reachable from this client-facing path.
-        const safeKind = kind === "tradeOffer" ? "tradeOffer" : "user";
-        const safeMeta = safeKind === "tradeOffer" && meta && typeof meta === "object"
-          ? JSON.stringify({
-              offering: typeof meta.offering === "string" ? meta.offering.slice(0, 120) : "",
-              wanting: typeof meta.wanting === "string" ? meta.wanting.slice(0, 120) : "",
-            })
-          : null;
         if (!chatLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" });
           return;
@@ -496,10 +499,12 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // Strip control / RTL-override chars before persisting. React
         // escapes on render, but a unicode ‮ would visually flip
         // the rest of a message and survive into the DB; trim it out.
-        const trimmed = content
-          .replace(/[\x00-\x1f\x7f‮]/g, "")
-          .trim()
-          .slice(0, 500);
+        // Applied to every user-supplied text field that actually
+        // renders somewhere, not just `content` — meta.offering/wanting
+        // render straight into TradeOfferCard the same way and are
+        // just as spoofable if this were skipped for them.
+        const sanitize = (s: string) => s.replace(/[\x00-\x1f\x7f‮]/g, "").trim();
+        const trimmed = sanitize(content).slice(0, 500);
         if (!trimmed) {
           ack?.({ ok: false, error: "empty" });
           return;
@@ -507,6 +512,24 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (!canAccessChannel(channelId, user.id)) {
           ack?.({ ok: false, error: "forbidden" });
           return;
+        }
+        // A player socket may only ever set "tradeOffer", and only when
+        // posting to the trade channel itself — "announcement"/"giveaway"
+        // are admin-only and set directly by server/src/routes/admin.ts,
+        // never reachable from this client-facing path. Without the
+        // channel check, a crafted emit could inject a fully-functional
+        // trade-offer card (complete with a working Open Trade button)
+        // into Global, an area room, or a DM.
+        const safeKind = kind === "tradeOffer" && channelId === TRADE_CHANNEL ? "tradeOffer" : "user";
+        let safeMeta: string | null = null;
+        if (safeKind === "tradeOffer") {
+          const offering = sanitize(typeof meta?.offering === "string" ? meta.offering : "").slice(0, 120);
+          const wanting = sanitize(typeof meta?.wanting === "string" ? meta.wanting : "").slice(0, 120);
+          if (!offering || !wanting) {
+            ack?.({ ok: false, error: "offering and wanting are both required" });
+            return;
+          }
+          safeMeta = JSON.stringify({ offering, wanting });
         }
         // For DMs, ensure the participants are actually friends.
         const dm = parseDmChannel(channelId);

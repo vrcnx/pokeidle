@@ -6,6 +6,7 @@ import { audit as auditRaw } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot, broadcastAnnouncement } from "../socket.js";
+import { TRADE_CHANNEL } from "../lib/chatChannels.js";
 import {
   AnnouncementInput,
   getLiveAnnouncement,
@@ -1135,13 +1136,14 @@ app.get("/chat/recent", async (c) => {
     }),
     // Channel facets — count messages by channelId so the admin sees
     // which channels are noisiest at a glance. Limit to public channels
-    // (global + area:*) because DMs leak addressee info.
+    // (global + trade + area:*) because DMs leak addressee info.
     prisma.chatMessage.groupBy({
       by: ["channelId"],
       _count: { channelId: true },
       where: {
         OR: [
           { channelId: "global" },
+          { channelId: TRADE_CHANNEL },
           { channelId: { startsWith: "area:" } },
         ],
       },
@@ -1150,17 +1152,29 @@ app.get("/chat/recent", async (c) => {
     }),
   ]);
   return c.json({
-    messages: messages.reverse(),
+    // meta is stored as a JSON-encoded string column — parse it here the
+    // same way the live socket broadcast does (server/src/socket.ts), or
+    // every consumer of this route sees a raw string instead of the
+    // {offering, wanting} object the shared ChatMessage type promises.
+    messages: messages.reverse().map((m) => ({ ...m, meta: m.meta ? JSON.parse(m.meta) : null })),
     channels: channelGroups.map((g) => ({ id: g.channelId, count: g._count.channelId })),
   });
 });
 
-// Wipe every message in the public live-chat channels (global + any
-// area:*). DMs are intentionally excluded — those are private 1-1
-// conversations between users, not "live chat", and clearing them
+// Wipe every message in the public live-chat channels (global + trade
+// + any area:*). DMs are intentionally excluded — those are private
+// 1-1 conversations between users, not "live chat", and clearing them
 // would feel like a privacy violation. After the DB delete we
 // broadcast chat:cleared to all connected sockets so live clients
 // flush their cached message lists without needing a refresh.
+//
+// trade MUST be included here: the client (game/src/components/
+// MiniChat.tsx's chat:cleared handler) already treats "public" as
+// covering global+trade+area:* and flushes its Trade-tab cache on
+// this broadcast regardless — leaving trade rows in the DB while the
+// UI shows them as cleared meant the "wipe" was cosmetic-only for
+// exactly the channel most likely to carry scam/abuse content, and
+// the same "cleared" posts would silently reappear on the next reload.
 //
 // MUST be declared BEFORE /chat/:id — Hono matches routes in order,
 // and a static `/chat/clear` registered after the param route would
@@ -1171,6 +1185,7 @@ app.delete("/chat/clear", async (c) => {
     where: {
       OR: [
         { channelId: "global" },
+        { channelId: TRADE_CHANNEL },
         { channelId: { startsWith: "area:" } },
       ],
     },
@@ -1181,11 +1196,11 @@ app.delete("/chat/clear", async (c) => {
 });
 
 // Server-wide announcement. Lands in the global chat as a real
-// ChatMessage authored by the admin who triggered it, but the body is
-// stamped with a "📢 SERVER ANNOUNCEMENT — " prefix so the in-game
-// chat client can pick it up and render it with the system-message
-// style. The message persists in the DB so it shows up in chat
-// history, audit log, and the moderation page just like any other.
+// ChatMessage authored by the admin who triggered it, but stamped
+// kind: "announcement" so the client renders it as a system card
+// instead of a personal message. The message persists in the DB so it
+// shows up in chat history, audit log, and the moderation page just
+// like any other.
 app.post("/announce", async (c) => {
   const me = c.get("user");
   const body = await c.req.json<{ content?: string }>().catch(() => ({} as { content?: string }));
@@ -1487,10 +1502,24 @@ app.post("/giveaways/:id/draw", async (c) => {
   // block the rest of the draw, and the result is reported per winner so
   // the operator can see exactly who still needs paying out rather than
   // guessing.
+  //
+  // The two writes below (grant the prize, then record the claim) are
+  // NOT atomic — grantPrizesToUser can succeed and the much smaller,
+  // much less likely to fail claimedAt update can still throw right
+  // after (a transient DB blip). Getting that ordering wrong here once
+  // meant a real prize grant got reported as ok:false / claimedAt:null
+  // ("UNPAID" in the dashboard), which steers an operator toward
+  // manually re-granting a prize that was already delivered — a real
+  // double-payout. So a failure AFTER the grant already succeeded is
+  // handled separately from a failure IN the grant itself: retry the
+  // small tracking write once, and if it still fails, never report
+  // ok:false for a prize that did land.
   const granted: { username: string; ok: boolean; error?: string }[] = [];
   for (const w of winners) {
+    let grantDelivered = false;
     try {
       await grantPrizesToUser(w.userId, prizes);
+      grantDelivered = true;
       await prisma.giveawayEntry.update({
         where: { id: w.id },
         data: { isWinner: true, claimedAt: new Date() },
@@ -1506,8 +1535,36 @@ app.post("/giveaways/:id/draw", async (c) => {
         });
       } catch { /* socket layer optional */ }
     } catch (e) {
-      // Still mark them a winner — they won. The prize just needs a
-      // manual grant, and claimedAt stays null so it is obvious which.
+      if (grantDelivered) {
+        // The prize already landed — only the bookkeeping write failed.
+        // One retry, since this is a tiny two-column update far less
+        // likely to fail twice than the transient blip that just hit it.
+        try {
+          await prisma.giveawayEntry.update({
+            where: { id: w.id },
+            data: { isWinner: true, claimedAt: new Date() },
+          });
+          granted.push({ username: w.username, ok: true });
+        } catch (e2) {
+          // Still couldn't record it. isWinner is set so the win itself
+          // isn't lost, but claimedAt stays null on a PAID entry — the
+          // dashboard's "UNPAID" badge would be actively wrong here, so
+          // this is audited loudly instead of silently reported as a
+          // normal failure an operator would react to by re-granting.
+          await prisma.giveawayEntry.update({ where: { id: w.id }, data: { isWinner: true } })
+            .catch(() => undefined);
+          void makeAudit(c)(me.id, "giveaway.claim_record_failed", id, {
+            entryId: w.id, userId: w.userId, username: w.username,
+            error: String((e2 as Error).message ?? e2),
+          });
+          granted.push({
+            username: w.username, ok: true,
+            error: "Prize WAS granted — only recording the claim failed twice. Do not re-grant; fix claimedAt on this entry manually.",
+          });
+        }
+        continue;
+      }
+      // The grant itself failed — genuinely unpaid, safe to re-grant.
       await prisma.giveawayEntry.update({ where: { id: w.id }, data: { isWinner: true } });
       granted.push({ username: w.username, ok: false, error: String((e as Error).message ?? e) });
     }
