@@ -37,6 +37,34 @@ model DailyActive {
   @@index([day])
 }
 
+// One row per (user, milestone) — the new-player funnel. Answers "of
+// everyone who signed up, how many picked a starter? Won a first battle?
+// Caught a first Pokémon? Reached level 5?" — the question we had NO data
+// to answer before this: `accountLevel`/`pokedexCaughtCount` on User are
+// point-in-time scalars, overwritten on every save, so there was no way
+// to see WHEN (or whether) a player crossed an early milestone, only
+// where they happen to sit right now. Same reasoning as DailyActive:
+// funnel position is an event, and events need rows.
+//
+// Idempotent per (user, type) via the compound unique — the client fires
+// this the instant a milestone is first crossed and never again; a
+// duplicate fire (double-fire from two tabs, a retry) is a harmless
+// no-op via the unique constraint, not an error.
+model FunnelEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  /// "starter_selected" | "first_wild_win" | "first_catch" |
+  /// "first_trainer_win" | "first_gym_badge" | "level_5" | "level_10" |
+  /// "level_20" — see server/src/lib/funnel.ts FUNNEL_EVENT_TYPES for the
+  /// authoritative list and the funnel order they're charted in.
+  type      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([type, createdAt])
+}
+
 model User {
   id              String    @id
   email           String    @unique
@@ -84,6 +112,7 @@ model User {
   dailyActive       DailyActive[]
   giveawayEntries   GiveawayEntry[]
   saveSnapshots     SaveSnapshot[]
+  funnelEvents      FunnelEvent[]
 }
 
 /// Append-only checkpoints of a player's save, so a bad or clobbered write
