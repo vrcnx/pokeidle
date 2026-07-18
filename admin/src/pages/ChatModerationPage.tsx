@@ -234,13 +234,13 @@ function LiveChat() {
           <li className="chat-empty">No messages yet in this channel.</li>
         )}
         {messages.map((m) => {
-          const isSystem = m.kind === "announcement" || m.kind === "giveaway";
+          const isSystem = m.kind === "announcement" || m.kind === "giveaway" || m.kind === "giveawayOpen";
           return (
             <li key={m.id} className={`chat-live-msg ${isSystem ? "system" : ""}`}>
               <div className="chat-live-msg-head">
                 {isSystem && (
-                  <span className={`tag ${m.kind === "giveaway" ? "giveaway" : "announcement"}`}>
-                    {m.kind === "giveaway" ? "🎉 GIVEAWAY" : "📢 ANNOUNCEMENT"}
+                  <span className={`tag ${m.kind === "giveawayOpen" ? "giveaway" : m.kind === "giveaway" ? "giveaway" : "announcement"}`}>
+                    {m.kind === "giveawayOpen" ? "🎁 GIVEAWAY OPEN" : m.kind === "giveaway" ? "🎉 GIVEAWAY DRAWN" : "📢 ANNOUNCEMENT"}
                   </span>
                 )}
                 <button
@@ -416,7 +416,8 @@ function ChatSearch() {
                   <span className="dim small">@{m.user.username}</span>
                   {m.user.isAdmin && <span className="tag admin">ADMIN</span>}
                   {m.kind === "announcement" && <span className="tag announcement">📢 ANNOUNCEMENT</span>}
-                  {m.kind === "giveaway" && <span className="tag giveaway">🎉 GIVEAWAY</span>}
+                  {m.kind === "giveaway" && <span className="tag giveaway">🎉 GIVEAWAY DRAWN</span>}
+                  {m.kind === "giveawayOpen" && <span className="tag giveaway">🎁 GIVEAWAY OPEN</span>}
                   {m.kind === "tradeOffer" && <span className="tag trade">🔄 TRADE OFFER</span>}
                 </div>
                 <div className="chat-mod-row-body">{highlight(m.content)}</div>

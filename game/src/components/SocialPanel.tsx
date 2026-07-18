@@ -6,6 +6,7 @@ import { useModalEnter } from "../utils/animate";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import { useMuteList } from "../utils/mute";
 import { EmojiPicker } from "./EmojiPicker";
+import { openGiveaways } from "./GiveawayModal";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -283,18 +284,27 @@ function ChatTab({
           )}
           {messages.map((m) => {
             const mine = m.user.id === me.id;
-            const isSystem = m.kind === "announcement" || m.kind === "giveaway";
+            const isSystem = m.kind === "announcement" || m.kind === "giveaway" || m.kind === "giveawayOpen";
             const muted = !mine && !isSystem && mute.isMuted(m.user.username);
             if (muted) return null;
             if (isSystem) {
+              const icon = m.kind === "giveawayOpen" ? "🎁" : m.kind === "giveaway" ? "🎉" : "📢";
+              const label = m.kind === "giveawayOpen" ? "New Giveaway" : m.kind === "giveaway" ? "Giveaway" : "Announcement";
               return (
                 <div key={m.id} className="g-chat-msg-system">
-                  <span className="g-chat-msg-system-icon">{m.kind === "giveaway" ? "🎉" : "📢"}</span>
+                  <span className="g-chat-msg-system-icon">{icon}</span>
                   <div>
-                    <strong className="g-chat-msg-system-label">
-                      {m.kind === "giveaway" ? "Giveaway" : "Announcement"}
-                    </strong>
+                    <strong className="g-chat-msg-system-label">{label}</strong>
                     <div className="g-chat-msg-system-body">{m.content}</div>
+                    {m.kind === "giveawayOpen" && (
+                      <button
+                        type="button"
+                        className="g-chat-msg-system-action"
+                        onClick={() => openGiveaways(m.meta?.giveawayId)}
+                      >
+                        View Giveaway
+                      </button>
+                    )}
                   </div>
                 </div>
               );

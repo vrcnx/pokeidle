@@ -12,20 +12,37 @@ import { pushToast } from "./Toast";
 // afterwards with the winners named, because seeing a real player win
 // is what makes the next one feel worth entering.
 
-let _open: (() => void) | null = null;
-export function openGiveaways() { _open?.(); }
+let _open: ((targetId?: string) => void) | null = null;
+// targetId: scroll to and briefly highlight one specific giveaway card
+// (e.g. from the "View Giveaway" button on a chat announcement) instead
+// of just opening on an undifferentiated list — matters once more than
+// one giveaway can be live at the same time.
+export function openGiveaways(targetId?: string) { _open?.(targetId); }
 
 export function GiveawayModal() {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<PublicGiveaway[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const dialogRef = useModalEnter(".giveaway-card");
 
   useEffect(() => {
-    _open = () => setOpen(true);
+    _open = (targetId) => { setOpen(true); setHighlightId(targetId ?? null); };
     return () => { _open = null; };
   }, []);
+
+  // Once the list has loaded, scroll the targeted card into view. The
+  // highlight itself is cleared after a few seconds — it's a "here it
+  // is" cue, not a permanent state.
+  useEffect(() => {
+    if (!highlightId || !list) return;
+    const el = document.getElementById(`giveaway-${highlightId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setHighlightId(null), 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list]);
 
   const load = () => {
     api.listGiveaways()
@@ -103,13 +120,16 @@ export function GiveawayModal() {
               g={g}
               busy={entering === g.id}
               onEnter={() => enter(g)}
+              highlighted={g.id === highlightId}
             />
           ))}
 
           {past.length > 0 && (
             <>
               <h3 className="giveaway-section-head">Past giveaways</h3>
-              {past.map((g) => <GiveawayCard key={g.id} g={g} busy={false} onEnter={() => {}} />)}
+              {past.map((g) => (
+                <GiveawayCard key={g.id} g={g} busy={false} onEnter={() => {}} highlighted={g.id === highlightId} />
+              ))}
             </>
           )}
         </div>
@@ -119,16 +139,20 @@ export function GiveawayModal() {
 }
 
 function GiveawayCard({
-  g, busy, onEnter,
+  g, busy, onEnter, highlighted,
 }: {
   g: PublicGiveaway;
   busy: boolean;
   onEnter: () => void;
+  highlighted?: boolean;
 }) {
   const isLive = g.status === "open";
   const drawn = g.status === "drawn";
   return (
-    <article className={`giveaway-card ${isLive ? "is-live" : ""} ${g.youWon ? "is-won" : ""}`}>
+    <article
+      id={`giveaway-${g.id}`}
+      className={`giveaway-card ${isLive ? "is-live" : ""} ${g.youWon ? "is-won" : ""} ${highlighted ? "is-highlighted" : ""}`}
+    >
       {g.youWon && <div className="giveaway-won-banner">🏆 You won this one!</div>}
 
       <header className="giveaway-card-head">

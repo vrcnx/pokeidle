@@ -8808,6 +8808,18 @@ input, textarea, select {
   word-wrap: break-word;
   overflow-wrap: anywhere;
 }
+.mini-chat-system-action {
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  background: #fbbf24;
+  color: #1a1300;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.mini-chat-system-action:hover { filter: brightness(1.08); }
 
 /* Trade-offer card — a real player's post; still clickable/attributable,
    unlike a system card, plus an action to open a trade invite directly. */
@@ -12823,6 +12835,18 @@ body { background: transparent !important; }
   color: var(--text);
   word-wrap: break-word;
 }
+.g-chat-msg-system-action {
+  margin-top: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  background: #fbbf24;
+  color: #1a1300;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.g-chat-msg-system-action:hover { filter: brightness(1.08); }
 
 .g-chat-input {
   display: flex;
@@ -16405,6 +16429,17 @@ html, body {
   box-shadow: inset 0 0 0 1px rgba(192, 132, 252, 0.35);
 }
 .giveaway-card.is-won { box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55); }
+/* Briefly called out when opened via a "View Giveaway" chat card, so
+   the player lands on the right one instead of an undifferentiated
+   list — fades out on its own after a few seconds (see GiveawayModal's
+   highlightId timeout). */
+.giveaway-card.is-highlighted {
+  animation: giveaway-highlight-pulse 2s ease-out 2;
+}
+@keyframes giveaway-highlight-pulse {
+  0%   { box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.9); }
+  100% { box-shadow: 0 0 0 3px rgba(251, 191, 36, 0); }
+}
 .giveaway-won-banner {
   margin: -16px -16px 0;
   padding: 7px 16px;

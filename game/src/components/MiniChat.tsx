@@ -9,6 +9,7 @@ import { censor, hasProfanity, isProfanityFilterOn, subscribeProfanityFilter } f
 import { useMuteList } from "../utils/mute";
 import { pushToast } from "./Toast";
 import { EmojiPicker } from "./EmojiPicker";
+import { openGiveaways } from "./GiveawayModal";
 
 // Compact chat panel for the left column. Two tabs:
 //   Global — server-wide chat (channelId = "global")
@@ -24,6 +25,13 @@ type Tab = "global" | "trade";
 
 const GLOBAL = "global";
 const TRADE = "trade";
+
+// System-voice kinds — server broadcasts, not personal messages. Never
+// hideable by muting the admin account they're posted through, and
+// rendered as a card instead of a chat bubble (see SystemCard).
+function isSystemKind(kind: string | undefined): boolean {
+  return kind === "announcement" || kind === "giveaway" || kind === "giveawayOpen";
+}
 
 // Account-level tiers for the Lv chip in chat. Bands of 50 levels
 // each, capped at "champion" for anything past 200. Each tier maps to
@@ -197,10 +205,10 @@ export function MiniChat() {
         {messages.length === 0 && <div className="dim small mini-chat-empty">No messages yet.</div>}
         {messages.map((m) => {
           const mine = m.user.id === me.id;
-          if (!mine && (m.kind ?? "user") !== "announcement" && (m.kind ?? "user") !== "giveaway" && mute.isMuted(m.user.username)) {
+          if (!mine && !isSystemKind(m.kind) && mute.isMuted(m.user.username)) {
             return null;
           }
-          if (m.kind === "announcement" || m.kind === "giveaway") {
+          if (isSystemKind(m.kind)) {
             return <SystemCard key={m.id} message={m} />;
           }
           if (m.kind === "tradeOffer") {
@@ -280,18 +288,29 @@ export function MiniChat() {
   );
 }
 
-// System-voice card — server announcements and giveaway results. Posted
-// through the acting admin's real account server-side (for audit), but
-// rendered here with no author click-through and no Lv chip: it isn't a
-// personal chat message, it's a broadcast.
+// System-voice card — server announcements, giveaway results, and
+// giveaway-opened notices. Posted through the acting admin's real
+// account server-side (for audit), but rendered here with no author
+// click-through and no Lv chip: it isn't a personal chat message, it's
+// a broadcast.
 function SystemCard({ message }: { message: ChatMessage }) {
-  const isGiveaway = message.kind === "giveaway";
+  const icon = message.kind === "giveawayOpen" ? "🎁" : message.kind === "giveaway" ? "🎉" : "📢";
+  const label = message.kind === "giveawayOpen" ? "New Giveaway" : message.kind === "giveaway" ? "Giveaway" : "Announcement";
   return (
     <div className="mini-chat-system-card">
-      <span className="mini-chat-system-icon">{isGiveaway ? "🎉" : "📢"}</span>
+      <span className="mini-chat-system-icon">{icon}</span>
       <div>
-        <strong className="mini-chat-system-label">{isGiveaway ? "Giveaway" : "Announcement"}</strong>
+        <strong className="mini-chat-system-label">{label}</strong>
         <div className="mini-chat-system-body">{message.content}</div>
+        {message.kind === "giveawayOpen" && (
+          <button
+            type="button"
+            className="mini-chat-system-action"
+            onClick={() => openGiveaways(message.meta?.giveawayId)}
+          >
+            View Giveaway
+          </button>
+        )}
       </div>
     </div>
   );

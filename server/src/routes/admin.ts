@@ -7,6 +7,7 @@ import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot, broadcastAnnouncement } from "../socket.js";
 import { TRADE_CHANNEL } from "../lib/chatChannels.js";
+import { recordError } from "../lib/errorReporting.js";
 import {
   AnnouncementInput,
   getLiveAnnouncement,
@@ -1430,8 +1431,82 @@ app.patch("/giveaways/:id", async (c) => {
     }
     data.status = body.status;
   }
-  const g = await prisma.giveaway.update({ where: { id }, data });
+
+  let g;
+  if (data.status !== undefined) {
+    // A status transition specifically needs the same TOCTOU guard the
+    // draw endpoint uses below: two overlapping PATCH requests (a
+    // double-click, two admin tabs, a client retry) can both read the
+    // same current.status and both decide to write "open" — without
+    // this, both would ALSO independently pass the chat-announcement
+    // gate further down, posting a duplicate system card. The where
+    // clause makes only one of them actually perform the write.
+    const claimed = await prisma.giveaway.updateMany({ where: { id, status: current.status }, data });
+    if (claimed.count === 0) {
+      return c.json({
+        error: "conflict",
+        reason: "This giveaway's status changed under you — reload and try again.",
+      }, 409);
+    }
+    g = await prisma.giveaway.findUniqueOrThrow({ where: { id } });
+  } else {
+    g = await prisma.giveaway.update({ where: { id }, data });
+  }
   void makeAudit(c)(me.id, "giveaway.update", id, data);
+
+  // A giveaway going live is easy to miss — nothing else in the game
+  // told a player one existed until they happened to open the
+  // Giveaways panel on their own. Announce it in chat the same way a
+  // draw result already is, so it's actually discoverable. Only fires
+  // on a genuine transition INTO "open" (data.status is only set above
+  // when body.status !== current.status), and only for the one request
+  // that actually won the updateMany claim above.
+  if (data.status === "open") {
+    try {
+      const io = getIo();
+      if (io) {
+        const prizes = parsePrizes(g.prizes);
+        // Capped like /announce's own content — describePrizes() on a
+        // max-length title + 10 max-length prizes can run past 900
+        // chars with nothing to truncate it client-side otherwise.
+        const raw = `"${g.title}" just opened — ${describePrizes(prizes)} for ${g.winnerCount} winner${g.winnerCount === 1 ? "" : "s"}!`;
+        const content = raw.length > 400 ? raw.slice(0, 399) + "…" : raw;
+        const stored = await prisma.chatMessage.create({
+          data: {
+            channelId: "global",
+            userId: me.id,
+            content,
+            kind: "giveawayOpen",
+            // Carries the giveaway id so "View Giveaway" can scroll to
+            // and highlight the right one — openGiveaways() otherwise
+            // just opens an undifferentiated list, confusing if more
+            // than one giveaway happens to be open at once.
+            meta: JSON.stringify({ giveawayId: g.id }),
+          },
+          include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+        });
+        io.to("global").emit("chat:message", {
+          id: stored.id, channelId: stored.channelId, content: stored.content,
+          kind: stored.kind, meta: stored.meta ? JSON.parse(stored.meta) : null,
+          createdAt: stored.createdAt, user: stored.user,
+        });
+      }
+    } catch (e) {
+      // Never fail the actual status change for a broadcast that's a
+      // nice-to-have — but do record it, or a failure here silently
+      // defeats the whole point of this feature with zero signal
+      // anywhere an operator would think to look.
+      void recordError({
+        kind: "server",
+        message: "giveaway.open_announcement_failed",
+        source: "PATCH /admin/giveaways/:id",
+        userId: me.id,
+        username: me.username,
+        meta: { giveawayId: id, error: String((e as Error)?.message ?? e) },
+      });
+    }
+  }
+
   return c.json({ giveaway: g });
 });
 
