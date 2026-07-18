@@ -42,8 +42,17 @@
   --accent-soft:   rgba(255, 255, 255, 0.06);
   --accent-line:   rgba(255, 255, 255, 0.18);
   /* Legacy "gold" aliases — point at neutral so old rules work. */
-  --gold:          var(--accent);
-  --gold-2:        var(--accent-hover);
+  /* Real gold again — NOT aliased to --accent. Aliasing it to neutral swept
+     chrome gold correctly (buttons/borders/tabs with no meaning) but ALSO
+     silently neutralized four things that are supposed to stay gold: the
+     daily-reward modal, the mobile money/badge HUD, the PvP podium's 1st
+     place, and the shiny-Pokémon badge — all of which reference this same
+     token. Those get their color back for free by fixing this one value;
+     the genuinely-chrome uses (the "eyebrow" labels below) are pointed at
+     --text-muted explicitly instead, so they can't regress by riding this
+     token again. */
+  --gold:          #fbbf24;
+  --gold-2:        #fde68a;
 
   /* Semantic colors stay (used for HP bars + status). Muted, subdued. */
   --good:          #4ade80;
@@ -704,20 +713,18 @@ header.tab-pane-head.v2 .tab-pane-head-row {
   gap: 12px;
   padding: 2px 0 6px;
 }
-/* Title — clean sentence-case, gold accent. No uppercase / heavy
-   letterspacing; that read as "system header" rather than the
-   in-game label we want. `!important` on the color so legacy
-   per-tab overrides from when those tabs had light backgrounds
-   don't leak through. */
+/* This used to carve out a one-off "sentence-case gold" look for just
+   these three titles (Bag/Mart/PC), fighting a higher-specificity shared
+   rule (below, ~line 9685) that forces every other card/section header in
+   the game to a small uppercase muted label. Only `color` had enough
+   specificity to win that fight, so Bag/Mart/PC titles rendered as a
+   collision of both designs: gold color from here, but the uppercase/11px/
+   letter-spacing from the shared rule — neither design intact. Gold was
+   also the pre-neutral-accent intent anyway. Let these titles join the one
+   convention every other panel header already uses instead of forking it. */
 header.tab-pane-head.v2 h3 {
   margin: 0;
-  color: var(--gold, #facc15) !important;
   font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  text-transform: none;
-  line-height: 1.2;
   text-shadow: none !important;
 }
 header.tab-pane-head.v2 h3 small {
@@ -4836,6 +4843,38 @@ body.dnd-active {
   background: #1a0e02; border-radius: 2px; font-size: 12px;
 }
 .check { color: var(--good); font-weight: bold; }
+/* Every "launch a battle" action in this panel — gym leader, Elite Four
+   member, Champion, the whole gauntlet — had NO styling at all and fell
+   back to the generic base <button>, indistinguishable from a throwaway
+   Cancel button despite being the most narratively significant CTAs in
+   the game. Real primary-button treatment, sized to the compact row. */
+.gym-challenge {
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gym-challenge:hover:not(:disabled) { background: var(--accent-hover); }
+.gym-challenge:disabled { opacity: 0.4; cursor: not-allowed; }
+.gauntlet-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+.gauntlet-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.gauntlet-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ---------- Inventory ribbon ---------- */
 
@@ -5005,7 +5044,10 @@ body.dnd-active {
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--gold, #fbbf24);
+  /* Neutral, not gold — this is a plain section label with no surrounding
+     theme (contrast Changelog's eyebrow, which sits inside a deliberate
+     gold-washed header and stays gold on purpose). */
+  color: var(--text-muted);
 }
 .howto-head-text h2 { margin: 2px 0 0; font-size: 22px; }
 .howto-intro {
@@ -5062,7 +5104,7 @@ body.dnd-active {
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--gold, #fbbf24);
+  color: var(--text-muted);
 }
 .offline-head h2 { margin: 4px 0 6px; font-size: 22px; }
 .offline-away { margin: 0; color: var(--text-muted); font-size: 13px; }
@@ -5081,7 +5123,10 @@ body.dnd-active {
   border-radius: 10px;
   background: var(--panel-2);
 }
-.offline-stat-value { font-size: 19px; font-weight: 800; color: var(--gold, #fbbf24); font-variant-numeric: tabular-nums; }
+/* Neutral — none of EXP/battles/levels is a money value, so gold here
+   read as leftover "big number = gold" chrome rather than the money/HP/
+   streak/warning semantic the rest of the app follows. */
+.offline-stat-value { font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .offline-stat-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
 .offline-lead { padding: 14px 22px 0; margin: 0; font-size: 13px; color: var(--text); }
 .offline-lead strong { color: var(--text); }
@@ -14226,6 +14271,34 @@ html, body {
   .bag-sell-cancel  { width: 44px; height: 44px; }
 }
 
+/* Same bug the Mart row had (see the max-width:640px block near
+   .mart-row): .bag-tab .bag-row-v2 is `display:flex` with no wrap, so
+   opening the sell stepper (5 extra elements: −, qty, +, "Sell $X", ×,
+   all with 44px coarse-pointer floors) pushes .bag-row-name toward zero
+   width on a phone — the item's name disappears right when the player
+   needs to confirm what they're about to sell. Only the pending/expanded
+   state needs this; the resting row (icon + name + count + one "Sell"
+   button) is never at crush risk. */
+@media (max-width: 640px) {
+  .bag-tab .bag-row-v2:has(.bag-sell-controls) {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    grid-template-areas:
+      "icon name count"
+      "ctrl ctrl ctrl";
+    row-gap: 8px;
+  }
+  .bag-tab .bag-row-v2:has(.bag-sell-controls) > img { grid-area: icon; align-self: center; }
+  .bag-tab .bag-row-v2:has(.bag-sell-controls) .bag-row-name { grid-area: name; align-self: center; }
+  .bag-tab .bag-row-v2:has(.bag-sell-controls) .bag-row-count { grid-area: count; align-self: center; }
+  .bag-tab .bag-row-v2:has(.bag-sell-controls) .bag-sell-controls {
+    grid-area: ctrl;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
 /* ── On-sprite status visualisation ───────────────────────────────── */
 /* A small floating badge in the corner of the sprite slot, colour-
    coded per status and pulsing softly so the player notices when
@@ -15142,7 +15215,7 @@ html, body {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: var(--gold, #fbbf24);
+  color: var(--text-muted);
   margin-bottom: 4px;
 }
 .achievements-summary {
@@ -15586,17 +15659,18 @@ html, body {
    Horizontal hero card with portrait + stats grid + 6-mon team strip.
    ================================================================= */
 .pvp-hub-arena2 {
+  /* Was overriding .g-modal's background/border with a stale non-token
+     background and a gold-tinted border — the one modal left with a
+     visible ring while every other popup went borderless black. Only set
+     sizing/layout here; let .g-modal own color/border/radius like every
+     other modal, so the PvP hub matches instead of standing out. */
   width: min(720px, 95vw);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--bg, #0e1014);
-  border: 1px solid rgba(251, 191, 36, 0.18);
-  border-radius: 14px;
   overflow: hidden;
   position: relative;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
   padding-bottom: 0;
 }
 
