@@ -20,6 +20,16 @@ function channelClass(id: string): string {
   if (id.startsWith("dm:")) return "dm";
   return "other";
 }
+function isSystemKind(kind: string | undefined): boolean {
+  return kind === "announcement" || kind === "giveaway" || kind === "giveawayOpen" || kind === "gift";
+}
+const SYSTEM_TAG_META: Record<string, { tagClass: string; label: string }> = {
+  giveawayOpen: { tagClass: "giveaway", label: "🎁 GIVEAWAY OPEN" },
+  giveaway: { tagClass: "giveaway", label: "🎉 GIVEAWAY DRAWN" },
+  gift: { tagClass: "gift", label: "🎀 GIFT" },
+  announcement: { tagClass: "announcement", label: "📢 ANNOUNCEMENT" },
+};
+
 // Mirrors game/src/components/MiniChat.tsx's tier bands exactly, so an
 // admin watching live chat sees the same level-tier colors players do.
 function levelTierClass(level: number): string {
@@ -234,14 +244,13 @@ function LiveChat() {
           <li className="chat-empty">No messages yet in this channel.</li>
         )}
         {messages.map((m) => {
-          const isSystem = m.kind === "announcement" || m.kind === "giveaway" || m.kind === "giveawayOpen";
+          const isSystem = isSystemKind(m.kind);
+          const tagMeta = SYSTEM_TAG_META[m.kind ?? ""];
           return (
             <li key={m.id} className={`chat-live-msg ${isSystem ? "system" : ""}`}>
               <div className="chat-live-msg-head">
-                {isSystem && (
-                  <span className={`tag ${m.kind === "giveawayOpen" ? "giveaway" : m.kind === "giveaway" ? "giveaway" : "announcement"}`}>
-                    {m.kind === "giveawayOpen" ? "🎁 GIVEAWAY OPEN" : m.kind === "giveaway" ? "🎉 GIVEAWAY DRAWN" : "📢 ANNOUNCEMENT"}
-                  </span>
+                {tagMeta && (
+                  <span className={`tag ${tagMeta.tagClass}`}>{tagMeta.label}</span>
                 )}
                 <button
                   className="chat-live-author"
@@ -415,9 +424,9 @@ function ChatSearch() {
                   <strong>{m.user.name ?? m.user.username}</strong>
                   <span className="dim small">@{m.user.username}</span>
                   {m.user.isAdmin && <span className="tag admin">ADMIN</span>}
-                  {m.kind === "announcement" && <span className="tag announcement">📢 ANNOUNCEMENT</span>}
-                  {m.kind === "giveaway" && <span className="tag giveaway">🎉 GIVEAWAY DRAWN</span>}
-                  {m.kind === "giveawayOpen" && <span className="tag giveaway">🎁 GIVEAWAY OPEN</span>}
+                  {SYSTEM_TAG_META[m.kind ?? ""] && (
+                    <span className={`tag ${SYSTEM_TAG_META[m.kind!].tagClass}`}>{SYSTEM_TAG_META[m.kind!].label}</span>
+                  )}
                   {m.kind === "tradeOffer" && <span className="tag trade">🔄 TRADE OFFER</span>}
                 </div>
                 <div className="chat-mod-row-body">{highlight(m.content)}</div>

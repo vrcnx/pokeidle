@@ -10,6 +10,7 @@ import { useMuteList } from "../utils/mute";
 import { pushToast } from "./Toast";
 import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
+import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 
 // Compact chat panel for the left column. Two tabs:
 //   Global — server-wide chat (channelId = "global")
@@ -25,13 +26,6 @@ type Tab = "global" | "trade";
 
 const GLOBAL = "global";
 const TRADE = "trade";
-
-// System-voice kinds — server broadcasts, not personal messages. Never
-// hideable by muting the admin account they're posted through, and
-// rendered as a card instead of a chat bubble (see SystemCard).
-function isSystemKind(kind: string | undefined): boolean {
-  return kind === "announcement" || kind === "giveaway" || kind === "giveawayOpen";
-}
 
 // Account-level tiers for the Lv chip in chat. Bands of 50 levels
 // each, capped at "champion" for anything past 200. Each tier maps to
@@ -294,8 +288,7 @@ export function MiniChat() {
 // click-through and no Lv chip: it isn't a personal chat message, it's
 // a broadcast.
 function SystemCard({ message }: { message: ChatMessage }) {
-  const icon = message.kind === "giveawayOpen" ? "🎁" : message.kind === "giveaway" ? "🎉" : "📢";
-  const label = message.kind === "giveawayOpen" ? "New Giveaway" : message.kind === "giveaway" ? "Giveaway" : "Announcement";
+  const { icon, label } = SYSTEM_CARD_META[message.kind ?? ""] ?? SYSTEM_CARD_META.announcement;
   return (
     <div className="mini-chat-system-card">
       <span className="mini-chat-system-icon">{icon}</span>
@@ -309,6 +302,15 @@ function SystemCard({ message }: { message: ChatMessage }) {
             onClick={() => openGiveaways(message.meta?.giveawayId)}
           >
             View Giveaway
+          </button>
+        )}
+        {message.kind === "gift" && message.meta?.username && (
+          <button
+            type="button"
+            className="mini-chat-system-action"
+            onClick={() => openPublicTrainerCard(message.meta!.username!)}
+          >
+            View Trainer
           </button>
         )}
       </div>

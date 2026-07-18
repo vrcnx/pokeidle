@@ -613,6 +613,7 @@ input[type="checkbox"], input[type="radio"] {
 .tag.announcement,
 .tag.giveaway { background: var(--warn-soft); color: #fbbf24; }
 .tag.trade    { background: rgba(192, 132, 252, 0.16); color: #c084fc; }
+.tag.gift     { background: rgba(244, 114, 182, 0.16); color: #f9a8d4; }
 
 .pager {
   display: flex;
@@ -703,6 +704,34 @@ input[type="checkbox"], input[type="radio"] {
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
 }
 .detail-savebar > span { flex: 1; color: var(--text-muted); font-size: 12px; }
+.detail-savebar-with-announce { flex-wrap: wrap; }
+.gift-announce-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.gift-announce-toggle input { margin: 0; }
+.gift-announce-input {
+  flex: 1 1 260px;
+  min-width: 200px;
+  background: var(--surface-2);
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.gift-announce-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
 
 .detail-stats {
   display: grid;

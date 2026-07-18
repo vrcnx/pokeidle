@@ -7,6 +7,7 @@ import { openPublicTrainerCard } from "./TrainerCardModal";
 import { useMuteList } from "../utils/mute";
 import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
+import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -284,12 +285,11 @@ function ChatTab({
           )}
           {messages.map((m) => {
             const mine = m.user.id === me.id;
-            const isSystem = m.kind === "announcement" || m.kind === "giveaway" || m.kind === "giveawayOpen";
+            const isSystem = isSystemKind(m.kind);
             const muted = !mine && !isSystem && mute.isMuted(m.user.username);
             if (muted) return null;
             if (isSystem) {
-              const icon = m.kind === "giveawayOpen" ? "🎁" : m.kind === "giveaway" ? "🎉" : "📢";
-              const label = m.kind === "giveawayOpen" ? "New Giveaway" : m.kind === "giveaway" ? "Giveaway" : "Announcement";
+              const { icon, label } = SYSTEM_CARD_META[m.kind ?? ""] ?? SYSTEM_CARD_META.announcement;
               return (
                 <div key={m.id} className="g-chat-msg-system">
                   <span className="g-chat-msg-system-icon">{icon}</span>
@@ -303,6 +303,15 @@ function ChatTab({
                         onClick={() => openGiveaways(m.meta?.giveawayId)}
                       >
                         View Giveaway
+                      </button>
+                    )}
+                    {m.kind === "gift" && m.meta?.username && (
+                      <button
+                        type="button"
+                        className="g-chat-msg-system-action"
+                        onClick={() => openPublicTrainerCard(m.meta!.username!)}
+                      >
+                        View Trainer
                       </button>
                     )}
                   </div>

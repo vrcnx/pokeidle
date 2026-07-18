@@ -373,6 +373,38 @@ interface SaveEdit {
 
 type DetailTab = "profile" | "pokemon" | "items" | "progress" | "messages" | "trades" | "sessions" | "raw";
 
+// Best-effort "what did this edit actually gift them" summary, so the
+// announce checkbox starts pre-filled instead of blank. Only looks at
+// party/box: a newly-added mon (id not present before) or an existing
+// mon whose isShiny flipped false->true. Anything else in the patch
+// (money, inventory bulk-edit, progress flags) isn't gift-shaped, so
+// this falls back to "" and the operator types their own line if they
+// still want to announce it.
+function suggestGiftMessage(save: any, edit: SaveEdit, username: string): string {
+  const parts: string[] = [];
+  for (const key of ["party", "box"] as const) {
+    const after = edit[key];
+    if (!after) continue;
+    const before = (save?.[key] ?? []) as any[];
+    const beforeById = new Map(before.map((m) => [m.id, m]));
+    for (const mon of after) {
+      const prior = beforeById.get(mon.id);
+      const label = mon.nickname ?? mon.name ?? mon.speciesKey;
+      if (!prior) {
+        parts.push(`gifted @${username} a ${mon.isShiny ? "Shiny " : ""}${label} (Lv${mon.level})`);
+      } else if (!prior.isShiny && mon.isShiny) {
+        parts.push(`made @${username}'s ${label} shiny`);
+      }
+    }
+  }
+  if (parts.length === 0) return "";
+  const joined = parts.join(" and ") + "!";
+  // Matches the server's own 300-char cap (postGiftAnnouncement) — truncate
+  // here too so a big batch gift doesn't silently lose its ending server-side
+  // with no warning to the operator.
+  return joined.length > 300 ? joined.slice(0, 299) + "…" : joined;
+}
+
 // ─── User detail (full page) ──────────────────────────────────────────
 function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () => void; onChange: () => void }) {
   const [tab, setTab] = useState<DetailTab>("profile");
@@ -381,14 +413,40 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<SaveEdit>({});
   const [savingMsg, setSavingMsg] = useState<string | null>(null);
+  const [announceOn, setAnnounceOn] = useState(false);
+  const [announceText, setAnnounceText] = useState("");
+  const [announceTouched, setAnnounceTouched] = useState(false);
 
   const reload = () => {
     api.getUser(id).then((u) => {
       setData(u);
       setEdit({});
+      setAnnounceOn(false);
+      setAnnounceText("");
+      setAnnounceTouched(false);
     }).catch((e) => setErr(e.message));
   };
   useEffect(reload, [id]);
+
+  // All hooks (including this one) must stay above the early returns
+  // below — a hook count that differs between renders crashes React
+  // ("Rendered fewer hooks than expected"). Safe to compute even while
+  // data is still null; save just stays null until it loads.
+  const save = data?.saveData ? (() => { try { return JSON.parse(data.saveData); } catch { return null; } })() : null;
+  const suggestedAnnounce = useMemo(
+    () => (save && data ? suggestGiftMessage(save, edit, data.username) : ""),
+    [save, edit, data],
+  );
+  // Keep the announce text in sync with the live suggestion until the
+  // operator types their own — otherwise a stale suggestion (e.g. "gifted
+  // a Pikachu") can survive further edits that remove that mon, posting a
+  // factually false public gift card. Also drop the announce entirely if
+  // the edit stops being gift-shaped (e.g. only a money/progress change
+  // remains), since a "gift" card shouldn't describe a non-gift edit.
+  useEffect(() => {
+    if (!announceTouched) setAnnounceText(suggestedAnnounce);
+    if (!suggestedAnnounce) setAnnounceOn(false);
+  }, [suggestedAnnounce, announceTouched]);
 
   if (err) return (
     <div className="page">
@@ -404,14 +462,13 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
   );
 
   const banned = data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now();
-  const save = data.saveData ? (() => { try { return JSON.parse(data.saveData); } catch { return null; } })() : null;
 
   const saveEdit = async () => {
     if (Object.keys(edit).length === 0) return;
     setBusy(true);
     setSavingMsg(null);
     try {
-      const res = await api.savePatch(id, edit as Record<string, unknown>);
+      const res = await api.savePatch(id, edit as Record<string, unknown>, announceOn ? announceText : undefined);
       setSavingMsg(`Saved (${res.keys.join(", ")}). v${res.saveVersion}`);
       reload();
       onChange();
@@ -468,7 +525,7 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
           <PokemonTab save={save} edit={edit} onEdit={setEdit} />
         )}
         {tab === "items" && save && (
-          <ItemsTab save={save} edit={edit} onEdit={setEdit} userId={id} reload={reload} />
+          <ItemsTab save={save} edit={edit} onEdit={setEdit} userId={id} username={data.username} reload={reload} />
         )}
         {tab === "progress" && save && (
           <ProgressTab save={save} edit={edit} onEdit={setEdit} />
@@ -491,10 +548,37 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
       </div>
 
       {dirty && tab !== "messages" && tab !== "sessions" && tab !== "raw" && (
-        <div className="detail-savebar detail-savebar-page">
-          <span className="dim small">{savingMsg ?? `Unsaved changes (${Object.keys(edit).join(", ")})`}</span>
-          <button className="btn-ghost" onClick={() => { setEdit({}); setSavingMsg(null); }} disabled={busy}>Discard</button>
-          <button className="btn-primary" onClick={saveEdit} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        <div className="detail-savebar detail-savebar-page detail-savebar-with-announce">
+          {/* Only offered when the pending edit is actually gift-shaped
+              (a new/shiny-flipped Pokémon) — a generic money/progress
+              correction shouldn't be announceable as a "gift" card. */}
+          {suggestedAnnounce && (
+            <label className="gift-announce-toggle">
+              <input
+                type="checkbox"
+                checked={announceOn}
+                onChange={(e) => setAnnounceOn(e.target.checked)}
+              />
+              🎁 Announce in chat
+            </label>
+          )}
+          {announceOn && suggestedAnnounce && (
+            <input
+              className="gift-announce-input"
+              type="text"
+              value={announceText}
+              onChange={(e) => { setAnnounceText(e.target.value); setAnnounceTouched(true); }}
+              placeholder="What should the chat card say?"
+              maxLength={300}
+            />
+          )}
+          <span className="dim small" style={{ marginLeft: "auto" }}>
+            {savingMsg ?? `Unsaved changes (${Object.keys(edit).join(", ")})`}
+          </span>
+          <button className="btn-ghost" onClick={() => { setEdit({}); setSavingMsg(null); setAnnounceOn(false); setAnnounceText(""); setAnnounceTouched(false); }} disabled={busy}>Discard</button>
+          <button className="btn-primary" onClick={saveEdit} disabled={busy || (announceOn && !announceText.trim())}>
+            {busy ? "Saving…" : "Save changes"}
+          </button>
         </div>
       )}
       {!dirty && savingMsg && (
@@ -1037,9 +1121,9 @@ function PokemonRow({ mon, onEdit, onRemove, useStaticSprite }: {
 }
 
 // ─── Items tab — inventory with item picker ────────────────────────────
-function ItemsTab({ save, edit, onEdit, userId, reload }: {
+function ItemsTab({ save, edit, onEdit, userId, username, reload }: {
   save: any; edit: SaveEdit; onEdit: (e: SaveEdit) => void;
-  userId: string; reload: () => void;
+  userId: string; username: string; reload: () => void;
 }) {
   const live = useMemo(() => edit.inventory ?? (save.inventory ?? {}), [edit, save]);
   const [pickedItem, setPickedItem] = useState<typeof ITEM_LIST[number] | null>(null);
@@ -1047,6 +1131,9 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
   const [newQty, setNewQty] = useState(1);
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantMsg, setGrantMsg] = useState<string | null>(null);
+  const [announceOn, setAnnounceOn] = useState(false);
+  const [announceText, setAnnounceText] = useState("");
+  const [announceTouched, setAnnounceTouched] = useState(false);
 
   const setItem = (itemId: string, qty: number) => {
     const next = { ...live };
@@ -1054,6 +1141,16 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
     else next[itemId] = Math.max(0, Math.min(999_999, Math.floor(qty)));
     onEdit({ ...edit, inventory: next });
   };
+
+  const suggestedGrantAnnounce = pickedItem ? `gave @${username} ${newQty}x ${pickedItem.name}!` : "";
+  // Same staleness fix as the top savebar (suggestGiftMessage): keep the
+  // announce text in sync with the live picked item/quantity until the
+  // operator types their own, so switching items after checking the box
+  // can't leave a mismatched announcement behind.
+  useEffect(() => {
+    if (!announceTouched) setAnnounceText(suggestedGrantAnnounce);
+    if (!suggestedGrantAnnounce) setAnnounceOn(false);
+  }, [suggestedGrantAnnounce, announceTouched]);
 
   // "Grant immediately" path uses the focused /items endpoint, which
   // applies + persists in one shot. Useful when the admin just wants
@@ -1066,11 +1163,14 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
     setGrantBusy(true);
     setGrantMsg(null);
     try {
-      await api.setUserItem(userId, pickedItem.id, newQty);
+      await api.setUserItem(userId, pickedItem.id, newQty, announceOn ? announceText : undefined);
       setGrantMsg(`Set ${pickedItem.name} → ${newQty}.`);
       setPickedItem(null);
       setPickedQuery("");
       setNewQty(1);
+      setAnnounceOn(false);
+      setAnnounceText("");
+      setAnnounceTouched(false);
       reload();
     } catch (e) {
       setGrantMsg(`Error: ${(e as Error).message}`);
@@ -1169,9 +1269,33 @@ function ItemsTab({ save, edit, onEdit, userId, reload }: {
             value={newQty}
             onChange={(e) => setNewQty(parseInt(e.target.value, 10) || 0)}
           />
-          <button className="btn-primary btn-small" onClick={grantNow} disabled={grantBusy || !pickedItem}>
+          <button
+            className="btn-primary btn-small"
+            onClick={grantNow}
+            disabled={grantBusy || !pickedItem || (announceOn && !announceText.trim())}
+          >
             {grantBusy ? "Setting…" : "Grant"}
           </button>
+        </div>
+        <div className="gift-announce-row">
+          <label className="gift-announce-toggle">
+            <input
+              type="checkbox"
+              checked={announceOn}
+              onChange={(e) => setAnnounceOn(e.target.checked)}
+            />
+            🎁 Announce in chat
+          </label>
+          {announceOn && (
+            <input
+              className="gift-announce-input"
+              type="text"
+              value={announceText}
+              onChange={(e) => { setAnnounceText(e.target.value); setAnnounceTouched(true); }}
+              placeholder="What should the chat card say?"
+              maxLength={300}
+            />
+          )}
         </div>
         {grantMsg && <p className="profile-msg dim small">{grantMsg}</p>}
       </section>

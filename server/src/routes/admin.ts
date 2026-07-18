@@ -325,7 +325,7 @@ app.post("/users/:id/save-patch", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   const body = (await c.req.json().catch(() => null)) as
-    | { patch?: Record<string, unknown> }
+    | { patch?: Record<string, unknown>; announce?: string }
     | null;
   if (!body?.patch || typeof body.patch !== "object" || Array.isArray(body.patch)) {
     return c.json({ error: "patch object required" }, 400);
@@ -333,7 +333,7 @@ app.post("/users/:id/save-patch", async (c) => {
 
   const target = await prisma.user.findUnique({
     where: { id },
-    select: { saveData: true, saveVersion: true },
+    select: { saveData: true, saveVersion: true, username: true },
   });
   if (!target) return c.json({ error: "user not found" }, 404);
 
@@ -356,8 +356,13 @@ app.post("/users/:id/save-patch", async (c) => {
   }
 
   const derived = computeAccountLevel(merged);
-  const updated = await prisma.user.update({
-    where: { id },
+  // Compare-and-swap on the saveVersion we read above, same reasoning as
+  // saves.ts's player-facing upload route: without this, two overlapping
+  // admin writes (two tabs, two operators, a retried request) both read
+  // the same baseSave, both succeed, and the second silently clobbers the
+  // first's change while both still post their own "gift" announcement.
+  const claim = await prisma.user.updateMany({
+    where: { id, saveVersion: target.saveVersion },
     data: {
       saveData: JSON.stringify(merged),
       saveVersion: { increment: 1 },
@@ -366,12 +371,77 @@ app.post("/users/:id/save-patch", async (c) => {
       totalCaughtLevels: derived.totalCaughtLevels,
       pokedexCaughtCount: derived.pokedexCaughtCount,
     },
-    select: { id: true, saveVersion: true, accountLevel: true, pokedexCaughtCount: true },
   });
+  if (claim.count === 0) {
+    return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
+  }
 
   void makeAudit(c)(me.id, "user.save_patch", id, { keys: appliedKeys });
-  return c.json({ ok: true, ...updated, keys: appliedKeys });
+  // Only announce if the patch actually changed something — an empty
+  // {} patch would otherwise let an operator post an arbitrary "gift"
+  // card with zero relation to any real change.
+  if (appliedKeys.length > 0) {
+    await postGiftAnnouncement(me, body.announce, target.username);
+  }
+  return c.json({
+    ok: true,
+    id,
+    saveVersion: target.saveVersion + 1,
+    accountLevel: derived.accountLevel,
+    pokedexCaughtCount: derived.pokedexCaughtCount,
+    keys: appliedKeys,
+  });
 });
+
+// Posted from both save-patch (gifting/editing a Pokémon) and the
+// instant item-grant route below — an operator can opt to announce
+// either as a "gift" system card, same shape as /announce and the
+// giveaway cards but attributed to the recipient rather than being a
+// server-wide broadcast. content is admin-authored (the client
+// auto-suggests text but the operator can edit it), so this is capped
+// and control-char-stripped the same way regular chat content is.
+async function postGiftAnnouncement(
+  me: { id: string; username: string },
+  announce: string | undefined,
+  recipientUsername: string,
+): Promise<void> {
+  if (typeof announce !== "string") return;
+  // Strip control chars, the RTL-override char, and zero-width/format
+  // characters (U+200B-200D, U+2060, U+FEFF) — String.trim() treats none
+  // of these as whitespace, so without this an announce of e.g. a lone
+  // zero-width space would pass the emptiness check below and post a
+  // visually blank public "gift" card.
+  const content = announce.replace(/[\x00-\x1f\x7f​‌‍⁠﻿‮]/g, "").trim().slice(0, 300);
+  if (!content) return;
+  try {
+    const io = getIo();
+    if (!io) return;
+    const stored = await prisma.chatMessage.create({
+      data: {
+        channelId: "global",
+        userId: me.id,
+        content,
+        kind: "gift",
+        meta: JSON.stringify({ username: recipientUsername }),
+      },
+      include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+    });
+    io.to("global").emit("chat:message", {
+      id: stored.id, channelId: stored.channelId, content: stored.content,
+      kind: stored.kind, meta: stored.meta ? JSON.parse(stored.meta) : null,
+      createdAt: stored.createdAt, user: stored.user,
+    });
+  } catch (e) {
+    void recordError({
+      kind: "server",
+      message: "gift_announcement_failed",
+      source: "POST /admin/users/:id",
+      userId: me.id,
+      username: me.username,
+      meta: { recipientUsername, error: String((e as Error)?.message ?? e) },
+    });
+  }
+}
 
 function safeParseObject(s: string): Record<string, unknown> | null {
   try {
@@ -652,7 +722,7 @@ app.post("/users/:id/items", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   const body = (await c.req.json().catch(() => null)) as
-    | { itemId?: string; quantity?: number }
+    | { itemId?: string; quantity?: number; announce?: string }
     | null;
   const itemId = String(body?.itemId ?? "");
   const quantity = Math.floor(Number(body?.quantity ?? -1));
@@ -664,7 +734,7 @@ app.post("/users/:id/items", async (c) => {
   }
   const target = await prisma.user.findUnique({
     where: { id },
-    select: { saveData: true },
+    select: { saveData: true, username: true, saveVersion: true },
   });
   if (!target) return c.json({ error: "user not found" }, 404);
   const baseSave = target.saveData ? safeParseObject(target.saveData) : {};
@@ -674,20 +744,31 @@ app.post("/users/:id/items", async (c) => {
       ? (baseSave.inventory as Record<string, number>)
       : {}),
   };
+  const previousQuantity = Number(inventory[itemId] ?? 0);
   if (quantity === 0) delete inventory[itemId];
   else inventory[itemId] = quantity;
   const merged = { ...baseSave, inventory };
   const v = validateSave(merged);
   if (!v.ok) return c.json({ error: "patch produced invalid save", reason: v.reason }, 400);
-  await prisma.user.update({
-    where: { id },
+  // Same compare-and-swap as save-patch above — see that route's comment.
+  const claim = await prisma.user.updateMany({
+    where: { id, saveVersion: target.saveVersion },
     data: {
       saveData: JSON.stringify(merged),
       saveVersion: { increment: 1 },
       saveUpdatedAt: new Date(),
     },
   });
+  if (claim.count === 0) {
+    return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
+  }
   void makeAudit(c)(me.id, "user.set_item", id, { itemId, quantity });
+  // Only announce if the quantity actually changed, for the same reason
+  // save-patch gates on appliedKeys — a no-op grant shouldn't be able to
+  // post an arbitrary "gift" card.
+  if (quantity !== previousQuantity) {
+    await postGiftAnnouncement(me, body?.announce, target.username);
+  }
   return c.json({ ok: true, itemId, quantity });
 });
 

@@ -276,11 +276,13 @@ export const api = {
   restoreSnapshot: (id: string, snapshotId: string) =>
     req<{ ok: true; id: string; saveVersion: number; accountLevel: number }>(
       "POST", `/api/admin/users/${id}/snapshots/${snapshotId}/restore`),
-  savePatch: (id: string, patch: Record<string, unknown>) =>
+  /** announce: optional gift-card text posted to Global chat on success
+   *  (e.g. "gave @user a Shiny Charizard!") — omit for a silent edit. */
+  savePatch: (id: string, patch: Record<string, unknown>, announce?: string) =>
     req<{ ok: true; id: string; saveVersion: number; accountLevel: number; pokedexCaughtCount: number; keys: string[] }>(
       "POST",
       `/api/admin/users/${id}/save-patch`,
-      { patch },
+      { patch, announce },
     ),
   sendPasswordReset: (id: string, redirectTo?: string) =>
     req<{ ok: true; sentTo: string }>(
@@ -300,11 +302,11 @@ export const api = {
   },
   userTrades: (id: string) =>
     req<{ trades: UserTrade[] }>("GET", `/api/admin/users/${id}/trades`),
-  setUserItem: (id: string, itemId: string, quantity: number) =>
+  setUserItem: (id: string, itemId: string, quantity: number, announce?: string) =>
     req<{ ok: true; itemId: string; quantity: number }>(
       "POST",
       `/api/admin/users/${id}/items`,
-      { itemId, quantity },
+      { itemId, quantity, announce },
     ),
 
   // Analytics

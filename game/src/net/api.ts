@@ -445,10 +445,10 @@ export interface ChatMessage {
   channelId: string;
   content: string;
   // "user" (default) | "announcement" | "giveaway" | "giveawayOpen" |
-  // "tradeOffer" — a system/giveaway/trade card renders distinctly
-  // from ordinary chat.
+  // "tradeOffer" | "gift" — a system/giveaway/trade/gift card renders
+  // distinctly from ordinary chat.
   kind?: string;
-  meta?: { offering?: string; wanting?: string; giveawayId?: string } | null;
+  meta?: { offering?: string; wanting?: string; giveawayId?: string; username?: string } | null;
   createdAt: string;
   user: { id: string; username: string; name: string | null; accountLevel: number };
 }
