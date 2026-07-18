@@ -9,7 +9,14 @@
 //   tsx scripts/errors.ts recent [limit]   # most-recent N rows (default 100)
 //
 // The `groups` output is what a triage workflow consumes — one entry
-// per unique (kind, message) with count, latestAt, sample source/stack.
+// per FINGERPRINT (not raw message) with count, latestAt, sample
+// source/stack. Grouping by the raw message would fragment one real
+// error type into many groups whenever a message embeds instance data
+// (a save version, a raw exception's dynamic text, an id) — see
+// error_message_fingerprint() (migration 20260717050000), a Postgres
+// function that collapses the obviously-variable parts of a message to
+// stable placeholders before anything groups on it. Prisma's groupBy()
+// can't group on a computed expression, so this is raw SQL.
 
 import { prisma } from "../src/db.js";
 
@@ -17,6 +24,63 @@ function arg(flag: string, def?: string): string | undefined {
   const i = process.argv.indexOf(flag);
   if (i < 0) return def;
   return process.argv[i + 1] ?? def;
+}
+
+interface GroupRow {
+  kind: string;
+  fingerprint: string;
+  sampleMessage: string;
+  count: bigint;
+  latestAt: Date;
+  sampleId: string;
+  sampleLevel: string;
+  sampleSource: string | null;
+  sampleStack: string | null;
+  sampleUserId: string | null;
+  sampleUsername: string | null;
+  sampleUserAgent: string | null;
+}
+
+// One query: fingerprint-normalize, count + pick the newest row per
+// group via a window function, no per-group round trip. The old
+// version did groupBy() then Promise.all(rows.map(findFirst)) — up to
+// `limit`+1 concurrent connections for a single CLI invocation, which
+// is a real way to help exhaust a Postgres instance near its
+// max_connections ceiling.
+async function fetchGroups(since: Date, kind: string | undefined, limit: number): Promise<GroupRow[]> {
+  return prisma.$queryRaw<GroupRow[]>`
+    WITH scored AS (
+      SELECT
+        "id", "kind", "level", "message", "stack", "source",
+        "userId", "username", "userAgent", "createdAt",
+        error_message_fingerprint("message") AS fingerprint,
+        COUNT(*) OVER (PARTITION BY "kind", error_message_fingerprint("message")) AS "groupCount",
+        MAX("createdAt") OVER (PARTITION BY "kind", error_message_fingerprint("message")) AS "groupLatestAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY "kind", error_message_fingerprint("message")
+          ORDER BY "createdAt" DESC
+        ) AS rn
+      FROM "ErrorLog"
+      WHERE "createdAt" >= ${since}
+        AND (${kind ?? null}::text IS NULL OR "kind" = ${kind ?? null})
+    )
+    SELECT
+      "kind", fingerprint,
+      "message"       AS "sampleMessage",
+      "groupCount"    AS count,
+      "groupLatestAt" AS "latestAt",
+      "id"            AS "sampleId",
+      "level"         AS "sampleLevel",
+      "source"        AS "sampleSource",
+      "stack"         AS "sampleStack",
+      "userId"        AS "sampleUserId",
+      "username"      AS "sampleUsername",
+      "userAgent"     AS "sampleUserAgent"
+    FROM scored
+    WHERE rn = 1
+    ORDER BY "groupCount" DESC
+    LIMIT ${limit};
+  `;
 }
 
 async function main() {
@@ -29,39 +93,21 @@ async function main() {
     const limit = parseInt(arg("--limit", "50") ?? "50", 10);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const rows = await prisma.errorLog.groupBy({
-      by: ["kind", "message"],
-      where: {
-        createdAt: { gte: since },
-        ...(kind ? { kind } : {}),
+    const rows = await fetchGroups(since, kind, limit);
+    const groups = rows.map((g) => ({
+      kind: g.kind,
+      fingerprint: g.fingerprint,
+      message: g.sampleMessage,
+      count: Number(g.count),
+      latestAt: g.latestAt,
+      sample: {
+        id: g.sampleId, source: g.sampleSource, stack: g.sampleStack,
+        userAgent: g.sampleUserAgent, userId: g.sampleUserId,
+        username: g.sampleUsername, level: g.sampleLevel,
       },
-      _count: { _all: true },
-      _max: { createdAt: true },
-      orderBy: { _count: { message: "desc" } },
-      take: limit,
-    });
-
-    // Enrich each group with one sample row so downstream triage has
-    // a stack + source + userId to work from.
-    const enriched = await Promise.all(rows.map(async (g) => {
-      const sample = await prisma.errorLog.findFirst({
-        where: { kind: g.kind, message: g.message },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true, source: true, stack: true, userAgent: true,
-          userId: true, username: true, meta: true, level: true,
-        },
-      });
-      return {
-        kind:       g.kind,
-        message:    g.message,
-        count:      g._count._all,
-        latestAt:   g._max.createdAt,
-        sample,
-      };
     }));
 
-    console.log(JSON.stringify({ sinceDays: days, kind: kind ?? "all", count: enriched.length, groups: enriched }, null, 2));
+    console.log(JSON.stringify({ sinceDays: days, kind: kind ?? "all", count: groups.length, groups }, null, 2));
     return;
   }
 
@@ -91,9 +137,18 @@ async function main() {
     return;
   }
 
-  // Clear every row for an exact (kind, message). Once a bug is really
-  // fixed its history is noise: it buries live problems and inflates the
-  // dashboard error KPI forever. --dry-run first, always.
+  // Clear every row matching a (kind, message-substring). Once a bug is
+  // really fixed its history is noise: it buries live problems and
+  // inflates the dashboard error KPI forever. --dry-run first, always.
+  //
+  // This still matches by substring, not fingerprint — an operator
+  // typing "MetaMask" wants to sweep every variant of that noise in one
+  // go, which is a broader (and already fragmentation-proof) match mode
+  // than the dashboard's per-group Resolve button. The preview below
+  // rolls matches up by fingerprint purely so a fragmented group (like
+  // the old "putSave 409 (localVersion=N)") shows as one summary line
+  // instead of dozens, matching what deleteMany actually removes as a
+  // unit.
   if (cmd === "clear") {
     const kind = arg("--kind");
     const contains = arg("--message");
@@ -103,20 +158,23 @@ async function main() {
     }
     if (kind !== "client" && kind !== "server") throw new Error("--kind must be client or server");
 
-    // Resolve the substring to the exact messages it matches, and report
-    // them, so a careless substring cannot silently nuke unrelated groups.
-    const groups = await prisma.errorLog.groupBy({
-      by: ["message"],
-      where: { kind, message: { contains } },
-      _count: { _all: true },
-    });
-    if (groups.length === 0) {
+    const preview = await prisma.$queryRaw<{ fingerprint: string; sampleMessage: string; count: bigint }[]>`
+      SELECT
+        error_message_fingerprint("message") AS fingerprint,
+        (array_agg("message" ORDER BY "createdAt" DESC))[1] AS "sampleMessage",
+        COUNT(*) AS count
+      FROM "ErrorLog"
+      WHERE "kind" = ${kind} AND "message" ILIKE ${"%" + contains + "%"}
+      GROUP BY fingerprint
+      ORDER BY count DESC
+    `;
+    if (preview.length === 0) {
       console.log(JSON.stringify({ matched: 0, deleted: 0 }, null, 2));
       return;
     }
-    const total = groups.reduce((n, g) => n + g._count._all, 0);
-    console.log(`Matched ${groups.length} group(s), ${total} row(s):`);
-    for (const g of groups) console.log(`  ${g._count._all.toString().padStart(5)} x ${g.message.slice(0, 78)}`);
+    const total = preview.reduce((n, g) => n + Number(g.count), 0);
+    console.log(`Matched ${preview.length} group(s), ${total} row(s):`);
+    for (const g of preview) console.log(`  ${Number(g.count).toString().padStart(5)} x ${g.sampleMessage.slice(0, 78)}`);
     if (dry) { console.log("\n--dry-run: nothing deleted."); return; }
     const res = await prisma.errorLog.deleteMany({ where: { kind, message: { contains } } });
     console.log(`\nDeleted ${res.count} row(s).`);
@@ -145,14 +203,20 @@ function printUsage() {
   console.error(`Error-log triage CLI
 
   tsx scripts/errors.ts groups [--kind server|client] [--days N] [--limit N]
-      Group by (kind, message) with count + latest timestamp + one
-      sample row. Default: both kinds, 14 days, top 50.
+      Group by fingerprint (message with variable data normalized —
+      ids, uuids, timestamps, digit runs — collapsed to placeholders)
+      with count + latest timestamp + one real sample row. Default:
+      both kinds, 14 days, top 50.
 
   tsx scripts/errors.ts show <messageContains>
       Sample up to 20 matching rows in full (stack, meta, source).
 
   tsx scripts/errors.ts recent [limit]
       Most-recent N rows (default 100), summary fields only.
+
+  tsx scripts/errors.ts clear --kind client|server --message "<substring>" [--dry-run]
+      Delete every row whose message contains the substring. Preview
+      rolls matches up by fingerprint; --dry-run first, always.
 
   tsx scripts/errors.ts counts [--days N]
       Group-by kind totals over the last N days.`);

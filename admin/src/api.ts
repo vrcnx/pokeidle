@@ -421,11 +421,14 @@ export const api = {
   // view must NOT be computed from the capped row list — those counts
   // are a floor and understate exactly the runaway error the operator
   // is trying to find.
-  /** Delete every row for a resolved (kind, message). Once a bug is
-   *  actually fixed its history buries live problems and inflates the
-   *  error KPI forever. Audited server-side with the row count. */
-  clearErrorGroup: (kind: "server" | "client", message: string) =>
-    req<{ ok: true; deleted: number }>("POST", "/api/admin/errors/clear-group", { kind, message }),
+  /** Delete every row for a resolved (kind, fingerprint) — fingerprint,
+   *  not the raw sample message, since a group can contain rows whose
+   *  message differs only in embedded variable data (an id, a version
+   *  number). Once a bug is actually fixed its history buries live
+   *  problems and inflates the error KPI forever. Audited server-side
+   *  with the row count. */
+  clearErrorGroup: (kind: "server" | "client", fingerprint: string) =>
+    req<{ ok: true; deleted: number }>("POST", "/api/admin/errors/clear-group", { kind, fingerprint }),
 
   listErrorGroups: (kind = "", days = 14) =>
     req<{ sinceDays: number; groups: ErrorGroup[] }>(
@@ -543,8 +546,13 @@ export interface AdminTournament {
 
 export interface ErrorGroup {
   kind: "server" | "client";
+  /** Variable data (ids, uuids, timestamps, digit runs) normalized to
+   *  placeholders — the actual group-by key server-side. Use this, not
+   *  `message`, for drill-down joins and Resolve. */
+  fingerprint: string;
+  /** A real sample message, for display only — not the group key. */
   message: string;
-  /** True count across the whole table for this (kind, message) — not
+  /** True count across the whole table for this fingerprint — not
    *  a tally of however many rows the page happened to fetch. */
   count: number;
   latestAt: string;
@@ -564,6 +572,9 @@ export interface ErrorEntry {
   kind: "server" | "client";
   level: "error" | "warn";
   message: string;
+  /** Same normalization as ErrorGroup.fingerprint — join on this, not
+   *  `message`, when matching a row to a group. */
+  fingerprint: string;
   stack: string | null;
   source: string | null;
   userId: string | null;

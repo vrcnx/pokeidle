@@ -171,14 +171,21 @@ app.onError(async (err, c) => {
   // where the throw happened. Try to read it best-effort.
   let user: { id: string; username: string } | null = null;
   try { const u = c.get("user"); if (u) user = { id: u.id, username: u.username }; } catch { /* */ }
+  // message stays a fixed classifier (constructor name), not the raw
+  // exception text — this is the catch-all for every uncaught throw in
+  // every route, and raw error text (Prisma constraint names, ids,
+  // per-request validation strings, etc.) almost always differs between
+  // occurrences, which used to fragment one real error type into a
+  // separate (kind, message) dashboard group per occurrence.
   await recordError({
     kind: "server",
-    message: err instanceof Error ? err.message : String(err),
+    message: err instanceof Error ? err.constructor.name : "non_error_throw",
     stack: err instanceof Error ? err.stack ?? null : null,
     source: `${c.req.method} ${path}`,
     userId: user?.id ?? null,
     username: user?.username ?? null,
     userAgent: c.req.header("user-agent") ?? null,
+    meta: { errorMessage: err instanceof Error ? err.message : String(err) },
   }).catch(() => undefined);
   return c.json({ error: "internal_error" }, 500);
 });
@@ -208,9 +215,10 @@ process.on("uncaughtException", (err) => {
   recordError({
     kind: "server",
     level: "error",
-    message: `[uncaughtException] ${err.message}`,
+    message: `[uncaughtException] ${err.constructor.name}`,
     stack: err.stack ?? null,
     source: "process.uncaughtException",
+    meta: { errorMessage: err.message },
   }).catch(() => undefined);
 });
 process.on("unhandledRejection", (reason: unknown) => {
@@ -218,8 +226,9 @@ process.on("unhandledRejection", (reason: unknown) => {
   recordError({
     kind: "server",
     level: "error",
-    message: `[unhandledRejection] ${err.message}`,
+    message: `[unhandledRejection] ${err.constructor.name}`,
     stack: err.stack ?? null,
     source: "process.unhandledRejection",
+    meta: { errorMessage: err.message },
   }).catch(() => undefined);
 });

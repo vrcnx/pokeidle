@@ -116,7 +116,7 @@ export function ErrorLogsPage() {
             )) return;
             setErr(null);
             try {
-              await api.clearErrorGroup(g.kind, g.message);
+              await api.clearErrorGroup(g.kind, g.fingerprint);
               reload();
             } catch (e) {
               setErr(`Couldn't resolve: ${(e as Error).message}`);
@@ -227,11 +227,14 @@ function ErrorDetail({ entry }: { entry: ErrorEntry }) {
 // table (GET /errors/groups), so they are true regardless of what the
 // row endpoint returns.
 //
-// The server groups by (kind, message), which is coarser than the old
-// stack-first-line fingerprint. That is a deliberate trade: a true
-// count on a slightly coarser bucket beats a precise-looking wrong
-// number. The occurrence drill-down still uses the fetched rows, and
-// says so, since those ARE capped.
+// The server groups by (kind, fingerprint) — message with variable
+// data (ids, uuids, timestamps, digit runs) normalized to placeholders,
+// so one real error type doesn't fragment into a separate group per
+// occurrence just because it happened to embed a different id or
+// version number each time. `message` on a group is a real sample for
+// display only; joins/Resolve use `fingerprint`. The occurrence
+// drill-down still uses the fetched rows, and says so, since those ARE
+// capped.
 function ErrorGrouped({
   groups, rows, busy, expanded, onToggle, onResolve,
 }: {
@@ -253,8 +256,8 @@ function ErrorGrouped({
       </thead>
       <tbody>
         {groups.map((g) => {
-          const key = `${g.kind}::${g.message}`;
-          const local = rows.filter((r) => r.kind === g.kind && r.message === g.message);
+          const key = `${g.kind}::${g.fingerprint}`;
+          const local = rows.filter((r) => r.kind === g.kind && r.fingerprint === g.fingerprint);
           return (
             <Fragment key={key}>
               <tr onClick={() => onToggle(key)} style={{ cursor: "pointer" }}>
@@ -286,6 +289,7 @@ function ErrorGrouped({
                           kind: g.kind,
                           level: g.sample.level,
                           message: g.message,
+                          fingerprint: g.fingerprint,
                           stack: g.sample.stack,
                           source: g.sample.source,
                           userId: g.sample.userId,

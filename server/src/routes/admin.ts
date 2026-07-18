@@ -1754,41 +1754,73 @@ app.patch("/bug-reports/:id", async (c) => {
 // drowning everything else, the operator most needs to know it is
 // 3,000 and not "200+". A groupBy answers over the whole table
 // regardless of any row cap.
+// message with variable data (ids, uuids, timestamps, digit runs)
+// normalized to placeholders — see error_message_fingerprint()
+// (migration 20260717050000). Exact-string grouping fragments one real
+// error type into many groups whenever a message embeds instance data
+// (a save version, a raw exception's dynamic text), which is exactly
+// what made this log look far noisier than it actually was.
+//
+// One query, one connection: fingerprint-normalize, count, and pick the
+// newest row per group via a window function. The old version did
+// groupBy() then Promise.all(rows.map(findFirst)) — up to 101
+// concurrent connections for a single page load, a very plausible
+// contributor to a "sorry, too many clients already" incident against
+// a DB near its Postgres max_connections ceiling.
 app.get("/errors/groups", async (c) => {
   const kind = (c.req.query("kind") ?? "").trim();
   const days = Math.min(90, Math.max(1, parseInt(c.req.query("days") ?? "14", 10)));
   const since = new Date(Date.now() - days * 86400000);
+  const kindFilter = kind === "server" || kind === "client" ? kind : null;
 
-  const rows = await prisma.errorLog.groupBy({
-    by: ["kind", "message"],
-    where: {
-      createdAt: { gte: since },
-      ...(kind === "server" || kind === "client" ? { kind } : {}),
+  const rows = await prisma.$queryRaw<{
+    kind: string; fingerprint: string; sampleMessage: string; count: bigint; latestAt: Date;
+    sampleId: string; sampleLevel: string; sampleSource: string | null; sampleStack: string | null;
+    sampleUserId: string | null; sampleUsername: string | null; sampleUserAgent: string | null;
+  }[]>`
+    WITH scored AS (
+      SELECT
+        "id", "kind", "level", "message", "stack", "source",
+        "userId", "username", "userAgent", "createdAt",
+        error_message_fingerprint("message") AS fingerprint,
+        COUNT(*) OVER (PARTITION BY "kind", error_message_fingerprint("message")) AS "groupCount",
+        MAX("createdAt") OVER (PARTITION BY "kind", error_message_fingerprint("message")) AS "groupLatestAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY "kind", error_message_fingerprint("message")
+          ORDER BY "createdAt" DESC
+        ) AS rn
+      FROM "ErrorLog"
+      WHERE "createdAt" >= ${since}
+        AND (${kindFilter}::text IS NULL OR "kind" = ${kindFilter})
+    )
+    SELECT
+      "kind", fingerprint,
+      "message"       AS "sampleMessage",
+      "groupCount"    AS count,
+      "groupLatestAt" AS "latestAt",
+      "id"            AS "sampleId",
+      "level"         AS "sampleLevel",
+      "source"        AS "sampleSource",
+      "stack"         AS "sampleStack",
+      "userId"        AS "sampleUserId",
+      "username"      AS "sampleUsername",
+      "userAgent"     AS "sampleUserAgent"
+    FROM scored
+    WHERE rn = 1
+    ORDER BY "groupCount" DESC
+    LIMIT 100;
+  `;
+
+  const groups = rows.map((g) => ({
+    kind: g.kind,
+    fingerprint: g.fingerprint,
+    message: g.sampleMessage,
+    count: Number(g.count),
+    latestAt: g.latestAt,
+    sample: {
+      id: g.sampleId, level: g.sampleLevel, source: g.sampleSource, stack: g.sampleStack,
+      userId: g.sampleUserId, username: g.sampleUsername, userAgent: g.sampleUserAgent,
     },
-    _count: { _all: true },
-    _max: { createdAt: true },
-    orderBy: { _count: { message: "desc" } },
-    take: 100,
-  });
-
-  // One representative row per group so the operator can see a stack
-  // without expanding into the raw table.
-  const groups = await Promise.all(rows.map(async (g) => {
-    const sample = await prisma.errorLog.findFirst({
-      where: { kind: g.kind, message: g.message },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true, level: true, source: true, stack: true,
-        userId: true, username: true, userAgent: true,
-      },
-    });
-    return {
-      kind: g.kind,
-      message: g.message,
-      count: g._count._all,
-      latestAt: g._max.createdAt,
-      sample,
-    };
   }));
 
   return c.json({ sinceDays: days, groups });
@@ -1798,15 +1830,17 @@ app.get("/errors/groups", async (c) => {
 //
 // Once a bug is actually fixed, its historical rows are pure noise —
 // they push live problems off the top of the log and inflate the
-// dashboard's error KPI forever. Deleting by exact (kind, message) is
-// the honest unit: it is the same key the grouped view counts by, so
-// what the operator sees is exactly what gets removed.
+// dashboard's error KPI forever. Deletes by FINGERPRINT, not exact
+// message — the grouped view above now collapses rows whose messages
+// differ only in embedded variable data (an id, a version number) into
+// one group, so deleting by exact message would silently leave those
+// sibling rows behind while the operator believes the group is gone.
 //
 // Audited with the row count, so "who wiped 228 errors and when" stays
 // answerable after the fact.
 const ClearErrorsBody = z.object({
   kind: z.enum(["server", "client"]),
-  message: z.string().min(1),
+  fingerprint: z.string().min(1),
 });
 
 app.post("/errors/clear-group", async (c) => {
@@ -1815,14 +1849,17 @@ app.post("/errors/clear-group", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
   }
-  const { kind, message } = parsed.data;
-  const result = await prisma.errorLog.deleteMany({ where: { kind, message } });
+  const { kind, fingerprint } = parsed.data;
+  const deleted = await prisma.$executeRaw`
+    DELETE FROM "ErrorLog"
+     WHERE "kind" = ${kind} AND error_message_fingerprint("message") = ${fingerprint}
+  `;
   void makeAudit(c)(me.id, "errors.clear_group", null, {
     kind,
-    message: message.slice(0, 200),
-    deleted: result.count,
+    fingerprint: fingerprint.slice(0, 200),
+    deleted,
   });
-  return c.json({ ok: true, deleted: result.count });
+  return c.json({ ok: true, deleted });
 });
 
 app.get("/errors", async (c) => {
@@ -1831,9 +1868,15 @@ app.get("/errors", async (c) => {
   // It requested 500 and silently received 200, so the table quietly
   // hid 60% of what the operator asked to see, with no indication.
   const limit = Math.min(500, Math.max(1, parseInt(c.req.query("limit") ?? "100", 10)));
+  // fingerprint included so the dashboard's grouped-view drill-down can
+  // join occurrences to a group correctly — joining on raw "message"
+  // silently drops sibling rows whose message differs only in embedded
+  // variable data (see error_message_fingerprint(), migration
+  // 20260717050000).
   const rows = kind === "server" || kind === "client"
     ? await prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt"
+        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt",
+                error_message_fingerprint("message") AS fingerprint
            FROM "ErrorLog"
           WHERE "kind" = $1
           ORDER BY "createdAt" DESC
@@ -1841,7 +1884,8 @@ app.get("/errors", async (c) => {
         kind
       )
     : await prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt"
+        `SELECT "id","kind","level","message","stack","source","userId","username","userAgent","meta","createdAt",
+                error_message_fingerprint("message") AS fingerprint
            FROM "ErrorLog"
           ORDER BY "createdAt" DESC
           LIMIT ${limit}`

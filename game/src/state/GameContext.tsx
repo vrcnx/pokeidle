@@ -568,9 +568,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // overwrite". Report it and stop; the player keeps playing on local
         // state, which is written unconditionally and loses nothing.
         setSaveStatus("conflict");
+        // Keep `message` a fixed type-string — it's the (kind, message) group
+        // key server-side. localVersion differs on nearly every occurrence,
+        // so embedding it here used to fragment one conflict type into a
+        // separate dashboard group per version number.
         reportClientError({
           source: "save-conflict",
-          message: `putSave 409 — another device wrote (localVersion=${cloudVersionRef.current})`,
+          message: "putSave 409 — another device wrote",
+          meta: { localVersion: cloudVersionRef.current },
         });
         // Re-read the cloud's VERSION only — not its data. A plain version
         // mismatch then resolves on the next attempt, while the player's
@@ -594,13 +599,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // save your progress ????" into global chat.
         reportClientError({
           source: "save-rejected",
-          message: `putSave ${status}: ${err?.message ?? "unknown"}`,
+          // Fixed type-string only — status is bounded to {400,413,403} so
+          // it's safe to keep in the group key, but err.message is NOT
+          // bounded (whatever text the server/fetch layer produced) and
+          // used to be concatenated straight into message, fragmenting
+          // this group the same way the 409 case above did.
+          message: `putSave ${status}: rejected`,
           // err.details is the full response body (api.ts's request() stores
           // it verbatim on ApiError) — saves.ts's 400 response carries the
           // actual validation failure as `reason` (e.g. "party > 6"), which
           // `err.message` alone never surfaces since it just resolves to the
           // generic "save rejected" string.
-          meta: { status, code: err?.code ?? null, reason: err?.details?.reason ?? null },
+          meta: {
+            status, code: err?.code ?? null, reason: err?.details?.reason ?? null,
+            serverMessage: err?.message ?? null,
+          },
         });
         return;
       }
