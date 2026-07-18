@@ -479,7 +479,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // escapes on render, but a unicode ‮ would visually flip
         // the rest of a message and survive into the DB; trim it out.
         const trimmed = content
-          .replace(/[ -‮]/g, "")
+          .replace(/[\x00-\x1f\x7f‮]/g, "")
           .trim()
           .slice(0, 500);
         if (!trimmed) {
