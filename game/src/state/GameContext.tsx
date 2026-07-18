@@ -308,6 +308,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // push local state up (it might be stale and would destroy progress).
   const cloudVersionRef = useRef<number>(-1);
   const lastUploadedRef = useRef<string>("");
+  // True while flushCloud's request is awaiting a response. The
+  // pagehide/visibilitychange beacon below checks this to avoid racing an
+  // already-in-flight upload that's using the same cloudVersionRef — see
+  // that effect's comment for the failure mode this prevents.
+  const uploadInFlightRef = useRef(false);
   // The newest snapshot that has not reached the cloud yet, and the timer
   // that will send it. See the uploader below for why this is a throttle
   // and not a debounce.
@@ -544,6 +549,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Optimistic: blocks a duplicate in-flight write of the same bytes.
     // Cleared again on any failure so the next tick retries.
     lastUploadedRef.current = pending.serialized;
+    uploadInFlightRef.current = true;
     setSaveStatus("saving");
     try {
       const res = await api.putSave(
@@ -622,6 +628,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // self-heals on the next state change, which an idle game produces
       // constantly.
       setSaveStatus("error");
+    } finally {
+      uploadInFlightRef.current = false;
     }
   }, [refreshProfile]);
 
@@ -717,6 +725,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (!cloudReadyRef.current) return;
       if (permanentlyRejectedRef.current) return;
       if (JSON.stringify(snapshot) === lastUploadedRef.current) return;
+      // flushCloud is already mid-request against the same cloudVersionRef.
+      // Firing a second write now would race it for that version — the
+      // loser gets a spurious 409 "another device wrote" even though it's
+      // this same device (root cause of the vast majority of that error
+      // group). localStorage above already has the newest data either way;
+      // let the in-flight request finish and update cloudVersionRef itself.
+      if (uploadInFlightRef.current) return;
       api.putSaveBeacon(snapshot, cloudVersionRef.current >= 0 ? cloudVersionRef.current : undefined);
     };
     const onHide = () => { if (document.visibilityState === "hidden") flush(); };

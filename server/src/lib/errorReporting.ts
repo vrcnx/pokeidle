@@ -40,6 +40,14 @@ export async function recordError(input: ErrorLogInput): Promise<void> {
     username: input.username ?? null,
     stack: input.stack ?? null,
   });
+  // server/.env's DATABASE_URL points at the live production database even
+  // for local dev (so admin scripts/dev servers can read real data), which
+  // means a local `tsx watch` crash (e.g. EADDRINUSE from restarting while
+  // an old instance still holds the port) used to get written straight into
+  // the PRODUCTION ErrorLog table right alongside real player errors.
+  // Console logging above already gives the local operator full visibility;
+  // only persist to the shared table when actually running on Railway.
+  if (process.env.NODE_ENV !== "production") return;
   try {
     await prisma.$executeRaw`
       INSERT INTO "ErrorLog"

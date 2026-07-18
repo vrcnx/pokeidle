@@ -778,7 +778,7 @@ export function reducer(state: GameState, action: Action): GameState {
         speciesKey: toSpeciesKey,
         name: sp.name,
         maxHp: stats.hp,
-        currentHp: Math.min(stats.hp, old.currentHp + (stats.hp - old.maxHp)),
+        currentHp: Math.min(stats.hp, old.currentHp + Math.max(0, stats.hp - old.maxHp)),
         attack: stats.attack,
         defense: stats.defense,
         spAttack: stats.spAttack,
