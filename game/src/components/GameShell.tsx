@@ -17,7 +17,6 @@ import { GiveawayModal } from "./GiveawayModal";
 import { EvolutionModal } from "./EvolutionModal";
 import { ChangelogModal } from "./ChangelogModal";
 import { HowToPlayModal } from "./HowToPlayModal";
-import { OfflineProgressModal } from "./OfflineProgressModal";
 import { DailyRewardModal } from "./DailyRewardModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { ManageMovesModal } from "./ManageMovesModal";
@@ -99,7 +98,6 @@ export function GameShell() {
       <EvolutionModal />
       <ChangelogModal />
       <HowToPlayModal />
-      <OfflineProgressModal />
       <DailyRewardModal />
       <PokemonDetailModal />
       <ManageMovesModal />

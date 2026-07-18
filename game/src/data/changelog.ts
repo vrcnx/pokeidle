@@ -33,17 +33,10 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 export const changelog: ChangelogEntry[] = [
     {
       version: "0.8.0",
-      subtitle: "Your team trains while you're away",
+      subtitle: "Daily rewards, and a proper welcome",
       date: "2026-07-17",
       highlight: true,
       sections: [
-        {
-          heading: "💤 Offline progress",
-          items: [
-            "It's an idle game, so it now idles. Come back after a while and your team will have kept battling — you'll see a 'While you were away' summary of the EXP and levels they earned",
-            "Capped and fair: being away counts for up to 8 hours, a single trip grants at most 15 levels, and it's always slower than actually playing — so there's no reason to leave, just no penalty for having a life",
-          ],
-        },
         {
           heading: "🔥 Daily rewards",
           items: [

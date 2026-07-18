@@ -5119,47 +5119,6 @@ body.dnd-active {
 }
 .howto-dismiss { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 8px 20px; font-weight: 700; }
 
-/* ── While you were away (offline progress) ───────────────────────── */
-.offline-modal {
-  max-width: 440px;
-  width: calc(100vw - 32px);
-  text-align: center;
-}
-.offline-head { padding: 22px 22px 0; }
-.offline-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.offline-head h2 { margin: 4px 0 6px; font-size: 22px; }
-.offline-away { margin: 0; color: var(--text-muted); font-size: 13px; }
-.offline-stats {
-  display: flex;
-  gap: 10px;
-  padding: 18px 22px 4px;
-}
-.offline-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 12px 6px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
-}
-/* Neutral — none of EXP/battles/levels is a money value, so gold here
-   read as leftover "big number = gold" chrome rather than the money/HP/
-   streak/warning semantic the rest of the app follows. */
-.offline-stat-value { font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
-.offline-stat-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
-.offline-lead { padding: 14px 22px 0; margin: 0; font-size: 13px; color: var(--text); }
-.offline-lead strong { color: var(--text); }
-.offline-foot { padding: 18px 22px 20px; display: flex; justify-content: center; }
-.offline-dismiss { background: var(--gold); color: #0a0a0a; border-color: var(--gold); padding: 9px 28px; font-weight: 700; }
-
 /* ── Daily reward ─────────────────────────────────────────────────── */
 .daily-modal { max-width: 460px; width: calc(100vw - 32px); text-align: center; }
 .daily-head { padding: 22px 22px 0; }

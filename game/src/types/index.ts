@@ -300,10 +300,6 @@ export interface GameState {
   paused: boolean;
   battleLog: string[];
   levelUpNotification: LevelUpNotification | null;
-  /** Set once on load when the player was away long enough to earn offline
-   *  training. Drives the "While you were away" summary; transient (never
-   *  persisted), cleared when the player dismisses the modal. */
-  offlineSummary?: OfflineSummary | null;
   wildBattlesWon: number;
   trainerBattlesWon: number;
   battlesWonByLocation: Record<string, number>;
@@ -402,21 +398,6 @@ export interface ChangelogEntry {
 
 // ---------- Action types ----------
 
-export interface OfflineSummary {
-  /** Real time away, before the cap. */
-  awayMs: number;
-  /** Time actually credited (capped). */
-  creditedMs: number;
-  /** Estimated wild battles the team fought while away. */
-  battles: number;
-  /** Total EXP awarded to the lead. */
-  exp: number;
-  /** The lead Pokémon's name + level movement. */
-  leadName: string;
-  fromLevel: number;
-  toLevel: number;
-}
-
 export type Action =
   | { type: "SELECT_STARTER"; payload: { speciesKey: string; isShiny?: boolean } }
   | { type: "START_ENCOUNTER"; payload: { pokemon: Pokemon } }
@@ -426,8 +407,6 @@ export type Action =
   | { type: "SET_BATTLE_MODE"; payload: { mode: "manual" | "auto" } }
   | { type: "TRY_CATCH"; payload: { ballId: string } }
   | { type: "CATCH_RESOLVE" }
-  | { type: "APPLY_OFFLINE_PROGRESS"; payload: { exp: number; battles: number; awayMs: number; creditedMs: number } }
-  | { type: "CLEAR_OFFLINE_SUMMARY" }
   | { type: "APPLY_DAILY_REWARD"; payload: { money: number; items: { itemId: string; quantity: number }[] } }
   | { type: "CLEAR_WHITEOUT_ANIM" }
   | { type: "CONSUME_EVENT" }

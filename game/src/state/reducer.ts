@@ -557,36 +557,6 @@ export function reducer(state: GameState, action: Action): GameState {
     case "CLEAR_WHITEOUT_ANIM":
       return { ...state, whiteoutAnim: null };
 
-    case "APPLY_OFFLINE_PROGRESS": {
-      // Award the pre-computed offline EXP to the lead (Exp Share cascades
-      // to the party via applyExp, same as a live win) and record a summary
-      // for the "While you were away" modal. The EXP amount and caps are
-      // decided by utils/offlineProgress — the reducer just applies it.
-      const lead = state.playerPokemon;
-      if (!lead || action.payload.exp < 1) return state;
-      const fromLevel = lead.level;
-      const { state: afterExp } = applyExp(state, action.payload.exp);
-      const toLevel = afterExp.playerPokemon?.level ?? fromLevel;
-      return {
-        ...afterExp,
-        // Never let offline logs leak into the battle feed.
-        battleLog: state.battleLog,
-        levelUpNotification: state.levelUpNotification,
-        offlineSummary: {
-          awayMs: action.payload.awayMs,
-          creditedMs: action.payload.creditedMs,
-          battles: action.payload.battles,
-          exp: action.payload.exp,
-          leadName: lead.nickname ?? lead.name,
-          fromLevel,
-          toLevel,
-        },
-      };
-    }
-
-    case "CLEAR_OFFLINE_SUMMARY":
-      return state.offlineSummary ? { ...state, offlineSummary: null } : state;
-
     case "APPLY_DAILY_REWARD": {
       // The server has already recorded the claim + streak; this just adds
       // the returned reward to the local save. The unconditional localStorage
