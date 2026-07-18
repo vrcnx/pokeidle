@@ -9,6 +9,8 @@ import { bindTradeSocket } from "../state/trade";
 import { bindPresenceSocket } from "../state/presence";
 import { bindAnnouncementSocket } from "../state/announcement";
 import { bindPvpSocket } from "../state/pvp";
+import { bindAuctionUiSocket } from "../state/auctions";
+import { AuctionNotifyToast } from "./AuctionNotifyToast";
 import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
 import { useAchievementTracker } from "../state/achievements";
 import { AchievementToast } from "./AchievementToast";
@@ -54,6 +56,7 @@ export function GameShell() {
     bindPresenceSocket();
     bindAnnouncementSocket();
     bindPvpSocket();
+    bindAuctionUiSocket();
   }, []);
   // Warm Pokémon-sprite browser cache for everything the player is
   // likely to see soon: party (both facings + shiny variant) on every
@@ -109,6 +112,7 @@ export function GameShell() {
       <PublicTrainerCardMount />
       <TradeRoomModal />
       <TradeInviteToast />
+      <AuctionNotifyToast />
       <PvpBattleModal />
       <BattleInviteToast />
       <TeamBuilderModal />

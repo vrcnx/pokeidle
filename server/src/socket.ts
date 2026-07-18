@@ -748,6 +748,19 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       setTimeout(() => trades.delete(t.id), 5_000);
     };
 
+    // ── Auction room ────────────────────────────────────────────────
+    // Join/leave a per-auction room so bid updates reach everyone
+    // currently viewing that listing in real time. Placing a bid itself
+    // goes over HTTP (routes/auctions.ts) — this is purely for the
+    // read-side live broadcast, same split as the gift-announcement
+    // chat card (HTTP mutation, socket side-effect).
+    socket.on("auction:watch", ({ auctionId }: { auctionId: string }) => {
+      if (typeof auctionId === "string" && auctionId) socket.join(`auction:${auctionId}`);
+    });
+    socket.on("auction:unwatch", ({ auctionId }: { auctionId: string }) => {
+      if (typeof auctionId === "string" && auctionId) socket.leave(`auction:${auctionId}`);
+    });
+
     // Send an invite to another user. They'll see a toast with accept/decline.
     socket.on(
       "trade:invite",

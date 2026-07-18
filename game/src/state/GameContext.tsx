@@ -20,6 +20,8 @@ import { recordBattle } from "../utils/battleHistory";
 import { api } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 import { reportClientError } from "../net/errorReporter";
+import { getSocket } from "../net/socket";
+import { pushAuctionNotification } from "./auctions";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -740,6 +742,58 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onHide);
+    };
+  }, []);
+
+  // Auction settlements (server/src/lib/auctionSettlement.ts) can land
+  // while this client is open, whether or not this session placed the
+  // winning bid or made the sale. Bound directly here rather than in
+  // state/auctions.ts because reconciling needs dispatch AND the private
+  // cloudVersionRef — the server just wrote a new saveVersion for this
+  // account, and without adopting it here the NEXT autosave would 409
+  // against the settlement it just applied (comparing against a version
+  // this client never knew about).
+  useEffect(() => {
+    const sock = getSocket();
+    const onSold = (payload: {
+      auctionId: string; pokemon: any; amount: number; buyerUsername: string;
+      newSaveVersion: number; newMoney: number;
+    }) => {
+      cloudVersionRef.current = payload.newSaveVersion;
+      const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "Pokémon";
+      dispatch({
+        type: "AUCTION_SETTLED",
+        payload: {
+          role: "seller",
+          removedPokemonId: payload.pokemon?.id,
+          money: payload.newMoney,
+          logMessage: `Sold your ${label} to ${payload.buyerUsername} for $${payload.amount}!`,
+        },
+      });
+      pushAuctionNotification("sold", payload.auctionId, `Sold to ${payload.buyerUsername} for $${payload.amount}!`);
+    };
+    const onWon = (payload: {
+      auctionId: string; pokemon: Pokemon; amount: number; sellerUsername: string;
+      newSaveVersion: number; newMoney: number;
+    }) => {
+      cloudVersionRef.current = payload.newSaveVersion;
+      const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "a Pokémon";
+      dispatch({
+        type: "AUCTION_SETTLED",
+        payload: {
+          role: "buyer",
+          pokemon: payload.pokemon,
+          money: payload.newMoney,
+          logMessage: `Won the auction for ${label}!`,
+        },
+      });
+      pushAuctionNotification("won", payload.auctionId, `You won ${label} for $${payload.amount}!`);
+    };
+    sock.on("auction:sold", onSold);
+    sock.on("auction:won", onWon);
+    return () => {
+      sock.off("auction:sold", onSold);
+      sock.off("auction:won", onWon);
     };
   }, []);
 

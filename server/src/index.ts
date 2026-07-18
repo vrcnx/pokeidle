@@ -15,9 +15,11 @@ import giveawaysRoute from "./routes/giveaways.js";
 import announcementsRoute from "./routes/announcements.js";
 import dailiesRoute from "./routes/dailies.js";
 import publicRoute from "./routes/public.js";
+import auctionsRoute from "./routes/auctions.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
+import { startAuctionSettlementLoop } from "./lib/auctionSettlement.js";
 
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173")
   .split(",")
@@ -160,6 +162,7 @@ app.route("/api/giveaways", giveawaysRoute);
 app.route("/api/announcements", announcementsRoute);
 app.route("/api/dailies", dailiesRoute);
 app.route("/api/public", publicRoute);
+app.route("/api/auctions", auctionsRoute);
 
 // Global error handler — anything that throws inside a route handler
 // without being caught lands here. We persist a structured ErrorLog
@@ -207,6 +210,10 @@ const server = serve(
 
 // Attach Socket.IO to the same HTTP server.
 attachSocketServer(server as any);
+
+// Auctions settle on a timer independent of either player being
+// connected — see lib/auctionSettlement.ts.
+startAuctionSettlementLoop();
 
 // Catch truly fatal failures that would otherwise just exit the
 // process silently. Log + persist (best-effort) before letting the

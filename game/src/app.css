@@ -8821,63 +8821,151 @@ input, textarea, select {
 }
 .mini-chat-system-action:hover { filter: brightness(1.08); }
 
-/* Trade-offer card — a real player's post; still clickable/attributable,
-   unlike a system card, plus an action to open a trade invite directly. */
-.mini-chat-trade-card {
-  padding: 7px 9px;
+/* Auction board — replaces the old free-text trade-offer cards. Sits in
+   the Trade tab's slot in MiniChat, same panel width. */
+.auction-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+.auction-board-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.auction-board-tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.auction-board-tab.active { background: var(--panel-3); color: var(--text); }
+.auction-board-list-btn { margin-left: auto; }
+.auction-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auction-board-subhead {
+  margin: 6px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
   border-radius: var(--r-sm);
   background: rgba(192, 132, 252, 0.08);
   border: 1px solid rgba(192, 132, 252, 0.22);
 }
-.mini-chat-trade-head {
+.auction-card-mon {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 3px;
 }
-.mini-chat-trade-open {
-  flex: 0 0 auto;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 3px 7px;
-  background: #c084fc;
-  color: #1a0b2e;
+.auction-card-sprite { width: 32px; height: 32px; image-rendering: pixelated; }
+.auction-card-bid-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-xs);
+}
+.auction-card-bid-info > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.auction-card-amount { color: var(--accent, #f8d030); font-size: 14px; }
+.auction-card-bidlink {
+  align-self: flex-start;
+  background: none;
   border: none;
-  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: 10px;
+  text-decoration: underline;
   cursor: pointer;
+  padding: 0;
 }
-.mini-chat-trade-open:hover { filter: brightness(1.08); }
-.mini-chat-trade-mine { font-style: italic; }
-.mini-chat-trade-body {
+.auction-card-bid-history {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  font-size: 10.5px;
+  color: var(--text-muted);
   display: flex;
   flex-direction: column;
   gap: 1px;
-  font-size: var(--fs-xs);
+  max-height: 90px;
+  overflow-y: auto;
 }
-.mini-chat-trade-row strong {
-  color: var(--text-muted);
-  font-weight: 600;
-  margin-right: 4px;
-}
-
-.mini-chat-offer-form {
+.auction-card-actions {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 8px;
-  border-top: 1px solid var(--border);
-  background: var(--panel);
+  gap: 6px;
 }
-.mini-chat-offer-form input {
-  width: 100%;
-  padding: 6px 8px;
+.auction-card-actions input {
+  width: 90px;
+  padding: 5px 7px;
   font-size: var(--fs-xs);
   background: var(--panel-3);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
 }
-.mini-chat-offer-actions {
+
+.auction-list-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auction-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.auction-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 10.5px;
+  text-align: left;
+}
+.auction-picker-item:hover:not(:disabled) { border-color: var(--accent, #f8d030); }
+.auction-picker-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.auction-picker-item img { width: 28px; height: 28px; image-rendering: pixelated; flex-shrink: 0; }
+.auction-list-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.auction-list-field input, .auction-list-field select {
+  padding: 6px 8px;
+  font-size: var(--fs-xs);
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+}
+.auction-list-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
@@ -12022,6 +12110,43 @@ input:focus, textarea:focus, select:focus {
 .trade-toast-timer { font-variant-numeric: tabular-nums; }
 .trade-toast-body { font-size: 12.5px; line-height: 1.4; margin-bottom: 10px; color: var(--text, #f0f0f0); }
 .trade-toast-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Auction notifications — bottom-right stack (distinct corner from the
+   top-right action-required toasts above) since several can queue up
+   in quick succession (outbid, then outbid again, then won/lost). */
+.auction-toast-stack {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 8000;
+  max-width: 320px;
+}
+.auction-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel, #1a1d24);
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--text, #f0f0f0);
+  animation: trade-toast-in 0.25s ease-out;
+}
+.auction-toast-won, .auction-toast-sold { border-color: var(--accent, #f8d030); }
+.auction-toast-outbid { border-color: #e04a4a; }
+.auction-toast-icon { font-size: 15px; flex-shrink: 0; }
+.auction-toast-text { flex: 1; line-height: 1.35; }
+.auction-toast-close {
+  background: none; border: none; color: var(--text-muted, #aaa);
+  font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0;
+}
+.auction-toast-close:hover { color: var(--text, #f0f0f0); }
 
 /* Live trade-room modal — two side-by-side panels showing each
    trainer's offer + a party picker below. */

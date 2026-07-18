@@ -131,6 +131,17 @@ export const api = {
       `/api/giveaways/${id}/enter`,
     ),
 
+  // Auctions
+  listAuctions: () => request<{ auctions: PublicAuction[] }>("GET", "/api/auctions"),
+  getAuction: (id: string) =>
+    request<{ auction: PublicAuction; bids: AuctionBid[] }>("GET", `/api/auctions/${id}`),
+  myAuctions: () => request<{ selling: PublicAuction[]; bidding: PublicAuction[] }>("GET", "/api/auctions/mine"),
+  createAuction: (input: { pokemonId: string; startingBid: number; durationMinutes: number }) =>
+    request<{ auction: PublicAuction }>("POST", "/api/auctions", input),
+  placeBid: (id: string, amount: number) =>
+    request<{ ok: true; currentBid: number; endsAt: string }>("POST", `/api/auctions/${id}/bids`, { amount }),
+  cancelAuction: (id: string) => request<{ ok: true }>("POST", `/api/auctions/${id}/cancel`),
+
   // Saves
   getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string }>(
     "GET",
@@ -286,6 +297,27 @@ export interface PvpReplayMatch {
   loserId: string | null;
   endReason: string | null;
   log: string[];             // Showdown protocol lines
+}
+
+export interface PublicAuction {
+  id: string;
+  sellerUsername: string | null;
+  pokemon: unknown; // Pokemon snapshot at listing time — cast at the call site
+  startingBid: number;
+  currentBid: number;
+  currentBidderUsername: string | null;
+  bidCount: number;
+  status: "active" | "sold" | "cancelled" | "expired";
+  endsAt: string;
+  createdAt: string;
+  settledAt: string | null;
+}
+
+export interface AuctionBid {
+  id: string;
+  amount: number;
+  username: string;
+  createdAt: string;
 }
 
 export interface GiveawayPrize {

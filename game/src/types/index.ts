@@ -451,6 +451,12 @@ export type Action =
   | { type: "SORT_BOX"; payload: { mode: string } }
   | { type: "RELEASE_POKEMON"; payload: { source: "party" | "box"; index: number } }
   | { type: "TRADE_COMPLETE"; payload: { sentMonId: string; received: Pokemon } }
+  | {
+      type: "AUCTION_SETTLED";
+      payload:
+        | { role: "seller"; removedPokemonId: string; money: number; logMessage: string }
+        | { role: "buyer"; pokemon: Pokemon; money: number; logMessage: string };
+    }
   | { type: "SET_NICKNAME"; payload: { pokemonId: string; nickname: string } }
   | { type: "TOGGLE_EFFECT_PAUSED"; payload: { itemId: string } }
   | { type: "SET_ALWAYS_CATCH_SHINIES"; payload: { value: boolean } }

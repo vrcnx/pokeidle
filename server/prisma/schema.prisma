@@ -113,6 +113,8 @@ model User {
   giveawayEntries   GiveawayEntry[]
   saveSnapshots     SaveSnapshot[]
   funnelEvents      FunnelEvent[]
+  auctionsSelling   Auction[]     @relation("AuctionSeller")
+  bids              Bid[]         @relation("Bidder")
 }
 
 /// Append-only checkpoints of a player's save, so a bad or clobbered write
@@ -559,4 +561,54 @@ model TradeRecord {
 
   @@index([userAId, createdAt])
   @@index([userBId, createdAt])
+}
+
+// ── Auctions ─────────────────────────────────────────────────────────────
+// A seller lists ONE specific Pokemon (by its stable per-mon id) from
+// their party/box; other players bid in-game money (the same currency
+// spent in RewardShopPanel), highest bid when endsAt passes wins.
+//
+// Deliberately no upfront escrow: bidding is a soft-checked commitment
+// (bid amount validated against the bidder's money at bid time), and
+// the actual money+Pokemon transfer only happens at settlement, which
+// re-validates both sides against LIVE saveData and atomically mutates
+// both players' saves with the same optimistic-concurrency (saveVersion
+// compare-and-swap) pattern saves.ts uses for the player upload path.
+// If either side no longer checks out at settlement (mon traded/released/
+// evolved away, or the winning bidder's money dropped below their bid),
+// the auction is cancelled rather than partially applied — no fallback
+// to the next-highest bid, keeping settlement a single all-or-nothing step.
+model Auction {
+  id              String    @id @default(cuid())
+  sellerId        String
+  pokemonId       String    // stable per-mon id from the seller's save at listing time
+  pokemonSnapshot String    // JSON Pokemon snapshot at listing time — display only, re-validated live at settlement
+  startingBid     Int
+  currentBid      Int       @default(0)
+  currentBidderId String?
+  status          String    @default("active") // "active" | "sold" | "cancelled" | "expired"
+  endsAt          DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  settledAt       DateTime?
+
+  seller User  @relation("AuctionSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  bids   Bid[]
+
+  @@index([status, endsAt])
+  @@index([sellerId, createdAt])
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  auctionId String
+  bidderId  String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder  User    @relation("Bidder", fields: [bidderId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@index([bidderId, createdAt])
 }

@@ -1115,6 +1115,35 @@ export function reducer(state: GameState, action: Action): GameState {
       return next;
     }
 
+    case "AUCTION_SETTLED": {
+      // Server-pushed reconciliation for an auction that settled while
+      // this client may or may not have been open — see
+      // lib/auctionSettlement.ts server-side. `money` is always the
+      // server's authoritative post-settlement value (set, not added),
+      // since the server is the sole writer for this mutation.
+      const { payload } = action;
+      let next: GameState = { ...state, money: payload.money };
+      if (payload.role === "seller") {
+        const pIdx = next.party.findIndex((p) => p.id === payload.removedPokemonId);
+        if (pIdx >= 0) {
+          const party = next.party.filter((_, i) => i !== pIdx);
+          const active = Math.min(next.activePlayerPokemonIndex, Math.max(0, party.length - 1));
+          next = { ...next, party, activePlayerPokemonIndex: active, playerPokemon: party[active] ?? null };
+        } else {
+          const bIdx = next.box.findIndex((p) => p.id === payload.removedPokemonId);
+          if (bIdx >= 0) next = { ...next, box: next.box.filter((_, i) => i !== bIdx) };
+        }
+      } else {
+        const incoming = payload.pokemon;
+        const fresh: Pokemon = { ...incoming, id: `a${next.nextPokemonId}`, currentHp: incoming.maxHp };
+        const nextPokemonId = next.nextPokemonId + 1;
+        next = next.party.length < 6
+          ? { ...next, party: [...next.party, fresh], nextPokemonId }
+          : { ...next, box: [...next.box, fresh], nextPokemonId };
+      }
+      return pushLog(next, payload.logMessage);
+    }
+
     case "RELEASE_POKEMON": {
       const { source, index } = action.payload;
       if (source === "party") {
