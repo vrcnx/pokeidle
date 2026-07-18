@@ -796,6 +796,10 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Starting bid": "Lance inicial",
     "You have no listings.": "Você não tem leilões.",
     "You haven't bid on anything.": "Você ainda não deu lance em nada.",
+    "Search emoji…": "Buscar emoji…",
+    "Recently used": "Usados recentemente",
+    "No emoji found.": "Nenhum emoji encontrado.",
+    "Nothing here yet.": "Nada por aqui ainda.",
   },
   es: {
     "Lv. ": "Nv. ",
@@ -1578,5 +1582,9 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Starting bid": "Puja inicial",
     "You have no listings.": "No tienes subastas.",
     "You haven't bid on anything.": "Todavía no has pujado en nada.",
+    "Search emoji…": "Buscar emoji…",
+    "Recently used": "Usados recientemente",
+    "No emoji found.": "No se encontró ningún emoji.",
+    "Nothing here yet.": "Todavía no hay nada aquí.",
   },
 };
