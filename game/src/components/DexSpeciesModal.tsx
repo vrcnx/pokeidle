@@ -43,6 +43,7 @@ interface Props {
 export function DexSpeciesModal({ speciesKey, onClose }: Props) {
   const { state } = useGame();
   const sp = pokemonTable[speciesKey];
+  const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   if (!sp) return null;
 
   const caught = state.pokedexCaught.includes(speciesKey);
@@ -84,7 +85,6 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
   const hasAnySource =
     foundIn.length > 0 || evolvesFrom.length > 0 || isStarter || !!raidEntry;
 
-  const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const ab = abilitiesFor(speciesKey);
 
   return (

@@ -595,7 +595,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         reportClientError({
           source: "save-rejected",
           message: `putSave ${status}: ${err?.message ?? "unknown"}`,
-          meta: { status, code: err?.code ?? null },
+          // err.details is the full response body (api.ts's request() stores
+          // it verbatim on ApiError) — saves.ts's 400 response carries the
+          // actual validation failure as `reason` (e.g. "party > 6"), which
+          // `err.message` alone never surfaces since it just resolves to the
+          // generic "save rejected" string.
+          meta: { status, code: err?.code ?? null, reason: err?.details?.reason ?? null },
         });
         return;
       }

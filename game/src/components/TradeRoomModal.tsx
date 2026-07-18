@@ -36,6 +36,17 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
   const { state, dispatch } = useGame();
   const dialogRef = useModalEnter(".g-card");
   const [now, setNow] = useState(Date.now());
+  // Cancelling a trade was previously instant — clicking the X or the
+  // backdrop fired cancelTrade() right away, which meant a stray click
+  // on the dimmed area threw away both sides' offers. Now the X / cancel
+  // button flips to a confirm state in-place; the user has to click
+  // "Yes, cancel" before we actually emit. Backdrop clicks no-op.
+  //
+  // This hook must stay above the `room.completion` early return below —
+  // every hook in this component has to run on every render regardless
+  // of which branch we take, or React throws "Rendered fewer hooks than
+  // expected" the instant a trade completes (error #300/#310).
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
@@ -104,12 +115,6 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
     }
     setLock(room.tradeId, true, { party: state.party, box: state.box }, onTradeAck("lock in your offer"));
   };
-  // Cancelling a trade was previously instant — clicking the X or the
-  // backdrop fired cancelTrade() right away, which meant a stray click
-  // on the dimmed area threw away both sides' offers. Now the X / cancel
-  // button flips to a confirm state in-place; the user has to click
-  // "Yes, cancel" before we actually emit. Backdrop clicks no-op.
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const requestCancel = () => setConfirmingCancel(true);
   const onConfirmCancel = () => {
     setConfirmingCancel(false);
