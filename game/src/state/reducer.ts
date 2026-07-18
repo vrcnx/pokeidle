@@ -1172,6 +1172,30 @@ export function reducer(state: GameState, action: Action): GameState {
     case "BUY_REWARD_ITEM": {
       const { itemId, cost } = action.payload;
       if (state.victoryTokens < cost) return pushLog(state, "Not enough Victory Tokens.");
+      // Same special case as BUY_ITEM below: Exp. Share is a buff, not a
+      // stockpile-able held item, so it can't just go into `inventory`
+      // like every other reward-shop item — applyExp() only ever checks
+      // `activeEffects`, never inventory counts. Without this branch the
+      // purchase silently did nothing: tokens spent, buff never turns on.
+      if (itemId === "expShare") {
+        const def = consumables.expShare;
+        const addBattles = def?.duration ?? 300;
+        const existing = state.activeEffects.find((e) => e.itemId === "expShare");
+        const activeEffects = existing
+          ? state.activeEffects.map((e) =>
+              e === existing
+                ? { ...e, battlesRemaining: e.battlesRemaining + addBattles }
+                : e
+            )
+          : [
+              ...state.activeEffects,
+              { itemId, battlesRemaining: addBattles, speciesKey: "", routeKey: "" },
+            ];
+        return pushLog(
+          { ...state, victoryTokens: state.victoryTokens - cost, activeEffects },
+          `Activated Exp. Share (+${addBattles} battles).`
+        );
+      }
       return {
         ...state,
         victoryTokens: state.victoryTokens - cost,

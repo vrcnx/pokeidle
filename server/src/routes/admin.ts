@@ -1368,20 +1368,37 @@ const GIVEAWAY_NEXT: Record<string, string[]> = {
   cancelled: [],
 };
 
+// endsAt (and startsAt) must go through the same z.string().datetime()
+// check the create route already uses — that rejects any string without
+// an explicit Z/offset. Without it, new Date("2026-07-24T18:00:00") (no
+// Z) parses as SERVER-LOCAL time, not UTC — dormant today only because
+// nothing currently sends this field in a PATCH and the deployed host
+// happens to run UTC, but a landmine for any future "edit deadline" UI
+// wiring a plain datetime-local input straight into this field.
+const GiveawayPatchBody = z.object({
+  title: z.string().min(1).max(120).optional(),
+  description: z.string().max(2000).optional(),
+  status: z.string().optional(),
+  startsAt: z.string().datetime().nullable().optional(),
+  endsAt: z.string().datetime().nullable().optional(),
+});
+
 app.patch("/giveaways/:id", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
-  const body = (await c.req.json().catch(() => null)) as
-    | { title?: string; description?: string; status?: string; endsAt?: string | null }
-    | null;
-  if (!body) return c.json({ error: "invalid body" }, 400);
+  const parsed = GiveawayPatchBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const body = parsed.data;
 
   const current = await prisma.giveaway.findUnique({ where: { id }, select: { status: true } });
   if (!current) return c.json({ error: "giveaway not found" }, 404);
 
   const data: Record<string, unknown> = {};
-  if (typeof body.title === "string" && body.title.length <= 120) data.title = body.title;
-  if (typeof body.description === "string" && body.description.length <= 2000) data.description = body.description;
+  if (typeof body.title === "string") data.title = body.title;
+  if (typeof body.description === "string") data.description = body.description;
+  if (body.startsAt !== undefined) data.startsAt = body.startsAt ? new Date(body.startsAt) : null;
   if (body.endsAt !== undefined) data.endsAt = body.endsAt ? new Date(body.endsAt) : null;
   if (body.status !== undefined && body.status !== current.status) {
     const allowed = GIVEAWAY_NEXT[current.status] ?? [];
@@ -1438,6 +1455,27 @@ app.post("/giveaways/:id/draw", async (c) => {
   if (g.entries.length === 0) return c.json({ error: "no entries to draw from" }, 400);
 
   const seed = newDrawSeed();
+  const drawnAt = new Date();
+  // Atomic claim BEFORE picking winners or granting anything. The two
+  // checks above (drawnAt/status) are TOCTOU-vulnerable on their own —
+  // two overlapping requests (a double-click before the button
+  // disables, a client retry, two admin sessions) can both pass them
+  // before either has written anything, each draw with a different
+  // seed, and each grant prizes — more winners than winnerCount, and a
+  // winner picked by both runs getting paid twice. This updateMany is
+  // the actual guard: only one concurrent call can match
+  // `drawnAt: null` and win the row.
+  const claimed = await prisma.giveaway.updateMany({
+    where: { id, drawnAt: null, status: { in: ["open", "closed"] } },
+    data: { status: "drawn", drawnAt, drawSeed: seed },
+  });
+  if (claimed.count === 0) {
+    return c.json({
+      error: "already drawn",
+      reason: "This giveaway has already been drawn. Re-drawing would change who won after the fact.",
+    }, 409);
+  }
+
   const winnerEntryIds = pickWinners(seed, g.entries.map((e) => e.id), g.winnerCount);
   const winners = g.entries.filter((e) => winnerEntryIds.includes(e.id));
   const prizes = parsePrizes(g.prizes);
@@ -1472,10 +1510,10 @@ app.post("/giveaways/:id/draw", async (c) => {
     }
   }
 
-  const updated = await prisma.giveaway.update({
-    where: { id },
-    data: { status: "drawn", drawnAt: new Date(), drawSeed: seed },
-  });
+  // The claim above already wrote status/drawnAt/drawSeed atomically —
+  // build the response from what we already know rather than a second
+  // round trip.
+  const updated = { ...g, status: "drawn" as const, drawnAt, drawSeed: seed };
 
   void makeAudit(c)(me.id, "giveaway.draw", id, {
     seed,                              // the proof — must be in the ledger
