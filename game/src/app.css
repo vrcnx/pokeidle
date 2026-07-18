@@ -10731,6 +10731,14 @@ input:focus, textarea:focus, select:focus {
 }
 
 .social-modal { width: min(880px, 96vw); }
+/* Fixed height (not just the shared .g-modal max-height ceiling) so
+   switching between Stats/Audio/Chat/Account doesn't visibly resize the
+   whole modal — Stats has ~7 cards, Audio/Chat have 1, so without this
+   the modal shrinks and grows every time you change tabs. Body content
+   taller than this (Stats, mainly) scrolls internally via the existing
+   .g-modal-body overflow-y; shorter tabs just leave blank space below
+   instead of the modal itself changing size. */
+.settings-modal-v2 { height: min(640px, 90vh); }
 .trainer-card-modal-v2 { width: min(720px, 96vw); }
 .pokemon-detail-v2 { width: min(740px, 96vw); }
 .dex-species-modal-v2 { width: min(720px, 96vw); }
