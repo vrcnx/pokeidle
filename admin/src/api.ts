@@ -75,6 +75,9 @@ export interface ChatMessage {
   id: string;
   channelId: string;
   content: string;
+  // "user" (default) | "announcement" | "giveaway" | "tradeOffer".
+  kind?: string;
+  meta?: { offering?: string; wanting?: string } | null;
   createdAt: string;
   // isAdmin is only ever populated by the REST /chat/recent endpoint —
   // the server's live socket "chat:message" broadcast (both regular

@@ -444,6 +444,10 @@ export interface ChatMessage {
   id: string;
   channelId: string;
   content: string;
+  // "user" (default) | "announcement" | "giveaway" | "tradeOffer" — a
+  // system/giveaway/trade card renders distinctly from ordinary chat.
+  kind?: string;
+  meta?: { offering?: string; wanting?: string } | null;
   createdAt: string;
   user: { id: string; username: string; name: string | null; accountLevel: number };
 }

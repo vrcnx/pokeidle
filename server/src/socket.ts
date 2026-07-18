@@ -3,7 +3,7 @@ import { Server } from "socket.io";
 import { auth } from "./auth.js";
 import { prisma } from "./db.js";
 import { recordDailyActive } from "./lib/presence.js";
-import { canAccessChannel, GLOBAL_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
+import { canAccessChannel, GLOBAL_CHANNEL, TRADE_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
@@ -438,8 +438,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       }
     }
 
-    // Auto-join the global channel.
+    // Auto-join the global + trade-offer channels.
     socket.join(GLOBAL_CHANNEL);
+    socket.join(TRADE_CHANNEL);
 
     // One area channel per socket. Joining a new `area:` room leaves
     // any previously-joined area room, so a user can't sit in every
@@ -466,11 +467,28 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     // Send a chat message. Persist + broadcast.
     socket.on(
       "chat:send",
-      async ({ channelId, content }: { channelId: string; content: string }, ack?: (r: any) => void) => {
+      async (
+        { channelId, content, kind, meta }: {
+          channelId: string; content: string;
+          kind?: string; meta?: { offering?: string; wanting?: string };
+        },
+        ack?: (r: any) => void,
+      ) => {
         if (typeof channelId !== "string" || typeof content !== "string") {
           ack?.({ ok: false, error: "bad payload" });
           return;
         }
+        // A player socket may only ever set "tradeOffer" (or omit kind
+        // entirely for ordinary chat) — "announcement"/"giveaway" are
+        // admin-only and set directly by server/src/routes/admin.ts,
+        // never reachable from this client-facing path.
+        const safeKind = kind === "tradeOffer" ? "tradeOffer" : "user";
+        const safeMeta = safeKind === "tradeOffer" && meta && typeof meta === "object"
+          ? JSON.stringify({
+              offering: typeof meta.offering === "string" ? meta.offering.slice(0, 120) : "",
+              wanting: typeof meta.wanting === "string" ? meta.wanting.slice(0, 120) : "",
+            })
+          : null;
         if (!chatLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" });
           return;
@@ -512,7 +530,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         }
 
         const stored = await prisma.chatMessage.create({
-          data: { channelId, userId: user.id, content: trimmed },
+          data: { channelId, userId: user.id, content: trimmed, kind: safeKind, meta: safeMeta },
           include: {
             user: { select: { id: true, username: true, name: true, accountLevel: true } },
           },
@@ -521,6 +539,8 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           id: stored.id,
           channelId,
           content: stored.content,
+          kind: stored.kind,
+          meta: stored.meta ? JSON.parse(stored.meta) : null,
           createdAt: stored.createdAt,
           user: stored.user,
         };

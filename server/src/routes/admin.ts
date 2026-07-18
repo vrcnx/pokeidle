@@ -1193,9 +1193,11 @@ app.post("/announce", async (c) => {
   if (!content) return c.json({ error: "content required" }, 400);
   if (content.length > 500) return c.json({ error: "content too long (max 500)" }, 400);
 
-  const prefixed = `📢 SERVER ANNOUNCEMENT — ${content}`;
+  // kind: "announcement" — the client renders this as a system card, not
+  // a chat bubble from the admin's own account, so content no longer
+  // needs the emoji prefix baked in to be recognizable.
   const stored = await prisma.chatMessage.create({
-    data: { channelId: "global", userId: me.id, content: prefixed },
+    data: { channelId: "global", userId: me.id, content, kind: "announcement" },
     include: {
       user: { select: { id: true, username: true, name: true, accountLevel: true } },
     },
@@ -1204,6 +1206,7 @@ app.post("/announce", async (c) => {
     id: stored.id,
     channelId: stored.channelId,
     content: stored.content,
+    kind: stored.kind,
     createdAt: stored.createdAt,
     user: stored.user,
   };
@@ -1528,17 +1531,20 @@ app.post("/giveaways/:id/draw", async (c) => {
     const io = getIo();
     if (io && granted.length > 0) {
       const names = granted.map((x) => `@${x.username}`).join(", ");
+      // kind: "giveaway" — rendered as a system card, so content drops
+      // the emoji prefix that used to be the only way to recognize it.
       const stored = await prisma.chatMessage.create({
         data: {
           channelId: "global",
           userId: me.id,
-          content: `🎉 GIVEAWAY — "${g.title}" has been drawn! Congratulations ${names} — you won ${describePrizes(prizes)}!`,
+          content: `"${g.title}" has been drawn! Congratulations ${names} — you won ${describePrizes(prizes)}!`,
+          kind: "giveaway",
         },
         include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
       });
       io.to("global").emit("chat:message", {
         id: stored.id, channelId: stored.channelId, content: stored.content,
-        createdAt: stored.createdAt, user: stored.user,
+        kind: stored.kind, createdAt: stored.createdAt, user: stored.user,
       });
     }
   } catch { /* announcement is a nice-to-have, never fail the draw for it */ }

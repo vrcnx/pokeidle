@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import { useMuteList } from "../utils/mute";
+import { EmojiPicker } from "./EmojiPicker";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -282,8 +283,22 @@ function ChatTab({
           )}
           {messages.map((m) => {
             const mine = m.user.id === me.id;
-            const muted = !mine && mute.isMuted(m.user.username);
+            const isSystem = m.kind === "announcement" || m.kind === "giveaway";
+            const muted = !mine && !isSystem && mute.isMuted(m.user.username);
             if (muted) return null;
+            if (isSystem) {
+              return (
+                <div key={m.id} className="g-chat-msg-system">
+                  <span className="g-chat-msg-system-icon">{m.kind === "giveaway" ? "🎉" : "📢"}</span>
+                  <div>
+                    <strong className="g-chat-msg-system-label">
+                      {m.kind === "giveaway" ? "Giveaway" : "Announcement"}
+                    </strong>
+                    <div className="g-chat-msg-system-body">{m.content}</div>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={m.id} className={`g-chat-msg ${mine ? "mine" : ""}`}>
                 <div className="g-chat-msg-head">
@@ -314,6 +329,7 @@ function ChatTab({
             placeholder={`Message ${activeLabel}…`}
             maxLength={500}
           />
+          <EmojiPicker onPick={(e) => setDraft((d) => (d + e).slice(0, 500))} />
           <button type="submit" className="g-btn-primary" disabled={!draft.trim() || sending}>Send</button>
         </form>
       </main>

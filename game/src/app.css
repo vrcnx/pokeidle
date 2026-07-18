@@ -8550,9 +8550,9 @@ input, textarea, select {
   background: var(--good);
   box-shadow: 0 0 6px var(--good);
 }
-.mini-chat-dot.local {
-  background: #60a5fa;
-  box-shadow: 0 0 6px #60a5fa;
+.mini-chat-dot.trade {
+  background: #c084fc;
+  box-shadow: 0 0 6px #c084fc;
 }
 .mini-chat-tabs {
   display: flex;
@@ -8728,6 +8728,147 @@ input, textarea, select {
   background: var(--panel-3);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
+}
+.mini-chat-input { display: flex; align-items: center; gap: 6px; }
+
+/* Emoji picker — shared by MiniChat and SocialPanel composers. Opens
+   upward since both live at the bottom of their panel. */
+.emoji-picker { position: relative; flex: 0 0 auto; }
+.emoji-picker-btn {
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.emoji-picker-btn:hover { background: var(--panel-3); }
+.emoji-picker-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 6px;
+  background: var(--panel-2, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.emoji-picker-item {
+  font-size: 16px;
+  line-height: 1;
+  padding: 5px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.emoji-picker-item:hover { background: var(--panel-3); }
+.mini-chat-offer-btn {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 6px 8px;
+  background: rgba(192, 132, 252, 0.14);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.mini-chat-offer-btn:hover { background: rgba(192, 132, 252, 0.22); }
+
+/* System card — server announcements + giveaway results. Deliberately
+   NOT styled like a chat bubble (no author button, no Lv chip): it's a
+   broadcast, not a personal message, even though it's stored against
+   the acting admin's account for audit purposes. */
+.mini-chat-system-card {
+  display: flex;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+}
+.mini-chat-system-icon { font-size: 13px; line-height: 1.4; }
+.mini-chat-system-label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fbbf24;
+}
+.mini-chat-system-body {
+  font-size: var(--fs-xs);
+  color: var(--text);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Trade-offer card — a real player's post; still clickable/attributable,
+   unlike a system card, plus an action to open a trade invite directly. */
+.mini-chat-trade-card {
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  background: rgba(192, 132, 252, 0.08);
+  border: 1px solid rgba(192, 132, 252, 0.22);
+}
+.mini-chat-trade-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.mini-chat-trade-open {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 7px;
+  background: #c084fc;
+  color: #1a0b2e;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.mini-chat-trade-open:hover { filter: brightness(1.08); }
+.mini-chat-trade-mine { font-style: italic; }
+.mini-chat-trade-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--fs-xs);
+}
+.mini-chat-trade-row strong {
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.mini-chat-offer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.mini-chat-offer-form input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: var(--fs-xs);
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.mini-chat-offer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 /* ── Spacing + layout fixes ──────────────────────────────────────── */
@@ -12657,6 +12798,32 @@ body { background: transparent !important; }
 }
 .g-chat-msg.mine .g-chat-msg-head { justify-content: flex-end; }
 
+/* System card — server announcements + giveaway results. Not a chat
+   bubble: no author button, no Lv chip, distinct background so it
+   reads as a broadcast rather than a personal message. */
+.g-chat-msg-system {
+  display: flex;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+}
+.g-chat-msg-system-icon { font-size: 14px; line-height: 1.4; }
+.g-chat-msg-system-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fbbf24;
+}
+.g-chat-msg-system-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  word-wrap: break-word;
+}
+
 .g-chat-input {
   display: flex;
   gap: 8px;
@@ -13762,6 +13929,13 @@ html, body {
   .auth-form input,
   .login-form input {
     min-height: 44px;
+  }
+  /* Chat action buttons — small by default to fit a narrow sidebar
+     panel, but still need a real tap target on touch. */
+  .mini-chat-offer-btn,
+  .mini-chat-trade-open {
+    min-height: 32px;
+    min-width: 44px;
   }
 }
 

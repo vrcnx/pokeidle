@@ -610,6 +610,9 @@ input[type="checkbox"], input[type="radio"] {
 }
 .tag.admin  { background: var(--brand-soft); color: var(--brand-hover); }
 .tag.banned { background: var(--bad-soft);   color: #fca5a5; margin-left: 4px; }
+.tag.announcement,
+.tag.giveaway { background: var(--warn-soft); color: #fbbf24; }
+.tag.trade    { background: rgba(192, 132, 252, 0.16); color: #c084fc; }
 
 .pager {
   display: flex;
@@ -2319,6 +2322,8 @@ input[type="checkbox"], input[type="radio"] {
 }
 .chat-live-msg:hover { background: var(--surface-2); }
 .chat-live-msg:hover .chat-live-del { opacity: 1; }
+.chat-live-msg.system { background: rgba(251, 191, 36, 0.05); }
+.chat-live-msg.system:hover { background: rgba(251, 191, 36, 0.09); }
 .chat-live-msg-head {
   display: flex;
   align-items: center;

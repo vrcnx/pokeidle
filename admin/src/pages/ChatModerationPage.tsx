@@ -227,28 +227,39 @@ function LiveChat() {
         {messages.length === 0 && (
           <li className="chat-empty">No messages yet in this channel.</li>
         )}
-        {messages.map((m) => (
-          <li key={m.id} className="chat-live-msg">
-            <div className="chat-live-msg-head">
-              <button
-                className="chat-live-author"
-                onClick={() => navigateTo("users", { userId: m.user.id })}
-                title={`Open @${m.user.username} — ban, inspect save, view sessions`}
-              >
-                {m.user.name ?? m.user.username}
-              </button>
-              <span className={`chat-live-lv ${levelTierClass(m.user.accountLevel)}`}>
-                Lv {m.user.accountLevel}
-              </span>
-              {m.user.isAdmin && <span className="tag admin">ADMIN</span>}
-              <span className="dim small chat-live-time">
-                {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
-              <button className="chat-live-del" title="Delete this message" onClick={() => del(m.id)}>×</button>
-            </div>
-            <div className="chat-live-body">{m.content}</div>
-          </li>
-        ))}
+        {messages.map((m) => {
+          const isSystem = m.kind === "announcement" || m.kind === "giveaway";
+          return (
+            <li key={m.id} className={`chat-live-msg ${isSystem ? "system" : ""}`}>
+              <div className="chat-live-msg-head">
+                {isSystem && (
+                  <span className={`tag ${m.kind === "giveaway" ? "giveaway" : "announcement"}`}>
+                    {m.kind === "giveaway" ? "🎉 GIVEAWAY" : "📢 ANNOUNCEMENT"}
+                  </span>
+                )}
+                <button
+                  className="chat-live-author"
+                  onClick={() => navigateTo("users", { userId: m.user.id })}
+                  title={`Open @${m.user.username} — ban, inspect save, view sessions`}
+                >
+                  {isSystem ? "via" : ""} {m.user.name ?? m.user.username}
+                </button>
+                {!isSystem && (
+                  <span className={`chat-live-lv ${levelTierClass(m.user.accountLevel)}`}>
+                    Lv {m.user.accountLevel}
+                  </span>
+                )}
+                {m.user.isAdmin && <span className="tag admin">ADMIN</span>}
+                {m.kind === "tradeOffer" && <span className="tag trade">🔄 TRADE OFFER</span>}
+                <span className="dim small chat-live-time">
+                  {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <button className="chat-live-del" title="Delete this message" onClick={() => del(m.id)}>×</button>
+              </div>
+              <div className="chat-live-body">{m.content}</div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -397,6 +408,9 @@ function ChatSearch() {
                   <strong>{m.user.name ?? m.user.username}</strong>
                   <span className="dim small">@{m.user.username}</span>
                   {m.user.isAdmin && <span className="tag admin">ADMIN</span>}
+                  {m.kind === "announcement" && <span className="tag announcement">📢 ANNOUNCEMENT</span>}
+                  {m.kind === "giveaway" && <span className="tag giveaway">🎉 GIVEAWAY</span>}
+                  {m.kind === "tradeOffer" && <span className="tag trade">🔄 TRADE OFFER</span>}
                 </div>
                 <div className="chat-mod-row-body">{highlight(m.content)}</div>
                 <div className="chat-mod-row-actions">

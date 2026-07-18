@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.8.0";
+export const CURRENT_VERSION = "0.8.1";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,32 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.8.1",
+      subtitle: "Trade offers in chat, emoji, and a real Exp Share fix",
+      date: "2026-07-18",
+      highlight: true,
+      sections: [
+        {
+          heading: "🔄 Trade offers",
+          items: [
+            "The chat panel's second tab is now Trade instead of Local — post \"offering X for Y\" as a card, and anyone can click Open Trade to send you a trade invite on the spot",
+            "Town-specific local chat saw very little use, so it's gone in favor of this — nothing else about chat changed",
+          ],
+        },
+        {
+          heading: "😀 Emoji",
+          items: ["A picker button next to the chat input — no more needing your OS's emoji shortcut"],
+        },
+        {
+          heading: "🐛 Fixed",
+          items: [
+            "Exp. Share bought from the Elite Four Reward Shop now actually activates — it was silently doing nothing before",
+            "Server announcements and giveaway results now show as a distinct card in chat instead of looking like a personal message",
+          ],
+        },
+      ],
+    },
     {
       version: "0.8.0",
       subtitle: "Daily rewards, and a proper welcome",
