@@ -914,8 +914,8 @@ function LeagueCard() {
           </ul>
           <button
             type="button"
+            className="league-gauntlet-btn"
             onClick={startGauntlet}
-            style={{ width: "100%", marginTop: 8 }}
             title="Bails out of any active battle, heals your party, and starts the gauntlet — no healing between fights."
           >
             {eliteCleared && championBeaten ? "Rematch league" : "Begin gauntlet"}

@@ -202,17 +202,26 @@ input, textarea, select {
 }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 input:focus, textarea:focus, select:focus {
-  border-color: var(--accent-line);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.22);
 }
 
 :focus-visible {
   outline: none;
 }
+/* Was `--accent-line` (rgba(255,255,255,0.18)) — on the true-black theme
+   that composites to ~1.5:1 contrast against the page, well under WCAG
+   1.4.11's 3:1 floor, and covers the majority of interactive elements
+   (every unstyled button, every link). Five components already solved
+   this correctly with a gold outline (.settings-tab, .faint-switch-choice,
+   .g-chat-msg-name-btn, .g-friend-avatar, .pvp-opponent-link — ~9-10:1
+   contrast); this extends that same answer to the generic fallback
+   instead of leaving it as a third, weaker pattern. */
 button:focus-visible,
 [role="button"]:focus-visible,
 a:focus-visible {
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-line);
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 /* Universal small text helpers (used widely) */
@@ -2588,12 +2597,30 @@ body.dnd-active {
 .ctx-trainer-card > img { grid-area: sprite; }
 .ctx-trainer-card > div { grid-area: info; min-width: 0; }
 .ctx-trainer-card > button {
+  /* This is the REAL "Challenge"/"Rematch" gym-battle button (shown on
+     every gym town + the active-battle context card, desktop and mobile,
+     via IdleTownPanel/BattleTrainerPanel in ContextPanel.tsx). An earlier
+     pass styled `.gym-challenge`/`.gauntlet-btn` in GymsList.tsx/
+     LeaguePanel.tsx believing those were the live components — they are
+     dead code, never imported anywhere, so that fix never reached a real
+     screen. This is the one that does. No min-height was set anywhere, so
+     it computed to ~32px — well under the 44px floor the coarse-pointer
+     sweep below enforces for it now. */
   grid-area: action;
   width: 100%;
   margin-top: 6px;
-  padding: 6px 10px;
-  font-weight: 600;
+  padding: 8px 10px;
+  font-weight: 700;
   font-size: 12px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 5px;
+}
+.ctx-trainer-card > button:hover:not(:disabled) { background: var(--accent-hover); }
+.ctx-trainer-card > button:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (pointer: coarse) {
+  .ctx-trainer-card > button { min-height: 44px; }
 }
 .ctx-trainer-card strong {
   display: block;
@@ -5190,10 +5217,10 @@ body.dnd-active {
   z-index: 9000;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px 9px 14px;
+  gap: 8px;
+  padding: 9px 10px 9px 14px;
   border-radius: 999px;
-  background: #16181d;
+  background: var(--panel);
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   font-size: 13px;
@@ -5214,6 +5241,33 @@ body.dnd-active {
   cursor: pointer;
 }
 .update-notice-btn:hover { filter: brightness(1.08); }
+.update-notice-dismiss {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.update-notice-dismiss:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+@media (pointer: coarse) {
+  .update-notice-dismiss { width: 44px; height: 44px; }
+}
+/* Was fixed 18px off the true viewport bottom regardless of layout, which
+   on mobile put it directly over the 56px bottom tab bar — tapping any tab
+   underneath was unreliable for as long as the notice was up, and (before
+   the dismiss button above existed) that could be the entire rest of the
+   session. Clear the tab bar instead. */
+@media (max-width: 900px) {
+  .update-notice { bottom: calc(56px + 12px); }
+}
 
 /* ── Subtle desktop version badge (bottom-left) ───────────────────── */
 .version-badge {
@@ -7845,6 +7899,26 @@ body.dnd-active {
   font-weight: 500;
 }
 .league-check { color: #34d399; font-weight: 700; }
+/* "Begin gauntlet" / "Rematch league" — clears the Elite Four + Champion
+   in one sequence, the single biggest-stakes action in the game. Was a
+   bare <button> with only an inline width/margin style, no fill/color of
+   its own, falling back to the same generic gray as a Cancel button. */
+.league-gauntlet-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+}
+.league-gauntlet-btn:hover:not(:disabled) { background: var(--accent-hover); }
+@media (pointer: coarse) {
+  .league-gauntlet-btn { min-height: 44px; }
+}
 
 /* Goal tracker (already has its own styles; just refine) */
 .unlock-hint {
@@ -10220,6 +10294,10 @@ input:focus, textarea:focus, select:focus {
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+/* letter-spacing 0.6px shared with .g-card h3 / .g-tag / .g-profile-species /
+   .g-chat-sidebar-head / .g-presence — same "small uppercase muted label"
+   role, 5 different hand-picked values before (0.4-0.8px), imperceptible
+   individually but no reason to differ. Font-size/weight stay per-role. */
 .g-stat-pill span {
   font-size: 9px;
   font-weight: 600;
@@ -10298,7 +10376,7 @@ input:focus, textarea:focus, select:focus {
   margin: 0 0 6px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -10355,7 +10433,7 @@ input:focus, textarea:focus, select:focus {
 .g-tag {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 999px;
@@ -10652,7 +10730,7 @@ input:focus, textarea:focus, select:focus {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
-  letter-spacing: 0.4px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
 }
 
@@ -12512,7 +12590,7 @@ body { background: transparent !important; }
 .g-chat-sidebar-head {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-muted);
   padding: 14px 14px 6px;
@@ -12732,7 +12810,7 @@ body { background: transparent !important; }
 .g-presence {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
 }
 .g-presence.on  { color: #34d399; }

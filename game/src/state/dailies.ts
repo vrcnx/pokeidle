@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type DailyStatus } from "../net/api";
+import { pushToast } from "../components/Toast";
 
 // Module store for the daily-reward status, mirroring the presence /
 // announcement stores. Fetched once on bind and after each claim; a hook
@@ -39,7 +40,23 @@ export function bindDailies(openOnClaimable: () => void) {
       setDailyStatus(s);
       if (!s.claimedToday) _openModal?.();
     })
-    .catch(() => { /* offline — the dock button still opens it manually */ });
+    .catch(() => { /* offline at boot — openDailyReward() below retries */ });
 }
 
-export function openDailyReward() { _openModal?.(); }
+// The Settings "Daily reward" button. This used to just flip the modal
+// open, on the assumption bindDailies' boot fetch had already populated
+// _status — but that fetch runs exactly once (the _fetched guard above),
+// so a single network blip at login left _status permanently null, the
+// modal's `if (!status) return null` meant it rendered nothing, and the
+// player could click this button for the rest of the session and get no
+// response at all — no modal, no error, nothing. If we still don't have a
+// status, retry right here rather than trusting a fetch that may have
+// already failed for good.
+export function openDailyReward() {
+  if (_status) { _openModal?.(); return; }
+  api.dailyStatus()
+    .then((s) => { setDailyStatus(s); _openModal?.(); })
+    .catch(() => {
+      pushToast({ kind: "warn", text: "Couldn't load your daily reward — check your connection and try again." });
+    });
+}

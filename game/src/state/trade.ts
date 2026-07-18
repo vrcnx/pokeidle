@@ -95,16 +95,29 @@ export function dismissInvite() {
   _state.invite = null;
   emit();
 }
-export function setOffer(tradeId: string, mon: Pokemon | null) {
+// The server built a full ack contract for all three of these (rate-limit,
+// "not your turn", "no offer set", "trade not active", etc. — see
+// server/src/socket.ts trade:offer/lock/cancel) and it went entirely
+// unused: none of these forwarded an ack, so every rejection the server
+// sent back was silently dropped. In a LIVE two-player trade that means
+// the other person is watching and waiting while your click did nothing
+// and told you nothing. Every emit below now takes the same optional ack
+// callback respondToInvite already used above.
+export function setOffer(
+  tradeId: string,
+  mon: Pokemon | null,
+  ack?: (r: { ok: boolean; error?: string }) => void,
+) {
   // Send the full Pokemon as-is; the server just relays it back to the
   // other side, so all of nickname/IVs/EVs/totalExp/heldItem ride along.
   const offer = mon ? (mon as unknown as TradeOffer) : null;
-  getSocket().emit("trade:offer", { tradeId, offer });
+  getSocket().emit("trade:offer", { tradeId, offer }, ack);
 }
 export function setLock(
   tradeId: string,
   locked: boolean,
   liveSnapshot?: { party: unknown; box: unknown },
+  ack?: (r: { ok: boolean; error?: string }) => void,
 ) {
   // liveSnapshot is the freshest local {party, box} at the moment the
   // player clicked Lock. Server uses it as canonical instead of reading
@@ -112,10 +125,10 @@ export function setLock(
   // Sending it on the lock event eliminates the Haunter→Gastly bug
   // where a just-evolved mon shipped as its pre-evolution form because
   // the cloud save hadn't caught up yet.
-  getSocket().emit("trade:lock", { tradeId, locked, liveSnapshot });
+  getSocket().emit("trade:lock", { tradeId, locked, liveSnapshot }, ack);
 }
-export function cancelTrade(tradeId: string) {
-  getSocket().emit("trade:cancel", { tradeId });
+export function cancelTrade(tradeId: string, ack?: (r: { ok: boolean; error?: string }) => void) {
+  getSocket().emit("trade:cancel", { tradeId }, ack);
 }
 export function clearRoom() {
   _state.room = null;

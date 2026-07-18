@@ -30,6 +30,7 @@ async function isNewBuildAvailable(): Promise<boolean> {
 
 export function UpdateNotice() {
   const [available, setAvailable] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const availableRef = useRef(false);
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function UpdateNotice() {
     };
   }, []);
 
-  if (!available) return null;
+  if (!available || dismissed) return null;
 
   return (
     <div className="update-notice" role="status" aria-live="polite">
@@ -65,6 +66,15 @@ export function UpdateNotice() {
       <span className="update-notice-text">A new version of the game is available.</span>
       <button className="update-notice-btn" type="button" onClick={() => window.location.reload()}>
         Reload
+      </button>
+      {/* This is a fixed-position pill that used to have no way to go away
+          short of reloading — on mobile it sat directly over the bottom
+          tab bar (see the CSS: it's repositioned above it there too), so
+          without this a deploy could make navigation unreliable for the
+          rest of the session. Dismissing just hides it; the next reload
+          the player does on their own picks up the new build regardless. */}
+      <button className="update-notice-dismiss" type="button" onClick={() => setDismissed(true)} aria-label="Dismiss">
+        ×
       </button>
     </div>
   );

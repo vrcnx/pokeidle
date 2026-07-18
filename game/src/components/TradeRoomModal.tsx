@@ -8,6 +8,7 @@ import { itemsCatalog } from "../data/itemsCatalog";
 import { useModalEnter } from "../utils/animate";
 import { playTradeAnimation } from "./TradeAnimation";
 import { openPublicTrainerCard } from "./TrainerCardModal";
+import { pushToast } from "./Toast";
 import type { Pokemon } from "../types";
 
 // Live two-sided trade UI. Mounts whenever there's an active room in
@@ -80,10 +81,16 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
   // the room when the animation finishes.
   if (room.completion) return null;
 
-  const onPick = (p: Pokemon) => {
-    setOffer(room.tradeId, p);
+  // A rejection here means the click did nothing, with a real second
+  // player watching on the other side — silence would read as a broken
+  // trade, or worse, as an offer that "went through" when it didn't.
+  const onTradeAck = (action: string) => (r: { ok: boolean; error?: string }) => {
+    if (!r.ok) pushToast({ kind: "warn", text: `Couldn't ${action}${r.error ? `: ${r.error}` : "."}` });
   };
-  const onUnpick = () => setOffer(room.tradeId, null);
+  const onPick = (p: Pokemon) => {
+    setOffer(room.tradeId, p, onTradeAck("update your offer"));
+  };
+  const onUnpick = () => setOffer(room.tradeId, null, onTradeAck("clear your offer"));
   // The lock event carries a fresh {party, box} snapshot of the
   // player's current state. Server uses that snapshot (not the DB
   // saveData) as the canonical source for the offered mon. Without
@@ -92,10 +99,10 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
   // local state.
   const onToggleLock = () => {
     if (room.myLocked) {
-      setLock(room.tradeId, false);
+      setLock(room.tradeId, false, undefined, onTradeAck("unlock"));
       return;
     }
-    setLock(room.tradeId, true, { party: state.party, box: state.box });
+    setLock(room.tradeId, true, { party: state.party, box: state.box }, onTradeAck("lock in your offer"));
   };
   // Cancelling a trade was previously instant — clicking the X or the
   // backdrop fired cancelTrade() right away, which meant a stray click
@@ -106,7 +113,7 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
   const requestCancel = () => setConfirmingCancel(true);
   const onConfirmCancel = () => {
     setConfirmingCancel(false);
-    cancelTrade(room.tradeId);
+    cancelTrade(room.tradeId, onTradeAck("cancel the trade"));
   };
   const onAbortCancel = () => setConfirmingCancel(false);
 
