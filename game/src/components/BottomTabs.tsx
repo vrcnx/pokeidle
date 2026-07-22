@@ -606,7 +606,7 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
               // something rather than collapsing to an empty button.
               const sp = pokemonTable[p.speciesKey];
               if (!sp) return;
-              const fallback = pokemonStaticSpriteUrl(sp.id);
+              const fallback = pokemonStaticSpriteUrl(sp.id, p.isShiny);
               const img = e.currentTarget as HTMLImageElement;
               if (img.src !== fallback) img.src = fallback;
             }}

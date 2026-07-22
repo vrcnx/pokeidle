@@ -42,8 +42,9 @@ export function pokemonSpriteUrl(
 }
 
 // Static fallback: same source repo, base sprites/pokemon/{id}.png
-export function pokemonStaticSpriteUrl(speciesId: number): string {
-  return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${speciesId}.png`;
+export function pokemonStaticSpriteUrl(speciesId: number, isShiny = false): string {
+  const folder = isShiny ? "shiny/" : "";
+  return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${folder}${speciesId}.png`;
 }
 
 export function trainerSpriteUrl(spriteKey: string): string {

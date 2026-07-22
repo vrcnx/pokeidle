@@ -26,17 +26,29 @@ function isEnterable(g: { status: string; startsAt: Date | null; endsAt: Date | 
 // half the appeal; a giveaway nobody sees the outcome of is invisible).
 app.get("/", async (c) => {
   const me = c.get("user");
-  const rows = await prisma.giveaway.findMany({
-    // Never leak drafts or cancelled events to players.
-    where: { status: { in: ["open", "closed", "drawn"] } },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 30,
-    include: {
-      entries: {
-        select: { userId: true, username: true, isWinner: true },
-      },
-    },
-  });
+  const LIMIT = 30;
+  const entrySelect = { entries: { select: { userId: true, username: true, isWinner: true } } };
+  // Two separate bounded queries rather than one ordered-and-capped query:
+  // sorting by status alphabetically puts "open" AFTER "closed"/"drawn", so
+  // a single `orderBy status, take 30` could silently push currently-open
+  // giveaways off the end once enough historical ones piled up. Querying
+  // "open" on its own guarantees every live giveaway is always visible,
+  // then closed/drawn history fills whatever budget is left.
+  const [openRows, historyRows] = await Promise.all([
+    prisma.giveaway.findMany({
+      where: { status: "open" },
+      orderBy: { createdAt: "desc" },
+      take: LIMIT,
+      include: entrySelect,
+    }),
+    prisma.giveaway.findMany({
+      where: { status: { in: ["closed", "drawn"] } },
+      orderBy: { createdAt: "desc" },
+      take: LIMIT,
+      include: entrySelect,
+    }),
+  ]);
+  const rows = [...openRows, ...historyRows].slice(0, LIMIT);
 
   return c.json({
     giveaways: rows.map((g) => {
