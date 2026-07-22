@@ -210,6 +210,24 @@ export interface AdminGiveawayEntry {
   claimedAt: string | null;
 }
 
+export interface AdminPollVote {
+  userId: string;
+  username: string;
+  optionIndex: number;
+  updatedAt?: string;
+}
+
+export interface AdminPoll {
+  id: string;
+  createdAt: string;
+  closedAt: string | null;
+  question: string;
+  status: "draft" | "open" | "closed";
+  options: string[];
+  voteCount: number;
+  votes: AdminPollVote[];
+}
+
 export interface AdminGiveaway {
   id: string;
   createdAt: string;
@@ -388,6 +406,14 @@ export const api = {
   /** Irreversible. Picks winners from a stored seed and writes prizes
    *  into their saves. Returns per-winner grant results so a partial
    *  payout is visible rather than assumed. */
+  // Polls
+  listPollsAdmin: () => req<{ polls: AdminPoll[] }>("GET", "/api/admin/polls"),
+  createPoll: (body: { question: string; options: string[] }) =>
+    req<{ poll: AdminPoll }>("POST", "/api/admin/polls", body),
+  patchPoll: (id: string, body: Record<string, unknown>) =>
+    req<{ poll: AdminPoll }>("PATCH", `/api/admin/polls/${id}`, body),
+  deletePoll: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/polls/${id}`),
+
   drawGiveaway: (id: string) =>
     req<{
       ok: true; seed: string; entryCount: number;

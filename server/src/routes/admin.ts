@@ -1824,6 +1824,171 @@ async function grantPrizesToUser(userId: string, prizes: Prize[]): Promise<void>
   });
 }
 
+// ── Polls ────────────────────────────────────────────────────────────
+// Admin-created, posted to Global chat for players to vote on directly
+// from the chat card. Unlike a Giveaway (one entry, drawn once), a poll
+// is live opinion data: a vote can change any time before close, and
+// results are public + update in real time — see schema.prisma's Poll
+// doc comment.
+app.get("/polls", async (c) => {
+  const rows = await prisma.poll.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { votes: { select: { id: true, userId: true, username: true, optionIndex: true, updatedAt: true } } },
+  });
+  return c.json({
+    polls: rows.map((p) => ({
+      ...p,
+      options: JSON.parse(p.options) as string[],
+      voteCount: p.votes.length,
+    })),
+  });
+});
+
+const PollBody = z.object({
+  question: z.string().min(1).max(280),
+  options: z.array(z.string().min(1).max(80)).min(2).max(10),
+});
+
+app.post("/polls", async (c) => {
+  const me = c.get("user");
+  const parsed = PollBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  const d = parsed.data;
+  const p = await prisma.poll.create({
+    data: {
+      question: d.question,
+      options: JSON.stringify(d.options),
+      status: "draft",
+      ownerId: me.id,
+    },
+  });
+  void makeAudit(c)(me.id, "poll.create", p.id, { question: p.question });
+  return c.json({ poll: { ...p, options: d.options, voteCount: 0 } });
+});
+
+// draft -> open -> closed. Forward-only, same reasoning as giveaways:
+// walking a closed poll back to open after results are public would let
+// an operator quietly re-solicit votes on a question people already saw
+// resolved.
+const POLL_NEXT: Record<string, string[]> = {
+  draft:  ["open", "closed"],
+  open:   ["closed"],
+  closed: [],
+};
+
+const PollPatchBody = z.object({
+  question: z.string().min(1).max(280).optional(),
+  options: z.array(z.string().min(1).max(80)).min(2).max(10).optional(),
+  status: z.string().optional(),
+});
+
+app.patch("/polls/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const parsed = PollPatchBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  const body = parsed.data;
+
+  const current = await prisma.poll.findUnique({ where: { id }, select: { status: true } });
+  if (!current) return c.json({ error: "poll not found" }, 404);
+
+  // Editing the question/options after it has ever gone live would let
+  // an operator quietly change what people already voted on — only a
+  // draft may be edited.
+  if ((body.question !== undefined || body.options !== undefined) && current.status !== "draft") {
+    return c.json({ error: "cannot edit question/options once a poll has opened" }, 409);
+  }
+
+  const data: Record<string, unknown> = {};
+  if (typeof body.question === "string") data.question = body.question;
+  if (body.options !== undefined) data.options = JSON.stringify(body.options);
+  if (body.status !== undefined && body.status !== current.status) {
+    const allowed = POLL_NEXT[current.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({
+        error: "illegal status transition",
+        reason: `A poll cannot go from "${current.status}" to "${body.status}".`
+          + (allowed.length ? ` Allowed: ${allowed.join(", ")}.` : ` "${current.status}" is final.`),
+        from: current.status, to: body.status, allowed,
+      }, 409);
+    }
+    data.status = body.status;
+    if (body.status === "closed") data.closedAt = new Date();
+  }
+
+  let p;
+  if (data.status !== undefined) {
+    // Same TOCTOU guard as the giveaway status transition above — two
+    // overlapping PATCH requests must not both win the "open" transition
+    // and both post a duplicate chat announcement.
+    const claimed = await prisma.poll.updateMany({ where: { id, status: current.status }, data });
+    if (claimed.count === 0) {
+      return c.json({ error: "conflict", reason: "This poll's status changed under you — reload and try again." }, 409);
+    }
+    p = await prisma.poll.findUniqueOrThrow({ where: { id } });
+  } else {
+    p = await prisma.poll.update({ where: { id }, data });
+  }
+  void makeAudit(c)(me.id, "poll.update", id, data);
+
+  if (data.status === "open") {
+    try {
+      const io = getIo();
+      if (io) {
+        const options = JSON.parse(p.options) as string[];
+        const raw = `"${p.question}" — vote now! (${options.length} options)`;
+        const content = raw.length > 400 ? raw.slice(0, 399) + "…" : raw;
+        const stored = await prisma.chatMessage.create({
+          data: {
+            channelId: "global",
+            userId: me.id,
+            content,
+            kind: "pollOpen",
+            meta: JSON.stringify({ pollId: p.id }),
+          },
+          include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+        });
+        io.to("global").emit("chat:message", {
+          id: stored.id, channelId: stored.channelId, content: stored.content,
+          kind: stored.kind, meta: stored.meta ? JSON.parse(stored.meta) : null,
+          createdAt: stored.createdAt, user: stored.user,
+        });
+      }
+    } catch (e) {
+      void recordError({
+        kind: "server",
+        message: "poll.open_announcement_failed",
+        source: "PATCH /admin/polls/:id",
+        userId: me.id,
+        username: me.username,
+        meta: { pollId: id, error: String((e as Error)?.message ?? e) },
+      });
+    }
+  }
+
+  const votes = await prisma.pollVote.findMany({ where: { pollId: id }, select: { userId: true, username: true, optionIndex: true } });
+  return c.json({ poll: { ...p, options: JSON.parse(p.options), voteCount: votes.length, votes } });
+});
+
+app.delete("/polls/:id", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const p = await prisma.poll.findUnique({ where: { id }, select: { status: true } });
+  if (!p) return c.json({ error: "poll not found" }, 404);
+  // Deleting an opened poll erases public vote results players may have
+  // already seen — refuse, close it instead.
+  if (p.status !== "draft") {
+    return c.json({
+      error: "cannot delete a poll that has opened",
+      reason: "Once a poll opens, its results are a public record. Close it instead of deleting.",
+    }, 409);
+  }
+  await prisma.poll.delete({ where: { id } });
+  void makeAudit(c)(me.id, "poll.delete", id);
+  return c.json({ ok: true });
+});
+
 // ── Live ops ──────────────────────────────────────────────────────────
 // Real-time snapshot of who is connected right this second. Joined
 // with the User table so we can show display names + ban state + last

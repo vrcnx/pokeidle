@@ -12,9 +12,10 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { GiveawaysPage } from "./pages/GiveawaysPage";
+import { PollsPage } from "./pages/PollsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
-export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "audit" | "announcements";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "polls" | "audit" | "announcements";
 
 // What a page can be asked to focus on when navigated to. The bus used
 // to carry a page name and nothing else, which meant every cross-page
@@ -200,6 +201,7 @@ export function App() {
             <span className="admin-nav-heading">Events</span>
             <NavItem active={page === "tournaments"} onClick={() => gotoPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
             <NavItem active={page === "giveaways"} onClick={() => gotoPage("giveaways")} label="Giveaways" icon={<IconGift />} />
+            <NavItem active={page === "polls"} onClick={() => gotoPage("polls")} label="Polls" icon={<IconPoll />} />
             <NavItem active={page === "announcements"} onClick={() => gotoPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
           </div>
           <div className="admin-nav-group">
@@ -230,6 +232,7 @@ export function App() {
         {page === "announcements" && <AnnouncementsPage />}
         {page === "liveops" && <LiveOpsPage />}
         {page === "giveaways" && <GiveawaysPage />}
+        {page === "polls" && <PollsPage />}
       </main>
     </div>
   );
@@ -338,6 +341,13 @@ function IconGift() {
       <rect x="3" y="8" width="18" height="4" rx="1" />
       <path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
       <path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+    </svg>
+  );
+}
+function IconPoll() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 20V10M12 20V4M6 20v-6" />
     </svg>
   );
 }

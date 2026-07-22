@@ -3011,6 +3011,43 @@ input[type="checkbox"], input[type="radio"] {
 .gv-status--drawn     { background: var(--good-soft);              color: #86efac; }
 .gv-status--cancelled { background: var(--bad-soft);               color: #fca5a5; }
 .gv-card-desc { margin: 0; }
+.poll-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-result-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-size: 12px;
+}
+.poll-result-bar {
+  position: absolute;
+  inset: 0;
+  background: rgba(253, 230, 138, 0.14);
+  z-index: 0;
+}
+.poll-result-label { position: relative; z-index: 1; }
+.poll-result-count { position: relative; z-index: 1; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.poll-voter-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+.poll-voter-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
 .gv-card-prize {
   display: flex;
   align-items: baseline;

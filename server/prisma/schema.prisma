@@ -115,6 +115,7 @@ model User {
   funnelEvents      FunnelEvent[]
   auctionsSelling   Auction[]     @relation("AuctionSeller")
   bids              Bid[]         @relation("Bidder")
+  pollVotes         PollVote[]
 }
 
 /// Append-only checkpoints of a player's save, so a bad or clobbered write
@@ -431,6 +432,45 @@ model GiveawayEntry {
   // draw rather than a spam contest.
   @@unique([giveawayId, userId])
   @@index([giveawayId, isWinner])
+}
+
+/// An admin-created poll posted to Global chat for players to vote on.
+/// Unlike Giveaway (one-time entry, drawn once), a poll is live opinion
+/// data — a vote can change any time before the poll closes, and results
+/// are public and update in real time as an intentional "watch the bars
+/// move" feature, not something withheld until a reveal.
+model Poll {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  closedAt  DateTime?
+  question  String
+  /// JSON array of option label strings, e.g. ["Yes","No","Undecided"]
+  options   String
+  /// "draft" | "open" | "closed"
+  status    String     @default("draft")
+  ownerId   String
+
+  votes PollVote[]
+
+  @@index([status, createdAt])
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  userId      String
+  username    String   // denormalised so a deleted account still shows in admin results
+  optionIndex Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A vote can be changed (upsert on this key) but a user has only one
+  // live choice per poll at a time.
+  @@unique([pollId, userId])
+  @@index([pollId, optionIndex])
 }
 
 /// A pinned, server-wide banner shown in the top of every player's chat

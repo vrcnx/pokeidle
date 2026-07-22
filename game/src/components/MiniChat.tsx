@@ -10,6 +10,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 import { AuctionBoard } from "./AuctionBoard";
+import { PollCard } from "./PollCard";
 import { useT } from "../i18n/useT";
 
 // Compact chat panel for the left column. Two tabs:
@@ -197,6 +198,17 @@ export function MiniChat() {
 function SystemCard({ message }: { message: ChatMessage }) {
   const t = useT();
   const { icon, label } = SYSTEM_CARD_META[message.kind ?? ""] ?? SYSTEM_CARD_META.announcement;
+  if (message.kind === "pollOpen" && message.meta?.pollId) {
+    return (
+      <div className="mini-chat-system-card">
+        <span className="mini-chat-system-icon">{icon}</span>
+        <div>
+          <strong className="mini-chat-system-label">{label}</strong>
+          <PollCard pollId={message.meta.pollId} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="mini-chat-system-card">
       <span className="mini-chat-system-icon">{icon}</span>

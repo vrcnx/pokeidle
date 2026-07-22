@@ -8,6 +8,7 @@ import { useMuteList } from "../utils/mute";
 import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
+import { PollCard } from "./PollCard";
 import { useT } from "../i18n/useT";
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
@@ -293,6 +294,17 @@ function ChatTab({
             if (muted) return null;
             if (isSystem) {
               const { icon, label } = SYSTEM_CARD_META[m.kind ?? ""] ?? SYSTEM_CARD_META.announcement;
+              if (m.kind === "pollOpen" && m.meta?.pollId) {
+                return (
+                  <div key={m.id} className="g-chat-msg-system">
+                    <span className="g-chat-msg-system-icon">{icon}</span>
+                    <div>
+                      <strong className="g-chat-msg-system-label">{label}</strong>
+                      <PollCard pollId={m.meta.pollId} />
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={m.id} className="g-chat-msg-system">
                   <span className="g-chat-msg-system-icon">{icon}</span>

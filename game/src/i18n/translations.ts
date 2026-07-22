@@ -800,6 +800,9 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Recently used": "Usados recentemente",
     "No emoji found.": "Nenhum emoji encontrado.",
     "Nothing here yet.": "Nada por aqui ainda.",
+    "vote": "voto",
+    "votes": "votos",
+    "Poll closed": "Enquete encerrada",
   },
   es: {
     "Lv. ": "Nv. ",
@@ -1586,5 +1589,8 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Recently used": "Usados recientemente",
     "No emoji found.": "No se encontró ningún emoji.",
     "Nothing here yet.": "Todavía no hay nada aquí.",
+    "vote": "voto",
+    "votes": "votos",
+    "Poll closed": "Encuesta cerrada",
   },
 };

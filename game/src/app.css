@@ -8866,6 +8866,63 @@ input, textarea, select {
 }
 .mini-chat-system-action:hover { filter: brightness(1.08); }
 
+/* Poll card — the interactive vote widget rendered inline inside a
+   "pollOpen" system card (both MiniChat and SocialPanel). */
+.poll-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 200px;
+}
+.poll-card-question {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+.poll-card-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-card-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  font-size: 10.5px;
+  color: var(--text);
+}
+.poll-card-option:hover:not(:disabled) { border-color: #fbbf24; }
+.poll-card-option.mine { border-color: #fbbf24; }
+.poll-card-option:disabled { cursor: default; }
+.poll-card-option-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(251, 191, 36, 0.14);
+  transition: width 0.25s ease-out;
+  z-index: 0;
+}
+.poll-card-option-label { position: relative; z-index: 1; flex: 1; }
+.poll-card-option-pct {
+  position: relative;
+  z-index: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.poll-card-foot { margin-top: 1px; }
+
 /* Auction board — replaces the old free-text trade-offer cards. Sits in
    the Trade tab's slot in MiniChat, same panel width. */
 .auction-board {

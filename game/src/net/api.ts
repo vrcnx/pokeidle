@@ -131,6 +131,16 @@ export const api = {
       `/api/giveaways/${id}/enter`,
     ),
 
+  // Polls
+  listPolls: () => request<{ polls: PublicPoll[] }>("GET", "/api/polls"),
+  getPoll: (id: string) => request<{ poll: PublicPoll }>("GET", `/api/polls/${id}`),
+  votePoll: (id: string, optionIndex: number) =>
+    request<{ ok: true; tallies: number[]; totalVotes: number; myVote: number }>(
+      "POST",
+      `/api/polls/${id}/vote`,
+      { optionIndex },
+    ),
+
   // Auctions
   listAuctions: () => request<{ auctions: PublicAuction[] }>("GET", "/api/auctions"),
   getAuction: (id: string) =>
@@ -297,6 +307,18 @@ export interface PvpReplayMatch {
   loserId: string | null;
   endReason: string | null;
   log: string[];             // Showdown protocol lines
+}
+
+export interface PublicPoll {
+  id: string;
+  question: string;
+  options: string[];
+  status: "draft" | "open" | "closed";
+  createdAt: string;
+  closedAt: string | null;
+  tallies: number[];
+  totalVotes: number;
+  myVote: number | null;
 }
 
 export interface PublicAuction {
@@ -477,10 +499,10 @@ export interface ChatMessage {
   channelId: string;
   content: string;
   // "user" (default) | "announcement" | "giveaway" | "giveawayOpen" |
-  // "tradeOffer" | "gift" — a system/giveaway/trade/gift card renders
-  // distinctly from ordinary chat.
+  // "tradeOffer" | "gift" | "pollOpen" — a system/giveaway/trade/gift/
+  // poll card renders distinctly from ordinary chat.
   kind?: string;
-  meta?: { offering?: string; wanting?: string; giveawayId?: string; username?: string } | null;
+  meta?: { offering?: string; wanting?: string; giveawayId?: string; username?: string; pollId?: string } | null;
   createdAt: string;
   user: { id: string; username: string; name: string | null; accountLevel: number };
 }
