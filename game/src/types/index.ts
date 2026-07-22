@@ -431,7 +431,10 @@ export type Action =
   | { type: "COMPLETE_EVOLUTION" }
   | { type: "SET_CATCH_RULE"; payload: { routeKey: string; speciesKey: string; settings: CatchSettings } }
   | { type: "TOGGLE_ROUTE_CATCH_ALL"; payload: { routeKey: string; enabled: boolean } }
-  | { type: "SET_GLOBAL_CATCH_DEFAULTS"; payload: { settings: CatchSettings } }
+  // routeKey is optional and, when given, also refreshes mode/
+  // levelThreshold/enabledBalls (never `enabled`) on every existing
+  // per-species override for that route — see reducer.ts's case for why.
+  | { type: "SET_GLOBAL_CATCH_DEFAULTS"; payload: { settings: CatchSettings; routeKey?: string } }
   | { type: "SWITCH_PLAYER_POKEMON"; payload: { partyIndex: number } }
   | { type: "TRAINER_SEND_NEXT_POKEMON"; payload: { newPokemonIndex: number } }
   | { type: "TRAINER_BATTLE_END"; payload: { won: boolean; moneyDelta: number } }

@@ -63,7 +63,13 @@ export function CatchSettingsModal() {
   function updateDefault(patch: Partial<CatchSettings>) {
     dispatch({
       type: "SET_GLOBAL_CATCH_DEFAULTS",
-      payload: { settings: { ...defaults, ...patch } },
+      // routeKey so this also refreshes mode/threshold/balls on any
+      // per-species override already on THIS route — otherwise a
+      // species that has ever been individually toggled (or hit by
+      // "All"/"None") stays frozen on whatever settings existed the
+      // moment that override was created, ignoring every change made
+      // here afterward. See reducer.ts's case for the full story.
+      payload: { settings: { ...defaults, ...patch }, routeKey: routeKey! },
     });
   }
 

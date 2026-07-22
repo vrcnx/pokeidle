@@ -808,8 +808,31 @@ export function reducer(state: GameState, action: Action): GameState {
       };
     }
 
-    case "SET_GLOBAL_CATCH_DEFAULTS":
-      return { ...state, globalCatchDefaults: action.payload.settings };
+    case "SET_GLOBAL_CATCH_DEFAULTS": {
+      const { settings, routeKey } = action.payload;
+      let catchSettings = state.catchSettings;
+      const existingRouteRules = routeKey ? state.catchSettings[routeKey] : undefined;
+      if (routeKey && existingRouteRules) {
+        // A per-species override is a full snapshot, not a diff against
+        // the global default — so without this, changing Mode/Balls
+        // here does nothing for any species on this route that already
+        // has an override (multiple bug reports: "I set it to Always,
+        // the JSON still shows pokedex_new"). Refresh mode/threshold/
+        // balls on every existing override for the route being viewed;
+        // NEVER touch `enabled` — that is deliberately per-species.
+        const routeRules: Record<string, typeof settings> = {};
+        for (const [speciesKey, rule] of Object.entries(existingRouteRules)) {
+          routeRules[speciesKey] = {
+            ...rule,
+            mode: settings.mode,
+            levelThreshold: settings.levelThreshold,
+            enabledBalls: settings.enabledBalls,
+          };
+        }
+        catchSettings = { ...state.catchSettings, [routeKey]: routeRules };
+      }
+      return { ...state, globalCatchDefaults: settings, catchSettings };
+    }
 
     case "TOGGLE_ROUTE_CATCH_ALL": {
       const { routeKey, enabled } = action.payload;
@@ -822,18 +845,24 @@ export function reducer(state: GameState, action: Action): GameState {
       // requested enabled state). Uses a lazy import of the merged
       // encounters map from data/regions since reducer.ts avoided
       // that dependency previously.
+      //
+      // Always builds from the LIVE state.globalCatchDefaults, never
+      // from a pre-existing per-species entry — that entry can be a
+      // stale snapshot from months ago (mode/balls the player has since
+      // changed), and "All"/"None" should mean "catch everything using
+      // my CURRENT settings", not "re-apply whatever was frozen here".
       const encs = mergedEncounters[routeKey]?.encounters ?? [];
       const existing = state.catchSettings[routeKey] ?? {};
       const rules: Record<string, typeof state.globalCatchDefaults> = { ...existing };
       for (const e of encs) {
-        const base = existing[e.speciesKey] ?? state.globalCatchDefaults;
-        rules[e.speciesKey] = { ...base, enabled };
+        rules[e.speciesKey] = { ...state.globalCatchDefaults, enabled };
       }
       // Also flip any pre-existing rules that weren't on the encounter
       // list (defensive — old data or renamed species keys) so "None"
-      // truly silences the route.
+      // truly silences the route. `rules[k] === existing[k]` means the
+      // encs loop above hasn't already replaced this key.
       for (const k of Object.keys(existing)) {
-        if (!rules[k]) rules[k] = { ...existing[k], enabled };
+        if (rules[k] === existing[k]) rules[k] = { ...state.globalCatchDefaults, enabled };
       }
       return {
         ...state,

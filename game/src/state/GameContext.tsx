@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Action, Dispatch, GameState, Pokemon } from "../types";
+import type { Action, CatchSettings, Dispatch, GameState, Pokemon } from "../types";
 import { reducer } from "./reducer";
 import { initialState } from "./initialState";
 import { SAVE_KEY } from "../data/raidLegendaries";
@@ -133,6 +133,43 @@ function loadSaved(): GameState {
       migratedGlobalCatchDefaults = { ...parsed.globalCatchDefaults, mode: "always" };
     }
 
+    // Same migration, but for per-species overrides. These are full
+    // snapshots taken at the moment a player toggled a species or hit
+    // "All"/"None" — NOT synced from globalCatchDefaults afterward (see
+    // reducer.ts's SET_GLOBAL_CATCH_DEFAULTS/TOGGLE_ROUTE_CATCH_ALL doc
+    // comments for the bug this used to cause: a species whose override
+    // was created back when the factory default was "pokedex_new" stays
+    // frozen on it forever, immune to every later settings change).
+    // Multiple bug reports of "Safari Zone / Route 3 won't catch
+    // anything, JSON still shows pokedex_new" traced back here. Same
+    // exact-match, idempotent, opt-in-preserving guard as above.
+    let migratedCatchSettings = parsed.catchSettings;
+    if (parsed.catchSettings && typeof parsed.catchSettings === "object") {
+      let anyChanged = false;
+      const nextRoutes: typeof parsed.catchSettings = {};
+      for (const [routeKey, speciesRules] of Object.entries(parsed.catchSettings)) {
+        const nextSpecies: Record<string, CatchSettings> = {};
+        for (const [speciesKey, rule] of Object.entries(speciesRules ?? {})) {
+          if (
+            rule
+            && rule.mode === "pokedex_new"
+            && rule.enabled === true
+            && rule.levelThreshold === 1
+            && Array.isArray(rule.enabledBalls)
+            && rule.enabledBalls.length === 1
+            && rule.enabledBalls[0] === "pokeball"
+          ) {
+            nextSpecies[speciesKey] = { ...rule, mode: "always" };
+            anyChanged = true;
+          } else {
+            nextSpecies[speciesKey] = rule;
+          }
+        }
+        nextRoutes[routeKey] = nextSpecies;
+      }
+      if (anyChanged) migratedCatchSettings = nextRoutes;
+    }
+
     // Dedupe Pokédex arrays. DrWhy reported "rankings show 151 for
     // pokédex but profile goes up to 194" — the server's pokedexCaughtCount
     // already runs through `new Set(...)` (level.ts) but the client
@@ -168,6 +205,7 @@ function loadSaved(): GameState {
       shinyCaught:   dedupeStrings(parsed.shinyCaught),
       shinySeen:     dedupeStrings(parsed.shinySeen),
       globalCatchDefaults: migratedGlobalCatchDefaults ?? initialState.globalCatchDefaults,
+      catchSettings: migratedCatchSettings ?? initialState.catchSettings,
       // Defensively reset transient fields we never want to restore
       phase: "idle",
       enemyPokemon: null,
