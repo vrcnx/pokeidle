@@ -295,12 +295,15 @@ export const api = {
     req<{ ok: true; id: string; saveVersion: number; accountLevel: number }>(
       "POST", `/api/admin/users/${id}/snapshots/${snapshotId}/restore`),
   /** announce: optional gift-card text posted to Global chat on success
-   *  (e.g. "gave @user a Shiny Charizard!") — omit for a silent edit. */
-  savePatch: (id: string, patch: Record<string, unknown>, announce?: string) =>
+   *  (e.g. "gave @user a Shiny Charizard!") — omit for a silent edit.
+   *  expectedSaveVersion: the saveVersion the detail page loaded with —
+   *  lets the server reject (409) if the player's own live client saved
+   *  something in between, instead of silently overwriting it. */
+  savePatch: (id: string, patch: Record<string, unknown>, announce?: string, expectedSaveVersion?: number) =>
     req<{ ok: true; id: string; saveVersion: number; accountLevel: number; pokedexCaughtCount: number; keys: string[] }>(
       "POST",
       `/api/admin/users/${id}/save-patch`,
-      { patch, announce },
+      { patch, announce, expectedSaveVersion },
     ),
   sendPasswordReset: (id: string, redirectTo?: string) =>
     req<{ ok: true; sentTo: string }>(

@@ -325,7 +325,7 @@ app.post("/users/:id/save-patch", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   const body = (await c.req.json().catch(() => null)) as
-    | { patch?: Record<string, unknown>; announce?: string }
+    | { patch?: Record<string, unknown>; announce?: string; expectedSaveVersion?: number }
     | null;
   if (!body?.patch || typeof body.patch !== "object" || Array.isArray(body.patch)) {
     return c.json({ error: "patch object required" }, 400);
@@ -356,13 +356,23 @@ app.post("/users/:id/save-patch", async (c) => {
   }
 
   const derived = computeAccountLevel(merged);
-  // Compare-and-swap on the saveVersion we read above, same reasoning as
-  // saves.ts's player-facing upload route: without this, two overlapping
-  // admin writes (two tabs, two operators, a retried request) both read
-  // the same baseSave, both succeed, and the second silently clobbers the
-  // first's change while both still post their own "gift" announcement.
+  // Compare-and-swap against the version the ADMIN'S BROWSER actually
+  // loaded (expectedSaveVersion, sent by the client), not the version we
+  // just re-read a line above — those are the same value in the only
+  // race this used to actually catch (two admin requests landing back to
+  // back), but they're NOT the same when the target player's own live
+  // client has autosaved in the minutes between the admin opening this
+  // page and clicking Save. Re-reading fresh here made that far more
+  // common case impossible to detect: the request would read the
+  // player's ALREADY-CURRENT version, "match" it trivially, and silently
+  // overwrite whatever the player's client had just saved — on the
+  // patched keys specifically (e.g. a gifted Pokémon lands, then the
+  // player's own next autosave, built from a save that never saw it,
+  // wipes it back out). Falls back to the freshly-read version when the
+  // client doesn't send one, for backward compatibility.
+  const expectedVersion = body.expectedSaveVersion ?? target.saveVersion;
   const claim = await prisma.user.updateMany({
-    where: { id, saveVersion: target.saveVersion },
+    where: { id, saveVersion: expectedVersion },
     data: {
       saveData: JSON.stringify(merged),
       saveVersion: { increment: 1 },

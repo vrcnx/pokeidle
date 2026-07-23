@@ -463,17 +463,24 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
 
   const banned = data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now();
 
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const saveEdit = async () => {
     if (Object.keys(edit).length === 0) return;
     setBusy(true);
     setSavingMsg(null);
+    setSaveErr(null);
     try {
-      const res = await api.savePatch(id, edit as Record<string, unknown>, announceOn ? announceText : undefined);
+      // Sends the saveVersion THIS PAGE loaded with, not a version
+      // re-read at request time — lets the server tell a genuinely
+      // stale edit apart from a fresh one instead of silently
+      // overwriting whatever the player's own live client saved in
+      // between (see save-patch's doc comment on the server).
+      const res = await api.savePatch(id, edit as Record<string, unknown>, announceOn ? announceText : undefined, data.saveVersion);
       setSavingMsg(`Saved (${res.keys.join(", ")}). v${res.saveVersion}`);
       reload();
       onChange();
     } catch (e) {
-      setSavingMsg(`Error: ${(e as Error).message}`);
+      setSaveErr((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -547,6 +554,12 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
         )}
       </div>
 
+      {saveErr && (
+        <div className="profile-action-err" role="alert">
+          <span>{saveErr}</span>
+          <button type="button" className="profile-action-err-x" onClick={() => setSaveErr(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
       {dirty && tab !== "messages" && tab !== "sessions" && tab !== "raw" && (
         <div className="detail-savebar detail-savebar-page detail-savebar-with-announce">
           {/* Only offered when the pending edit is actually gift-shaped
