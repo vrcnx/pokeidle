@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
-import { TownMap } from "./TownMap";
+import { RouteCardList } from "./RouteCardList";
 import { pokemonSpriteUrl, pokemonStaticSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
@@ -64,7 +64,7 @@ export function BottomTabs() {
         ))}
       </nav>
       <div className="bottom-tab-body">
-        {active === "map"  && <TownMap />}
+        {active === "map"  && <RouteCardList />}
         {active === "mart" && <MartTab />}
         {active === "bag"  && <BagTab />}
         {active === "pc"   && <PCTab />}

@@ -3,7 +3,7 @@ import { useGame } from "../state/GameContext";
 import { gymLeaders } from "../data/gymLeaders";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
-import { TownMap } from "./TownMap";
+import { RouteCardList } from "./RouteCardList";
 import { PartyColumn } from "./PartyColumn";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
@@ -142,7 +142,7 @@ export function MobileShell() {
                   <ContextPanel />
                 </>
               ) : (
-                <TownMap />
+                <RouteCardList />
               )}
             </div>
           </div>
