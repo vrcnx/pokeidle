@@ -23,6 +23,7 @@ import { reportClientError } from "../net/errorReporter";
 import { getSocket } from "../net/socket";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
+import { cloudShouldWin } from "./saveReconcile";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -234,43 +235,32 @@ function loadSaved(): GameState {
   }
 }
 
-// Returns true if `cloudData` strictly has MORE meaningful progress
-// than `local`. Used by the boot sync to refuse swaps that would lose
-// a milestone — e.g. local with empty defeatedEliteFour should never
-// overwrite a cloud save where the Elite Four was cleared. We bias to
-// "cloud wins" so cross-device players never see regressions.
-function cloudHasMoreProgress(cloudData: any, local: GameState): boolean {
-  const sigOf = (s: any) => ({
-    badges:       Array.isArray(s?.defeatedGyms)       ? s.defeatedGyms.length       : 0,
-    e4:           Array.isArray(s?.defeatedEliteFour)  ? s.defeatedEliteFour.length  : 0,
-    champion:     !!s?.championDefeated,
-    caught:       Array.isArray(s?.pokedexCaught)      ? s.pokedexCaught.length      : 0,
-    boxParty:     (Array.isArray(s?.party) ? s.party.length : 0)
-                + (Array.isArray(s?.box)   ? s.box.length   : 0),
-    locations:    Array.isArray(s?.unlockedLocations)  ? s.unlockedLocations.length  : 0,
-    money:        typeof s?.money === "number" ? s.money : 0,
-  });
-  const c = sigOf(cloudData);
-  const l = sigOf(local);
-  // Cloud wins if any milestone is greater; or if all are equal but
-  // local has strictly less collection mass (catches a "local was
-  // wiped to initialState but cloud is intact" case).
-  if (c.e4 > l.e4) return true;
-  if (c.champion && !l.champion) return true;
-  if (c.badges > l.badges) return true;
-  if (c.caught > l.caught) return true;
-  if (c.locations > l.locations) return true;
-  // For party/box and money we only trust cloud when the OTHER milestones
-  // are equal — a strictly bigger cloud collection with equal story
-  // progress indicates the cloud is the same player's longer-running
-  // save and we should restore it.
-  if (
-    c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
-    c.locations === l.locations &&
-    c.boxParty > l.boxParty + 1 && // +1 slack to swallow lock-window race
-    c.money >= l.money             // a bigger box shouldn't license torching a bigger bank balance
-  ) return true;
-  return false;
+// Reconciliation decision (cloudShouldWin / cloudHasMoreProgress / the
+// version signal) lives in ./saveReconcile so it can be unit-tested in
+// isolation — see saveReconcile.ts and its standalone edge-case tests.
+
+// localStorage key holding the cloud saveVersion this browser last synced
+// with. Compared against the live cloud version on boot: if the server has
+// advanced past it, the server made authoritative writes (auction
+// settlement, admin gift, another device) this browser never saw, so cloud
+// must win. Absent = never synced under this build → falls back to the
+// heuristic, i.e. no behaviour change for legacy boots.
+const SYNC_VERSION_KEY = SAVE_KEY + ":cloudv";
+function readSyncVersion(): number | null {
+  try {
+    const raw = localStorage.getItem(SYNC_VERSION_KEY);
+    if (raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+function writeSyncVersion(v: number): void {
+  try { localStorage.setItem(SYNC_VERSION_KEY, String(v)); } catch { /* */ }
+}
+function clearSyncVersion(): void {
+  try { localStorage.removeItem(SYNC_VERSION_KEY); } catch { /* */ }
 }
 
 // Which account's progress the local blob holds.
@@ -378,6 +368,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const myIdRef = useRef<string | null>(me?.id ?? null);
   myIdRef.current = me?.id ?? null;
 
+  // Record the cloud saveVersion we are now synced to, AND persist it so the
+  // next boot can detect a server-side authoritative write (auction
+  // settlement, gift, another device) that advanced our save while this tab
+  // was away. Call this everywhere a fresh authoritative version is learned.
+  const commitCloudVersion = (v: number) => {
+    cloudVersionRef.current = v;
+    writeSyncVersion(v);
+  };
+
   // ── Initial cloud sync ──
   // Reconciliation rules (corrects the v1 timestamp-tiebreak bug that
   // silently regressed cross-device players):
@@ -426,7 +425,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
           && typeof cloudData.playerPokemon.speciesKey === "string";
         // Lock in the cloud version BEFORE any potential upload. This
         // is what gets sent on every putSave as expectedSaveVersion.
+        // NOTE: this is provisional (in-memory only) — it is NOT persisted
+        // here, so the persisted "last synced" version below still reflects
+        // the PREVIOUS session and can detect a server write made while away.
         cloudVersionRef.current = cloud.saveVersion ?? 0;
+
+        // The cloud version this browser was synced to at the end of its last
+        // session. If the live cloud version is higher, the server made an
+        // authoritative write (auction settlement, gift, another device) that
+        // local never saw — see cloudShouldWin / saveReconcile.ts.
+        const persistedSyncVersion = readSyncVersion();
 
         const local = loadSaved();
 
@@ -444,6 +452,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // Drop it now so no later code path can read it back. The rightful
           // owner's copy is safe in their own cloud row; this is only a cache.
           try { localStorage.removeItem(SAVE_KEY); } catch { /* */ }
+          // The persisted sync version belonged to that other account too —
+          // clear it so it can't be compared against this account's cloud.
+          clearSyncVersion();
           reportClientError({
             source: "save-foreign-local",
             message: "local save belonged to a different account; discarded before boot reconcile",
@@ -458,7 +469,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             const snapshot = pickPersistent(local);
             try {
               const res = await api.putSave(snapshot, cloudVersionRef.current);
-              cloudVersionRef.current = res.saveVersion;
+              commitCloudVersion(res.saveVersion);
             } catch { /* offline: try again on next change */ }
           } else if (localIsForeign) {
             // No cloud save AND the local blob is someone else's: this is a
@@ -467,11 +478,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
             // looking at a stranger's Pokemon and would then upload them.
             dispatch({ type: "LOAD_SAVE", payload: { state: pickPersistent(initialState) } });
           }
-        } else if (!localOk || cloudHasMoreProgress(cloudData, local)) {
-          // Cloud wins. Replace local state. Crucially this fires not
-          // just when cloud has more milestones than local — it also
-          // fires when local has none (fresh-tab / cleared-localStorage)
-          // so we don't overwrite cloud with initialState.
+        } else if (cloudShouldWin({
+          localUsable: localOk,
+          cloudData,
+          cloudSaveVersion: cloud.saveVersion,
+          local,
+          persistedSyncVersion,
+        })) {
+          // Cloud wins. Replace local state. Fires when: local is unusable
+          // (fresh-tab / cleared-localStorage) so we don't overwrite cloud
+          // with initialState; OR the server advanced our save past our last
+          // sync (auction settlement / gift / other device — the version
+          // signal); OR the heuristic says cloud has strictly more progress.
           const sd = cloudData as Partial<GameState>;
           const normParty = (sd.party ?? [])
             .filter((p: any) => p && typeof p.speciesKey === "string")
@@ -504,6 +522,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
             ...local,
             ...sd,
           } as GameState));
+          // We are now synced to the cloud copy — persist its version so the
+          // next boot compares against THIS, not a stale earlier value.
+          commitCloudVersion(cloud.saveVersion ?? 0);
         } else {
           // Local strictly extends cloud (more milestones / equal +
           // local-only changes). Push local up with the cloud version
@@ -512,14 +533,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           const snapshot = pickPersistent(local);
           try {
             const res = await api.putSave(snapshot, cloudVersionRef.current);
-            cloudVersionRef.current = res.saveVersion;
+            commitCloudVersion(res.saveVersion);
           } catch (err: any) {
             // 409 means another device wrote in between — re-pull
             // cloud and load it rather than retrying our stale view.
             if (err?.status === 409) {
               try {
                 const fresh = await api.getSave();
-                cloudVersionRef.current = fresh.saveVersion ?? cloudVersionRef.current;
+                commitCloudVersion(fresh.saveVersion ?? cloudVersionRef.current);
                 const fd = fresh.saveData as Partial<GameState> | null;
                 if (fd && (fd as any).playerPokemon) {
                   dispatch({
@@ -604,7 +625,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         pending.snapshot,
         cloudVersionRef.current >= 0 ? cloudVersionRef.current : undefined,
       );
-      cloudVersionRef.current = res.saveVersion;
+      commitCloudVersion(res.saveVersion);
       setSaveStatus("saved");
       setLastSavedAt(Date.now());
       void refreshProfile();
@@ -805,7 +826,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       auctionId: string; pokemon: any; amount: number; buyerUsername: string;
       newSaveVersion: number; newMoney: number;
     }) => {
-      cloudVersionRef.current = payload.newSaveVersion;
+      commitCloudVersion(payload.newSaveVersion);
       const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "Pokémon";
       dispatch({
         type: "AUCTION_SETTLED",
@@ -822,7 +843,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       auctionId: string; pokemon: Pokemon; amount: number; sellerUsername: string;
       newSaveVersion: number; newMoney: number;
     }) => {
-      cloudVersionRef.current = payload.newSaveVersion;
+      commitCloudVersion(payload.newSaveVersion);
       const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "a Pokémon";
       dispatch({
         type: "AUCTION_SETTLED",
