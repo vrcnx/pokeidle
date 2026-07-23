@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
-import { gymLeaders } from "../data/gymLeaders";
+import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
+import { regionBadgeCount } from "../utils/unlocks";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { RouteCardList } from "./RouteCardList";
@@ -49,6 +50,9 @@ function tabIcon(id: MobileTab) {
 export function MobileShell() {
   const { state } = useGame();
   const t = useT();
+  const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
+  const badgeCount = regionBadgeCount(state, region);
+  const badgeTotal = region.gymLeaders.length;
   const TABS: { id: MobileTab; label: string }[] = [
     { id: "world", label: t("World") },
     { id: "party", label: t("Party") },
@@ -88,8 +92,8 @@ export function MobileShell() {
           <span title={`$${state.money.toLocaleString()}`}>
             <span className="mobile-stat-icon">💰</span>{compactMoney(state.money)}
           </span>
-          <span title={`${state.defeatedGyms.length} of ${gymLeaders.length} badges`}>
-            <span className="mobile-stat-icon">🏅</span>{state.defeatedGyms.length}/{gymLeaders.length}
+          <span title={`${badgeCount} of ${badgeTotal} ${region.name} badges`}>
+            <span className="mobile-stat-icon">🏅</span>{badgeCount}/{badgeTotal}
           </span>
           {state.victoryTokens > 0 && (
             <span title={`${state.victoryTokens} Victory Tokens`}>

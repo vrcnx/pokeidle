@@ -22,6 +22,7 @@ import { useAuth } from "../auth/AuthContext";
 import { reportClientError } from "../net/errorReporter";
 import { getSocket } from "../net/socket";
 import { pushAuctionNotification } from "./auctions";
+import { pendingRegionStarter } from "../utils/unlocks";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -193,6 +194,10 @@ function loadSaved(): GameState {
       return out;
     };
 
+    const mergedLocation = parsed.currentLocation ?? initialState.currentLocation;
+    const mergedClaimedRegionStarters = parsed.claimedRegionStarters ?? initialState.claimedRegionStarters;
+    const hasPendingRegionStarter = !!pendingRegionStarter(mergedClaimedRegionStarters, mergedLocation);
+
     return {
       ...initialState,
       ...parsed,
@@ -207,7 +212,7 @@ function loadSaved(): GameState {
       globalCatchDefaults: migratedGlobalCatchDefaults ?? initialState.globalCatchDefaults,
       catchSettings: migratedCatchSettings ?? initialState.catchSettings,
       // Defensively reset transient fields we never want to restore
-      phase: "idle",
+      phase: hasPendingRegionStarter ? "regionStarterSelect" : "idle",
       enemyPokemon: null,
       battleEvents: [],
       pendingEvents: [],
@@ -323,6 +328,7 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "defeatedEliteFour",
   "championDefeated",
   "defeatedChampions",
+  "claimedRegionStarters",
   "victoryTokens",
   "autoProceed",
   "raidCooldownEnd",

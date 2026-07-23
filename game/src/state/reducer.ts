@@ -11,7 +11,7 @@
 import type { Action, ActiveEffect, BossBattle, GameState, Pokemon, TrainerBattle } from "../types";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
-import { mergedEncounters } from "../data/regions";
+import { mergedEncounters, regions } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { evolutionStones } from "../data/evolutionStones";
@@ -23,7 +23,7 @@ import { levelUpsForExp } from "../utils/moves";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
 import { rollCatch } from "../utils/catching";
-import { unlockedFromProgress } from "../utils/unlocks";
+import { unlockedFromProgress, pendingRegionStarter } from "../utils/unlocks";
 import {
   pickRandomLegendary,
   pickRandomLegendaryForTier,
@@ -299,6 +299,46 @@ export function reducer(state: GameState, action: Action): GameState {
         };
       }
       return pushLog(next, `You chose ${starter.name}!`);
+    }
+
+    case "SELECT_REGION_STARTER": {
+      const { region: regionId, speciesKey, isShiny } = action.payload;
+      const region = regions[regionId];
+      // Defensive no-ops: already claimed, or a payload that doesn't match
+      // this region's actual starter roster (shouldn't happen from the UI,
+      // which only ever dispatches region.starters, but a stale/replayed
+      // dispatch after a reload could otherwise double-grant a starter).
+      if (!region || state.claimedRegionStarters.includes(regionId)) return state;
+      if (!region.starters.includes(speciesKey)) return state;
+      const starter = createPokemon(speciesKey, 5, state.nextPokemonId, !!isShiny);
+      const roomInParty = state.party.length < 6;
+      let next: GameState = {
+        ...state,
+        phase: "idle",
+        nextPokemonId: state.nextPokemonId + 1,
+        claimedRegionStarters: [...state.claimedRegionStarters, regionId],
+        party: roomInParty ? [...state.party, starter] : state.party,
+        box: roomInParty ? state.box : [...state.box, starter],
+      };
+      if (roomInParty) next = rederiveActive(next);
+      next = markCaught(next, speciesKey);
+      if (isShiny) {
+        next = {
+          ...next,
+          shinyCaught: next.shinyCaught.includes(speciesKey)
+            ? next.shinyCaught
+            : [...next.shinyCaught, speciesKey],
+          shinySeen: next.shinySeen.includes(speciesKey)
+            ? next.shinySeen
+            : [...next.shinySeen, speciesKey],
+        };
+      }
+      return pushLog(
+        next,
+        roomInParty
+          ? `You received ${starter.name}!`
+          : `You received ${starter.name}! (sent to Box — party full)`,
+      );
     }
 
     case "START_ENCOUNTER": {
@@ -734,6 +774,9 @@ export function reducer(state: GameState, action: Action): GameState {
       // and we have healthy ones, slot 0 (or first healthy) becomes the
       // lead so the encounter loop isn't stuck on a KO'd active.
       next = rederiveActive(next);
+      if (pendingRegionStarter(next.claimedRegionStarters, id)) {
+        next = { ...next, phase: "regionStarterSelect" };
+      }
       return pushLog(next, `Travelled to ${routes[id]?.name ?? id}.`);
     }
 
@@ -1678,8 +1721,16 @@ export function reducer(state: GameState, action: Action): GameState {
       return next;
     }
 
-    case "LOAD_SAVE":
-      return { ...state, ...(action.payload.state as object) };
+    case "LOAD_SAVE": {
+      const merged = { ...state, ...(action.payload.state as object) } as GameState;
+      // Only promote out of "idle" — LOAD_SAVE fires mid-session for cloud
+      // reconciliation too, and we don't want to steal a phase (battle,
+      // evolution, etc.) that's genuinely in flight when it does.
+      if (merged.phase === "idle" && pendingRegionStarter(merged.claimedRegionStarters, merged.currentLocation)) {
+        return { ...merged, phase: "regionStarterSelect" };
+      }
+      return merged;
+    }
 
     default:
       return state;

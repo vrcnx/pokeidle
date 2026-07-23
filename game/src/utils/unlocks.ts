@@ -1,5 +1,5 @@
 import { routes } from "../data/routes";
-import { regions, regionForLocation, type Region } from "../data/regions";
+import { regions, regionForLocation, DEFAULT_REGION, type Region } from "../data/regions";
 import type { GameState } from "../types";
 
 // How many of the player's defeated-gym ids belong to ONE specific
@@ -19,6 +19,23 @@ export function regionBadgeCount(state: GameState, region: Region): number {
 // would count Kanto's 4 E4 wins toward "have I cleared Johto's E4" too.
 export function regionEliteFourCount(state: GameState, region: Region): number {
   return state.defeatedEliteFour.filter((mid) => region.eliteFour.some((m) => m.id === mid)).length;
+}
+
+// A non-default region's own starting town doubles as the "meet the
+// professor" moment — the player should be offered a choice of that
+// region's three starters exactly once, the first time they're standing
+// there after the region unlocks. Never fires for the default region;
+// its starter was already chosen via the pre-game starterSelect phase.
+// Takes the raw fields rather than a full GameState so callers that are
+// still assembling state (save load, LOAD_SAVE merges) don't need one.
+export function pendingRegionStarter(claimedRegionStarters: string[], locationId: string): Region | null {
+  for (const region of Object.values(regions)) {
+    if (region.id === DEFAULT_REGION) continue;
+    if (region.startingLocation !== locationId) continue;
+    if (claimedRegionStarters.includes(region.id)) continue;
+    return region;
+  }
+  return null;
 }
 
 // Recompute the set of unlocked locations from progress flags.

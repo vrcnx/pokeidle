@@ -49,6 +49,7 @@ export const initialState: GameState = {
   defeatedEliteFour: [],
   championDefeated: false,
   defeatedChampions: [],
+  claimedRegionStarters: [],
   victoryTokens: 0,
   autoProceed: false,
   raidCooldownEnd: null,

@@ -17,6 +17,7 @@ import { AchievementToast } from "./AchievementToast";
 import { AchievementsModal } from "./AchievementsModal";
 import { GiveawayModal } from "./GiveawayModal";
 import { EvolutionModal } from "./EvolutionModal";
+import { RegionStarterSelect } from "./RegionStarterSelect";
 import { ChangelogModal } from "./ChangelogModal";
 import { HowToPlayModal } from "./HowToPlayModal";
 import { DailyRewardModal } from "./DailyRewardModal";
@@ -99,6 +100,7 @@ export function GameShell() {
       )}
 
       <EvolutionModal />
+      <RegionStarterSelect />
       <ChangelogModal />
       <HowToPlayModal />
       <DailyRewardModal />

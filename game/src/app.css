@@ -286,6 +286,21 @@ a:focus-visible {
   font-size: 11px;
 }
 
+/* Mid-game region-starter picker reuses .starter-select's inner layout
+   but renders inside a .modal-overlay card, so drop the full-viewport
+   centering and give it modal chrome instead. */
+.region-starter-select {
+  min-height: 0;
+  padding: 24px 20px;
+  background: var(--surface, #17150f);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  max-width: 640px;
+  width: 100%;
+}
+.region-starter-select h1 { font-size: 20px; }
+
 /* ---------- Game shell ---------- */
 
 .game-window {
@@ -12795,11 +12810,30 @@ body { background: transparent !important; }
   gap: 3px;
   flex-wrap: wrap;
 }
-/* Higher specificity than the shared header.tab-pane-head.v2
-   .tab-pane-head-tools button rule (padding 5px 11px, pill radius,
-   its own dedicated row) — without this, region tabs silently inherit
-   that bulkier "toolbar button" look instead of reading as compact
-   tabs, which is what made this take up so much vertical space. */
+/* Region tabs + "Here: X" now share the header's single meta row rather
+   than living on their own tools row below the title — the whole header
+   is one line (ROUTES | [Kanto][Johto] | Here: New Bark Town). */
+.route-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.route-head-meta .route-here { white-space: nowrap; }
+/* Meta cell defaults to nowrap text sizing; region tabs need it to be a
+   flex container that can wrap on narrow widths without clipping. */
+header.tab-pane-head.v2.route-card-head-pane .tab-pane-head-meta {
+  white-space: normal;
+  flex: 1;
+  min-width: 0;
+}
+header.tab-pane-head.v2.route-card-head-pane .tab-pane-head-row {
+  align-items: center;
+}
+/* Higher specificity than the shared header.tab-pane-head.v2 button rules
+   — without this, region tabs inherit a bulkier "toolbar button" look
+   instead of reading as compact tabs. */
 header.tab-pane-head.v2 .route-region-tabs .route-region-tab {
   padding: 2px 8px;
   font-size: 10px;
@@ -12815,12 +12849,6 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   color: var(--gold);
   border-color: var(--gold);
   background: rgba(248, 208, 48, 0.1);
-}
-/* The tools row itself defaults to the same padding as every other
-   tab's sort/pager row (built for bigger buttons) — tighten it here
-   since region tabs are much smaller. */
-header.tab-pane-head.v2:has(.route-region-tabs) .tab-pane-head-tools {
-  padding: 2px 0 0;
 }
 /* Single column, always — every card is a uniform horizontal row
    (name | mons | progress | action) so the list reads as one ordered

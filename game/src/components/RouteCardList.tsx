@@ -84,24 +84,27 @@ export function RouteCardList() {
     <div className="tab-pane route-card-list">
       <TabPaneHead
         title={t("Routes")}
-        meta={<span className="dim small">{t("Here: ")}{currentName}</span>}
-        tools={
-          regionList.length > 1 ? (
-            <nav className="route-region-tabs" role="tablist">
-              {regionList.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeRegion === r.id}
-                  className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
-                  onClick={() => setActiveRegion(r.id)}
-                >
-                  {r.name}
-                </button>
-              ))}
-            </nav>
-          ) : undefined
+        className="route-card-head-pane"
+        meta={
+          <span className="route-head-meta">
+            {regionList.length > 1 && (
+              <nav className="route-region-tabs" role="tablist">
+                {regionList.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeRegion === r.id}
+                    className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
+                    onClick={() => setActiveRegion(r.id)}
+                  >
+                    {r.name}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <span className="dim small route-here">{t("Here: ")}{currentName}</span>
+          </span>
         }
       />
       <div className="route-card-grid">

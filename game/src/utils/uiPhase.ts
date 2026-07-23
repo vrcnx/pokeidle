@@ -24,7 +24,7 @@ export type UIPhase =
   | "meta";
 
 export function getUIPhase(state: GameState): UIPhase {
-  if (state.phase === "starterSelect" || state.phase === "healing" || state.phase === "evolution") {
+  if (state.phase === "starterSelect" || state.phase === "regionStarterSelect" || state.phase === "healing" || state.phase === "evolution") {
     return "meta";
   }
   if (state.phase === "bossBattle") return "battle-boss";

@@ -54,7 +54,7 @@ export function useBattleLoop(): void {
     const schedule = () => {
       if (cancelled) return;
       const cur = stateRef.current;
-      if (cur.paused || cur.phase === "starterSelect" || cur.phase === "evolution") return;
+      if (cur.paused || cur.phase === "starterSelect" || cur.phase === "regionStarterSelect" || cur.phase === "evolution") return;
       timeout = window.setTimeout(tick, tickIntervalFor(cur.speed));
     };
 

@@ -210,7 +210,7 @@ export function validateSave(save: unknown): { ok: true } | { ok: false; reason:
   }
 
   // Pokédex caught/seen lists must be string arrays.
-  for (const key of ["pokedexCaught", "pokedexSeen", "shinyCaught", "shinySeen", "defeatedGyms"]) {
+  for (const key of ["pokedexCaught", "pokedexSeen", "shinyCaught", "shinySeen", "defeatedGyms", "claimedRegionStarters"]) {
     if (s[key] !== undefined) {
       if (!Array.isArray(s[key])) return { ok: false, reason: `${key} must be array` };
       for (const v of s[key] as unknown[]) {

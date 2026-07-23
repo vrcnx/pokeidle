@@ -586,6 +586,7 @@ function MetaPanel() {
     state.phase === "healing" ? t("Healing your party…")
     : state.phase === "evolution" ? t("A Pokémon is evolving…")
     : state.phase === "starterSelect" ? t("Pick your starter.")
+    : state.phase === "regionStarterSelect" ? t("Pick your starter.")
     : "—";
   return (
     <section className="ctx-section">

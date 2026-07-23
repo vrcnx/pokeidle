@@ -278,6 +278,7 @@ export interface PlayerVolatile {
 
 export type GamePhase =
   | "starterSelect"
+  | "regionStarterSelect"
   | "idle"
   | "battle"
   | "trainerBattle"
@@ -339,6 +340,12 @@ export interface GameState {
    *  (raids, the reward shop), it just can't answer "beaten THIS one" for
    *  a specific region's League screen, which is what this is for. */
   defeatedChampions: string[];
+  /** Region ids for which the player has already claimed their "second
+   *  starter" gift (region.starters) at that region's startingLocation.
+   *  Never includes the default region — Kanto's starter is chosen via
+   *  the pre-game starterSelect phase, not this flow. Drives whether
+   *  arriving at a new region's starting town re-offers the choice. */
+  claimedRegionStarters: string[];
   victoryTokens: number;
   autoProceed: boolean;
   raidCooldownEnd: number | null;
@@ -408,6 +415,7 @@ export interface ChangelogEntry {
 
 export type Action =
   | { type: "SELECT_STARTER"; payload: { speciesKey: string; isShiny?: boolean } }
+  | { type: "SELECT_REGION_STARTER"; payload: { region: string; speciesKey: string; isShiny?: boolean } }
   | { type: "START_ENCOUNTER"; payload: { pokemon: Pokemon } }
   | { type: "START_TRAINER_BATTLE"; payload: { trainerId: string; trainerName: string; trainerClass: string; trainerTeam: Pokemon[]; spriteKey: string } }
   | { type: "START_BOSS_BATTLE"; payload: { bossId: string; bossType: BossType; trainerName: string; trainerClass: string; trainerTeam: Pokemon[]; spriteKey: string; bossQueue?: BossBattle[] } }

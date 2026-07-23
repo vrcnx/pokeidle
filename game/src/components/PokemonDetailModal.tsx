@@ -177,7 +177,7 @@ export function PokemonDetailModal() {
   // already running and stacking another evolve dispatch breaks the queue.
   // Other phases (battle, healing, idle) all permit menu actions; the
   // reducer bails out of any active battle automatically.
-  const blocking = state.phase === "evolution" || state.phase === "starterSelect";
+  const blocking = state.phase === "evolution" || state.phase === "starterSelect" || state.phase === "regionStarterSelect";
   const inBattle = blocking;
 
   // All evolution paths for this species, with eligibility flag. We show
