@@ -1,6 +1,83 @@
 import type { TrainerEncounter } from "../../../types";
 
 export const trainerEncounters: Record<string, TrainerEncounter[]> = {
+  // ── Town trainers ──────────────────────────────────────────────────
+  // Towns have no wild encounters, so town trainers are the ONLY source
+  // of `battlesWonByLocation[town]`. The unlock chain gates each route on
+  // battles won at the preceding town (e.g. route29 needs 5 wins at New
+  // Bark Town), so without these rosters the very first Johto route never
+  // unlocks and the entire region is unreachable. Trainers are repeatable
+  // via the rematch pool (see useBattleLoop), so a handful per town covers
+  // every unlock threshold. Levels track each town's gym band. Mirrors how
+  // Kanto towns (viridianCity, pewterCity, …) already work.
+  newBarkTown: [
+    { id: "newbark_1", name: "Youngster Joey", trainerClass: "youngster", team: [{ speciesKey: "rattata", level: 3 }] },
+    { id: "newbark_2", name: "Lass Carrie", trainerClass: "lass", team: [{ speciesKey: "sentret", level: 4 }, { speciesKey: "hoothoot", level: 4 }] },
+    { id: "newbark_3", name: "School Kid Alan", trainerClass: "schoolkid", team: [{ speciesKey: "pidgey", level: 5 }, { speciesKey: "wooper", level: 5 }, { speciesKey: "sentret", level: 6 }] },
+  ],
+  cherrygroveCity: [
+    { id: "cherrygrove_1", name: "Youngster Joey", trainerClass: "youngster", team: [{ speciesKey: "rattata", level: 6 }, { speciesKey: "sentret", level: 6 }] },
+    { id: "cherrygrove_2", name: "Lass Carrie", trainerClass: "lass", team: [{ speciesKey: "hoppip", level: 7 }, { speciesKey: "marill", level: 7 }] },
+    { id: "cherrygrove_3", name: "Bird Keeper Roy", trainerClass: "birdKeeper", team: [{ speciesKey: "pidgey", level: 7 }, { speciesKey: "spearow", level: 8 }, { speciesKey: "hoothoot", level: 8 }] },
+    { id: "cherrygrove_4", name: "Sailor Eugene", trainerClass: "sailor", team: [{ speciesKey: "marill", level: 9 }, { speciesKey: "wooper", level: 9 }, { speciesKey: "poliwag", level: 10 }, { speciesKey: "tentacool", level: 10 }] },
+  ],
+  violetCity: [
+    { id: "violet_1", name: "Lass Krise", trainerClass: "lass", team: [{ speciesKey: "pidgey", level: 7 }] },
+    { id: "violet_2", name: "School Kid Alan", trainerClass: "schoolkid", team: [{ speciesKey: "sentret", level: 7 }, { speciesKey: "spearow", level: 8 }] },
+    { id: "violet_3", name: "Bird Keeper Vance", trainerClass: "birdKeeper", team: [{ speciesKey: "pidgey", level: 8 }, { speciesKey: "spearow", level: 9 }] },
+    { id: "violet_4", name: "Sage Li", trainerClass: "sage", team: [{ speciesKey: "bellsprout", level: 9 }, { speciesKey: "gastly", level: 9 }, { speciesKey: "hoothoot", level: 10 }] },
+    { id: "violet_5", name: "Bird Keeper Roy", trainerClass: "birdKeeper", team: [{ speciesKey: "spearow", level: 10 }, { speciesKey: "hoothoot", level: 10 }, { speciesKey: "pidgey", level: 11 }, { speciesKey: "doduo", level: 11 }] },
+  ],
+  azaleaTown: [
+    { id: "azalea_1", name: "Bug Catcher Rob", trainerClass: "bugCatcher", team: [{ speciesKey: "caterpie", level: 12 }, { speciesKey: "weedle", level: 12 }] },
+    { id: "azalea_2", name: "Lass Krise", trainerClass: "lass", team: [{ speciesKey: "paras", level: 12 }, { speciesKey: "ledyba", level: 13 }] },
+    { id: "azalea_3", name: "Camper Lewis", trainerClass: "camper", team: [{ speciesKey: "slowpoke", level: 13 }, { speciesKey: "spinarak", level: 14 }] },
+    { id: "azalea_4", name: "Bug Catcher Josh", trainerClass: "bugCatcher", team: [{ speciesKey: "metapod", level: 14 }, { speciesKey: "kakuna", level: 14 }, { speciesKey: "caterpie", level: 15 }] },
+    { id: "azalea_5", name: "Sage Gaku", trainerClass: "sage", team: [{ speciesKey: "spinarak", level: 15 }, { speciesKey: "ledyba", level: 15 }, { speciesKey: "paras", level: 15 }, { speciesKey: "slowpoke", level: 16 }] },
+  ],
+  goldenrodCity: [
+    { id: "goldenrod_1", name: "Lass Cassidy", trainerClass: "lass", team: [{ speciesKey: "clefairy", level: 16 }, { speciesKey: "jigglypuff", level: 16 }] },
+    { id: "goldenrod_2", name: "School Kid Kipp", trainerClass: "schoolkid", team: [{ speciesKey: "sentret", level: 17 }, { speciesKey: "meowth", level: 17 }] },
+    { id: "goldenrod_3", name: "Beauty Bridget", trainerClass: "beauty", team: [{ speciesKey: "snubbull", level: 18 }, { speciesKey: "teddiursa", level: 18 }, { speciesKey: "jigglypuff", level: 19 }] },
+    { id: "goldenrod_4", name: "Gentleman Alfred", trainerClass: "gentleman", team: [{ speciesKey: "girafarig", level: 19 }, { speciesKey: "aipom", level: 19 }, { speciesKey: "furret", level: 20 }] },
+    { id: "goldenrod_5", name: "Cooltrainer Gemma", trainerClass: "coolTrainer", team: [{ speciesKey: "aipom", level: 20 }, { speciesKey: "girafarig", level: 20 }, { speciesKey: "teddiursa", level: 21 }, { speciesKey: "miltank", level: 21 }] },
+  ],
+  ecruteakCity: [
+    { id: "ecruteak_1", name: "Sage Edmond", trainerClass: "sage", team: [{ speciesKey: "drowzee", level: 20 }, { speciesKey: "gastly", level: 20 }] },
+    { id: "ecruteak_2", name: "Channeler Tamara", trainerClass: "channeler", team: [{ speciesKey: "gastly", level: 20 }, { speciesKey: "misdreavus", level: 21 }] },
+    { id: "ecruteak_3", name: "Beauty Kaori", trainerClass: "beauty", team: [{ speciesKey: "growlithe", level: 21 }, { speciesKey: "murkrow", level: 22 }] },
+    { id: "ecruteak_4", name: "Psychic Rodney", trainerClass: "psychic", team: [{ speciesKey: "drowzee", level: 22 }, { speciesKey: "natu", level: 22 }, { speciesKey: "kadabra", level: 23 }] },
+    { id: "ecruteak_5", name: "Sage Ping", trainerClass: "sage", team: [{ speciesKey: "gastly", level: 23 }, { speciesKey: "natu", level: 24 }, { speciesKey: "haunter", level: 25 }, { speciesKey: "xatu", level: 25 }] },
+  ],
+  olivineCity: [
+    { id: "olivine_1", name: "Swimmer Kirk", trainerClass: "swimmer", team: [{ speciesKey: "tentacool", level: 26 }, { speciesKey: "chinchou", level: 27 }] },
+    { id: "olivine_2", name: "Sailor Ernest", trainerClass: "sailor", team: [{ speciesKey: "krabby", level: 27 }, { speciesKey: "seel", level: 28 }] },
+    { id: "olivine_3", name: "Beauty Olivia", trainerClass: "beauty", team: [{ speciesKey: "staryu", level: 28 }, { speciesKey: "marill", level: 29 }, { speciesKey: "shellder", level: 29 }] },
+    { id: "olivine_4", name: "Gentleman Alfred", trainerClass: "gentleman", team: [{ speciesKey: "magnemite", level: 30 }, { speciesKey: "magnemite", level: 30 }, { speciesKey: "magneton", level: 31 }] },
+    { id: "olivine_5", name: "Sailor Huey", trainerClass: "sailor", team: [{ speciesKey: "tentacool", level: 30 }, { speciesKey: "kingler", level: 31 }, { speciesKey: "tentacruel", level: 31 }, { speciesKey: "lanturn", level: 31 }] },
+  ],
+  cianwoodCity: [
+    { id: "cianwood_1", name: "Swimmer Dara", trainerClass: "swimmer", team: [{ speciesKey: "poliwag", level: 26 }, { speciesKey: "tentacool", level: 26 }] },
+    { id: "cianwood_2", name: "Sailor Ernest", trainerClass: "sailor", team: [{ speciesKey: "tentacool", level: 27 }, { speciesKey: "poliwhirl", level: 27 }] },
+    { id: "cianwood_3", name: "Blackbelt Lung", trainerClass: "blackbelt", team: [{ speciesKey: "machop", level: 27 }, { speciesKey: "mankey", level: 28 }, { speciesKey: "machoke", level: 28 }] },
+    { id: "cianwood_4", name: "Blackbelt Kiyo", trainerClass: "blackbelt", team: [{ speciesKey: "mankey", level: 29 }, { speciesKey: "primeape", level: 29 }, { speciesKey: "machoke", level: 30 }] },
+    { id: "cianwood_5", name: "Blackbelt Wai", trainerClass: "blackbelt", team: [{ speciesKey: "machop", level: 30 }, { speciesKey: "machoke", level: 31 }, { speciesKey: "mankey", level: 30 }, { speciesKey: "primeape", level: 31 }] },
+  ],
+  mahoganyTown: [
+    { id: "mahogany_1", name: "Camper Roland", trainerClass: "camper", team: [{ speciesKey: "swinub", level: 28 }, { speciesKey: "teddiursa", level: 28 }] },
+    { id: "mahogany_2", name: "Hiker Russell", trainerClass: "hiker", team: [{ speciesKey: "geodude", level: 29 }, { speciesKey: "graveler", level: 30 }] },
+    { id: "mahogany_3", name: "Super Nerd Markus", trainerClass: "superNerd", team: [{ speciesKey: "koffing", level: 30 }, { speciesKey: "grimer", level: 31 }] },
+    { id: "mahogany_4", name: "Cool Trainer Gaven", trainerClass: "coolTrainer", team: [{ speciesKey: "seel", level: 31 }, { speciesKey: "delibird", level: 31 }, { speciesKey: "sneasel", level: 32 }] },
+    { id: "mahogany_5", name: "Cool Trainer Sheila", trainerClass: "coolTrainer", team: [{ speciesKey: "sneasel", level: 32 }, { speciesKey: "delibird", level: 32 }, { speciesKey: "piloswine", level: 33 }, { speciesKey: "lapras", level: 33 }] },
+  ],
+  blackthornCity: [
+    { id: "blackthorn_1", name: "Hiker Kenny", trainerClass: "hiker", team: [{ speciesKey: "graveler", level: 36 }, { speciesKey: "gligar", level: 36 }] },
+    { id: "blackthorn_2", name: "Sage Koji", trainerClass: "sage", team: [{ speciesKey: "dratini", level: 37 }, { speciesKey: "seadra", level: 37 }] },
+    { id: "blackthorn_3", name: "Blackbelt Kiyo", trainerClass: "blackbelt", team: [{ speciesKey: "larvitar", level: 37 }, { speciesKey: "machoke", level: 38 }, { speciesKey: "pupitar", level: 38 }] },
+    { id: "blackthorn_4", name: "CoolTrainer Cody", trainerClass: "coolTrainer", team: [{ speciesKey: "arbok", level: 38 }, { speciesKey: "seadra", level: 39 }, { speciesKey: "gyarados", level: 39 }] },
+    { id: "blackthorn_5", name: "Sage Gaku", trainerClass: "sage", team: [{ speciesKey: "dragonair", level: 39 }, { speciesKey: "dragonair", level: 40 }] },
+    { id: "blackthorn_6", name: "Ace Trainer Darin", trainerClass: "ace", team: [{ speciesKey: "gyarados", level: 40 }, { speciesKey: "seadra", level: 40 }, { speciesKey: "dragonair", level: 41 }, { speciesKey: "kingdra", level: 41 }] },
+  ],
   route29: [
     { id: "route29_1", name: "Youngster Mikey", trainerClass: "youngster", team: [{ speciesKey: "rattata", level: 3 }] },
   ],
