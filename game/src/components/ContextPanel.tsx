@@ -56,21 +56,89 @@ export function ContextPanel() {
 // ---------------------------------------------------------------------------
 
 
-function BattleTrainerPanel() {
+// Persistent "Gym Leader" card with the Challenge/Rematch button. Extracted
+// so the SAME card renders whether the player is idling in the gym town or
+// mid town-trainer battle there — otherwise it vanished for the whole battle
+// (reported at Blackthorn, which is also the League town: the League branch
+// used to skip the gym card entirely, so Clair "flickered away in between
+// battles"). Self-contained — reads the current location. Renders null when
+// there is no gym leader here.
+function GymLeaderCard() {
   const { state, dispatch } = useGame();
+  const t = useT();
+  const leader = getGymLeaderForLocation(state.currentLocation);
+  if (!leader || !leader.name) return null;
+  const defeated = state.defeatedGyms.includes(leader.id);
+  const reqBadges = gymBadgeRequirement(leader.id);
+  const haveBadges = state.defeatedGyms.length;
+  const lockedByBadges = !defeated && reqBadges > haveBadges;
+  const challenge = () => {
+    if (lockedByBadges) return;
+    const { team } = buildTeam(leader.team, `gym_${leader.id}_${Date.now()}`);
+    dispatch({
+      type: "START_BOSS_BATTLE",
+      payload: {
+        bossId: leader.id, bossType: "gym", trainerName: leader.name,
+        trainerClass: "gym", trainerTeam: team, spriteKey: leader.spriteKey,
+      },
+    });
+  };
+  return (
+    <section className="ctx-section">
+      <h4>{t("Gym Leader")}</h4>
+      <div className="ctx-trainer-card">
+        <img
+          src={trainerSpriteUrl(leader.spriteKey)}
+          alt={leader.name}
+          width={48}
+          height={48}
+          style={{ imageRendering: "pixelated" }}
+          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+        />
+        <div>
+          <strong>{leader.name}</strong>
+          <small className="dim">{leader.title}</small>
+        </div>
+        <button
+          type="button"
+          disabled={lockedByBadges}
+          onClick={challenge}
+          title={
+            lockedByBadges
+              ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
+              : defeated
+              ? t("You've already beaten this gym — challenge again for the rematch")
+              : t("Bails out of any active battle, heals your party, and starts the gym fight")
+          }
+        >
+          {lockedByBadges ? `🔒 ${reqBadges} badges` : defeated ? t("Rematch") : t("Challenge")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BattleTrainerPanel() {
+  const { state } = useGame();
   // Named `translate` (not `t`) to avoid shadowing the `trainerBattle`
   // local below, which has used the name `t` throughout this component.
   const translate = useT();
   const t = state.trainerBattle;
   if (!t) return null;
 
-  // Indigo Plateau: show the league card (E4 + Champion) as the
-  // contextual sidebar even mid-trainer-fight, so players can punch
-  // through to the gauntlet whenever.
-  if (isLeagueLocation(state.currentLocation)) {
+  const atLeague = isLeagueLocation(state.currentLocation);
+  const leader = getGymLeaderForLocation(state.currentLocation);
+  const hasGym = !!(leader && leader.name);
+
+  // At a gym and/or League town, keep the League + Gym cards on screen even
+  // mid town-trainer-battle, so the player can always punch through to the
+  // gauntlet or the gym challenge and the cards don't flicker away between
+  // the town's rapid auto-battles.
+  if (atLeague || hasGym) {
     return (
       <>
-        <LeagueCard />
+        {atLeague && <LeagueCard />}
+        {hasGym && <GymLeaderCard />}
         <section className="ctx-section">
           <h4>{translate("Currently battling")}</h4>
           <p className="dim small" style={{ margin: 0 }}>
@@ -83,72 +151,6 @@ function BattleTrainerPanel() {
           />
         </section>
       </>
-    );
-  }
-
-  // If the current location has a gym leader, surface them as the
-  // contextual card instead of the random trainer the player happens
-  // to be mid-battle with — that's what defines the town.
-  const leader = getGymLeaderForLocation(state.currentLocation);
-  if (leader && leader.name) {
-    const defeated = state.defeatedGyms.includes(leader.id);
-    const reqBadges = gymBadgeRequirement(leader.id);
-    const haveBadges = state.defeatedGyms.length;
-    const lockedByBadges = !defeated && reqBadges > haveBadges;
-    return (
-      <section className="ctx-section">
-        <h4>{translate("Gym Leader")}</h4>
-        <div className="ctx-trainer-card">
-          <img
-            src={trainerSpriteUrl(leader.spriteKey)}
-            alt={leader.name}
-            width={48}
-            height={48}
-            style={{ imageRendering: "pixelated" }}
-            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-          />
-          <div>
-            <strong>{leader.name}</strong>
-            <small className="dim">{leader.title}</small>
-          </div>
-          <button
-            type="button"
-            disabled={lockedByBadges}
-            title={
-              lockedByBadges
-                ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
-                : defeated
-                ? translate("You've already beaten this gym — challenge again for the rematch")
-                : translate("Bails out of any active battle, heals your party, and starts the gym fight")
-            }
-            onClick={() => {
-              if (lockedByBadges) return;
-              const { team } = buildTeam(leader.team, `gym_${leader.id}_${Date.now()}`);
-              dispatch({
-                type: "START_BOSS_BATTLE",
-                payload: {
-                  bossId: leader.id,
-                  bossType: "gym",
-                  trainerName: leader.name,
-                  trainerClass: "gym",
-                  trainerTeam: team,
-                  spriteKey: leader.spriteKey,
-                },
-              });
-            }}
-          >
-            {lockedByBadges ? `🔒 ${reqBadges} badges` : defeated ? translate("Rematch") : translate("Challenge")}
-          </button>
-        </div>
-        <p className="dim small" style={{ margin: "6px 0 0" }}>
-          {translate("Currently battling ")}<strong>{t.trainerName}</strong> ({t.trainerClass}).
-        </p>
-        <TeamBalls
-          total={t.trainerTeam.length}
-          spent={t.currentTrainerPokemonIndex}
-          label={translate("Their team")}
-        />
-      </section>
     );
   }
 
@@ -228,76 +230,17 @@ function IdleRoutePanel() {
 }
 
 function IdleTownPanel() {
-  const { state, dispatch } = useGame();
+  const { state } = useGame();
   const t = useT();
   const here = state.currentLocation;
   const route = routes[here];
   const leader = getGymLeaderForLocation(here);
-  const defeatedHere = leader ? state.defeatedGyms.includes(leader.id) : false;
-  const reqBadges = leader ? gymBadgeRequirement(leader.id) : 0;
-  const haveBadges = state.defeatedGyms.length;
-  const lockedByBadges = !!leader && !defeatedHere && reqBadges > haveBadges;
-
-  function challengeGym() {
-    if (!leader) return;
-    if (lockedByBadges) return;
-    // No "already in battle" gate — START_BOSS_BATTLE bails from the
-    // current encounter and heals the party before the boss fight.
-    // No "already defeated" gate either — players can rematch any time.
-    const { team } = buildTeam(leader.team, `gym_${leader.id}_${Date.now()}`);
-    dispatch({
-      type: "START_BOSS_BATTLE",
-      payload: {
-        bossId: leader.id,
-        bossType: "gym",
-        trainerName: leader.name,
-        trainerClass: "gym",
-        trainerTeam: team,
-        spriteKey: leader.spriteKey,
-      },
-    });
-  }
-
-  const showsSomething = isLeagueLocation(here) || (leader && leader.name);
+  const showsSomething = isLeagueLocation(here) || !!(leader && leader.name);
 
   return (
     <>
       {isLeagueLocation(here) && <LeagueCard />}
-      {leader && leader.name && (
-        <section className="ctx-section">
-          <h4>{t("Gym Leader")}</h4>
-          <div className="ctx-trainer-card">
-            <img
-              src={trainerSpriteUrl(leader.spriteKey)}
-              alt={leader.name}
-              width={48}
-              height={48}
-              style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-            />
-            <div>
-              <strong>{leader.name}</strong>
-              <small className="dim">{leader.title}</small>
-            </div>
-            <button
-              type="button"
-              disabled={lockedByBadges}
-              onClick={challengeGym}
-              title={
-                lockedByBadges
-                  ? `Earn ${reqBadges} badges before challenging ${leader.name} (you have ${haveBadges})`
-                  : t("Bails out of any active battle, heals your party, and starts the gym fight")
-              }
-            >
-              {lockedByBadges
-                ? `🔒 ${reqBadges} badges`
-                : defeatedHere
-                  ? t("Rematch")
-                  : t("Challenge")}
-            </button>
-          </div>
-        </section>
-      )}
+      {leader && leader.name && <GymLeaderCard />}
       {/* A town with no gym and no League rendered nothing at all here —
           reads as "the game is broken" rather than "there's nothing to
           do in town, go find a route." Most jarring at New Bark Town
