@@ -1,3390 +1,5034 @@
 [
-  {
-    "speciesKey": "bulbasaur",
-    "name": "Bulbasaur",
-    "id": 1,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 49,
-      "defense": 49,
-      "spAttack": 65,
-      "spDefense": 65,
-      "speed": 45
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "ivysaur",
-    "name": "Ivysaur",
-    "id": 2,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 62,
-      "defense": 63,
-      "spAttack": 80,
-      "spDefense": 80,
-      "speed": 60
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "venusaur",
-    "name": "Venusaur",
-    "id": 3,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 82,
-      "defense": 83,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 80
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "charmander",
-    "name": "Charmander",
-    "id": 4,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 39,
-      "attack": 52,
-      "defense": 43,
-      "spAttack": 60,
-      "spDefense": 50,
-      "speed": 65
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "charmeleon",
-    "name": "Charmeleon",
-    "id": 5,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 58,
-      "attack": 64,
-      "defense": 58,
-      "spAttack": 80,
-      "spDefense": 65,
-      "speed": 80
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "charizard",
-    "name": "Charizard",
-    "id": 6,
-    "types": [
-      "Fire",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 78,
-      "attack": 84,
-      "defense": 78,
-      "spAttack": 109,
-      "spDefense": 85,
-      "speed": 100
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "squirtle",
-    "name": "Squirtle",
-    "id": 7,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 44,
-      "attack": 48,
-      "defense": 65,
-      "spAttack": 50,
-      "spDefense": 64,
-      "speed": 43
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "wartortle",
-    "name": "Wartortle",
-    "id": 8,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 59,
-      "attack": 63,
-      "defense": 80,
-      "spAttack": 65,
-      "spDefense": 80,
-      "speed": 58
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "blastoise",
-    "name": "Blastoise",
-    "id": 9,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 79,
-      "attack": 83,
-      "defense": 100,
-      "spAttack": 85,
-      "spDefense": 105,
-      "speed": 78
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "caterpie",
-    "name": "Caterpie",
-    "id": 10,
-    "types": [
-      "Bug"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 30,
-      "defense": 35,
-      "spAttack": 20,
-      "spDefense": 20,
-      "speed": 45
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "metapod",
-    "name": "Metapod",
-    "id": 11,
-    "types": [
-      "Bug"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 20,
-      "defense": 55,
-      "spAttack": 25,
-      "spDefense": 25,
-      "speed": 30
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "butterfree",
-    "name": "Butterfree",
-    "id": 12,
-    "types": [
-      "Bug",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 45,
-      "defense": 50,
-      "spAttack": 90,
-      "spDefense": 80,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "weedle",
-    "name": "Weedle",
-    "id": 13,
-    "types": [
-      "Bug",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 35,
-      "defense": 30,
-      "spAttack": 20,
-      "spDefense": 20,
-      "speed": 50
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "kakuna",
-    "name": "Kakuna",
-    "id": 14,
-    "types": [
-      "Bug",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 25,
-      "defense": 50,
-      "spAttack": 25,
-      "spDefense": 25,
-      "speed": 35
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "beedrill",
-    "name": "Beedrill",
-    "id": 15,
-    "types": [
-      "Bug",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 90,
-      "defense": 40,
-      "spAttack": 45,
-      "spDefense": 80,
-      "speed": 75
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "pidgey",
-    "name": "Pidgey",
-    "id": 16,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 45,
-      "defense": 40,
-      "spAttack": 35,
-      "spDefense": 35,
-      "speed": 56
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "pidgeotto",
-    "name": "Pidgeotto",
-    "id": 17,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 63,
-      "attack": 60,
-      "defense": 55,
-      "spAttack": 50,
-      "spDefense": 50,
-      "speed": 71
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "pidgeot",
-    "name": "Pidgeot",
-    "id": 18,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 83,
-      "attack": 80,
-      "defense": 75,
-      "spAttack": 70,
-      "spDefense": 70,
-      "speed": 101
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "rattata",
-    "name": "Rattata",
-    "id": 19,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 56,
-      "defense": 35,
-      "spAttack": 25,
-      "spDefense": 35,
-      "speed": 72
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "raticate",
-    "name": "Raticate",
-    "id": 20,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 81,
-      "defense": 60,
-      "spAttack": 50,
-      "spDefense": 70,
-      "speed": 97
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "spearow",
-    "name": "Spearow",
-    "id": 21,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 60,
-      "defense": 30,
-      "spAttack": 31,
-      "spDefense": 31,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "fearow",
-    "name": "Fearow",
-    "id": 22,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 90,
-      "defense": 65,
-      "spAttack": 61,
-      "spDefense": 61,
-      "speed": 100
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "ekans",
-    "name": "Ekans",
-    "id": 23,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 60,
-      "defense": 44,
-      "spAttack": 40,
-      "spDefense": 54,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "arbok",
-    "name": "Arbok",
-    "id": 24,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 95,
-      "defense": 69,
-      "spAttack": 65,
-      "spDefense": 79,
-      "speed": 80
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "pikachu",
-    "name": "Pikachu",
-    "id": 25,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 55,
-      "defense": 40,
-      "spAttack": 50,
-      "spDefense": 50,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "raichu",
-    "name": "Raichu",
-    "id": 26,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 90,
-      "defense": 55,
-      "spAttack": 90,
-      "spDefense": 80,
-      "speed": 110
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "sandshrew",
-    "name": "Sandshrew",
-    "id": 27,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 75,
-      "defense": 85,
-      "spAttack": 20,
-      "spDefense": 30,
-      "speed": 40
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "sandslash",
-    "name": "Sandslash",
-    "id": 28,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 100,
-      "defense": 110,
-      "spAttack": 45,
-      "spDefense": 55,
-      "speed": 65
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "nidoranF",
-    "name": "Nidoran♀",
-    "id": 29,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 47,
-      "defense": 52,
-      "spAttack": 40,
-      "spDefense": 40,
-      "speed": 41
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "nidorina",
-    "name": "Nidorina",
-    "id": 30,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 62,
-      "defense": 67,
-      "spAttack": 55,
-      "spDefense": 55,
-      "speed": 56
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "nidoqueen",
-    "name": "Nidoqueen",
-    "id": 31,
-    "types": [
-      "Poison",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 92,
-      "defense": 87,
-      "spAttack": 75,
-      "spDefense": 85,
-      "speed": 76
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "nidoranM",
-    "name": "Nidoran♂",
-    "id": 32,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 46,
-      "attack": 57,
-      "defense": 40,
-      "spAttack": 40,
-      "spDefense": 40,
-      "speed": 50
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "nidorino",
-    "name": "Nidorino",
-    "id": 33,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 61,
-      "attack": 72,
-      "defense": 57,
-      "spAttack": 55,
-      "spDefense": 55,
-      "speed": 65
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "nidoking",
-    "name": "Nidoking",
-    "id": 34,
-    "types": [
-      "Poison",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 81,
-      "attack": 102,
-      "defense": 77,
-      "spAttack": 85,
-      "spDefense": 75,
-      "speed": 85
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "clefairy",
-    "name": "Clefairy",
-    "id": 35,
-    "types": [
-      "Fairy"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 45,
-      "defense": 48,
-      "spAttack": 60,
-      "spDefense": 65,
-      "speed": 35
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "clefable",
-    "name": "Clefable",
-    "id": 36,
-    "types": [
-      "Fairy"
-    ],
-    "baseStats": {
-      "hp": 95,
-      "attack": 70,
-      "defense": 73,
-      "spAttack": 95,
-      "spDefense": 90,
-      "speed": 60
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "vulpix",
-    "name": "Vulpix",
-    "id": 37,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 38,
-      "attack": 41,
-      "defense": 40,
-      "spAttack": 50,
-      "spDefense": 65,
-      "speed": 65
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "ninetales",
-    "name": "Ninetales",
-    "id": 38,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 73,
-      "attack": 76,
-      "defense": 75,
-      "spAttack": 81,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "jigglypuff",
-    "name": "Jigglypuff",
-    "id": 39,
-    "types": [
-      "Normal",
-      "Fairy"
-    ],
-    "baseStats": {
-      "hp": 115,
-      "attack": 45,
-      "defense": 20,
-      "spAttack": 45,
-      "spDefense": 25,
-      "speed": 20
-    },
-    "growthRate": "fast"
-  },
-  {
-    "speciesKey": "wigglytuff",
-    "name": "Wigglytuff",
-    "id": 40,
-    "types": [
-      "Normal",
-      "Fairy"
-    ],
-    "baseStats": {
-      "hp": 140,
-      "attack": 70,
-      "defense": 45,
-      "spAttack": 85,
-      "spDefense": 50,
-      "speed": 45
-    },
-    "growthRate": "fast"
-  },
-  {
-    "speciesKey": "zubat",
-    "name": "Zubat",
-    "id": 41,
-    "types": [
-      "Poison",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 45,
-      "defense": 35,
-      "spAttack": 30,
-      "spDefense": 40,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "golbat",
-    "name": "Golbat",
-    "id": 42,
-    "types": [
-      "Poison",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 80,
-      "defense": 70,
-      "spAttack": 65,
-      "spDefense": 75,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "oddish",
-    "name": "Oddish",
-    "id": 43,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 50,
-      "defense": 55,
-      "spAttack": 75,
-      "spDefense": 65,
-      "speed": 30
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "gloom",
-    "name": "Gloom",
-    "id": 44,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 65,
-      "defense": 70,
-      "spAttack": 85,
-      "spDefense": 75,
-      "speed": 40
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "vileplume",
-    "name": "Vileplume",
-    "id": 45,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 80,
-      "defense": 85,
-      "spAttack": 110,
-      "spDefense": 90,
-      "speed": 50
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "paras",
-    "name": "Paras",
-    "id": 46,
-    "types": [
-      "Bug",
-      "Grass"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 70,
-      "defense": 55,
-      "spAttack": 45,
-      "spDefense": 55,
-      "speed": 25
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "parasect",
-    "name": "Parasect",
-    "id": 47,
-    "types": [
-      "Bug",
-      "Grass"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 95,
-      "defense": 80,
-      "spAttack": 60,
-      "spDefense": 80,
-      "speed": 30
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "venonat",
-    "name": "Venonat",
-    "id": 48,
-    "types": [
-      "Bug",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 55,
-      "defense": 50,
-      "spAttack": 40,
-      "spDefense": 55,
-      "speed": 45
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "venomoth",
-    "name": "Venomoth",
-    "id": 49,
-    "types": [
-      "Bug",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 65,
-      "defense": 60,
-      "spAttack": 90,
-      "spDefense": 75,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "diglett",
-    "name": "Diglett",
-    "id": 50,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 10,
-      "attack": 55,
-      "defense": 25,
-      "spAttack": 35,
-      "spDefense": 45,
-      "speed": 95
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "dugtrio",
-    "name": "Dugtrio",
-    "id": 51,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 100,
-      "defense": 50,
-      "spAttack": 50,
-      "spDefense": 70,
-      "speed": 120
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "meowth",
-    "name": "Meowth",
-    "id": 52,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 45,
-      "defense": 35,
-      "spAttack": 40,
-      "spDefense": 40,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "persian",
-    "name": "Persian",
-    "id": 53,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 70,
-      "defense": 60,
-      "spAttack": 65,
-      "spDefense": 65,
-      "speed": 115
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "psyduck",
-    "name": "Psyduck",
-    "id": 54,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 52,
-      "defense": 48,
-      "spAttack": 65,
-      "spDefense": 50,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "golduck",
-    "name": "Golduck",
-    "id": 55,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 82,
-      "defense": 78,
-      "spAttack": 95,
-      "spDefense": 80,
-      "speed": 85
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "mankey",
-    "name": "Mankey",
-    "id": 56,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 80,
-      "defense": 35,
-      "spAttack": 35,
-      "spDefense": 45,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "primeape",
-    "name": "Primeape",
-    "id": 57,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 105,
-      "defense": 60,
-      "spAttack": 60,
-      "spDefense": 70,
-      "speed": 95
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "growlithe",
-    "name": "Growlithe",
-    "id": 58,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 70,
-      "defense": 45,
-      "spAttack": 70,
-      "spDefense": 50,
-      "speed": 60
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "arcanine",
-    "name": "Arcanine",
-    "id": 59,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 110,
-      "defense": 80,
-      "spAttack": 100,
-      "spDefense": 80,
-      "speed": 95
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "poliwag",
-    "name": "Poliwag",
-    "id": 60,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 50,
-      "defense": 40,
-      "spAttack": 40,
-      "spDefense": 40,
-      "speed": 90
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "poliwhirl",
-    "name": "Poliwhirl",
-    "id": 61,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 65,
-      "defense": 65,
-      "spAttack": 50,
-      "spDefense": 50,
-      "speed": 90
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "poliwrath",
-    "name": "Poliwrath",
-    "id": 62,
-    "types": [
-      "Water",
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 95,
-      "defense": 95,
-      "spAttack": 70,
-      "spDefense": 90,
-      "speed": 70
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "abra",
-    "name": "Abra",
-    "id": 63,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 25,
-      "attack": 20,
-      "defense": 15,
-      "spAttack": 105,
-      "spDefense": 55,
-      "speed": 90
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "kadabra",
-    "name": "Kadabra",
-    "id": 64,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 35,
-      "defense": 30,
-      "spAttack": 120,
-      "spDefense": 70,
-      "speed": 105
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "alakazam",
-    "name": "Alakazam",
-    "id": 65,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 50,
-      "defense": 45,
-      "spAttack": 135,
-      "spDefense": 95,
-      "speed": 120
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "machop",
-    "name": "Machop",
-    "id": 66,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 80,
-      "defense": 50,
-      "spAttack": 35,
-      "spDefense": 35,
-      "speed": 35
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "machoke",
-    "name": "Machoke",
-    "id": 67,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 100,
-      "defense": 70,
-      "spAttack": 50,
-      "spDefense": 60,
-      "speed": 45
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "machamp",
-    "name": "Machamp",
-    "id": 68,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 130,
-      "defense": 80,
-      "spAttack": 65,
-      "spDefense": 85,
-      "speed": 55
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "bellsprout",
-    "name": "Bellsprout",
-    "id": 69,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 75,
-      "defense": 35,
-      "spAttack": 70,
-      "spDefense": 30,
-      "speed": 40
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "weepinbell",
-    "name": "Weepinbell",
-    "id": 70,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 90,
-      "defense": 50,
-      "spAttack": 85,
-      "spDefense": 45,
-      "speed": 55
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "victreebel",
-    "name": "Victreebel",
-    "id": 71,
-    "types": [
-      "Grass",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 105,
-      "defense": 65,
-      "spAttack": 100,
-      "spDefense": 70,
-      "speed": 70
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "tentacool",
-    "name": "Tentacool",
-    "id": 72,
-    "types": [
-      "Water",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 40,
-      "defense": 35,
-      "spAttack": 50,
-      "spDefense": 100,
-      "speed": 70
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "tentacruel",
-    "name": "Tentacruel",
-    "id": 73,
-    "types": [
-      "Water",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 70,
-      "defense": 65,
-      "spAttack": 80,
-      "spDefense": 120,
-      "speed": 100
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "geodude",
-    "name": "Geodude",
-    "id": 74,
-    "types": [
-      "Rock",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 80,
-      "defense": 100,
-      "spAttack": 30,
-      "spDefense": 30,
-      "speed": 20
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "graveler",
-    "name": "Graveler",
-    "id": 75,
-    "types": [
-      "Rock",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 95,
-      "defense": 115,
-      "spAttack": 45,
-      "spDefense": 45,
-      "speed": 35
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "golem",
-    "name": "Golem",
-    "id": 76,
-    "types": [
-      "Rock",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 120,
-      "defense": 130,
-      "spAttack": 55,
-      "spDefense": 65,
-      "speed": 45
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "ponyta",
-    "name": "Ponyta",
-    "id": 77,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 85,
-      "defense": 55,
-      "spAttack": 65,
-      "spDefense": 65,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "rapidash",
-    "name": "Rapidash",
-    "id": 78,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 100,
-      "defense": 70,
-      "spAttack": 80,
-      "spDefense": 80,
-      "speed": 105
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "slowpoke",
-    "name": "Slowpoke",
-    "id": 79,
-    "types": [
-      "Water",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 65,
-      "defense": 65,
-      "spAttack": 40,
-      "spDefense": 40,
-      "speed": 15
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "slowbro",
-    "name": "Slowbro",
-    "id": 80,
-    "types": [
-      "Water",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 95,
-      "attack": 75,
-      "defense": 110,
-      "spAttack": 100,
-      "spDefense": 80,
-      "speed": 30
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "magnemite",
-    "name": "Magnemite",
-    "id": 81,
-    "types": [
-      "Electric",
-      "Steel"
-    ],
-    "baseStats": {
-      "hp": 25,
-      "attack": 35,
-      "defense": 70,
-      "spAttack": 95,
-      "spDefense": 55,
-      "speed": 45
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "magneton",
-    "name": "Magneton",
-    "id": 82,
-    "types": [
-      "Electric",
-      "Steel"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 60,
-      "defense": 95,
-      "spAttack": 120,
-      "spDefense": 70,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "farfetchd",
-    "name": "Farfetch'd",
-    "id": 83,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 52,
-      "attack": 90,
-      "defense": 55,
-      "spAttack": 58,
-      "spDefense": 62,
-      "speed": 60
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "doduo",
-    "name": "Doduo",
-    "id": 84,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 85,
-      "defense": 45,
-      "spAttack": 35,
-      "spDefense": 35,
-      "speed": 75
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "dodrio",
-    "name": "Dodrio",
-    "id": 85,
-    "types": [
-      "Normal",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 110,
-      "defense": 70,
-      "spAttack": 60,
-      "spDefense": 60,
-      "speed": 110
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "seel",
-    "name": "Seel",
-    "id": 86,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 45,
-      "defense": 55,
-      "spAttack": 45,
-      "spDefense": 70,
-      "speed": 45
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "dewgong",
-    "name": "Dewgong",
-    "id": 87,
-    "types": [
-      "Water",
-      "Ice"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 70,
-      "defense": 80,
-      "spAttack": 70,
-      "spDefense": 95,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "grimer",
-    "name": "Grimer",
-    "id": 88,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 80,
-      "defense": 50,
-      "spAttack": 40,
-      "spDefense": 50,
-      "speed": 25
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "muk",
-    "name": "Muk",
-    "id": 89,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 105,
-      "attack": 105,
-      "defense": 75,
-      "spAttack": 65,
-      "spDefense": 100,
-      "speed": 50
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "shellder",
-    "name": "Shellder",
-    "id": 90,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 65,
-      "defense": 100,
-      "spAttack": 45,
-      "spDefense": 25,
-      "speed": 40
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "cloyster",
-    "name": "Cloyster",
-    "id": 91,
-    "types": [
-      "Water",
-      "Ice"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 95,
-      "defense": 180,
-      "spAttack": 85,
-      "spDefense": 45,
-      "speed": 70
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "gastly",
-    "name": "Gastly",
-    "id": 92,
-    "types": [
-      "Ghost",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 35,
-      "defense": 30,
-      "spAttack": 100,
-      "spDefense": 35,
-      "speed": 80
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "haunter",
-    "name": "Haunter",
-    "id": 93,
-    "types": [
-      "Ghost",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 50,
-      "defense": 45,
-      "spAttack": 115,
-      "spDefense": 55,
-      "speed": 95
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "gengar",
-    "name": "Gengar",
-    "id": 94,
-    "types": [
-      "Ghost",
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 65,
-      "defense": 60,
-      "spAttack": 130,
-      "spDefense": 75,
-      "speed": 110
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "onix",
-    "name": "Onix",
-    "id": 95,
-    "types": [
-      "Rock",
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 45,
-      "defense": 160,
-      "spAttack": 30,
-      "spDefense": 45,
-      "speed": 70
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "drowzee",
-    "name": "Drowzee",
-    "id": 96,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 48,
-      "defense": 45,
-      "spAttack": 43,
-      "spDefense": 90,
-      "speed": 42
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "hypno",
-    "name": "Hypno",
-    "id": 97,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 85,
-      "attack": 73,
-      "defense": 70,
-      "spAttack": 73,
-      "spDefense": 115,
-      "speed": 67
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "krabby",
-    "name": "Krabby",
-    "id": 98,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 105,
-      "defense": 90,
-      "spAttack": 25,
-      "spDefense": 25,
-      "speed": 50
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "kingler",
-    "name": "Kingler",
-    "id": 99,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 130,
-      "defense": 115,
-      "spAttack": 50,
-      "spDefense": 50,
-      "speed": 75
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "voltorb",
-    "name": "Voltorb",
-    "id": 100,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 30,
-      "defense": 50,
-      "spAttack": 55,
-      "spDefense": 55,
-      "speed": 100
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "electrode",
-    "name": "Electrode",
-    "id": 101,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 50,
-      "defense": 70,
-      "spAttack": 80,
-      "spDefense": 80,
-      "speed": 150
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "exeggcute",
-    "name": "Exeggcute",
-    "id": 102,
-    "types": [
-      "Grass",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 40,
-      "defense": 80,
-      "spAttack": 60,
-      "spDefense": 45,
-      "speed": 40
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "exeggutor",
-    "name": "Exeggutor",
-    "id": 103,
-    "types": [
-      "Grass",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 95,
-      "attack": 95,
-      "defense": 85,
-      "spAttack": 125,
-      "spDefense": 75,
-      "speed": 55
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "cubone",
-    "name": "Cubone",
-    "id": 104,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 50,
-      "defense": 95,
-      "spAttack": 40,
-      "spDefense": 50,
-      "speed": 35
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "marowak",
-    "name": "Marowak",
-    "id": 105,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 80,
-      "defense": 110,
-      "spAttack": 50,
-      "spDefense": 80,
-      "speed": 45
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "hitmonlee",
-    "name": "Hitmonlee",
-    "id": 106,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 120,
-      "defense": 53,
-      "spAttack": 35,
-      "spDefense": 110,
-      "speed": 87
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "hitmonchan",
-    "name": "Hitmonchan",
-    "id": 107,
-    "types": [
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 105,
-      "defense": 79,
-      "spAttack": 35,
-      "spDefense": 110,
-      "speed": 76
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "lickitung",
-    "name": "Lickitung",
-    "id": 108,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 55,
-      "defense": 75,
-      "spAttack": 60,
-      "spDefense": 75,
-      "speed": 30
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "koffing",
-    "name": "Koffing",
-    "id": 109,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 65,
-      "defense": 95,
-      "spAttack": 60,
-      "spDefense": 45,
-      "speed": 35
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "weezing",
-    "name": "Weezing",
-    "id": 110,
-    "types": [
-      "Poison"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 90,
-      "defense": 120,
-      "spAttack": 85,
-      "spDefense": 70,
-      "speed": 60
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "rhyhorn",
-    "name": "Rhyhorn",
-    "id": 111,
-    "types": [
-      "Ground",
-      "Rock"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 85,
-      "defense": 95,
-      "spAttack": 30,
-      "spDefense": 30,
-      "speed": 25
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "rhydon",
-    "name": "Rhydon",
-    "id": 112,
-    "types": [
-      "Ground",
-      "Rock"
-    ],
-    "baseStats": {
-      "hp": 105,
-      "attack": 130,
-      "defense": 120,
-      "spAttack": 45,
-      "spDefense": 45,
-      "speed": 40
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "chansey",
-    "name": "Chansey",
-    "id": 113,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 250,
-      "attack": 5,
-      "defense": 5,
-      "spAttack": 35,
-      "spDefense": 105,
-      "speed": 50
-    },
-    "growthRate": "fast"
-  },
-  {
-    "speciesKey": "tangela",
-    "name": "Tangela",
-    "id": 114,
-    "types": [
-      "Grass"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 55,
-      "defense": 115,
-      "spAttack": 100,
-      "spDefense": 40,
-      "speed": 60
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "kangaskhan",
-    "name": "Kangaskhan",
-    "id": 115,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 105,
-      "attack": 95,
-      "defense": 80,
-      "spAttack": 40,
-      "spDefense": 80,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "horsea",
-    "name": "Horsea",
-    "id": 116,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 40,
-      "defense": 70,
-      "spAttack": 70,
-      "spDefense": 25,
-      "speed": 60
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "seadra",
-    "name": "Seadra",
-    "id": 117,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 65,
-      "defense": 95,
-      "spAttack": 95,
-      "spDefense": 45,
-      "speed": 85
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "goldeen",
-    "name": "Goldeen",
-    "id": 118,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 45,
-      "attack": 67,
-      "defense": 60,
-      "spAttack": 35,
-      "spDefense": 50,
-      "speed": 63
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "seaking",
-    "name": "Seaking",
-    "id": 119,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 92,
-      "defense": 65,
-      "spAttack": 65,
-      "spDefense": 80,
-      "speed": 68
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "staryu",
-    "name": "Staryu",
-    "id": 120,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 45,
-      "defense": 55,
-      "spAttack": 70,
-      "spDefense": 55,
-      "speed": 85
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "starmie",
-    "name": "Starmie",
-    "id": 121,
-    "types": [
-      "Water",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 75,
-      "defense": 85,
-      "spAttack": 100,
-      "spDefense": 85,
-      "speed": 115
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "mrMime",
-    "name": "Mr. Mime",
-    "id": 122,
-    "types": [
-      "Psychic",
-      "Fairy"
-    ],
-    "baseStats": {
-      "hp": 40,
-      "attack": 45,
-      "defense": 65,
-      "spAttack": 100,
-      "spDefense": 120,
-      "speed": 90
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "scyther",
-    "name": "Scyther",
-    "id": 123,
-    "types": [
-      "Bug",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 110,
-      "defense": 80,
-      "spAttack": 55,
-      "spDefense": 80,
-      "speed": 105
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "jynx",
-    "name": "Jynx",
-    "id": 124,
-    "types": [
-      "Ice",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 50,
-      "defense": 35,
-      "spAttack": 115,
-      "spDefense": 95,
-      "speed": 95
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "electabuzz",
-    "name": "Electabuzz",
-    "id": 125,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 83,
-      "defense": 57,
-      "spAttack": 95,
-      "spDefense": 85,
-      "speed": 105
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "magmar",
-    "name": "Magmar",
-    "id": 126,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 95,
-      "defense": 57,
-      "spAttack": 100,
-      "spDefense": 85,
-      "speed": 93
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "pinsir",
-    "name": "Pinsir",
-    "id": 127,
-    "types": [
-      "Bug"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 125,
-      "defense": 100,
-      "spAttack": 55,
-      "spDefense": 70,
-      "speed": 85
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "tauros",
-    "name": "Tauros",
-    "id": 128,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 100,
-      "defense": 95,
-      "spAttack": 40,
-      "spDefense": 70,
-      "speed": 110
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "magikarp",
-    "name": "Magikarp",
-    "id": 129,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 20,
-      "attack": 10,
-      "defense": 55,
-      "spAttack": 15,
-      "spDefense": 20,
-      "speed": 80
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "gyarados",
-    "name": "Gyarados",
-    "id": 130,
-    "types": [
-      "Water",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 95,
-      "attack": 125,
-      "defense": 79,
-      "spAttack": 60,
-      "spDefense": 100,
-      "speed": 81
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "lapras",
-    "name": "Lapras",
-    "id": 131,
-    "types": [
-      "Water",
-      "Ice"
-    ],
-    "baseStats": {
-      "hp": 130,
-      "attack": 85,
-      "defense": 80,
-      "spAttack": 85,
-      "spDefense": 95,
-      "speed": 60
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "ditto",
-    "name": "Ditto",
-    "id": 132,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 48,
-      "attack": 48,
-      "defense": 48,
-      "spAttack": 48,
-      "spDefense": 48,
-      "speed": 48
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "eevee",
-    "name": "Eevee",
-    "id": 133,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 55,
-      "attack": 55,
-      "defense": 50,
-      "spAttack": 45,
-      "spDefense": 65,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "vaporeon",
-    "name": "Vaporeon",
-    "id": 134,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 130,
-      "attack": 65,
-      "defense": 60,
-      "spAttack": 110,
-      "spDefense": 95,
-      "speed": 65
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "jolteon",
-    "name": "Jolteon",
-    "id": 135,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 65,
-      "defense": 60,
-      "spAttack": 110,
-      "spDefense": 95,
-      "speed": 130
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "flareon",
-    "name": "Flareon",
-    "id": 136,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 130,
-      "defense": 60,
-      "spAttack": 95,
-      "spDefense": 110,
-      "speed": 65
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "porygon",
-    "name": "Porygon",
-    "id": 137,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 65,
-      "attack": 60,
-      "defense": 70,
-      "spAttack": 85,
-      "spDefense": 75,
-      "speed": 40
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "omanyte",
-    "name": "Omanyte",
-    "id": 138,
-    "types": [
-      "Rock",
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 35,
-      "attack": 40,
-      "defense": 100,
-      "spAttack": 90,
-      "spDefense": 55,
-      "speed": 35
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "omastar",
-    "name": "Omastar",
-    "id": 139,
-    "types": [
-      "Rock",
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 60,
-      "defense": 125,
-      "spAttack": 115,
-      "spDefense": 70,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "kabuto",
-    "name": "Kabuto",
-    "id": 140,
-    "types": [
-      "Rock",
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 30,
-      "attack": 80,
-      "defense": 90,
-      "spAttack": 55,
-      "spDefense": 45,
-      "speed": 55
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "kabutops",
-    "name": "Kabutops",
-    "id": 141,
-    "types": [
-      "Rock",
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 60,
-      "attack": 115,
-      "defense": 105,
-      "spAttack": 65,
-      "spDefense": 70,
-      "speed": 80
-    },
-    "growthRate": "mediumFast"
-  },
-  {
-    "speciesKey": "aerodactyl",
-    "name": "Aerodactyl",
-    "id": 142,
-    "types": [
-      "Rock",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 105,
-      "defense": 65,
-      "spAttack": 60,
-      "spDefense": 75,
-      "speed": 130
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "snorlax",
-    "name": "Snorlax",
-    "id": 143,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 160,
-      "attack": 110,
-      "defense": 65,
-      "spAttack": 65,
-      "spDefense": 110,
-      "speed": 30
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "articuno",
-    "name": "Articuno",
-    "id": 144,
-    "types": [
-      "Ice",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 85,
-      "defense": 100,
-      "spAttack": 95,
-      "spDefense": 125,
-      "speed": 85
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "zapdos",
-    "name": "Zapdos",
-    "id": 145,
-    "types": [
-      "Electric",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 90,
-      "defense": 85,
-      "spAttack": 125,
-      "spDefense": 90,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "moltres",
-    "name": "Moltres",
-    "id": 146,
-    "types": [
-      "Fire",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 100,
-      "defense": 90,
-      "spAttack": 125,
-      "spDefense": 85,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "dratini",
-    "name": "Dratini",
-    "id": 147,
-    "types": [
-      "Dragon"
-    ],
-    "baseStats": {
-      "hp": 41,
-      "attack": 64,
-      "defense": 45,
-      "spAttack": 50,
-      "spDefense": 50,
-      "speed": 50
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "dragonair",
-    "name": "Dragonair",
-    "id": 148,
-    "types": [
-      "Dragon"
-    ],
-    "baseStats": {
-      "hp": 61,
-      "attack": 84,
-      "defense": 65,
-      "spAttack": 70,
-      "spDefense": 70,
-      "speed": 70
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "dragonite",
-    "name": "Dragonite",
-    "id": 149,
-    "types": [
-      "Dragon",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 134,
-      "defense": 95,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 80
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "mewtwo",
-    "name": "Mewtwo",
-    "id": 150,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 106,
-      "attack": 110,
-      "defense": 90,
-      "spAttack": 154,
-      "spDefense": 90,
-      "speed": 130
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "mew",
-    "name": "Mew",
-    "id": 151,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "raikou",
-    "name": "Raikou",
-    "id": 243,
-    "types": [
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 85,
-      "defense": 75,
-      "spAttack": 115,
-      "spDefense": 100,
-      "speed": 115
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "entei",
-    "name": "Entei",
-    "id": 244,
-    "types": [
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 115,
-      "attack": 115,
-      "defense": 85,
-      "spAttack": 90,
-      "spDefense": 75,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "suicune",
-    "name": "Suicune",
-    "id": 245,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 75,
-      "defense": 115,
-      "spAttack": 90,
-      "spDefense": 115,
-      "speed": 85
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "lugia",
-    "name": "Lugia",
-    "id": 249,
-    "types": [
-      "Psychic",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 106,
-      "attack": 90,
-      "defense": 130,
-      "spAttack": 90,
-      "spDefense": 154,
-      "speed": 110
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "hoOh",
-    "name": "Ho-Oh",
-    "id": 250,
-    "types": [
-      "Fire",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 106,
-      "attack": 130,
-      "defense": 90,
-      "spAttack": 110,
-      "spDefense": 154,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "celebi",
-    "name": "Celebi",
-    "id": 251,
-    "types": [
-      "Psychic",
-      "Grass"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "mediumSlow"
-  },
-  {
-    "speciesKey": "regirock",
-    "name": "Regirock",
-    "id": 377,
-    "types": [
-      "Rock"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 100,
-      "defense": 200,
-      "spAttack": 50,
-      "spDefense": 100,
-      "speed": 50
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "regice",
-    "name": "Regice",
-    "id": 378,
-    "types": [
-      "Ice"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 50,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 200,
-      "speed": 50
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "registeel",
-    "name": "Registeel",
-    "id": 379,
-    "types": [
-      "Steel"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 75,
-      "defense": 150,
-      "spAttack": 75,
-      "spDefense": 150,
-      "speed": 50
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "latias",
-    "name": "Latias",
-    "id": 380,
-    "types": [
-      "Dragon",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 80,
-      "defense": 90,
-      "spAttack": 110,
-      "spDefense": 130,
-      "speed": 110
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "latios",
-    "name": "Latios",
-    "id": 381,
-    "types": [
-      "Dragon",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 90,
-      "defense": 80,
-      "spAttack": 130,
-      "spDefense": 110,
-      "speed": 110
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "kyogre",
-    "name": "Kyogre",
-    "id": 382,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 90,
-      "spAttack": 150,
-      "spDefense": 140,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "groudon",
-    "name": "Groudon",
-    "id": 383,
-    "types": [
-      "Ground"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 150,
-      "defense": 140,
-      "spAttack": 100,
-      "spDefense": 90,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "rayquaza",
-    "name": "Rayquaza",
-    "id": 384,
-    "types": [
-      "Dragon",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 105,
-      "attack": 150,
-      "defense": 90,
-      "spAttack": 150,
-      "spDefense": 90,
-      "speed": 95
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "jirachi",
-    "name": "Jirachi",
-    "id": 385,
-    "types": [
-      "Steel",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "deoxys",
-    "name": "Deoxys",
-    "id": 386,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 50,
-      "attack": 150,
-      "defense": 50,
-      "spAttack": 150,
-      "spDefense": 50,
-      "speed": 150
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "uxie",
-    "name": "Uxie",
-    "id": 480,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 75,
-      "defense": 130,
-      "spAttack": 75,
-      "spDefense": 130,
-      "speed": 95
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "mesprit",
-    "name": "Mesprit",
-    "id": 481,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 105,
-      "defense": 105,
-      "spAttack": 105,
-      "spDefense": 105,
-      "speed": 80
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "azelf",
-    "name": "Azelf",
-    "id": 482,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 75,
-      "attack": 125,
-      "defense": 70,
-      "spAttack": 125,
-      "spDefense": 70,
-      "speed": 115
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "dialga",
-    "name": "Dialga",
-    "id": 483,
-    "types": [
-      "Steel",
-      "Dragon"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 120,
-      "defense": 120,
-      "spAttack": 150,
-      "spDefense": 100,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "palkia",
-    "name": "Palkia",
-    "id": 484,
-    "types": [
-      "Water",
-      "Dragon"
-    ],
-    "baseStats": {
-      "hp": 90,
-      "attack": 120,
-      "defense": 100,
-      "spAttack": 150,
-      "spDefense": 120,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "heatran",
-    "name": "Heatran",
-    "id": 485,
-    "types": [
-      "Fire",
-      "Steel"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 90,
-      "defense": 106,
-      "spAttack": 130,
-      "spDefense": 106,
-      "speed": 77
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "regigigas",
-    "name": "Regigigas",
-    "id": 486,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 110,
-      "attack": 160,
-      "defense": 110,
-      "spAttack": 80,
-      "spDefense": 110,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "giratina",
-    "name": "Giratina",
-    "id": 487,
-    "types": [
-      "Ghost",
-      "Dragon"
-    ],
-    "baseStats": {
-      "hp": 150,
-      "attack": 100,
-      "defense": 120,
-      "spAttack": 100,
-      "spDefense": 120,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "cresselia",
-    "name": "Cresselia",
-    "id": 488,
-    "types": [
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 120,
-      "attack": 70,
-      "defense": 110,
-      "spAttack": 75,
-      "spDefense": 120,
-      "speed": 85
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "phione",
-    "name": "Phione",
-    "id": 489,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 80,
-      "attack": 80,
-      "defense": 80,
-      "spAttack": 80,
-      "spDefense": 80,
-      "speed": 80
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "manaphy",
-    "name": "Manaphy",
-    "id": 490,
-    "types": [
-      "Water"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "darkrai",
-    "name": "Darkrai",
-    "id": 491,
-    "types": [
-      "Dark"
-    ],
-    "baseStats": {
-      "hp": 70,
-      "attack": 90,
-      "defense": 90,
-      "spAttack": 135,
-      "spDefense": 90,
-      "speed": 125
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "shaymin",
-    "name": "Shaymin",
-    "id": 492,
-    "types": [
-      "Grass"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "arceus",
-    "name": "Arceus",
-    "id": 493,
-    "types": [
-      "Normal"
-    ],
-    "baseStats": {
-      "hp": 120,
-      "attack": 120,
-      "defense": 120,
-      "spAttack": 120,
-      "spDefense": 120,
-      "speed": 120
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "victini",
-    "name": "Victini",
-    "id": 494,
-    "types": [
-      "Psychic",
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 100,
-      "defense": 100,
-      "spAttack": 100,
-      "spDefense": 100,
-      "speed": 100
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "cobalion",
-    "name": "Cobalion",
-    "id": 638,
-    "types": [
-      "Steel",
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 90,
-      "defense": 129,
-      "spAttack": 90,
-      "spDefense": 72,
-      "speed": 108
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "terrakion",
-    "name": "Terrakion",
-    "id": 639,
-    "types": [
-      "Rock",
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 129,
-      "defense": 90,
-      "spAttack": 72,
-      "spDefense": 90,
-      "speed": 108
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "virizion",
-    "name": "Virizion",
-    "id": 640,
-    "types": [
-      "Grass",
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 90,
-      "defense": 72,
-      "spAttack": 90,
-      "spDefense": 129,
-      "speed": 108
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "tornadus",
-    "name": "Tornadus",
-    "id": 641,
-    "types": [
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 79,
-      "attack": 115,
-      "defense": 70,
-      "spAttack": 125,
-      "spDefense": 80,
-      "speed": 111
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "thundurus",
-    "name": "Thundurus",
-    "id": 642,
-    "types": [
-      "Electric",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 79,
-      "attack": 115,
-      "defense": 70,
-      "spAttack": 125,
-      "spDefense": 80,
-      "speed": 111
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "reshiram",
-    "name": "Reshiram",
-    "id": 643,
-    "types": [
-      "Dragon",
-      "Fire"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 120,
-      "defense": 100,
-      "spAttack": 150,
-      "spDefense": 120,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "zekrom",
-    "name": "Zekrom",
-    "id": 644,
-    "types": [
-      "Dragon",
-      "Electric"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 150,
-      "defense": 120,
-      "spAttack": 120,
-      "spDefense": 100,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "landorus",
-    "name": "Landorus",
-    "id": 645,
-    "types": [
-      "Ground",
-      "Flying"
-    ],
-    "baseStats": {
-      "hp": 89,
-      "attack": 125,
-      "defense": 90,
-      "spAttack": 115,
-      "spDefense": 80,
-      "speed": 101
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "kyurem",
-    "name": "Kyurem",
-    "id": 646,
-    "types": [
-      "Dragon",
-      "Ice"
-    ],
-    "baseStats": {
-      "hp": 125,
-      "attack": 130,
-      "defense": 90,
-      "spAttack": 130,
-      "spDefense": 90,
-      "speed": 95
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "keldeo",
-    "name": "Keldeo",
-    "id": 647,
-    "types": [
-      "Water",
-      "Fighting"
-    ],
-    "baseStats": {
-      "hp": 91,
-      "attack": 72,
-      "defense": 90,
-      "spAttack": 129,
-      "spDefense": 90,
-      "speed": 108
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "meloetta",
-    "name": "Meloetta",
-    "id": 648,
-    "types": [
-      "Normal",
-      "Psychic"
-    ],
-    "baseStats": {
-      "hp": 100,
-      "attack": 77,
-      "defense": 77,
-      "spAttack": 128,
-      "spDefense": 128,
-      "speed": 90
-    },
-    "growthRate": "slow"
-  },
-  {
-    "speciesKey": "genesect",
-    "name": "Genesect",
-    "id": 649,
-    "types": [
-      "Bug",
-      "Steel"
-    ],
-    "baseStats": {
-      "hp": 71,
-      "attack": 120,
-      "defense": 95,
-      "spAttack": 120,
-      "spDefense": 95,
-      "speed": 99
-    },
-    "growthRate": "slow"
-  }
+ {
+  "speciesKey": "bulbasaur",
+  "name": "Bulbasaur",
+  "id": 1,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 49,
+   "defense": 49,
+   "spAttack": 65,
+   "spDefense": 65,
+   "speed": 45
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "ivysaur",
+  "name": "Ivysaur",
+  "id": 2,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 62,
+   "defense": 63,
+   "spAttack": 80,
+   "spDefense": 80,
+   "speed": 60
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "venusaur",
+  "name": "Venusaur",
+  "id": 3,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 82,
+   "defense": 83,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "charmander",
+  "name": "Charmander",
+  "id": 4,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 39,
+   "attack": 52,
+   "defense": 43,
+   "spAttack": 60,
+   "spDefense": 50,
+   "speed": 65
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "charmeleon",
+  "name": "Charmeleon",
+  "id": 5,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 58,
+   "attack": 64,
+   "defense": 58,
+   "spAttack": 80,
+   "spDefense": 65,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "charizard",
+  "name": "Charizard",
+  "id": 6,
+  "types": [
+   "Fire",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 78,
+   "attack": 84,
+   "defense": 78,
+   "spAttack": 109,
+   "spDefense": 85,
+   "speed": 100
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "squirtle",
+  "name": "Squirtle",
+  "id": 7,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 44,
+   "attack": 48,
+   "defense": 65,
+   "spAttack": 50,
+   "spDefense": 64,
+   "speed": 43
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "wartortle",
+  "name": "Wartortle",
+  "id": 8,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 59,
+   "attack": 63,
+   "defense": 80,
+   "spAttack": 65,
+   "spDefense": 80,
+   "speed": 58
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "blastoise",
+  "name": "Blastoise",
+  "id": 9,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 79,
+   "attack": 83,
+   "defense": 100,
+   "spAttack": 85,
+   "spDefense": 105,
+   "speed": 78
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "caterpie",
+  "name": "Caterpie",
+  "id": 10,
+  "types": [
+   "Bug"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 30,
+   "defense": 35,
+   "spAttack": 20,
+   "spDefense": 20,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "metapod",
+  "name": "Metapod",
+  "id": 11,
+  "types": [
+   "Bug"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 20,
+   "defense": 55,
+   "spAttack": 25,
+   "spDefense": 25,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "butterfree",
+  "name": "Butterfree",
+  "id": 12,
+  "types": [
+   "Bug",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 45,
+   "defense": 50,
+   "spAttack": 90,
+   "spDefense": 80,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "weedle",
+  "name": "Weedle",
+  "id": 13,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 35,
+   "defense": 30,
+   "spAttack": 20,
+   "spDefense": 20,
+   "speed": 50
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "kakuna",
+  "name": "Kakuna",
+  "id": 14,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 25,
+   "defense": 50,
+   "spAttack": 25,
+   "spDefense": 25,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "beedrill",
+  "name": "Beedrill",
+  "id": 15,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 90,
+   "defense": 40,
+   "spAttack": 45,
+   "spDefense": 80,
+   "speed": 75
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "pidgey",
+  "name": "Pidgey",
+  "id": 16,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 45,
+   "defense": 40,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 56
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "pidgeotto",
+  "name": "Pidgeotto",
+  "id": 17,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 63,
+   "attack": 60,
+   "defense": 55,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 71
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "pidgeot",
+  "name": "Pidgeot",
+  "id": 18,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 83,
+   "attack": 80,
+   "defense": 75,
+   "spAttack": 70,
+   "spDefense": 70,
+   "speed": 101
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "rattata",
+  "name": "Rattata",
+  "id": 19,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 56,
+   "defense": 35,
+   "spAttack": 25,
+   "spDefense": 35,
+   "speed": 72
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "raticate",
+  "name": "Raticate",
+  "id": 20,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 81,
+   "defense": 60,
+   "spAttack": 50,
+   "spDefense": 70,
+   "speed": 97
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "spearow",
+  "name": "Spearow",
+  "id": 21,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 60,
+   "defense": 30,
+   "spAttack": 31,
+   "spDefense": 31,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "fearow",
+  "name": "Fearow",
+  "id": 22,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 90,
+   "defense": 65,
+   "spAttack": 61,
+   "spDefense": 61,
+   "speed": 100
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "ekans",
+  "name": "Ekans",
+  "id": 23,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 60,
+   "defense": 44,
+   "spAttack": 40,
+   "spDefense": 54,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "arbok",
+  "name": "Arbok",
+  "id": 24,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 95,
+   "defense": 69,
+   "spAttack": 65,
+   "spDefense": 79,
+   "speed": 80
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "pikachu",
+  "name": "Pikachu",
+  "id": 25,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 55,
+   "defense": 40,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "raichu",
+  "name": "Raichu",
+  "id": 26,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 90,
+   "defense": 55,
+   "spAttack": 90,
+   "spDefense": 80,
+   "speed": 110
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "sandshrew",
+  "name": "Sandshrew",
+  "id": 27,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 75,
+   "defense": 85,
+   "spAttack": 20,
+   "spDefense": 30,
+   "speed": 40
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "sandslash",
+  "name": "Sandslash",
+  "id": 28,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 100,
+   "defense": 110,
+   "spAttack": 45,
+   "spDefense": 55,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "nidoranF",
+  "name": "Nidoran♀",
+  "id": 29,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 47,
+   "defense": 52,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 41
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "nidorina",
+  "name": "Nidorina",
+  "id": 30,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 62,
+   "defense": 67,
+   "spAttack": 55,
+   "spDefense": 55,
+   "speed": 56
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "nidoqueen",
+  "name": "Nidoqueen",
+  "id": 31,
+  "types": [
+   "Poison",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 92,
+   "defense": 87,
+   "spAttack": 75,
+   "spDefense": 85,
+   "speed": 76
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "nidoranM",
+  "name": "Nidoran♂",
+  "id": 32,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 46,
+   "attack": 57,
+   "defense": 40,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 50
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "nidorino",
+  "name": "Nidorino",
+  "id": 33,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 61,
+   "attack": 72,
+   "defense": 57,
+   "spAttack": 55,
+   "spDefense": 55,
+   "speed": 65
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "nidoking",
+  "name": "Nidoking",
+  "id": 34,
+  "types": [
+   "Poison",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 81,
+   "attack": 102,
+   "defense": 77,
+   "spAttack": 85,
+   "spDefense": 75,
+   "speed": 85
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "clefairy",
+  "name": "Clefairy",
+  "id": 35,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 45,
+   "defense": 48,
+   "spAttack": 60,
+   "spDefense": 65,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "clefable",
+  "name": "Clefable",
+  "id": 36,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 70,
+   "defense": 73,
+   "spAttack": 95,
+   "spDefense": 90,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "vulpix",
+  "name": "Vulpix",
+  "id": 37,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 38,
+   "attack": 41,
+   "defense": 40,
+   "spAttack": 50,
+   "spDefense": 65,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "ninetales",
+  "name": "Ninetales",
+  "id": 38,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 73,
+   "attack": 76,
+   "defense": 75,
+   "spAttack": 81,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "jigglypuff",
+  "name": "Jigglypuff",
+  "id": 39,
+  "types": [
+   "Normal",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 115,
+   "attack": 45,
+   "defense": 20,
+   "spAttack": 45,
+   "spDefense": 25,
+   "speed": 20
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "wigglytuff",
+  "name": "Wigglytuff",
+  "id": 40,
+  "types": [
+   "Normal",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 140,
+   "attack": 70,
+   "defense": 45,
+   "spAttack": 85,
+   "spDefense": 50,
+   "speed": 45
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "zubat",
+  "name": "Zubat",
+  "id": 41,
+  "types": [
+   "Poison",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 45,
+   "defense": 35,
+   "spAttack": 30,
+   "spDefense": 40,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "golbat",
+  "name": "Golbat",
+  "id": 42,
+  "types": [
+   "Poison",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 80,
+   "defense": 70,
+   "spAttack": 65,
+   "spDefense": 75,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "oddish",
+  "name": "Oddish",
+  "id": 43,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 50,
+   "defense": 55,
+   "spAttack": 75,
+   "spDefense": 65,
+   "speed": 30
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "gloom",
+  "name": "Gloom",
+  "id": 44,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 65,
+   "defense": 70,
+   "spAttack": 85,
+   "spDefense": 75,
+   "speed": 40
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "vileplume",
+  "name": "Vileplume",
+  "id": 45,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 80,
+   "defense": 85,
+   "spAttack": 110,
+   "spDefense": 90,
+   "speed": 50
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "paras",
+  "name": "Paras",
+  "id": 46,
+  "types": [
+   "Bug",
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 70,
+   "defense": 55,
+   "spAttack": 45,
+   "spDefense": 55,
+   "speed": 25
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "parasect",
+  "name": "Parasect",
+  "id": 47,
+  "types": [
+   "Bug",
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 95,
+   "defense": 80,
+   "spAttack": 60,
+   "spDefense": 80,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "venonat",
+  "name": "Venonat",
+  "id": 48,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 55,
+   "defense": 50,
+   "spAttack": 40,
+   "spDefense": 55,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "venomoth",
+  "name": "Venomoth",
+  "id": 49,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 65,
+   "defense": 60,
+   "spAttack": 90,
+   "spDefense": 75,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "diglett",
+  "name": "Diglett",
+  "id": 50,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 10,
+   "attack": 55,
+   "defense": 25,
+   "spAttack": 35,
+   "spDefense": 45,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "dugtrio",
+  "name": "Dugtrio",
+  "id": 51,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 100,
+   "defense": 50,
+   "spAttack": 50,
+   "spDefense": 70,
+   "speed": 120
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "meowth",
+  "name": "Meowth",
+  "id": 52,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 45,
+   "defense": 35,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "persian",
+  "name": "Persian",
+  "id": 53,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 70,
+   "defense": 60,
+   "spAttack": 65,
+   "spDefense": 65,
+   "speed": 115
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "psyduck",
+  "name": "Psyduck",
+  "id": 54,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 52,
+   "defense": 48,
+   "spAttack": 65,
+   "spDefense": 50,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "golduck",
+  "name": "Golduck",
+  "id": 55,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 82,
+   "defense": 78,
+   "spAttack": 95,
+   "spDefense": 80,
+   "speed": 85
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "mankey",
+  "name": "Mankey",
+  "id": 56,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 80,
+   "defense": 35,
+   "spAttack": 35,
+   "spDefense": 45,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "primeape",
+  "name": "Primeape",
+  "id": 57,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 105,
+   "defense": 60,
+   "spAttack": 60,
+   "spDefense": 70,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "growlithe",
+  "name": "Growlithe",
+  "id": 58,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 70,
+   "defense": 45,
+   "spAttack": 70,
+   "spDefense": 50,
+   "speed": 60
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "arcanine",
+  "name": "Arcanine",
+  "id": 59,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 110,
+   "defense": 80,
+   "spAttack": 100,
+   "spDefense": 80,
+   "speed": 95
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "poliwag",
+  "name": "Poliwag",
+  "id": 60,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 50,
+   "defense": 40,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 90
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "poliwhirl",
+  "name": "Poliwhirl",
+  "id": 61,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 65,
+   "defense": 65,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 90
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "poliwrath",
+  "name": "Poliwrath",
+  "id": 62,
+  "types": [
+   "Water",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 95,
+   "defense": 95,
+   "spAttack": 70,
+   "spDefense": 90,
+   "speed": 70
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "abra",
+  "name": "Abra",
+  "id": 63,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 25,
+   "attack": 20,
+   "defense": 15,
+   "spAttack": 105,
+   "spDefense": 55,
+   "speed": 90
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "kadabra",
+  "name": "Kadabra",
+  "id": 64,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 35,
+   "defense": 30,
+   "spAttack": 120,
+   "spDefense": 70,
+   "speed": 105
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "alakazam",
+  "name": "Alakazam",
+  "id": 65,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 50,
+   "defense": 45,
+   "spAttack": 135,
+   "spDefense": 95,
+   "speed": 120
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "machop",
+  "name": "Machop",
+  "id": 66,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 80,
+   "defense": 50,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 35
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "machoke",
+  "name": "Machoke",
+  "id": 67,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 100,
+   "defense": 70,
+   "spAttack": 50,
+   "spDefense": 60,
+   "speed": 45
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "machamp",
+  "name": "Machamp",
+  "id": 68,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 130,
+   "defense": 80,
+   "spAttack": 65,
+   "spDefense": 85,
+   "speed": 55
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "bellsprout",
+  "name": "Bellsprout",
+  "id": 69,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 75,
+   "defense": 35,
+   "spAttack": 70,
+   "spDefense": 30,
+   "speed": 40
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "weepinbell",
+  "name": "Weepinbell",
+  "id": 70,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 90,
+   "defense": 50,
+   "spAttack": 85,
+   "spDefense": 45,
+   "speed": 55
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "victreebel",
+  "name": "Victreebel",
+  "id": 71,
+  "types": [
+   "Grass",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 105,
+   "defense": 65,
+   "spAttack": 100,
+   "spDefense": 70,
+   "speed": 70
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "tentacool",
+  "name": "Tentacool",
+  "id": 72,
+  "types": [
+   "Water",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 40,
+   "defense": 35,
+   "spAttack": 50,
+   "spDefense": 100,
+   "speed": 70
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "tentacruel",
+  "name": "Tentacruel",
+  "id": 73,
+  "types": [
+   "Water",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 70,
+   "defense": 65,
+   "spAttack": 80,
+   "spDefense": 120,
+   "speed": 100
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "geodude",
+  "name": "Geodude",
+  "id": 74,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 80,
+   "defense": 100,
+   "spAttack": 30,
+   "spDefense": 30,
+   "speed": 20
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "graveler",
+  "name": "Graveler",
+  "id": 75,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 95,
+   "defense": 115,
+   "spAttack": 45,
+   "spDefense": 45,
+   "speed": 35
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "golem",
+  "name": "Golem",
+  "id": 76,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 120,
+   "defense": 130,
+   "spAttack": 55,
+   "spDefense": 65,
+   "speed": 45
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "ponyta",
+  "name": "Ponyta",
+  "id": 77,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 85,
+   "defense": 55,
+   "spAttack": 65,
+   "spDefense": 65,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "rapidash",
+  "name": "Rapidash",
+  "id": 78,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 100,
+   "defense": 70,
+   "spAttack": 80,
+   "spDefense": 80,
+   "speed": 105
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "slowpoke",
+  "name": "Slowpoke",
+  "id": 79,
+  "types": [
+   "Water",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 65,
+   "defense": 65,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 15
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "slowbro",
+  "name": "Slowbro",
+  "id": 80,
+  "types": [
+   "Water",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 75,
+   "defense": 110,
+   "spAttack": 100,
+   "spDefense": 80,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "magnemite",
+  "name": "Magnemite",
+  "id": 81,
+  "types": [
+   "Electric",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 25,
+   "attack": 35,
+   "defense": 70,
+   "spAttack": 95,
+   "spDefense": 55,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "magneton",
+  "name": "Magneton",
+  "id": 82,
+  "types": [
+   "Electric",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 60,
+   "defense": 95,
+   "spAttack": 120,
+   "spDefense": 70,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "farfetchd",
+  "name": "Farfetch'd",
+  "id": 83,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 52,
+   "attack": 90,
+   "defense": 55,
+   "spAttack": 58,
+   "spDefense": 62,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "doduo",
+  "name": "Doduo",
+  "id": 84,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 85,
+   "defense": 45,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 75
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "dodrio",
+  "name": "Dodrio",
+  "id": 85,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 110,
+   "defense": 70,
+   "spAttack": 60,
+   "spDefense": 60,
+   "speed": 110
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "seel",
+  "name": "Seel",
+  "id": 86,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 45,
+   "defense": 55,
+   "spAttack": 45,
+   "spDefense": 70,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "dewgong",
+  "name": "Dewgong",
+  "id": 87,
+  "types": [
+   "Water",
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 70,
+   "defense": 80,
+   "spAttack": 70,
+   "spDefense": 95,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "grimer",
+  "name": "Grimer",
+  "id": 88,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 80,
+   "defense": 50,
+   "spAttack": 40,
+   "spDefense": 50,
+   "speed": 25
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "muk",
+  "name": "Muk",
+  "id": 89,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 105,
+   "attack": 105,
+   "defense": 75,
+   "spAttack": 65,
+   "spDefense": 100,
+   "speed": 50
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "shellder",
+  "name": "Shellder",
+  "id": 90,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 65,
+   "defense": 100,
+   "spAttack": 45,
+   "spDefense": 25,
+   "speed": 40
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "cloyster",
+  "name": "Cloyster",
+  "id": 91,
+  "types": [
+   "Water",
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 95,
+   "defense": 180,
+   "spAttack": 85,
+   "spDefense": 45,
+   "speed": 70
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "gastly",
+  "name": "Gastly",
+  "id": 92,
+  "types": [
+   "Ghost",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 35,
+   "defense": 30,
+   "spAttack": 100,
+   "spDefense": 35,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "haunter",
+  "name": "Haunter",
+  "id": 93,
+  "types": [
+   "Ghost",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 50,
+   "defense": 45,
+   "spAttack": 115,
+   "spDefense": 55,
+   "speed": 95
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "gengar",
+  "name": "Gengar",
+  "id": 94,
+  "types": [
+   "Ghost",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 65,
+   "defense": 60,
+   "spAttack": 130,
+   "spDefense": 75,
+   "speed": 110
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "onix",
+  "name": "Onix",
+  "id": 95,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 45,
+   "defense": 160,
+   "spAttack": 30,
+   "spDefense": 45,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "drowzee",
+  "name": "Drowzee",
+  "id": 96,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 48,
+   "defense": 45,
+   "spAttack": 43,
+   "spDefense": 90,
+   "speed": 42
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "hypno",
+  "name": "Hypno",
+  "id": 97,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 73,
+   "defense": 70,
+   "spAttack": 73,
+   "spDefense": 115,
+   "speed": 67
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "krabby",
+  "name": "Krabby",
+  "id": 98,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 105,
+   "defense": 90,
+   "spAttack": 25,
+   "spDefense": 25,
+   "speed": 50
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "kingler",
+  "name": "Kingler",
+  "id": 99,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 130,
+   "defense": 115,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 75
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "voltorb",
+  "name": "Voltorb",
+  "id": 100,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 30,
+   "defense": 50,
+   "spAttack": 55,
+   "spDefense": 55,
+   "speed": 100
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "electrode",
+  "name": "Electrode",
+  "id": 101,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 50,
+   "defense": 70,
+   "spAttack": 80,
+   "spDefense": 80,
+   "speed": 150
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "exeggcute",
+  "name": "Exeggcute",
+  "id": 102,
+  "types": [
+   "Grass",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 40,
+   "defense": 80,
+   "spAttack": 60,
+   "spDefense": 45,
+   "speed": 40
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "exeggutor",
+  "name": "Exeggutor",
+  "id": 103,
+  "types": [
+   "Grass",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 95,
+   "defense": 85,
+   "spAttack": 125,
+   "spDefense": 75,
+   "speed": 55
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "cubone",
+  "name": "Cubone",
+  "id": 104,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 50,
+   "defense": 95,
+   "spAttack": 40,
+   "spDefense": 50,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "marowak",
+  "name": "Marowak",
+  "id": 105,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 80,
+   "defense": 110,
+   "spAttack": 50,
+   "spDefense": 80,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "hitmonlee",
+  "name": "Hitmonlee",
+  "id": 106,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 120,
+   "defense": 53,
+   "spAttack": 35,
+   "spDefense": 110,
+   "speed": 87
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "hitmonchan",
+  "name": "Hitmonchan",
+  "id": 107,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 105,
+   "defense": 79,
+   "spAttack": 35,
+   "spDefense": 110,
+   "speed": 76
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "lickitung",
+  "name": "Lickitung",
+  "id": 108,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 55,
+   "defense": 75,
+   "spAttack": 60,
+   "spDefense": 75,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "koffing",
+  "name": "Koffing",
+  "id": 109,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 65,
+   "defense": 95,
+   "spAttack": 60,
+   "spDefense": 45,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "weezing",
+  "name": "Weezing",
+  "id": 110,
+  "types": [
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 90,
+   "defense": 120,
+   "spAttack": 85,
+   "spDefense": 70,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "rhyhorn",
+  "name": "Rhyhorn",
+  "id": 111,
+  "types": [
+   "Ground",
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 85,
+   "defense": 95,
+   "spAttack": 30,
+   "spDefense": 30,
+   "speed": 25
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "rhydon",
+  "name": "Rhydon",
+  "id": 112,
+  "types": [
+   "Ground",
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 105,
+   "attack": 130,
+   "defense": 120,
+   "spAttack": 45,
+   "spDefense": 45,
+   "speed": 40
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "chansey",
+  "name": "Chansey",
+  "id": 113,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 250,
+   "attack": 5,
+   "defense": 5,
+   "spAttack": 35,
+   "spDefense": 105,
+   "speed": 50
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "tangela",
+  "name": "Tangela",
+  "id": 114,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 55,
+   "defense": 115,
+   "spAttack": 100,
+   "spDefense": 40,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "kangaskhan",
+  "name": "Kangaskhan",
+  "id": 115,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 105,
+   "attack": 95,
+   "defense": 80,
+   "spAttack": 40,
+   "spDefense": 80,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "horsea",
+  "name": "Horsea",
+  "id": 116,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 40,
+   "defense": 70,
+   "spAttack": 70,
+   "spDefense": 25,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "seadra",
+  "name": "Seadra",
+  "id": 117,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 65,
+   "defense": 95,
+   "spAttack": 95,
+   "spDefense": 45,
+   "speed": 85
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "goldeen",
+  "name": "Goldeen",
+  "id": 118,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 67,
+   "defense": 60,
+   "spAttack": 35,
+   "spDefense": 50,
+   "speed": 63
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "seaking",
+  "name": "Seaking",
+  "id": 119,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 92,
+   "defense": 65,
+   "spAttack": 65,
+   "spDefense": 80,
+   "speed": 68
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "staryu",
+  "name": "Staryu",
+  "id": 120,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 45,
+   "defense": 55,
+   "spAttack": 70,
+   "spDefense": 55,
+   "speed": 85
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "starmie",
+  "name": "Starmie",
+  "id": 121,
+  "types": [
+   "Water",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 75,
+   "defense": 85,
+   "spAttack": 100,
+   "spDefense": 85,
+   "speed": 115
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "mrMime",
+  "name": "Mr. Mime",
+  "id": 122,
+  "types": [
+   "Psychic",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 45,
+   "defense": 65,
+   "spAttack": 100,
+   "spDefense": 120,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "scyther",
+  "name": "Scyther",
+  "id": 123,
+  "types": [
+   "Bug",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 110,
+   "defense": 80,
+   "spAttack": 55,
+   "spDefense": 80,
+   "speed": 105
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "jynx",
+  "name": "Jynx",
+  "id": 124,
+  "types": [
+   "Ice",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 50,
+   "defense": 35,
+   "spAttack": 115,
+   "spDefense": 95,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "electabuzz",
+  "name": "Electabuzz",
+  "id": 125,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 83,
+   "defense": 57,
+   "spAttack": 95,
+   "spDefense": 85,
+   "speed": 105
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "magmar",
+  "name": "Magmar",
+  "id": 126,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 95,
+   "defense": 57,
+   "spAttack": 100,
+   "spDefense": 85,
+   "speed": 93
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "pinsir",
+  "name": "Pinsir",
+  "id": 127,
+  "types": [
+   "Bug"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 125,
+   "defense": 100,
+   "spAttack": 55,
+   "spDefense": 70,
+   "speed": 85
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "tauros",
+  "name": "Tauros",
+  "id": 128,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 100,
+   "defense": 95,
+   "spAttack": 40,
+   "spDefense": 70,
+   "speed": 110
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "magikarp",
+  "name": "Magikarp",
+  "id": 129,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 20,
+   "attack": 10,
+   "defense": 55,
+   "spAttack": 15,
+   "spDefense": 20,
+   "speed": 80
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "gyarados",
+  "name": "Gyarados",
+  "id": 130,
+  "types": [
+   "Water",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 125,
+   "defense": 79,
+   "spAttack": 60,
+   "spDefense": 100,
+   "speed": 81
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "lapras",
+  "name": "Lapras",
+  "id": 131,
+  "types": [
+   "Water",
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 130,
+   "attack": 85,
+   "defense": 80,
+   "spAttack": 85,
+   "spDefense": 95,
+   "speed": 60
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "ditto",
+  "name": "Ditto",
+  "id": 132,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 48,
+   "attack": 48,
+   "defense": 48,
+   "spAttack": 48,
+   "spDefense": 48,
+   "speed": 48
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "eevee",
+  "name": "Eevee",
+  "id": 133,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 55,
+   "defense": 50,
+   "spAttack": 45,
+   "spDefense": 65,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "vaporeon",
+  "name": "Vaporeon",
+  "id": 134,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 130,
+   "attack": 65,
+   "defense": 60,
+   "spAttack": 110,
+   "spDefense": 95,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "jolteon",
+  "name": "Jolteon",
+  "id": 135,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 65,
+   "defense": 60,
+   "spAttack": 110,
+   "spDefense": 95,
+   "speed": 130
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "flareon",
+  "name": "Flareon",
+  "id": 136,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 130,
+   "defense": 60,
+   "spAttack": 95,
+   "spDefense": 110,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "porygon",
+  "name": "Porygon",
+  "id": 137,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 60,
+   "defense": 70,
+   "spAttack": 85,
+   "spDefense": 75,
+   "speed": 40
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "omanyte",
+  "name": "Omanyte",
+  "id": 138,
+  "types": [
+   "Rock",
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 40,
+   "defense": 100,
+   "spAttack": 90,
+   "spDefense": 55,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "omastar",
+  "name": "Omastar",
+  "id": 139,
+  "types": [
+   "Rock",
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 60,
+   "defense": 125,
+   "spAttack": 115,
+   "spDefense": 70,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "kabuto",
+  "name": "Kabuto",
+  "id": 140,
+  "types": [
+   "Rock",
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 80,
+   "defense": 90,
+   "spAttack": 55,
+   "spDefense": 45,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "kabutops",
+  "name": "Kabutops",
+  "id": 141,
+  "types": [
+   "Rock",
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 115,
+   "defense": 105,
+   "spAttack": 65,
+   "spDefense": 70,
+   "speed": 80
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "aerodactyl",
+  "name": "Aerodactyl",
+  "id": 142,
+  "types": [
+   "Rock",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 105,
+   "defense": 65,
+   "spAttack": 60,
+   "spDefense": 75,
+   "speed": 130
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "snorlax",
+  "name": "Snorlax",
+  "id": 143,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 160,
+   "attack": 110,
+   "defense": 65,
+   "spAttack": 65,
+   "spDefense": 110,
+   "speed": 30
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "articuno",
+  "name": "Articuno",
+  "id": 144,
+  "types": [
+   "Ice",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 85,
+   "defense": 100,
+   "spAttack": 95,
+   "spDefense": 125,
+   "speed": 85
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "zapdos",
+  "name": "Zapdos",
+  "id": 145,
+  "types": [
+   "Electric",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 90,
+   "defense": 85,
+   "spAttack": 125,
+   "spDefense": 90,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "moltres",
+  "name": "Moltres",
+  "id": 146,
+  "types": [
+   "Fire",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 100,
+   "defense": 90,
+   "spAttack": 125,
+   "spDefense": 85,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "dratini",
+  "name": "Dratini",
+  "id": 147,
+  "types": [
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 41,
+   "attack": 64,
+   "defense": 45,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "dragonair",
+  "name": "Dragonair",
+  "id": 148,
+  "types": [
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 61,
+   "attack": 84,
+   "defense": 65,
+   "spAttack": 70,
+   "spDefense": 70,
+   "speed": 70
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "dragonite",
+  "name": "Dragonite",
+  "id": 149,
+  "types": [
+   "Dragon",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 134,
+   "defense": 95,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 80
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "mewtwo",
+  "name": "Mewtwo",
+  "id": 150,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 106,
+   "attack": 110,
+   "defense": 90,
+   "spAttack": 154,
+   "spDefense": 90,
+   "speed": 130
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "mew",
+  "name": "Mew",
+  "id": 151,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "chikorita",
+  "name": "Chikorita",
+  "id": 152,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 49,
+   "defense": 65,
+   "spAttack": 49,
+   "spDefense": 65,
+   "speed": 45
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "bayleef",
+  "name": "Bayleef",
+  "id": 153,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 62,
+   "defense": 80,
+   "spAttack": 63,
+   "spDefense": 80,
+   "speed": 60
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "meganium",
+  "name": "Meganium",
+  "id": 154,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 82,
+   "defense": 100,
+   "spAttack": 83,
+   "spDefense": 100,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "cyndaquil",
+  "name": "Cyndaquil",
+  "id": 155,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 39,
+   "attack": 52,
+   "defense": 43,
+   "spAttack": 60,
+   "spDefense": 50,
+   "speed": 65
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "quilava",
+  "name": "Quilava",
+  "id": 156,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 58,
+   "attack": 64,
+   "defense": 58,
+   "spAttack": 80,
+   "spDefense": 65,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "typhlosion",
+  "name": "Typhlosion",
+  "id": 157,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 78,
+   "attack": 84,
+   "defense": 78,
+   "spAttack": 109,
+   "spDefense": 85,
+   "speed": 100
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "totodile",
+  "name": "Totodile",
+  "id": 158,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 65,
+   "defense": 64,
+   "spAttack": 44,
+   "spDefense": 48,
+   "speed": 43
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "croconaw",
+  "name": "Croconaw",
+  "id": 159,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 80,
+   "defense": 80,
+   "spAttack": 59,
+   "spDefense": 63,
+   "speed": 58
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "feraligatr",
+  "name": "Feraligatr",
+  "id": 160,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 105,
+   "defense": 100,
+   "spAttack": 79,
+   "spDefense": 83,
+   "speed": 78
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "sentret",
+  "name": "Sentret",
+  "id": 161,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 46,
+   "defense": 34,
+   "spAttack": 35,
+   "spDefense": 45,
+   "speed": 20
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "furret",
+  "name": "Furret",
+  "id": 162,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 76,
+   "defense": 64,
+   "spAttack": 45,
+   "spDefense": 55,
+   "speed": 90
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "hoothoot",
+  "name": "Hoothoot",
+  "id": 163,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 30,
+   "defense": 30,
+   "spAttack": 36,
+   "spDefense": 56,
+   "speed": 50
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "noctowl",
+  "name": "Noctowl",
+  "id": 164,
+  "types": [
+   "Normal",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 50,
+   "defense": 50,
+   "spAttack": 86,
+   "spDefense": 96,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "ledyba",
+  "name": "Ledyba",
+  "id": 165,
+  "types": [
+   "Bug",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 20,
+   "defense": 30,
+   "spAttack": 40,
+   "spDefense": 80,
+   "speed": 55
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "ledian",
+  "name": "Ledian",
+  "id": 166,
+  "types": [
+   "Bug",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 35,
+   "defense": 50,
+   "spAttack": 55,
+   "spDefense": 110,
+   "speed": 85
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "spinarak",
+  "name": "Spinarak",
+  "id": 167,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 60,
+   "defense": 40,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 30
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "ariados",
+  "name": "Ariados",
+  "id": 168,
+  "types": [
+   "Bug",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 90,
+   "defense": 70,
+   "spAttack": 60,
+   "spDefense": 70,
+   "speed": 40
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "crobat",
+  "name": "Crobat",
+  "id": 169,
+  "types": [
+   "Poison",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 90,
+   "defense": 80,
+   "spAttack": 70,
+   "spDefense": 80,
+   "speed": 130
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "chinchou",
+  "name": "Chinchou",
+  "id": 170,
+  "types": [
+   "Water",
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 38,
+   "defense": 38,
+   "spAttack": 56,
+   "spDefense": 56,
+   "speed": 67
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "lanturn",
+  "name": "Lanturn",
+  "id": 171,
+  "types": [
+   "Water",
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 125,
+   "attack": 58,
+   "defense": 58,
+   "spAttack": 76,
+   "spDefense": 76,
+   "speed": 67
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "pichu",
+  "name": "Pichu",
+  "id": 172,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 20,
+   "attack": 40,
+   "defense": 15,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "cleffa",
+  "name": "Cleffa",
+  "id": 173,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 25,
+   "defense": 28,
+   "spAttack": 45,
+   "spDefense": 55,
+   "speed": 15
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "igglybuff",
+  "name": "Igglybuff",
+  "id": 174,
+  "types": [
+   "Normal",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 30,
+   "defense": 15,
+   "spAttack": 40,
+   "spDefense": 20,
+   "speed": 15
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "togepi",
+  "name": "Togepi",
+  "id": 175,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 20,
+   "defense": 65,
+   "spAttack": 40,
+   "spDefense": 65,
+   "speed": 20
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "togetic",
+  "name": "Togetic",
+  "id": 176,
+  "types": [
+   "Fairy",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 40,
+   "defense": 85,
+   "spAttack": 80,
+   "spDefense": 105,
+   "speed": 40
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "natu",
+  "name": "Natu",
+  "id": 177,
+  "types": [
+   "Psychic",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 50,
+   "defense": 45,
+   "spAttack": 70,
+   "spDefense": 45,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "xatu",
+  "name": "Xatu",
+  "id": 178,
+  "types": [
+   "Psychic",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 75,
+   "defense": 70,
+   "spAttack": 95,
+   "spDefense": 70,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "mareep",
+  "name": "Mareep",
+  "id": 179,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 40,
+   "defense": 40,
+   "spAttack": 65,
+   "spDefense": 45,
+   "speed": 35
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "flaaffy",
+  "name": "Flaaffy",
+  "id": 180,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 55,
+   "defense": 55,
+   "spAttack": 80,
+   "spDefense": 60,
+   "speed": 45
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "ampharos",
+  "name": "Ampharos",
+  "id": 181,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 75,
+   "defense": 85,
+   "spAttack": 115,
+   "spDefense": 90,
+   "speed": 55
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "bellossom",
+  "name": "Bellossom",
+  "id": 182,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 80,
+   "defense": 95,
+   "spAttack": 90,
+   "spDefense": 100,
+   "speed": 50
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "marill",
+  "name": "Marill",
+  "id": 183,
+  "types": [
+   "Water",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 20,
+   "defense": 50,
+   "spAttack": 20,
+   "spDefense": 50,
+   "speed": 40
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "azumarill",
+  "name": "Azumarill",
+  "id": 184,
+  "types": [
+   "Water",
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 50,
+   "defense": 80,
+   "spAttack": 60,
+   "spDefense": 80,
+   "speed": 50
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "sudowoodo",
+  "name": "Sudowoodo",
+  "id": 185,
+  "types": [
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 100,
+   "defense": 115,
+   "spAttack": 30,
+   "spDefense": 65,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "politoed",
+  "name": "Politoed",
+  "id": 186,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 75,
+   "defense": 75,
+   "spAttack": 90,
+   "spDefense": 100,
+   "speed": 70
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "hoppip",
+  "name": "Hoppip",
+  "id": 187,
+  "types": [
+   "Grass",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 35,
+   "defense": 40,
+   "spAttack": 35,
+   "spDefense": 55,
+   "speed": 50
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "skiploom",
+  "name": "Skiploom",
+  "id": 188,
+  "types": [
+   "Grass",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 45,
+   "defense": 50,
+   "spAttack": 45,
+   "spDefense": 65,
+   "speed": 80
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "jumpluff",
+  "name": "Jumpluff",
+  "id": 189,
+  "types": [
+   "Grass",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 55,
+   "defense": 70,
+   "spAttack": 55,
+   "spDefense": 95,
+   "speed": 110
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "aipom",
+  "name": "Aipom",
+  "id": 190,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 70,
+   "defense": 55,
+   "spAttack": 40,
+   "spDefense": 55,
+   "speed": 85
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "sunkern",
+  "name": "Sunkern",
+  "id": 191,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 30,
+   "attack": 30,
+   "defense": 30,
+   "spAttack": 30,
+   "spDefense": 30,
+   "speed": 30
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "sunflora",
+  "name": "Sunflora",
+  "id": 192,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 75,
+   "defense": 55,
+   "spAttack": 105,
+   "spDefense": 85,
+   "speed": 30
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "yanma",
+  "name": "Yanma",
+  "id": 193,
+  "types": [
+   "Bug",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 65,
+   "defense": 45,
+   "spAttack": 75,
+   "spDefense": 45,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "wooper",
+  "name": "Wooper",
+  "id": 194,
+  "types": [
+   "Water",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 45,
+   "defense": 45,
+   "spAttack": 25,
+   "spDefense": 25,
+   "speed": 15
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "quagsire",
+  "name": "Quagsire",
+  "id": 195,
+  "types": [
+   "Water",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 85,
+   "defense": 85,
+   "spAttack": 65,
+   "spDefense": 65,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "espeon",
+  "name": "Espeon",
+  "id": 196,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 65,
+   "defense": 60,
+   "spAttack": 130,
+   "spDefense": 95,
+   "speed": 110
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "umbreon",
+  "name": "Umbreon",
+  "id": 197,
+  "types": [
+   "Dark"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 65,
+   "defense": 110,
+   "spAttack": 60,
+   "spDefense": 130,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "murkrow",
+  "name": "Murkrow",
+  "id": 198,
+  "types": [
+   "Dark",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 85,
+   "defense": 42,
+   "spAttack": 85,
+   "spDefense": 42,
+   "speed": 91
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "slowking",
+  "name": "Slowking",
+  "id": 199,
+  "types": [
+   "Water",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 75,
+   "defense": 80,
+   "spAttack": 100,
+   "spDefense": 110,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "misdreavus",
+  "name": "Misdreavus",
+  "id": 200,
+  "types": [
+   "Ghost"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 60,
+   "defense": 60,
+   "spAttack": 85,
+   "spDefense": 85,
+   "speed": 85
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "unown",
+  "name": "Unown",
+  "id": 201,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 48,
+   "attack": 72,
+   "defense": 48,
+   "spAttack": 72,
+   "spDefense": 48,
+   "speed": 48
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "wobbuffet",
+  "name": "Wobbuffet",
+  "id": 202,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 190,
+   "attack": 33,
+   "defense": 58,
+   "spAttack": 33,
+   "spDefense": 58,
+   "speed": 33
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "girafarig",
+  "name": "Girafarig",
+  "id": 203,
+  "types": [
+   "Normal",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 80,
+   "defense": 65,
+   "spAttack": 90,
+   "spDefense": 65,
+   "speed": 85
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "pineco",
+  "name": "Pineco",
+  "id": 204,
+  "types": [
+   "Bug"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 65,
+   "defense": 90,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 15
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "forretress",
+  "name": "Forretress",
+  "id": 205,
+  "types": [
+   "Bug",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 90,
+   "defense": 140,
+   "spAttack": 60,
+   "spDefense": 60,
+   "speed": 40
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "dunsparce",
+  "name": "Dunsparce",
+  "id": 206,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 70,
+   "defense": 70,
+   "spAttack": 65,
+   "spDefense": 65,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "gligar",
+  "name": "Gligar",
+  "id": 207,
+  "types": [
+   "Ground",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 75,
+   "defense": 105,
+   "spAttack": 35,
+   "spDefense": 65,
+   "speed": 85
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "steelix",
+  "name": "Steelix",
+  "id": 208,
+  "types": [
+   "Steel",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 85,
+   "defense": 200,
+   "spAttack": 55,
+   "spDefense": 65,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "snubbull",
+  "name": "Snubbull",
+  "id": 209,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 80,
+   "defense": 50,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 30
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "granbull",
+  "name": "Granbull",
+  "id": 210,
+  "types": [
+   "Fairy"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 120,
+   "defense": 75,
+   "spAttack": 60,
+   "spDefense": 60,
+   "speed": 45
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "qwilfish",
+  "name": "Qwilfish",
+  "id": 211,
+  "types": [
+   "Water",
+   "Poison"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 95,
+   "defense": 85,
+   "spAttack": 55,
+   "spDefense": 55,
+   "speed": 85
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "scizor",
+  "name": "Scizor",
+  "id": 212,
+  "types": [
+   "Bug",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 130,
+   "defense": 100,
+   "spAttack": 55,
+   "spDefense": 80,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "shuckle",
+  "name": "Shuckle",
+  "id": 213,
+  "types": [
+   "Bug",
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 20,
+   "attack": 10,
+   "defense": 230,
+   "spAttack": 10,
+   "spDefense": 230,
+   "speed": 5
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "heracross",
+  "name": "Heracross",
+  "id": 214,
+  "types": [
+   "Bug",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 125,
+   "defense": 75,
+   "spAttack": 40,
+   "spDefense": 95,
+   "speed": 85
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "sneasel",
+  "name": "Sneasel",
+  "id": 215,
+  "types": [
+   "Dark",
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 95,
+   "defense": 55,
+   "spAttack": 35,
+   "spDefense": 75,
+   "speed": 115
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "teddiursa",
+  "name": "Teddiursa",
+  "id": 216,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 80,
+   "defense": 50,
+   "spAttack": 50,
+   "spDefense": 50,
+   "speed": 40
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "ursaring",
+  "name": "Ursaring",
+  "id": 217,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 130,
+   "defense": 75,
+   "spAttack": 75,
+   "spDefense": 75,
+   "speed": 55
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "slugma",
+  "name": "Slugma",
+  "id": 218,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 40,
+   "attack": 40,
+   "defense": 40,
+   "spAttack": 70,
+   "spDefense": 40,
+   "speed": 20
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "magcargo",
+  "name": "Magcargo",
+  "id": 219,
+  "types": [
+   "Fire",
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 60,
+   "attack": 50,
+   "defense": 120,
+   "spAttack": 90,
+   "spDefense": 80,
+   "speed": 30
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "swinub",
+  "name": "Swinub",
+  "id": 220,
+  "types": [
+   "Ice",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 50,
+   "defense": 40,
+   "spAttack": 30,
+   "spDefense": 30,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "piloswine",
+  "name": "Piloswine",
+  "id": 221,
+  "types": [
+   "Ice",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 80,
+   "spAttack": 60,
+   "spDefense": 60,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "corsola",
+  "name": "Corsola",
+  "id": 222,
+  "types": [
+   "Water",
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 55,
+   "defense": 95,
+   "spAttack": 65,
+   "spDefense": 95,
+   "speed": 35
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "remoraid",
+  "name": "Remoraid",
+  "id": 223,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 65,
+   "defense": 35,
+   "spAttack": 65,
+   "spDefense": 35,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "octillery",
+  "name": "Octillery",
+  "id": 224,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 105,
+   "defense": 75,
+   "spAttack": 105,
+   "spDefense": 75,
+   "speed": 45
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "delibird",
+  "name": "Delibird",
+  "id": 225,
+  "types": [
+   "Ice",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 55,
+   "defense": 45,
+   "spAttack": 65,
+   "spDefense": 45,
+   "speed": 75
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "mantine",
+  "name": "Mantine",
+  "id": 226,
+  "types": [
+   "Water",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 40,
+   "defense": 70,
+   "spAttack": 80,
+   "spDefense": 140,
+   "speed": 70
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "skarmory",
+  "name": "Skarmory",
+  "id": 227,
+  "types": [
+   "Steel",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 65,
+   "attack": 80,
+   "defense": 140,
+   "spAttack": 40,
+   "spDefense": 70,
+   "speed": 70
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "houndour",
+  "name": "Houndour",
+  "id": 228,
+  "types": [
+   "Dark",
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 60,
+   "defense": 30,
+   "spAttack": 80,
+   "spDefense": 50,
+   "speed": 65
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "houndoom",
+  "name": "Houndoom",
+  "id": 229,
+  "types": [
+   "Dark",
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 90,
+   "defense": 50,
+   "spAttack": 110,
+   "spDefense": 80,
+   "speed": 95
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "kingdra",
+  "name": "Kingdra",
+  "id": 230,
+  "types": [
+   "Water",
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 95,
+   "defense": 95,
+   "spAttack": 95,
+   "spDefense": 95,
+   "speed": 85
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "phanpy",
+  "name": "Phanpy",
+  "id": 231,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 60,
+   "defense": 60,
+   "spAttack": 40,
+   "spDefense": 40,
+   "speed": 40
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "donphan",
+  "name": "Donphan",
+  "id": 232,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 120,
+   "defense": 120,
+   "spAttack": 60,
+   "spDefense": 60,
+   "speed": 50
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "porygon2",
+  "name": "Porygon2",
+  "id": 233,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 85,
+   "attack": 80,
+   "defense": 90,
+   "spAttack": 105,
+   "spDefense": 95,
+   "speed": 60
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "stantler",
+  "name": "Stantler",
+  "id": 234,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 73,
+   "attack": 95,
+   "defense": 62,
+   "spAttack": 85,
+   "spDefense": 65,
+   "speed": 85
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "smeargle",
+  "name": "Smeargle",
+  "id": 235,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 55,
+   "attack": 20,
+   "defense": 35,
+   "spAttack": 20,
+   "spDefense": 45,
+   "speed": 75
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "tyrogue",
+  "name": "Tyrogue",
+  "id": 236,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 35,
+   "attack": 35,
+   "defense": 35,
+   "spAttack": 35,
+   "spDefense": 35,
+   "speed": 35
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "hitmontop",
+  "name": "Hitmontop",
+  "id": 237,
+  "types": [
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 95,
+   "defense": 95,
+   "spAttack": 35,
+   "spDefense": 110,
+   "speed": 70
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "smoochum",
+  "name": "Smoochum",
+  "id": 238,
+  "types": [
+   "Ice",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 30,
+   "defense": 15,
+   "spAttack": 85,
+   "spDefense": 65,
+   "speed": 65
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "elekid",
+  "name": "Elekid",
+  "id": 239,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 63,
+   "defense": 37,
+   "spAttack": 65,
+   "spDefense": 55,
+   "speed": 95
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "magby",
+  "name": "Magby",
+  "id": 240,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 45,
+   "attack": 75,
+   "defense": 37,
+   "spAttack": 70,
+   "spDefense": 55,
+   "speed": 83
+  },
+  "growthRate": "mediumFast"
+ },
+ {
+  "speciesKey": "miltank",
+  "name": "Miltank",
+  "id": 241,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 95,
+   "attack": 80,
+   "defense": 105,
+   "spAttack": 40,
+   "spDefense": 70,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "blissey",
+  "name": "Blissey",
+  "id": 242,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 255,
+   "attack": 10,
+   "defense": 10,
+   "spAttack": 75,
+   "spDefense": 135,
+   "speed": 55
+  },
+  "growthRate": "fast"
+ },
+ {
+  "speciesKey": "raikou",
+  "name": "Raikou",
+  "id": 243,
+  "types": [
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 85,
+   "defense": 75,
+   "spAttack": 115,
+   "spDefense": 100,
+   "speed": 115
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "entei",
+  "name": "Entei",
+  "id": 244,
+  "types": [
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 115,
+   "attack": 115,
+   "defense": 85,
+   "spAttack": 90,
+   "spDefense": 75,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "suicune",
+  "name": "Suicune",
+  "id": 245,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 75,
+   "defense": 115,
+   "spAttack": 90,
+   "spDefense": 115,
+   "speed": 85
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "larvitar",
+  "name": "Larvitar",
+  "id": 246,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 64,
+   "defense": 50,
+   "spAttack": 45,
+   "spDefense": 50,
+   "speed": 41
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "pupitar",
+  "name": "Pupitar",
+  "id": 247,
+  "types": [
+   "Rock",
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 84,
+   "defense": 70,
+   "spAttack": 65,
+   "spDefense": 70,
+   "speed": 51
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "tyranitar",
+  "name": "Tyranitar",
+  "id": 248,
+  "types": [
+   "Rock",
+   "Dark"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 134,
+   "defense": 110,
+   "spAttack": 95,
+   "spDefense": 100,
+   "speed": 61
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "lugia",
+  "name": "Lugia",
+  "id": 249,
+  "types": [
+   "Psychic",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 106,
+   "attack": 90,
+   "defense": 130,
+   "spAttack": 90,
+   "spDefense": 154,
+   "speed": 110
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "hoOh",
+  "name": "Ho-Oh",
+  "id": 250,
+  "types": [
+   "Fire",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 106,
+   "attack": 130,
+   "defense": 90,
+   "spAttack": 110,
+   "spDefense": 154,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "celebi",
+  "name": "Celebi",
+  "id": 251,
+  "types": [
+   "Psychic",
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "mediumSlow"
+ },
+ {
+  "speciesKey": "regirock",
+  "name": "Regirock",
+  "id": 377,
+  "types": [
+   "Rock"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 100,
+   "defense": 200,
+   "spAttack": 50,
+   "spDefense": 100,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "regice",
+  "name": "Regice",
+  "id": 378,
+  "types": [
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 50,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 200,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "registeel",
+  "name": "Registeel",
+  "id": 379,
+  "types": [
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 75,
+   "defense": 150,
+   "spAttack": 75,
+   "spDefense": 150,
+   "speed": 50
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "latias",
+  "name": "Latias",
+  "id": 380,
+  "types": [
+   "Dragon",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 80,
+   "defense": 90,
+   "spAttack": 110,
+   "spDefense": 130,
+   "speed": 110
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "latios",
+  "name": "Latios",
+  "id": 381,
+  "types": [
+   "Dragon",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 90,
+   "defense": 80,
+   "spAttack": 130,
+   "spDefense": 110,
+   "speed": 110
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "kyogre",
+  "name": "Kyogre",
+  "id": 382,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 90,
+   "spAttack": 150,
+   "spDefense": 140,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "groudon",
+  "name": "Groudon",
+  "id": 383,
+  "types": [
+   "Ground"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 150,
+   "defense": 140,
+   "spAttack": 100,
+   "spDefense": 90,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "rayquaza",
+  "name": "Rayquaza",
+  "id": 384,
+  "types": [
+   "Dragon",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 105,
+   "attack": 150,
+   "defense": 90,
+   "spAttack": 150,
+   "spDefense": 90,
+   "speed": 95
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "jirachi",
+  "name": "Jirachi",
+  "id": 385,
+  "types": [
+   "Steel",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "deoxys",
+  "name": "Deoxys",
+  "id": 386,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 50,
+   "attack": 150,
+   "defense": 50,
+   "spAttack": 150,
+   "spDefense": 50,
+   "speed": 150
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "uxie",
+  "name": "Uxie",
+  "id": 480,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 75,
+   "defense": 130,
+   "spAttack": 75,
+   "spDefense": 130,
+   "speed": 95
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "mesprit",
+  "name": "Mesprit",
+  "id": 481,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 105,
+   "defense": 105,
+   "spAttack": 105,
+   "spDefense": 105,
+   "speed": 80
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "azelf",
+  "name": "Azelf",
+  "id": 482,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 75,
+   "attack": 125,
+   "defense": 70,
+   "spAttack": 125,
+   "spDefense": 70,
+   "speed": 115
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "dialga",
+  "name": "Dialga",
+  "id": 483,
+  "types": [
+   "Steel",
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 120,
+   "defense": 120,
+   "spAttack": 150,
+   "spDefense": 100,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "palkia",
+  "name": "Palkia",
+  "id": 484,
+  "types": [
+   "Water",
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 90,
+   "attack": 120,
+   "defense": 100,
+   "spAttack": 150,
+   "spDefense": 120,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "heatran",
+  "name": "Heatran",
+  "id": 485,
+  "types": [
+   "Fire",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 90,
+   "defense": 106,
+   "spAttack": 130,
+   "spDefense": 106,
+   "speed": 77
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "regigigas",
+  "name": "Regigigas",
+  "id": 486,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 110,
+   "attack": 160,
+   "defense": 110,
+   "spAttack": 80,
+   "spDefense": 110,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "giratina",
+  "name": "Giratina",
+  "id": 487,
+  "types": [
+   "Ghost",
+   "Dragon"
+  ],
+  "baseStats": {
+   "hp": 150,
+   "attack": 100,
+   "defense": 120,
+   "spAttack": 100,
+   "spDefense": 120,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "cresselia",
+  "name": "Cresselia",
+  "id": 488,
+  "types": [
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 120,
+   "attack": 70,
+   "defense": 110,
+   "spAttack": 75,
+   "spDefense": 120,
+   "speed": 85
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "phione",
+  "name": "Phione",
+  "id": 489,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 80,
+   "attack": 80,
+   "defense": 80,
+   "spAttack": 80,
+   "spDefense": 80,
+   "speed": 80
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "manaphy",
+  "name": "Manaphy",
+  "id": 490,
+  "types": [
+   "Water"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "darkrai",
+  "name": "Darkrai",
+  "id": 491,
+  "types": [
+   "Dark"
+  ],
+  "baseStats": {
+   "hp": 70,
+   "attack": 90,
+   "defense": 90,
+   "spAttack": 135,
+   "spDefense": 90,
+   "speed": 125
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "shaymin",
+  "name": "Shaymin",
+  "id": 492,
+  "types": [
+   "Grass"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "arceus",
+  "name": "Arceus",
+  "id": 493,
+  "types": [
+   "Normal"
+  ],
+  "baseStats": {
+   "hp": 120,
+   "attack": 120,
+   "defense": 120,
+   "spAttack": 120,
+   "spDefense": 120,
+   "speed": 120
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "victini",
+  "name": "Victini",
+  "id": 494,
+  "types": [
+   "Psychic",
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 100,
+   "defense": 100,
+   "spAttack": 100,
+   "spDefense": 100,
+   "speed": 100
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "cobalion",
+  "name": "Cobalion",
+  "id": 638,
+  "types": [
+   "Steel",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 90,
+   "defense": 129,
+   "spAttack": 90,
+   "spDefense": 72,
+   "speed": 108
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "terrakion",
+  "name": "Terrakion",
+  "id": 639,
+  "types": [
+   "Rock",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 129,
+   "defense": 90,
+   "spAttack": 72,
+   "spDefense": 90,
+   "speed": 108
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "virizion",
+  "name": "Virizion",
+  "id": 640,
+  "types": [
+   "Grass",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 90,
+   "defense": 72,
+   "spAttack": 90,
+   "spDefense": 129,
+   "speed": 108
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "tornadus",
+  "name": "Tornadus",
+  "id": 641,
+  "types": [
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 79,
+   "attack": 115,
+   "defense": 70,
+   "spAttack": 125,
+   "spDefense": 80,
+   "speed": 111
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "thundurus",
+  "name": "Thundurus",
+  "id": 642,
+  "types": [
+   "Electric",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 79,
+   "attack": 115,
+   "defense": 70,
+   "spAttack": 125,
+   "spDefense": 80,
+   "speed": 111
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "reshiram",
+  "name": "Reshiram",
+  "id": 643,
+  "types": [
+   "Dragon",
+   "Fire"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 120,
+   "defense": 100,
+   "spAttack": 150,
+   "spDefense": 120,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "zekrom",
+  "name": "Zekrom",
+  "id": 644,
+  "types": [
+   "Dragon",
+   "Electric"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 150,
+   "defense": 120,
+   "spAttack": 120,
+   "spDefense": 100,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "landorus",
+  "name": "Landorus",
+  "id": 645,
+  "types": [
+   "Ground",
+   "Flying"
+  ],
+  "baseStats": {
+   "hp": 89,
+   "attack": 125,
+   "defense": 90,
+   "spAttack": 115,
+   "spDefense": 80,
+   "speed": 101
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "kyurem",
+  "name": "Kyurem",
+  "id": 646,
+  "types": [
+   "Dragon",
+   "Ice"
+  ],
+  "baseStats": {
+   "hp": 125,
+   "attack": 130,
+   "defense": 90,
+   "spAttack": 130,
+   "spDefense": 90,
+   "speed": 95
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "keldeo",
+  "name": "Keldeo",
+  "id": 647,
+  "types": [
+   "Water",
+   "Fighting"
+  ],
+  "baseStats": {
+   "hp": 91,
+   "attack": 72,
+   "defense": 90,
+   "spAttack": 129,
+   "spDefense": 90,
+   "speed": 108
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "meloetta",
+  "name": "Meloetta",
+  "id": 648,
+  "types": [
+   "Normal",
+   "Psychic"
+  ],
+  "baseStats": {
+   "hp": 100,
+   "attack": 77,
+   "defense": 77,
+   "spAttack": 128,
+   "spDefense": 128,
+   "speed": 90
+  },
+  "growthRate": "slow"
+ },
+ {
+  "speciesKey": "genesect",
+  "name": "Genesect",
+  "id": 649,
+  "types": [
+   "Bug",
+   "Steel"
+  ],
+  "baseStats": {
+   "hp": 71,
+   "attack": 120,
+   "defense": 95,
+   "spAttack": 120,
+   "spDefense": 95,
+   "speed": 99
+  },
+  "growthRate": "slow"
+ }
 ]

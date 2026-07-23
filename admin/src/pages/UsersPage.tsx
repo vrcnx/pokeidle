@@ -413,6 +413,7 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<SaveEdit>({});
   const [savingMsg, setSavingMsg] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const [announceOn, setAnnounceOn] = useState(false);
   const [announceText, setAnnounceText] = useState("");
   const [announceTouched, setAnnounceTouched] = useState(false);
@@ -463,7 +464,6 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
 
   const banned = data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now();
 
-  const [saveErr, setSaveErr] = useState<string | null>(null);
   const saveEdit = async () => {
     if (Object.keys(edit).length === 0) return;
     setBusy(true);
