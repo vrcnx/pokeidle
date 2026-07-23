@@ -36,6 +36,11 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
   // read on mount since that's the default landing channel.
   const [lastReadByChannel, setLastReadByChannel] = useState<Record<ChannelKey, number>>({});
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  // Whether the user is pinned to the bottom of the current thread. Starts
+  // true (a freshly opened thread lands on the newest message) and flips to
+  // false when they scroll up to read history — so an incoming message no
+  // longer yanks them back down mid-read. Reset on channel switch.
+  const stickToBottomRef = useRef(true);
 
   const refreshFriends = async () => {
     try {
@@ -97,10 +102,18 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
     return () => { cancelled = true; };
   }, [activeChannel]);
 
+  // Channel switch → always jump to the newest message.
   useEffect(() => {
-    if (!messagesRef.current) return;
-    messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-  }, [messagesByChannel, activeChannel]);
+    stickToBottomRef.current = true;
+    const el = messagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [activeChannel]);
+
+  // New messages → only auto-scroll if the user is still at the bottom.
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [messagesByChannel]);
 
   // Mark the active channel read whenever its message list grows OR the
   // user switches to it. Setting lastRead = list.length means every new
@@ -174,6 +187,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
             setActiveChannel={setActiveChannel}
             messages={messagesByChannel[activeChannel] ?? []}
             messagesRef={messagesRef}
+            stickToBottomRef={stickToBottomRef}
             presence={presence}
             unreadFor={(key) => {
               const total = (messagesByChannel[key] ?? []).length;
@@ -200,7 +214,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 function ChatTab({
-  me, friends, activeChannel, setActiveChannel, messages, messagesRef, presence, unreadFor,
+  me, friends, activeChannel, setActiveChannel, messages, messagesRef, stickToBottomRef, presence, unreadFor,
 }: {
   me: MeProfile;
   friends: FriendList | null;
@@ -208,6 +222,7 @@ function ChatTab({
   setActiveChannel: (c: ChannelKey) => void;
   messages: ChatMessage[];
   messagesRef: React.MutableRefObject<HTMLDivElement | null>;
+  stickToBottomRef: React.MutableRefObject<boolean>;
   presence: Record<string, boolean>;
   unreadFor: (key: ChannelKey) => number;
 }) {
@@ -216,6 +231,17 @@ function ChatTab({
   const mute = useMuteList();
   void mute.version; // re-renders when mute list changes
   const t = useT();
+
+  // ChatTab unmounts when the user switches to Friends/Trainers, so the
+  // parent's channel/message scroll effects don't fire on re-entry — the
+  // fresh messages div would otherwise land at the top. Snap to the newest
+  // message (and re-pin) whenever the Chat tab mounts.
+  useEffect(() => {
+    stickToBottomRef.current = true;
+    const el = messagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const channels = useMemo(() => {
     const list: { key: ChannelKey; label: string; sub?: "online" | "offline"; userId?: string }[] = [
@@ -283,7 +309,15 @@ function ChatTab({
             ? <span className="dim">{t("Server-wide chat")}</span>
             : <span className="dim">{t("Direct message")}</span>}
         </div>
-        <div className="g-chat-messages" ref={messagesRef}>
+        <div
+          className="g-chat-messages"
+          ref={messagesRef}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            stickToBottomRef.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          }}
+        >
           {messages.length === 0 && (
             <div className="g-chat-empty">{t("No messages yet — say hi!")}</div>
           )}
