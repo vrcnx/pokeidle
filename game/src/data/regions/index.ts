@@ -1,6 +1,7 @@
 import type { Region, RegionId } from "./types";
 import type { Route, GymLeader, TrainerEncounter, ShopDef } from "../../types";
 import { kanto } from "./kanto";
+import { johto } from "./johto";
 
 // Region registry. Adding a region here automatically merges its data
 // into every flat dict the rest of the app reads, so callers like
@@ -9,9 +10,17 @@ import { kanto } from "./kanto";
 // Iteration order matters only when two regions accidentally share an
 // id (they shouldn't — namespace your route ids with a region prefix
 // like "johto_" if there's any overlap). Later regions win in conflicts.
+//
+// Gym/Elite Four/Champion ids ARE checked for cross-region collisions —
+// johto/eliteFour.ts's Koga/Bruno/Lance are suffixed "Johto" specifically
+// because Kanto already uses those exact ids (Koga is a Kanto gym leader;
+// Bruno and Lance are both Kanto Elite Four members). Without the suffix,
+// beating Kanto's Bruno would satisfy state.defeatedEliteFour.includes("bruno")
+// for Johto's Bruno too, letting players skip fighting him entirely.
 
 export const regions: Record<RegionId, Region> = {
   kanto,
+  johto,
 };
 
 export type { Region, RegionId } from "./types";

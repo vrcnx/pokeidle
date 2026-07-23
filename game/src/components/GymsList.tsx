@@ -1,6 +1,6 @@
 import { useGame } from "../state/GameContext";
-import { gymLeaders } from "../data/gymLeaders";
-import { eliteFour, champion } from "../data/eliteFour";
+import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
+import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { routes } from "../data/routes";
 import { trainerSpriteUrl } from "../utils/sprites";
 import { buildTeam } from "../utils/trainerFactory";
@@ -9,11 +9,26 @@ import { useT } from "../i18n/useT";
 
 // Gyms tab — shows badges, all gym leaders (with Challenge buttons for any
 // unlocked + undefeated), and a League block to launch the E4 → Champion
-// gauntlet once all 8 badges are earned.
+// gauntlet once all badges for THIS region are earned.
+//
+// Region-scoped, not global: gymLeaders/eliteFour/champion come from
+// whichever region the player is currently standing in, derived below.
+// Before Johto existed this was a flat import of Kanto's own arrays with
+// the same effect; keeping it flat once a second region registers would
+// silently double Kanto's own 8-badge Elite Four gate to 16 for every
+// existing player. defeatedChampions (not the global championDefeated
+// boolean) answers "have I beaten THIS region's champion" — see its
+// definition in types/index.ts for why the boolean alone can't.
 
 export function GymsList() {
   const { state, dispatch } = useGame();
   const t = useT();
+  const activeRegionId = regionForLocation(state.currentLocation) ?? DEFAULT_REGION;
+  const region = regions[activeRegionId] ?? regions[DEFAULT_REGION];
+  const gymLeaders = region.gymLeaders;
+  const eliteFour = region.eliteFour;
+  const champion = region.champion!;
+  const championBeaten = state.defeatedChampions.includes(champion.id);
   const inBattle =
     state.phase === "battle" ||
     state.phase === "trainerBattle" ||
@@ -58,7 +73,7 @@ export function GymsList() {
   function challengeChampion() {
     if (inBattle) return;
     if (!allBadges || !allE4) return;
-    if (state.championDefeated) return;
+    if (championBeaten) return;
     const { team } = buildTeam(champion.team, `champion_${champion.id}_${Date.now()}`);
     dispatch({
       type: "START_BOSS_BATTLE",
@@ -75,7 +90,7 @@ export function GymsList() {
 
   function beginGauntlet() {
     if (inBattle) return;
-    if (state.defeatedGyms.length < gymLeaders.length) return;
+    if (regionBadgeCount(state, region) < gymLeaders.length) return;
     const queue: BossBattle[] = [];
     for (const m of eliteFour) {
       if (state.defeatedEliteFour.includes(m.id)) continue;
@@ -90,7 +105,7 @@ export function GymsList() {
         spriteKey: m.spriteKey,
       });
     }
-    if (!state.championDefeated) {
+    if (!championBeaten) {
       const { team } = buildTeam(champion.team, `champion_${champion.id}_${Date.now()}`);
       queue.push({
         bossId: champion.id,
@@ -118,8 +133,8 @@ export function GymsList() {
     });
   }
 
-  const allBadges = state.defeatedGyms.length >= gymLeaders.length;
-  const allE4 = state.defeatedEliteFour.length >= eliteFour.length;
+  const allBadges = regionBadgeCount(state, region) >= gymLeaders.length;
+  const allE4 = regionEliteFourCount(state, region) >= eliteFour.length;
   // What — if anything — is the player currently fighting in the boss slot?
   const activeBoss = state.bossBattle ?? null;
   const inGauntlet =
@@ -189,7 +204,7 @@ export function GymsList() {
       <p className="dim small" style={{ margin: "0 0 4px" }}>
         {allBadges
           ? t("Fight any Elite Four member directly, or run the full Gauntlet for one continuous run.")
-          : `Earn all 8 badges to enter (${state.defeatedGyms.length}/${gymLeaders.length}).`}
+          : `Earn all ${gymLeaders.length} badges to enter (${regionBadgeCount(state, region)}/${gymLeaders.length}).`}
       </p>
       <ul className="gym-list">
         {eliteFour.map((m) => {
@@ -228,7 +243,7 @@ export function GymsList() {
             </li>
           );
         })}
-        <li className={state.championDefeated ? "beaten" : (allE4 ? "" : "locked")}>
+        <li className={championBeaten ? "beaten" : (allE4 ? "" : "locked")}>
           {allE4 ? (
             <img
               src={trainerSpriteUrl(champion.spriteKey)}
@@ -245,7 +260,7 @@ export function GymsList() {
             <strong>{allE4 ? champion.name : "???"}</strong>
             <small className="dim">{champion.title}</small>
           </div>
-          {state.championDefeated ? (
+          {championBeaten ? (
             <span className="check">✓</span>
           ) : allE4 ? (
             <button
@@ -261,13 +276,13 @@ export function GymsList() {
       <button
         className="gauntlet-btn"
         disabled={
-          !allBadges || inBattle || (allE4 && state.championDefeated)
+          !allBadges || inBattle || (allE4 && championBeaten)
         }
         onClick={beginGauntlet}
       >
         {inGauntlet
           ? t("In Gauntlet…")
-          : state.championDefeated && allE4
+          : championBeaten && allE4
           ? t("Already conquered")
           : t("Begin Gauntlet")}
       </button>

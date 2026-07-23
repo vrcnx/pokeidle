@@ -322,6 +322,7 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "defeatedGyms",
   "defeatedEliteFour",
   "championDefeated",
+  "defeatedChampions",
   "victoryTokens",
   "autoProceed",
   "raidCooldownEnd",

@@ -331,6 +331,14 @@ export interface GameState {
   defeatedGyms: string[];
   defeatedEliteFour: string[];
   championDefeated: boolean;
+  /** Per-champion defeat tracking (champion.id values), added alongside
+   *  Johto so a second region's League gauntlet has its own beaten-state
+   *  instead of being permanently "beaten" the moment ANY champion falls.
+   *  championDefeated itself stays a simple "beaten at least one champion"
+   *  flag — that's still the right gate for cross-region endgame content
+   *  (raids, the reward shop), it just can't answer "beaten THIS one" for
+   *  a specific region's League screen, which is what this is for. */
+  defeatedChampions: string[];
   victoryTokens: number;
   autoProceed: boolean;
   raidCooldownEnd: number | null;

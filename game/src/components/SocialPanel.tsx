@@ -497,7 +497,7 @@ function FriendRow({ entry, presence, actions }: {
           <span className={`g-presence ${online ? "on" : "off"}`}>{online ? t("online") : t("offline")}</span>
         </div>
         <div className="g-friend-meta">
-          @{entry.username} {t("· Lv")} {entry.accountLevel} · {entry.pokedexCaughtCount}{t("/151 dex")}
+          @{entry.username} {t("· Lv")} {entry.accountLevel} · {entry.pokedexCaughtCount}{t("/245 dex")}
         </div>
       </button>
       <div className="g-friend-actions">
@@ -567,7 +567,7 @@ function DirectoryTab() {
                 {t("Lv ")}<strong>{trainer.accountLevel}</strong>
               </span>
               <span className="trainer-directory-stat" title={t("Pokédex caught")}>
-                <strong>{trainer.pokedexCaughtCount}</strong>/151
+                <strong>{trainer.pokedexCaughtCount}</strong>/245
               </span>
               <span className="trainer-directory-stat" title={t("Total Pokémon levels")}>
                 Σ <strong>{(trainer.totalCaughtLevels ?? 0).toLocaleString()}</strong>

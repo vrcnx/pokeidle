@@ -644,7 +644,8 @@ const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
   { count: 25,  label: "Roster",        icon: "📘" },
   { count: 50,  label: "Half-way",      icon: "📚" },
   { count: 100, label: "Centurion",     icon: "💯" },
-  { count: 151, label: "Master",        icon: "🏆" },
+  { count: 151, label: "Kanto Master",  icon: "🥇" },
+  { count: 245, label: "Master",        icon: "🏆" },
 ];
 
 export function DexTab() {

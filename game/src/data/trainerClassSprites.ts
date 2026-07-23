@@ -17,4 +17,7 @@ export const trainerClassSprites: Record<string, string> = {
   superNerd: "supernerd",
   ace: "acetrainer",
   blackbelt: "blackbelt",
+  birdKeeper: "birdkeeper",
+  schoolkid: "schoolboy",
+  sage: "sage",
 };

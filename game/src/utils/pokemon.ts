@@ -65,6 +65,11 @@ export function rollShiny(hasShinyCharm: boolean): boolean {
 
 export function hasShinyCharm(pokedexCaught: string[]): boolean {
   // Original: "Complete the Pokedex (catch all 151 Pokemon) to unlock the
-  // Shiny Charm". 151 is the Gen-1 count; we use the source-of-truth size.
-  return pokedexCaught.length >= 151;
+  // Shiny Charm". 151 was the Gen-1-only count; now 151 Kanto + 94 Johto
+  // = 245 with Johto registered. Deliberately excludes the raid-only
+  // legendaries already in pokemonTable beyond the 151/94 regional dex
+  // counts (Raikou/Entei/Suicune/Lugia/Ho-Oh/Celebi plus later-gen raid
+  // bosses) — those have always been optional bonus content outside the
+  // "complete the dex" goalpost, not part of a region's own roster.
+  return pokedexCaught.length >= 245;
 }

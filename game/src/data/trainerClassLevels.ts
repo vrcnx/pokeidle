@@ -17,4 +17,7 @@ export const trainerClassLevels: Record<string, number> = {
     superNerd: 20,
     ace: 36,
     blackbelt: 24,
+    birdKeeper: 16,
+    schoolkid: 18,
+    sage: 20,
   };

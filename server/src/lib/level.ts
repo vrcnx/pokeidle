@@ -5,9 +5,9 @@
 //
 // Caps applied here are leaderboard-defence: even if a save passed
 // validation, we don't let derived public metrics exceed reasonable
-// bounds. The Kanto dex is 151 species, party+box has hard size limits,
-// and account level is capped well above what any honest player will
-// hit through normal play.
+// bounds. The dex is 151 Kanto + 94 Johto = 245 species, party+box has
+// hard size limits, and account level is capped well above what any
+// honest player will hit through normal play.
 
 const MAX_PARTY = 6;
 // MUST match saveValidation.ts MAX_BOX. Out of sync the computeAccountLevel
@@ -18,7 +18,7 @@ const MAX_PARTY = 6;
 // this).
 const MAX_BOX = 9999;
 const MAX_LEVEL = 100;
-const MAX_TOTAL_DEX = 151; // Kanto only (extend with later regions)
+const MAX_TOTAL_DEX = 245; // 151 Kanto + 94 Johto (extend further with later regions)
 const MAX_TOTAL_CAUGHT_LEVELS = (MAX_PARTY + MAX_BOX) * MAX_LEVEL;
 const MAX_ACCOUNT_LEVEL = Math.floor(MAX_TOTAL_CAUGHT_LEVELS / 10);
 

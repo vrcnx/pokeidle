@@ -1970,6 +1970,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
   let defeatedGyms = state.defeatedGyms;
   let defeatedEliteFour = state.defeatedEliteFour;
   let championDefeated = state.championDefeated;
+  let defeatedChampions = state.defeatedChampions;
   let victoryTokens = state.victoryTokens;
   const extras: string[] = [];
   if (won && state.bossBattle) {
@@ -1982,6 +1983,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
       defeatedEliteFour = [...defeatedEliteFour, bossId];
     } else if (bossType === "champion") {
       championDefeated = true;
+      if (!defeatedChampions.includes(bossId)) defeatedChampions = [...defeatedChampions, bossId];
       victoryTokens += 1;
       extras.push("Earned a Victory Token!");
     }
@@ -2000,6 +2002,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
         defeatedGyms,
         defeatedEliteFour,
         championDefeated,
+        defeatedChampions,
         victoryTokens,
         phase: "bossBattle",
         enemyPokemon: first,
@@ -2029,6 +2032,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
       defeatedGyms,
       defeatedEliteFour,
       championDefeated,
+      defeatedChampions,
       victoryTokens,
     },
     log,

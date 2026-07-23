@@ -35,7 +35,7 @@ export interface AchievementExtras {
 
 // Constants used by several achievements — kept here so balancing is
 // one diff instead of scattered magic numbers.
-const TOTAL_DEX = 151;
+const TOTAL_DEX = 245; // 151 Kanto + 94 Johto (see hasShinyCharm's comment for what's deliberately excluded)
 
 export const ACHIEVEMENTS: Achievement[] = [
   // ── Catches ─────────────────────────────────────────────────────
@@ -82,10 +82,10 @@ export const ACHIEVEMENTS: Achievement[] = [
   // ── Exploration ─────────────────────────────────────────────────
   { id: "five-locations", name: "Wanderer",             description: "Visit 5 different locations.",         category: "exploration", tier: "bronze", icon: "🗺️", isUnlocked: (s) => s.unlockedLocations.length >= 5, progress: (s) => [s.unlockedLocations.length, 5] },
   { id: "all-locations",  name: "Trailblazer",          description: "Unlock every location.",               category: "exploration", tier: "platinum", icon: "🧭", isUnlocked: (s) => {
-    // Conservative target — Kanto has ~30 locations including routes.
-    // Treat 30 as the "trailblazer" threshold.
-    return s.unlockedLocations.length >= 30;
-  }, progress: (s) => [s.unlockedLocations.length, 30] },
+    // Conservative target — 48 Kanto + 44 Johto locations including routes.
+    // Treat 92 as the "trailblazer" threshold.
+    return s.unlockedLocations.length >= 92;
+  }, progress: (s) => [s.unlockedLocations.length, 92] },
 
   // ── Collection ──────────────────────────────────────────────────
   { id: "boxed-100",      name: "Storage Wars",         description: "Store 100 Pokémon in your PC.",        category: "collection", tier: "silver", icon: "📦", isUnlocked: (s) => s.box.length >= 100, progress: (s) => [s.box.length, 100] },

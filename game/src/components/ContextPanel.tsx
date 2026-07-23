@@ -18,8 +18,8 @@ import {
   type RaidTierId,
 } from "../data/raidLegendaries";
 import { IconHome, IconMountain, IconLeaf, IconIsland, IconInfo } from "./Icon";
-import { eliteFour, champion } from "../data/eliteFour";
-import { gymLeaders } from "../data/gymLeaders";
+import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
+import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { openRewardShop } from "./RewardShopPanel";
 import type { BossBattle } from "../types";
 import type { ReactNode } from "react";
@@ -67,7 +67,7 @@ function BattleTrainerPanel() {
   // Indigo Plateau: show the league card (E4 + Champion) as the
   // contextual sidebar even mid-trainer-fight, so players can punch
   // through to the gauntlet whenever.
-  if (state.currentLocation === "indigoPlat") {
+  if (isLeagueLocation(state.currentLocation)) {
     return (
       <>
         <LeagueCard />
@@ -260,7 +260,7 @@ function IdleTownPanel() {
 
   return (
     <>
-      {here === "indigoPlat" && <LeagueCard />}
+      {isLeagueLocation(here) && <LeagueCard />}
       {leader && leader.name && (
         <section className="ctx-section">
           <h4>{t("Gym Leader")}</h4>
@@ -833,15 +833,32 @@ function iconFor(type?: string): ReactNode {
   }
 }
 
-// Indigo Plateau league card — Elite Four roster + Champion + a single
-// "Begin gauntlet" button that builds the boss queue and dispatches the
-// first fight (the rest chain automatically through bossQueue).
+// True at whichever single location hosts a region's League gauntlet
+// (Kanto: Indigo Plateau; Johto: Blackthorn City) — every region's E4
+// and champion share one locationKey, same as Kanto's own convention.
+function isLeagueLocation(locationId: string): boolean {
+  const region = regions[regionForLocation(locationId) ?? DEFAULT_REGION];
+  return region?.champion?.locationKey === locationId;
+}
+
+// League card — Elite Four roster + Champion + a single "Begin gauntlet"
+// button that builds the boss queue and dispatches the first fight (the
+// rest chain automatically through bossQueue). Region-scoped: shows
+// whichever region's own League the player is currently standing in
+// (Kanto's Indigo Plateau or Johto's Blackthorn City), not a hardcoded
+// Kanto roster — see regionBadgeCount's doc comment for why a raw
+// state.defeatedGyms.length would be wrong here once a second region
+// exists.
 function LeagueCard() {
   const { state, dispatch } = useGame();
   const t = useT();
-  const allBadges = state.defeatedGyms.length >= gymLeaders.length;
-  const eliteCleared = state.defeatedEliteFour.length >= eliteFour.length;
-  const championBeaten = state.championDefeated;
+  const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION];
+  const gymLeaders = region.gymLeaders;
+  const eliteFour = region.eliteFour;
+  const champion = region.champion!;
+  const allBadges = regionBadgeCount(state, region) >= gymLeaders.length;
+  const eliteCleared = regionEliteFourCount(state, region) >= eliteFour.length;
+  const championBeaten = state.defeatedChampions.includes(champion.id);
 
   function startGauntlet() {
     const queue: BossBattle[] = [];
@@ -887,7 +904,7 @@ function LeagueCard() {
       <h4>{t("Pokémon League")}</h4>
       {!allBadges ? (
         <p className="dim small" style={{ margin: 0 }}>
-          {t("Earn all 8 Gym Badges to challenge the Elite Four. (")}{state.defeatedGyms.length}/{gymLeaders.length})
+          {t("Earn all ")}{gymLeaders.length}{t(" Gym Badges to challenge the Elite Four. (")}{regionBadgeCount(state, region)}/{gymLeaders.length})
         </p>
       ) : (
         <>
