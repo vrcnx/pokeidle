@@ -12833,6 +12833,26 @@ body { background: transparent !important; }
   background: rgba(248, 208, 48, 0.08);
 }
 .route-card.locked { opacity: 0.6; }
+/* Towns have no wild encounters, so their card is just a name + a
+   button (or, locked, a name + reqs) — full width and a single
+   horizontal row reads far less wasteful than a square grid cell
+   sized for a sprite row that never renders. */
+.route-card.town {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  padding: 5px 10px;
+  gap: 12px;
+}
+.route-card.town .route-card-head { flex: 0 0 auto; min-width: 130px; }
+.route-card.town button { margin-left: auto; flex: 0 0 auto; }
+.route-card.town .route-card-reqs {
+  flex: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.route-card.town .route-card-reqs li { flex: 1; min-width: 110px; }
 .route-card-head {
   display: flex;
   align-items: center;

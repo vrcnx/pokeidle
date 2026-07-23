@@ -124,7 +124,7 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
   const caughtCount = enc.filter((e) => state.pokedexCaught.includes(e.speciesKey)).length;
 
   return (
-    <div className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
+    <div className={`route-card ${route.type === "town" ? "town" : ""} ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
       <div className="route-card-head">
         <span className="route-card-icon">{iconForType(route.type)}</span>
         <strong className="route-card-name">{unlocked ? route.name : t("???")}</strong>
