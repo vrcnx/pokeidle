@@ -12792,23 +12792,35 @@ body { background: transparent !important; }
    ─────────────────────────────────────────────────────────────────── */
 .route-region-tabs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   flex-wrap: wrap;
 }
-.route-region-tab {
-  padding: 3px 10px;
-  font-size: 10.5px;
-  letter-spacing: 0.4px;
-  border-radius: var(--r-sm);
+/* Higher specificity than the shared header.tab-pane-head.v2
+   .tab-pane-head-tools button rule (padding 5px 11px, pill radius,
+   its own dedicated row) — without this, region tabs silently inherit
+   that bulkier "toolbar button" look instead of reading as compact
+   tabs, which is what made this take up so much vertical space. */
+header.tab-pane-head.v2 .route-region-tabs .route-region-tab {
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--panel-3);
   color: var(--text-muted);
   cursor: pointer;
+  line-height: 1.4;
 }
-.route-region-tab.active {
+header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   color: var(--gold);
   border-color: var(--gold);
   background: rgba(248, 208, 48, 0.1);
+}
+/* The tools row itself defaults to the same padding as every other
+   tab's sort/pager row (built for bigger buttons) — tighten it here
+   since region tabs are much smaller. */
+header.tab-pane-head.v2:has(.route-region-tabs) .tab-pane-head-tools {
+  padding: 2px 0 0;
 }
 /* Single column, always — every card is a uniform horizontal row
    (name | mons | progress | action) so the list reads as one ordered

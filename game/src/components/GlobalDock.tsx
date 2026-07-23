@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { hasShinyCharm } from "../utils/pokemon";
-import { gymLeaders } from "../data/gymLeaders";
-import { eliteFour } from "../data/eliteFour";
+import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
+import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { useAuth } from "../auth/AuthContext";
 import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
@@ -351,6 +351,13 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const totalDex = Object.keys(pokemonTable).length;
   const charm = hasShinyCharm(state.pokedexCaught);
   const dexPct = ((state.pokedexCaught.length / totalDex) * 100).toFixed(1);
+  // Badges/Elite Four are shown per the player's CURRENT region — a flat
+  // count across every region's roster would read "0/16" (or worse once
+  // a 3rd region exists) for a player standing in Kanto with 0 Johto
+  // progress, which is confusing next to the classic "8 badges" framing.
+  const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
+  const gymLeaders = region.gymLeaders;
+  const eliteFour = region.eliteFour;
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
 
@@ -385,7 +392,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             <div className="g-profile-stats">
               <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>{t("Level")}</span></div>
               <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>{t("Money")}</span></div>
-              <div className="g-stat-pill"><strong><CountUp value={state.defeatedGyms.length} />/{gymLeaders.length}</strong><span>{t("Badges")}</span></div>
+              <div className="g-stat-pill"><strong><CountUp value={regionBadgeCount(state, region)} />/{gymLeaders.length}</strong><span>{t("Badges")}</span></div>
             </div>
           </section>
         )}
@@ -414,7 +421,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <h3>{t("Battles")}</h3>
                   <div className="g-row"><span>{t("Wild won")}</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
                   <div className="g-row"><span>{t("Trainer won")}</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
-                  <div className="g-row"><span>{t("Elite Four")}</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {eliteFour.length}</span></strong></div>
+                  <div className="g-row"><span>{t("Elite Four")}</span><strong>{regionEliteFourCount(state, region)}<span className="dim"> / {eliteFour.length}</span></strong></div>
                   <div className="g-row"><span>{t("Champion")}</span><strong>{state.championDefeated ? t("Defeated") : <span className="dim">{t("Pending")}</span>}</strong></div>
                 </section>
 

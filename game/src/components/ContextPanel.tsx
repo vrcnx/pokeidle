@@ -258,6 +258,8 @@ function IdleTownPanel() {
     });
   }
 
+  const showsSomething = isLeagueLocation(here) || (leader && leader.name);
+
   return (
     <>
       {isLeagueLocation(here) && <LeagueCard />}
@@ -294,6 +296,24 @@ function IdleTownPanel() {
                   : t("Challenge")}
             </button>
           </div>
+        </section>
+      )}
+      {/* A town with no gym and no League rendered nothing at all here —
+          reads as "the game is broken" rather than "there's nothing to
+          do in town, go find a route." Most jarring at New Bark Town
+          specifically, since it's a brand-new region's very first stop
+          and several players reported it as a bug. */}
+      {!showsSomething && (
+        <section className="ctx-section">
+          <p className="dim small" style={{ margin: 0 }}>
+            {t("No gym here — wild Pokémon (and battles) are out on the connected routes.")}
+          </p>
+          {route?.connections && route.connections.length > 0 && (
+            <p className="dim small" style={{ margin: "4px 0 0" }}>
+              {t("Try: ")}
+              {route.connections.map((id) => routes[id]?.name ?? id).join(", ")}
+            </p>
+          )}
         </section>
       )}
     </>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGame } from "../state/GameContext";
-import { gymLeaders } from "../data/gymLeaders";
+import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
+import { regionBadgeCount } from "../utils/unlocks";
 import { TrainerCardModal } from "./TrainerCardModal";
 import { useAuth } from "../auth/AuthContext";
 import { IconStar, IconCoin, IconMedal, IconTicket, IconCrown } from "./Icon";
@@ -17,6 +18,7 @@ export function InventoryRibbon() {
   const { me } = useAuth();
   const [open, setOpen] = useState(false);
   const t = useT();
+  const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
   return (
     <>
       <button
@@ -42,7 +44,7 @@ export function InventoryRibbon() {
         <span className="profile-stat-divider" />
         <span className="profile-stat">
           <IconMedal size={13} className="profile-stat-icon" />
-          <strong>{state.defeatedGyms.length}/{gymLeaders.length}</strong>
+          <strong>{regionBadgeCount(state, region)}/{region.gymLeaders.length}</strong>
         </span>
         {state.victoryTokens > 0 && (
           <>
