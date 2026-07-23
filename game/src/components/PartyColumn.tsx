@@ -83,10 +83,11 @@ export function PartyColumn({ showProfileStrip = true }: { showProfileStrip?: bo
       </section>
 
       <ContextPanel />
-      <UnlockHint />
-      {/* On desktop the profile strip is hoisted to the top of the left
-          chat rail (see LocationColumn); the right rail hides it to avoid
-          showing it twice. Mobile's party tab keeps it here. */}
+      {/* On desktop the profile strip AND the Next Goal card are hoisted to
+          the top of the left chat rail (see LocationColumn); the right rail
+          hides them here to avoid showing them twice. Mobile's party tab
+          keeps both. `showProfileStrip` gates the whole hoisted set. */}
+      {showProfileStrip && <UnlockHint />}
       {showProfileStrip && <InventoryRibbon />}
     </div>
   );

@@ -12921,7 +12921,8 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
+  padding: 2px;
 }
 /* flex-wrap (not nowrap) is what makes this hold up at any width —
    the row itself reflows onto a second line when there isn't room,
@@ -12935,7 +12936,11 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
-  padding: 6px 10px;
+  /* Consistent min-height so town cards (no sprite row) don't read as
+     squashed next to route cards that carry a sprite strip — the list
+     keeps an even vertical rhythm regardless of a card's contents. */
+  min-height: 46px;
+  padding: 8px 12px;
   border-radius: var(--r-sm);
   background: var(--panel-3);
   border: 1px solid var(--border);
