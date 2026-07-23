@@ -262,7 +262,8 @@ function cloudHasMoreProgress(cloudData: any, local: GameState): boolean {
   if (
     c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
     c.locations === l.locations &&
-    c.boxParty > l.boxParty + 1   // +1 slack to swallow lock-window race
+    c.boxParty > l.boxParty + 1 && // +1 slack to swallow lock-window race
+    c.money >= l.money             // a bigger box shouldn't license torching a bigger bank balance
   ) return true;
   return false;
 }
