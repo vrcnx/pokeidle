@@ -124,10 +124,10 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
   const caughtCount = enc.filter((e) => state.pokedexCaught.includes(e.speciesKey)).length;
 
   return (
-    <div className={`route-card ${route.type === "town" ? "town" : ""} ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
+    <div className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
       <div className="route-card-head">
         <span className="route-card-icon">{iconForType(route.type)}</span>
-        <strong className="route-card-name">{unlocked ? route.name : t("???")}</strong>
+        <strong className="route-card-name" title={unlocked ? route.name : undefined}>{unlocked ? route.name : t("???")}</strong>
         {current && <span className="route-card-current-badge">{t("Here")}</span>}
       </div>
 
@@ -138,19 +138,25 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
               {sorted.slice(0, 8).map((e) => {
                 const seen = state.pokedexSeen.includes(e.speciesKey);
                 const sp = pokemonTable[e.speciesKey];
-                return seen ? (
-                  <img
-                    key={e.speciesKey}
-                    src={pokemonSpriteUrl(e.speciesKey)}
-                    alt={sp?.name ?? e.speciesKey}
-                    title={`${sp?.name ?? e.speciesKey} · Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`}
-                    width={28}
-                    height={28}
-                    style={{ imageRendering: "pixelated" }}
-                    draggable={false}
-                  />
-                ) : (
-                  <span key={e.speciesKey} className="route-card-mon-mystery" title={t("Not yet seen")}>?</span>
+                const label = seen
+                  ? `${sp?.name ?? e.speciesKey} · Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`
+                  : t("Not yet seen");
+                return (
+                  <span key={e.speciesKey} className="route-card-mon" title={label}>
+                    {seen ? (
+                      <img
+                        src={pokemonSpriteUrl(e.speciesKey)}
+                        alt={sp?.name ?? e.speciesKey}
+                        width={26}
+                        height={26}
+                        style={{ imageRendering: "pixelated" }}
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="route-card-mon-mystery">?</span>
+                    )}
+                    <span className="route-card-mon-tip">{label}</span>
+                  </span>
                 );
               })}
             </div>
