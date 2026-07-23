@@ -39,6 +39,13 @@ export function AuctionBoard() {
       .catch(() => undefined)
       .finally(() => setLoading(false));
   };
+  // Refetch the "My Auctions" lists (Selling + Bidding on). Used after the
+  // player places a bid from that view — previously it called `load`, which
+  // refetches the BROWSE list instead, so the player's own bid never showed
+  // until they manually refreshed the page (reported by RaQaR).
+  const loadMine = () => {
+    api.myAuctions().then(setMine).catch(() => undefined);
+  };
   useEffect(load, []);
   useEffect(() => {
     if (view !== "browse") return;
@@ -64,8 +71,22 @@ export function AuctionBoard() {
 
   useEffect(() => {
     if (view !== "mine") return;
-    api.myAuctions().then(setMine).catch(() => undefined);
-  }, [view]);
+    loadMine();
+    // Live bid ticks for the auctions the player is bidding on / selling, so
+    // the amounts update in place instead of only after a manual refresh.
+    const watched = [...(mine?.bidding ?? []), ...(mine?.selling ?? [])];
+    for (const a of watched) watchAuction(a.id);
+    const off = onAuctionBid((e) => {
+      setMine((prev) => prev && ({
+        selling: prev.selling.map((a) => a.id === e.auctionId
+          ? { ...a, currentBid: e.amount, currentBidderUsername: e.username, endsAt: e.endsAt, bidCount: a.bidCount + 1 } : a),
+        bidding: prev.bidding.map((a) => a.id === e.auctionId
+          ? { ...a, currentBid: e.amount, currentBidderUsername: e.username, endsAt: e.endsAt, bidCount: a.bidCount + 1 } : a),
+      }));
+    });
+    return () => { off(); for (const a of watched) unwatchAuction(a.id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, (mine?.bidding ?? []).map((a) => a.id).join(","), (mine?.selling ?? []).map((a) => a.id).join(",")]);
 
   return (
     <div className="auction-board">
@@ -110,7 +131,7 @@ export function AuctionBoard() {
           {mine?.selling.map((a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />)}
           <h4 className="auction-board-subhead">{t("Bidding on")}</h4>
           {(mine?.bidding.length ?? 0) === 0 && <div className="dim small">{t("You haven't bid on anything.")}</div>}
-          {mine?.bidding.map((a) => <AuctionCard key={a.id} auction={a} onBid={load} />)}
+          {mine?.bidding.map((a) => <AuctionCard key={a.id} auction={a} onBid={loadMine} />)}
         </div>
       )}
 
