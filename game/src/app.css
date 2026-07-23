@@ -729,6 +729,12 @@ header.tab-pane-head.v2 {
   background: transparent;
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  /* Never shrink: this header stacks a title row and a tools row (Sort +
+     PC pager). On mobile the box grid (flex:1) claimed the space and
+     squished the header to just the title row, clipping the tools row to
+     0 height — the PC pager and sort buttons vanished and players couldn't
+     change box pages. */
+  flex-shrink: 0;
 }
 header.tab-pane-head.v2 .tab-pane-head-row {
   display: flex;
@@ -898,13 +904,29 @@ header.tab-pane-head.v2 .mart-wallet {
 }
 .dex-search-clear:hover { color: #fff; }
 .dex-tab-grid {
-  flex: 1;
+  /* flex:0 0 auto (not flex:1) so the grid takes its NATURAL content height
+     and the whole dex pane scrolls as one unit. On desktop the bottom-tabs
+     pane is short (~250px); with flex:1 the grid shrank to the ~8px left
+     over after the hero/type/controls chrome and the entire Pokédex was
+     invisible ("dex completely bugged on desktop"). */
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
   gap: 2px;
-  overflow-y: auto;
-  min-height: 0;
   padding: 4px 0;
+}
+/* The dex pane itself owns the scroll; its chrome stays put above the grid. */
+.dex-tab-v2 { overflow-y: auto; }
+.dex-tab-v2 > .dex-hero,
+.dex-tab-v2 > .dex-types,
+.dex-tab-v2 > .dex-controls { flex-shrink: 0; }
+/* The 18-type completion strip wraps into ~150px of pills — on the short
+   desktop bottom-tabs pane that buried the grid entirely. Cap it so a row
+   or two of Pokémon is always visible; the strip scrolls internally for
+   the rest. */
+.dex-tab-v2 > .dex-types {
+  max-height: 84px;
+  overflow-y: auto;
 }
 /* Override the generic .dex-cell chrome inside the dex tab specifically:
    no borders, no backgrounds, no green-tinted "caught" indicator. Just
@@ -3190,10 +3212,15 @@ body.dnd-active {
 .mobile-shell .raid-lineup,
 .mobile-shell .raid-lineup-label { display: none; }
 
-/* Hide the Sort row on the mobile PC tab — the player rarely re-sorts,
-   and on a phone it just eats vertical space above the box grid.
-   `!important` because the v2 header rule has higher specificity. */
-.mobile-shell .pc-tab .tab-pane-head-tools { display: none !important; }
+/* Hide the Sort controls on the mobile PC tab — the player rarely re-sorts,
+   and on a phone they just eat vertical space above the box grid. Hiding
+   the WHOLE tools row (as before) also hid the box PAGER that shares it, so
+   mobile players couldn't change pages (reported: "los botones de la caja
+   no aparecen, no se puede pasar de página"). Hide only the direct sort
+   button + "Sort" label children; keep .pc-pager and its ‹ › buttons.
+   `!important` because the v2 header rules have higher specificity. */
+.mobile-shell .pc-tab .tab-pane-head-tools > button,
+.mobile-shell .pc-tab .tab-pane-head-tools > .dim { display: none !important; }
 
 /* Audio settings — volume slider in the Settings modal. */
 .audio-volume-row {
