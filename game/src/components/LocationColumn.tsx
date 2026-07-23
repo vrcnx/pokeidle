@@ -1,15 +1,17 @@
 import { MiniChat } from "./MiniChat";
 import { ChannelHeader } from "./ChannelHeader";
+import { InventoryRibbon } from "./InventoryRibbon";
 
 // LEFT rail (Twitch-stream layout): chat is the elastic watch surface
-// that absorbs all vertical slack. A 44px ChannelHeader sits on top —
-// "CHAT" label + green-dot save status + live online count — so the
-// column shares its top line with the right-rail dock and the arena
-// header. Dock actions, Next Goal, profile strip, and inventory
-// ribbon all moved to the RIGHT rail.
+// that absorbs all vertical slack. The profile strip (Lv / $ / badges)
+// sits at the very top of this rail, above the chat card — the right
+// rail hides its copy so it isn't shown twice. Below it, a 44px
+// ChannelHeader ("CHAT" label + green-dot save status + live online
+// count) then the chat itself.
 export function LocationColumn() {
   return (
     <div className="location-column chat-column">
+      <InventoryRibbon />
       <ChannelHeader />
       <MiniChat />
     </div>

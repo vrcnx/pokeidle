@@ -95,7 +95,7 @@ export function GameShell() {
               slack so the left rail never reads half-empty. */}
           <LocationColumn />
           <CenterColumn />
-          <PartyColumn />
+          <PartyColumn showProfileStrip={false} />
         </div>
       )}
 

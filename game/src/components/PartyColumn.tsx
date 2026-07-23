@@ -67,7 +67,7 @@ function statusBadgeClass(s: StatusCondition): string {
 // Drag a party row onto another to swap slots; drag a box Pokémon onto a
 // party slot to move/swap. The drag system is pointer-events-based so it
 // works on touch.
-export function PartyColumn() {
+export function PartyColumn({ showProfileStrip = true }: { showProfileStrip?: boolean }) {
   const { state } = useGame();
   const t = useT();
   return (
@@ -84,7 +84,10 @@ export function PartyColumn() {
 
       <ContextPanel />
       <UnlockHint />
-      <InventoryRibbon />
+      {/* On desktop the profile strip is hoisted to the top of the left
+          chat rail (see LocationColumn); the right rail hides it to avoid
+          showing it twice. Mobile's party tab keeps it here. */}
+      {showProfileStrip && <InventoryRibbon />}
     </div>
   );
 }
