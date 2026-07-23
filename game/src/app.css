@@ -8951,7 +8951,20 @@ input, textarea, select {
 .auction-board-tabs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+/* Segmented Browse / My Auctions toggle — a single grouped control rather
+   than two loose text buttons floating next to the primary CTA. */
+.auction-board-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 .auction-board-tab {
   background: none;
@@ -8959,12 +8972,22 @@ input, textarea, select {
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-weight: 600;
-  padding: 4px 8px;
-  border-radius: var(--r-sm);
+  padding: 5px 12px;
+  border-radius: 6px;
   cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.auction-board-tab.active { background: var(--panel-3); color: var(--text); }
-.auction-board-list-btn { margin-left: auto; }
+.auction-board-tab:hover { color: var(--text); }
+.auction-board-tab.active {
+  background: var(--panel-3);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.auction-board-list-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
 .auction-board-list {
   display: flex;
   flex-direction: column;

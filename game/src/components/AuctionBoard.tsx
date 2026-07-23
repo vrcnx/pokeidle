@@ -70,12 +70,24 @@ export function AuctionBoard() {
   return (
     <div className="auction-board">
       <div className="auction-board-tabs">
-        <button className={`auction-board-tab ${view === "browse" ? "active" : ""}`} onClick={() => setView("browse")}>
-          {t("Browse")}
-        </button>
-        <button className={`auction-board-tab ${view === "mine" ? "active" : ""}`} onClick={() => setView("mine")}>
-          {t("My Auctions")}
-        </button>
+        <div className="auction-board-seg" role="tablist">
+          <button
+            role="tab"
+            aria-selected={view === "browse"}
+            className={`auction-board-tab ${view === "browse" ? "active" : ""}`}
+            onClick={() => setView("browse")}
+          >
+            {t("Browse")}
+          </button>
+          <button
+            role="tab"
+            aria-selected={view === "mine"}
+            className={`auction-board-tab ${view === "mine" ? "active" : ""}`}
+            onClick={() => setView("mine")}
+          >
+            {t("My Auctions")}
+          </button>
+        </div>
         <button className="g-btn-primary g-btn-small auction-board-list-btn" onClick={() => setView("list")}>
           + {t("List a Pokemon")}
         </button>
