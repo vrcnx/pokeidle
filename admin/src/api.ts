@@ -405,6 +405,15 @@ export const api = {
   }) => req<{ giveaway: AdminGiveaway }>("POST", "/api/admin/giveaways", body),
   patchGiveaway: (id: string, body: Record<string, unknown>) =>
     req<{ giveaway: AdminGiveaway }>("PATCH", `/api/admin/giveaways/${id}`, body),
+  /** Direct mass grant (not a raffle) of prizes to a whole audience at once.
+   *  Runs in the background server-side; returns the resolved recipient count. */
+  massGift: (body: {
+    audience: "all" | "online" | "selected";
+    userIds?: string[];
+    prizes: GiveawayPrizeInput[];
+    announce?: string;
+    minAccountLevel?: number | null;
+  }) => req<{ started: true; recipientCount: number }>("POST", "/api/admin/mass-gift", body),
   deleteGiveaway: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/giveaways/${id}`),
   /** Irreversible. Picks winners from a stored seed and writes prizes
    *  into their saves. Returns per-winner grant results so a partial

@@ -1216,6 +1216,36 @@ export function reducer(state: GameState, action: Action): GameState {
       return pushLog(next, payload.logMessage);
     }
 
+    case "RECEIVE_GIFT": {
+      // Admin mass-gift delivered live over the socket. Apply the same prizes
+      // the server already wrote to this account's cloud save; the next
+      // autosave carries our copy up (idempotent — identical prizes). Money
+      // is ADDED (the server likewise added it); mons go to the box with a
+      // fresh local id.
+      let next: GameState = state;
+      let nextPokemonId = next.nextPokemonId;
+      let box = next.box;
+      let inventory = next.inventory;
+      let money = next.money;
+      const labels: string[] = [];
+      for (const p of action.payload.prizes) {
+        if (p.kind === "money") {
+          money = Math.min(999_999_999, money + p.amount);
+          labels.push(`$${p.amount.toLocaleString()}`);
+        } else if (p.kind === "item") {
+          inventory = { ...inventory, [p.itemId]: Math.min(999_999, (inventory[p.itemId] ?? 0) + p.quantity) };
+          labels.push(`${p.quantity}× ${p.itemId}`);
+        } else if (p.kind === "pokemon" && p.mon && typeof p.mon === "object") {
+          const mon = { ...(p.mon as unknown as Pokemon), id: `gift${nextPokemonId}` };
+          box = [...box, mon];
+          nextPokemonId += 1;
+          labels.push(p.label ?? mon.name ?? "a Pokémon");
+        }
+      }
+      next = { ...next, money, inventory, box, nextPokemonId };
+      return pushLog(next, `🎁 You received a gift: ${labels.join(", ")}!`);
+    }
+
     case "RELEASE_POKEMON": {
       const { source, index } = action.payload;
       if (source === "party") {

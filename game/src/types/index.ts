@@ -476,6 +476,7 @@ export type Action =
         | { role: "seller"; removedPokemonId: string; money: number; logMessage: string }
         | { role: "buyer"; pokemon: Pokemon; money: number; logMessage: string };
     }
+  | { type: "RECEIVE_GIFT"; payload: { prizes: Array<{ kind: "item"; itemId: string; quantity: number } | { kind: "money"; amount: number } | { kind: "pokemon"; label?: string; mon: Record<string, unknown> }> } }
   | { type: "SET_NICKNAME"; payload: { pokemonId: string; nickname: string } }
   | { type: "TOGGLE_EFFECT_PAUSED"; payload: { itemId: string } }
   | { type: "SET_ALWAYS_CATCH_SHINIES"; payload: { value: boolean } }

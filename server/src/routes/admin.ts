@@ -1834,6 +1834,101 @@ async function grantPrizesToUser(userId: string, prizes: Prize[]): Promise<void>
   });
 }
 
+// ── Mass gift ────────────────────────────────────────────────────────
+// Direct grant (not an opt-in raffle) of any item / money / Pokémon to a
+// whole audience at once: everyone online right now, every account, or a
+// hand-picked set. Reuses grantPrizesToUser (validate-then-write), so it can
+// never produce a save the game rejects. Recipients who are offline pick the
+// gift up on their next load via the version-based cloud-adoption sync (see
+// game/src/state/saveReconcile.ts) — the server bumps saveVersion here, which
+// their client detects as an authoritative write it hasn't seen.
+const MassGiftBody = z.object({
+  audience: z.enum(["all", "online", "selected"]),
+  userIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/)).max(5000).optional(),
+  prizes: z.array(PrizeSchema).min(1).max(10),
+  announce: z.string().max(300).optional(),
+  minAccountLevel: z.number().int().min(0).max(100_000).nullable().optional(),
+});
+
+app.post("/mass-gift", async (c) => {
+  const me = c.get("user");
+  const parsed = MassGiftBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  const d = parsed.data;
+
+  // Resolve the audience to a concrete, de-duplicated recipient list.
+  let userIds: string[];
+  if (d.audience === "selected") {
+    if (!d.userIds || d.userIds.length === 0) return c.json({ error: "no users selected" }, 400);
+    userIds = d.userIds;
+  } else if (d.audience === "online") {
+    userIds = liveOnlineSnapshot().map((u) => u.userId);
+  } else {
+    const rows = await prisma.user.findMany({ select: { id: true } });
+    userIds = rows.map((r) => r.id);
+  }
+  if (d.minAccountLevel != null && userIds.length > 0) {
+    const eligible = await prisma.user.findMany({
+      where: { id: { in: userIds.slice(0, 5000) }, accountLevel: { gte: d.minAccountLevel } },
+      select: { id: true },
+    });
+    userIds = eligible.map((r) => r.id);
+  }
+  userIds = Array.from(new Set(userIds));
+  const recipientCount = userIds.length;
+  if (recipientCount === 0) return c.json({ error: "no recipients matched" }, 400);
+
+  void makeAudit(c)(me.id, "mass_gift", null, {
+    audience: d.audience, recipientCount, prizes: describePrizes(d.prizes),
+  });
+
+  // Optional Global chat announcement, rendered as the same gift system card
+  // players already know from admin gifts.
+  if (d.announce && d.announce.trim()) {
+    try {
+      const io = getIo();
+      if (io) {
+        const stored = await prisma.chatMessage.create({
+          data: { channelId: "global", userId: me.id, content: d.announce.trim().slice(0, 300), kind: "gift" },
+          include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+        });
+        io.to("global").emit("chat:message", {
+          id: stored.id, channelId: stored.channelId, content: stored.content,
+          kind: stored.kind, meta: null, createdAt: stored.createdAt, user: stored.user,
+        });
+      }
+    } catch { /* announcement is best-effort */ }
+  }
+
+  // Grant in the background so a big audience (up to every account) can't time
+  // the request out. Serial, not fan-out — the same connection-ceiling
+  // discipline the auction settlement loop uses. Each recipient's failure is
+  // isolated so one corrupt save can't stop the batch.
+  void (async () => {
+    let ok = 0, fail = 0;
+    for (const uid of userIds) {
+      try {
+        await grantPrizesToUser(uid, d.prizes);
+        ok++;
+        // Deliver to online recipients live: the client applies these prizes
+        // to its OWN state and its next autosave carries them up (idempotent
+        // with the server grant above — same prizes, so no doubling). Offline
+        // recipients instead pick up the server grant via boot reconciliation.
+        sendToUserGlobal(uid, "gift:received", { prizes: d.prizes, summary: describePrizes(d.prizes) });
+      } catch {
+        fail++;
+      }
+    }
+    void recordError({
+      kind: "server", level: "warn", message: "mass_gift.complete",
+      source: "POST /admin/mass-gift", userId: me.id, username: me.username,
+      meta: { audience: d.audience, recipientCount, ok, fail, prizes: describePrizes(d.prizes) },
+    });
+  })();
+
+  return c.json({ started: true, recipientCount });
+});
+
 // ── Polls ────────────────────────────────────────────────────────────
 // Admin-created, posted to Global chat for players to vote on directly
 // from the chat card. Unlike a Giveaway (one entry, drawn once), a poll

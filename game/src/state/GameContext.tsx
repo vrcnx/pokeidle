@@ -856,11 +856,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       pushAuctionNotification("won", payload.auctionId, `You won ${label} for $${payload.amount}!`);
     };
+    // Admin mass-gift delivered while this client is open. The server has
+    // already written these prizes to the cloud save; apply them to local
+    // state so they show instantly and the next autosave carries our copy up
+    // (idempotent with the server grant). Offline recipients get them via the
+    // boot cloud-adoption sync instead.
+    const onGift = (payload: { prizes?: unknown; summary?: string }) => {
+      const prizes = Array.isArray(payload?.prizes) ? payload.prizes : null;
+      if (!prizes || prizes.length === 0) return;
+      dispatch({ type: "RECEIVE_GIFT", payload: { prizes: prizes as any } });
+    };
     sock.on("auction:sold", onSold);
     sock.on("auction:won", onWon);
+    sock.on("gift:received", onGift);
     return () => {
       sock.off("auction:sold", onSold);
       sock.off("auction:won", onWon);
+      sock.off("gift:received", onGift);
     };
   }, []);
 

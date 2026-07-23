@@ -12,10 +12,11 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { GiveawaysPage } from "./pages/GiveawaysPage";
+import { MassGiftPage } from "./pages/MassGiftPage";
 import { PollsPage } from "./pages/PollsPage";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
-export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "polls" | "audit" | "announcements";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements";
 
 // What a page can be asked to focus on when navigated to. The bus used
 // to carry a page name and nothing else, which meant every cross-page
@@ -201,6 +202,7 @@ export function App() {
             <span className="admin-nav-heading">Events</span>
             <NavItem active={page === "tournaments"} onClick={() => gotoPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
             <NavItem active={page === "giveaways"} onClick={() => gotoPage("giveaways")} label="Giveaways" icon={<IconGift />} />
+            <NavItem active={page === "massgift"} onClick={() => gotoPage("massgift")} label="Mass gift" icon={<IconGift />} />
             <NavItem active={page === "polls"} onClick={() => gotoPage("polls")} label="Polls" icon={<IconPoll />} />
             <NavItem active={page === "announcements"} onClick={() => gotoPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
           </div>
@@ -232,6 +234,7 @@ export function App() {
         {page === "announcements" && <AnnouncementsPage />}
         {page === "liveops" && <LiveOpsPage />}
         {page === "giveaways" && <GiveawaysPage />}
+        {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
       </main>
     </div>
