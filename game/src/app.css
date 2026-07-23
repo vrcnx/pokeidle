@@ -12822,11 +12822,18 @@ body { background: transparent !important; }
   flex-direction: column;
   gap: 5px;
 }
+/* flex-wrap (not nowrap) is what makes this hold up at any width —
+   the row itself reflows onto a second line when there isn't room,
+   instead of every child fighting to squeeze into one line. The
+   desktop host column is a fixed ~470px (dashboard's center-column
+   grid track), but mobile spans the full viewport from ~320px phones
+   up to ~900px tablets, so this can't assume one target width. */
 .route-card {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 6px 12px;
   padding: 6px 10px;
   border-radius: var(--r-sm);
   background: var(--panel-3);
@@ -12842,8 +12849,7 @@ body { background: transparent !important; }
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 150px;
-  max-width: 150px;
+  max-width: 100%;
 }
 .route-card-icon { display: flex; color: var(--text-muted); flex: 0 0 auto; }
 .route-card-name {
@@ -12851,6 +12857,13 @@ body { background: transparent !important; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 150px;
+}
+/* Below phone width, the head (icon+name+badge) claims the full row
+   on its own line so mons/progress/action get the whole next line
+   instead of squeezing into whatever's left of a fixed 150px label. */
+@media (max-width: 480px) {
+  .route-card-head { flex-basis: 100%; }
 }
 .route-card-current-badge {
   flex: 0 0 auto;
@@ -12862,7 +12875,7 @@ body { background: transparent !important; }
   color: #2a2100;
 }
 .route-card-mons {
-  flex: 1;
+  flex: 1 1 150px;
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
