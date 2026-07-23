@@ -150,7 +150,7 @@ export const catchRates: Record<string, number> = {
   dratini: 45,
   dragonair: 45,
   dragonite: 45,
-  mewtwo: 1,
+  mewtwo: 3,
   mew: 1,
 
   // Gen 2 legendaries / mythicals
