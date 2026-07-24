@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig, type StreamCommand } from "../api";
 import { Combobox } from "../components/Combobox";
@@ -1742,8 +1742,36 @@ function StreamAutomationEditor({ userId, config, onSaved }: {
 }
 
 // Live remote control — send a command to a running stream session.
+const STREAM_GYMS: { id: string; name: string }[] = [
+  { id: "brock", name: "Brock — Pewter (Kanto)" },
+  { id: "misty", name: "Misty — Cerulean" },
+  { id: "surge", name: "Lt. Surge — Vermilion" },
+  { id: "erika", name: "Erika — Celadon" },
+  { id: "koga", name: "Koga — Fuchsia" },
+  { id: "sabrina", name: "Sabrina — Saffron" },
+  { id: "blaine", name: "Blaine — Cinnabar" },
+  { id: "giovanni", name: "Giovanni — Viridian" },
+  { id: "falkner", name: "Falkner — Violet (Johto)" },
+  { id: "bugsy", name: "Bugsy — Azalea" },
+  { id: "whitney", name: "Whitney — Goldenrod" },
+  { id: "morty", name: "Morty — Ecruteak" },
+  { id: "chuck", name: "Chuck — Cianwood" },
+  { id: "jasmine", name: "Jasmine — Olivine" },
+  { id: "pryce", name: "Pryce — Mahogany" },
+  { id: "clair", name: "Clair — Blackthorn" },
+];
+const STREAM_RAID_TIERS: { id: string; name: string }[] = [
+  { id: "birdsBeasts", name: "Birds & Beasts" },
+  { id: "titans", name: "Titans" },
+  { id: "guardians", name: "Guardians" },
+  { id: "coverLegends", name: "Cover Legends" },
+  { id: "mythical", name: "Mythical" },
+];
+
 function StreamRemoteControl({ userId }: { userId: string }) {
   const [travelTo, setTravelTo] = useState("");
+  const [gym, setGym] = useState(STREAM_GYMS[0].id);
+  const [raidTier, setRaidTier] = useState(STREAM_RAID_TIERS[0].id);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1751,7 +1779,7 @@ function StreamRemoteControl({ userId }: { userId: string }) {
     setBusy(true); setMsg(null);
     try {
       const res = await api.streamCommand(userId, command);
-      setMsg(res.delivered ? `Sent: ${label}` : `Queued: ${label} (stream offline — will not run until it's online)`);
+      setMsg(res.delivered ? `✓ Sent: ${label}` : `✗ Not delivered: ${label} — the stream isn't online (commands aren't queued; resend once it's live)`);
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -1759,22 +1787,65 @@ function StreamRemoteControl({ userId }: { userId: string }) {
     }
   };
 
+  const row: CSSProperties = { display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" };
+  const inputStyle: CSSProperties = { maxWidth: 220 };
+
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border, #2a2a35)" }}>
       <h4 style={{ margin: "0 0 4px" }}>🎮 Remote control</h4>
-      <p className="dim small" style={{ marginTop: 0 }}>Drive the live stream account. Only runs if it's online as a stream session.</p>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      <p className="dim small" style={{ marginTop: 0 }}>Drive the live stream account. Only runs while it's online as a stream session.</p>
+
+      {/* Automation toggles */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>Auto-play</span>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: true }, "auto-play on")}>ON</button>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: false }, "auto-play off")}>OFF</button>
+        <span className="dim small" style={{ minWidth: 70, marginLeft: 10 }}>Auto-catch</span>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoCatch", value: true }, "auto-catch on")}>ON</button>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoCatch", value: false }, "auto-catch off")}>OFF</button>
+      </div>
+
+      {/* Speed */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>Speed</span>
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button key={s} className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "speed", value: s }, `speed ${s}×`)}>{s}×</button>
+        ))}
+      </div>
+
+      {/* Travel */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>Travel</span>
+        <input value={travelTo} onChange={(e) => setTravelTo(e.target.value.trim())} placeholder="location id e.g. route29" style={inputStyle} />
+        <button className="btn-ghost btn-small" disabled={busy || !travelTo} onClick={() => send({ kind: "travel", locationId: travelTo }, `travel ${travelTo}`)}>Go</button>
+      </div>
+
+      {/* Gym */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>Gym</span>
+        <select value={gym} onChange={(e) => setGym(e.target.value)} style={inputStyle}>
+          {STREAM_GYMS.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "gym", gymId: gym }, `challenge ${gym}`)}>Challenge</button>
+      </div>
+
+      {/* Raid */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>Raid</span>
+        <select value={raidTier} onChange={(e) => setRaidTier(e.target.value)} style={inputStyle}>
+          {STREAM_RAID_TIERS.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "raid", tier: raidTier }, `raid ${raidTier}`)}>Start Raid</button>
+      </div>
+
+      {/* League */}
+      <div style={row}>
+        <span className="dim small" style={{ minWidth: 70 }}>League</span>
         <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "eliteFour" }, "Elite Four gauntlet")}>Fight Elite Four</button>
-        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "raid" }, "raid")}>Start Raid</button>
-        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: true }, "auto-play on")}>Auto-play ON</button>
-        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: false }, "auto-play off")}>Auto-play OFF</button>
-        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "speed", value: 5 }, "speed 5×")}>Speed 5×</button>
+        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "champion" }, "Champion")}>Fight Champion</button>
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <input value={travelTo} onChange={(e) => setTravelTo(e.target.value.trim())} placeholder="route id e.g. route29" style={{ maxWidth: 180 }} />
-        <button className="btn-ghost btn-small" disabled={busy || !travelTo} onClick={() => send({ kind: "travel", locationId: travelTo }, `travel ${travelTo}`)}>Travel</button>
-      </div>
-      {msg && <p className="dim small" style={{ marginTop: 6 }}>{msg}</p>}
+
+      {msg && <p className="dim small" style={{ marginTop: 8 }}>{msg}</p>}
     </div>
   );
 }
