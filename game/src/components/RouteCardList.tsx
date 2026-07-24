@@ -138,7 +138,11 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
         <>
           {sorted.length > 0 && (
             <div className="route-card-mons">
-              {sorted.slice(0, 8).map((e) => {
+              {/* Show EVERY encounter species, not just the top 8 — the card
+                  said "9 caught" but only rendered 8 sprites, so the rarest
+                  (e.g. Miltank on Route 39) silently vanished from the map.
+                  The row flex-wraps, so extras just wrap to a second line. */}
+              {sorted.map((e) => {
                 const seen = state.pokedexSeen.includes(e.speciesKey);
                 const sp = pokemonTable[e.speciesKey];
                 const label = seen
