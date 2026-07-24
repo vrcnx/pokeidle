@@ -12985,13 +12985,27 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 5px;
 }
 .route-card-mon {
   position: relative;
+  /* Fixed, non-shrinking 26×26 cell so the (varying-size, non-square)
+     animated sprites can never spill out of their box, distort, or crowd
+     into each other — reported as map-card sprites "overlapping". */
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.route-card-mons img { width: 26px; height: 26px; image-rendering: pixelated; }
+.route-card-mons img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
 .route-card-mon-mystery {
   width: 26px;
   height: 26px;
