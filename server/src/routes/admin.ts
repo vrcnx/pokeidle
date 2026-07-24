@@ -554,88 +554,120 @@ const PATCHABLE_KEYS = new Set([
   "trainerBattlesWon",
 ]);
 
+// Accumulating currencies: applied as a DELTA relative to what the admin
+// loaded, so a concurrent player earn/spend isn't wiped. Everything else is a
+// straight set onto the latest save.
+const DELTA_SAVE_KEYS = new Set(["money", "victoryTokens"]);
+
+// Apply an authoritative admin edit onto the player's LATEST save with a
+// compare-and-swap RETRY loop. The old code CAS'd against the version the
+// admin's browser loaded, so for an actively-playing user (whose save version
+// moves every few seconds) an edit could NEVER land — it always 409'd
+// ("save changed since this page loaded"). This re-reads the current save,
+// lets `mutate` apply the specific changes onto it, and writes with a fresh
+// CAS; if the player's client autosaved in between, it retries onto the newer
+// save. Only the mutated fields change, so the player's other live progress is
+// preserved. Bumps saveAdoptSeq + emits save:adopt so the online client adopts
+// the result rather than re-uploading its stale copy.
+async function patchSaveWithRetry(
+  id: string,
+  mutate: (latest: Record<string, unknown>) => Record<string, unknown> | { error: string; status?: number },
+): Promise<
+  | { ok: true; saveVersion: number; derived: ReturnType<typeof computeAccountLevel> }
+  | { ok: false; status: number; error: string; reason?: string }
+> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { saveData: true, saveVersion: true },
+    });
+    if (!target) return { ok: false, status: 404, error: "user not found" };
+    const base = target.saveData ? safeParseObject(target.saveData) : {};
+    if (!base) return { ok: false, status: 500, error: "user save is corrupt" };
+    const out = mutate(base);
+    if (out && typeof out === "object" && "error" in out) {
+      return { ok: false, status: (out as { status?: number }).status ?? 400, error: (out as { error: string }).error };
+    }
+    const merged = out as Record<string, unknown>;
+    const v = validateSave(merged);
+    if (!v.ok) return { ok: false, status: 400, error: "patch produced invalid save", reason: v.reason };
+    const derived = computeAccountLevel(merged);
+    const claim = await prisma.user.updateMany({
+      where: { id, saveVersion: target.saveVersion },
+      data: {
+        saveData: JSON.stringify(merged),
+        saveVersion: { increment: 1 },
+        saveAdoptSeq: { increment: 1 },
+        saveUpdatedAt: new Date(),
+        accountLevel: derived.accountLevel,
+        totalCaughtLevels: derived.totalCaughtLevels,
+        pokedexCaughtCount: derived.pokedexCaughtCount,
+      },
+    });
+    if (claim.count > 0) {
+      emitSaveAdopt(id);
+      return { ok: true, saveVersion: target.saveVersion + 1, derived };
+    }
+    // Lost the CAS — the player's client autosaved between our read and write.
+    // Loop and re-apply onto the newer save.
+  }
+  return { ok: false, status: 409, error: "the player's save is updating too fast to edit — try again in a moment" };
+}
+
 app.post("/users/:id/save-patch", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   const body = (await c.req.json().catch(() => null)) as
-    | { patch?: Record<string, unknown>; announce?: string; expectedSaveVersion?: number }
+    | { patch?: Record<string, unknown>; announce?: string; expectedSaveVersion?: number; base?: Record<string, unknown> }
     | null;
   if (!body?.patch || typeof body.patch !== "object" || Array.isArray(body.patch)) {
     return c.json({ error: "patch object required" }, 400);
   }
+  for (const key of Object.keys(body.patch)) {
+    if (!PATCHABLE_KEYS.has(key)) return c.json({ error: `key not patchable: ${key}` }, 400);
+  }
+  const patch = body.patch;
+  const baseVals = (body.base && typeof body.base === "object" ? body.base : {}) as Record<string, unknown>;
+  const appliedKeys = Object.keys(patch);
 
-  const target = await prisma.user.findUnique({
-    where: { id },
-    select: { saveData: true, saveVersion: true, username: true },
-  });
-  if (!target) return c.json({ error: "user not found" }, 404);
+  const who = await prisma.user.findUnique({ where: { id }, select: { username: true } });
+  if (!who) return c.json({ error: "user not found" }, 404);
 
-  const baseSave = target.saveData ? safeParseObject(target.saveData) : {};
-  if (!baseSave) return c.json({ error: "user save is corrupt" }, 500);
-
-  const merged: Record<string, unknown> = { ...baseSave };
-  const appliedKeys: string[] = [];
-  for (const [key, value] of Object.entries(body.patch)) {
-    if (!PATCHABLE_KEYS.has(key)) {
-      return c.json({ error: `key not patchable: ${key}` }, 400);
+  // Apply the edit onto the player's LATEST save (retry loop handles a
+  // concurrently-autosaving client). Currencies are delta-merged so a
+  // concurrent earn/spend survives; other keys are set.
+  const result = await patchSaveWithRetry(id, (latest) => {
+    const merged: Record<string, unknown> = { ...latest };
+    for (const [key, value] of Object.entries(patch)) {
+      if (
+        DELTA_SAVE_KEYS.has(key) &&
+        typeof value === "number" &&
+        typeof baseVals[key] === "number" &&
+        typeof latest[key] === "number"
+      ) {
+        // final = latest + (typed - loaded)
+        const next = (latest[key] as number) + (value - (baseVals[key] as number));
+        merged[key] = key === "money"
+          ? Math.max(0, Math.min(999_999_999, Math.round(next)))
+          : Math.max(0, Math.round(next));
+      } else {
+        merged[key] = value;
+      }
     }
-    merged[key] = value;
-    appliedKeys.push(key);
-  }
-
-  const v = validateSave(merged);
-  if (!v.ok) {
-    return c.json({ error: "patch produced invalid save", reason: v.reason }, 400);
-  }
-
-  const derived = computeAccountLevel(merged);
-  // Compare-and-swap against the version the ADMIN'S BROWSER actually
-  // loaded (expectedSaveVersion, sent by the client), not the version we
-  // just re-read a line above — those are the same value in the only
-  // race this used to actually catch (two admin requests landing back to
-  // back), but they're NOT the same when the target player's own live
-  // client has autosaved in the minutes between the admin opening this
-  // page and clicking Save. Re-reading fresh here made that far more
-  // common case impossible to detect: the request would read the
-  // player's ALREADY-CURRENT version, "match" it trivially, and silently
-  // overwrite whatever the player's client had just saved — on the
-  // patched keys specifically (e.g. a gifted Pokémon lands, then the
-  // player's own next autosave, built from a save that never saw it,
-  // wipes it back out). Falls back to the freshly-read version when the
-  // client doesn't send one, for backward compatibility.
-  const expectedVersion = body.expectedSaveVersion ?? target.saveVersion;
-  const claim = await prisma.user.updateMany({
-    where: { id, saveVersion: expectedVersion },
-    data: {
-      saveData: JSON.stringify(merged),
-      saveVersion: { increment: 1 },
-      // Authoritative admin edit — force the target client to ADOPT this save
-      // wholesale instead of re-uploading its local copy and undoing the edit.
-      saveAdoptSeq: { increment: 1 },
-      saveUpdatedAt: new Date(),
-      accountLevel: derived.accountLevel,
-      totalCaughtLevels: derived.totalCaughtLevels,
-      pokedexCaughtCount: derived.pokedexCaughtCount,
-    },
+    return merged;
   });
-  if (claim.count === 0) {
-    return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
+  if (!result.ok) {
+    return c.json(result.reason ? { error: result.error, reason: result.reason } : { error: result.error }, result.status as 400 | 404 | 409 | 500);
   }
-  emitSaveAdopt(id);
 
   void makeAudit(c)(me.id, "user.save_patch", id, { keys: appliedKeys });
-  // Only announce if the patch actually changed something — an empty
-  // {} patch would otherwise let an operator post an arbitrary "gift"
-  // card with zero relation to any real change.
-  if (appliedKeys.length > 0) {
-    await postGiftAnnouncement(me, body.announce, target.username);
-  }
+  if (appliedKeys.length > 0) await postGiftAnnouncement(me, body.announce, who.username);
   return c.json({
     ok: true,
     id,
-    saveVersion: target.saveVersion + 1,
-    accountLevel: derived.accountLevel,
-    pokedexCaughtCount: derived.pokedexCaughtCount,
+    saveVersion: result.saveVersion,
+    accountLevel: result.derived.accountLevel,
+    pokedexCaughtCount: result.derived.pokedexCaughtCount,
     keys: appliedKeys,
   });
 });
@@ -988,46 +1020,33 @@ app.post("/users/:id/items", async (c) => {
   if (!Number.isFinite(quantity) || quantity < 0 || quantity > 999_999) {
     return c.json({ error: "quantity must be 0..999999" }, 400);
   }
-  const target = await prisma.user.findUnique({
-    where: { id },
-    select: { saveData: true, username: true, saveVersion: true },
+  const who = await prisma.user.findUnique({ where: { id }, select: { username: true } });
+  if (!who) return c.json({ error: "user not found" }, 404);
+
+  // Set the item quantity on the player's LATEST inventory (retry loop rides
+  // out a concurrently-autosaving client). Only this item key changes; the
+  // rest of the inventory + save is preserved.
+  let previousQuantity = 0;
+  const result = await patchSaveWithRetry(id, (latest) => {
+    const inventory: Record<string, number> = {
+      ...((latest.inventory && typeof latest.inventory === "object" && !Array.isArray(latest.inventory))
+        ? (latest.inventory as Record<string, number>)
+        : {}),
+    };
+    previousQuantity = Number(inventory[itemId] ?? 0);
+    if (quantity === 0) delete inventory[itemId];
+    else inventory[itemId] = quantity;
+    return { ...latest, inventory };
   });
-  if (!target) return c.json({ error: "user not found" }, 404);
-  const baseSave = target.saveData ? safeParseObject(target.saveData) : {};
-  if (!baseSave) return c.json({ error: "user save is corrupt" }, 500);
-  const inventory: Record<string, number> = {
-    ...((baseSave.inventory && typeof baseSave.inventory === "object" && !Array.isArray(baseSave.inventory))
-      ? (baseSave.inventory as Record<string, number>)
-      : {}),
-  };
-  const previousQuantity = Number(inventory[itemId] ?? 0);
-  if (quantity === 0) delete inventory[itemId];
-  else inventory[itemId] = quantity;
-  const merged = { ...baseSave, inventory };
-  const v = validateSave(merged);
-  if (!v.ok) return c.json({ error: "patch produced invalid save", reason: v.reason }, 400);
-  // Same compare-and-swap as save-patch above — see that route's comment.
-  const claim = await prisma.user.updateMany({
-    where: { id, saveVersion: target.saveVersion },
-    data: {
-      saveData: JSON.stringify(merged),
-      saveVersion: { increment: 1 },
-      // Authoritative — force the client to adopt this (an item-set can be a
-      // REMOVAL, which the non-destructive merge would otherwise undo).
-      saveAdoptSeq: { increment: 1 },
-      saveUpdatedAt: new Date(),
-    },
-  });
-  if (claim.count === 0) {
-    return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
+  if (!result.ok) {
+    return c.json(result.reason ? { error: result.error, reason: result.reason } : { error: result.error }, result.status as 400 | 404 | 409 | 500);
   }
-  emitSaveAdopt(id);
   void makeAudit(c)(me.id, "user.set_item", id, { itemId, quantity });
   // Only announce if the quantity actually changed, for the same reason
   // save-patch gates on appliedKeys — a no-op grant shouldn't be able to
   // post an arbitrary "gift" card.
   if (quantity !== previousQuantity) {
-    await postGiftAnnouncement(me, body?.announce, target.username);
+    await postGiftAnnouncement(me, body?.announce, who.username);
   }
   return c.json({ ok: true, itemId, quantity });
 });

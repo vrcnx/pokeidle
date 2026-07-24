@@ -471,12 +471,12 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
     setSavingMsg(null);
     setSaveErr(null);
     try {
-      // Sends the saveVersion THIS PAGE loaded with, not a version
-      // re-read at request time — lets the server tell a genuinely
-      // stale edit apart from a fresh one instead of silently
-      // overwriting whatever the player's own live client saved in
-      // between (see save-patch's doc comment on the server).
-      const res = await api.savePatch(id, edit as Record<string, unknown>, announceOn ? announceText : undefined, data.saveVersion);
+      // Send the loaded baseline for the edited keys so the server can apply
+      // currencies as a delta onto the player's LATEST save (works even while
+      // the player is actively autosaving — no more "save changed" 409).
+      const baseVals: Record<string, unknown> = {};
+      for (const k of Object.keys(edit)) baseVals[k] = (save ?? {})[k];
+      const res = await api.savePatch(id, edit as Record<string, unknown>, announceOn ? announceText : undefined, data.saveVersion, baseVals);
       setSavingMsg(`Saved (${res.keys.join(", ")}). v${res.saveVersion}`);
       reload();
       onChange();
