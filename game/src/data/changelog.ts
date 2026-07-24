@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.8.1";
+export const CURRENT_VERSION = "0.9.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,60 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.0",
+      subtitle: "Johto is open — plus auctions, evolutions, and Hyper Training",
+      date: "2026-07-24",
+      highlight: true,
+      sections: [
+        {
+          heading: "🗺️ The Johto region",
+          items: [
+            "A whole second region to explore, from New Bark Town to Mt. Silver — pick a Johto starter (Chikorita, Cyndaquil or Totodile) when you arrive",
+            "Eight new gyms, a new Elite Four, and Champion Lance, all with the Johto Pokédex filling in behind them",
+            "Johto is tuned as a genuine post-Kanto challenge now: gym aces climb from ~50 up to Clair's Lv75 Kingdra, the Elite Four sit in the high 70s–low 80s, and Lance tops out around 85 — no more steamrolling it with a Kanto team",
+          ],
+        },
+        {
+          heading: "💎 Auction house",
+          items: [
+            "The Trade tab is now a real auction house — list a Pokémon, set a starting bid, and let the server run the clock",
+            "Listed Pokémon are held safely in escrow while the auction runs (so nothing can be duped or lost), and you can cancel to get it straight back if there are no bids",
+            "Winners receive the exact Pokémon that was listed, delivered automatically when the auction settles",
+          ],
+        },
+        {
+          heading: "✨ Evolutions",
+          items: [
+            "Evolution stones work properly — Sun and Moon Stones included (Vaporeon/Jolteon/Flareon, plus Espeon and Umbreon via Sun/Moon Stone)",
+            "Trade evolutions now happen with a Link Cable from your Bag — evolve Haunter→Gengar, Kadabra→Alakazam, Machoke→Machamp, Graveler→Golem, and item trades like Onix→Steelix",
+            "Added missing evolutions: Golbat→Crobat, Chansey→Blissey, and Gloom→Bellossom",
+          ],
+        },
+        {
+          heading: "🍾 Bottle Caps & Hyper Training",
+          items: [
+            "Perfect your favourite Pokémon's IVs: a Gold Bottle Cap maxes every stat, a Silver Bottle Cap maxes one stat of your choice",
+            "Use them from a Pokémon's detail screen (Hyper Training) — works on party and PC Pokémon alike",
+            "Bottle Caps are a rare drop from raid catches, so a flawless team stays a real trophy",
+          ],
+        },
+        {
+          heading: "🎯 Catching",
+          items: [
+            "New \"weaken first\" catch setting — hold off on throwing a ball until the wild Pokémon is worn down, for a much better catch rate",
+            "Catch odds now scale with the target's remaining HP, so chipping it down actually pays off",
+          ],
+        },
+        {
+          heading: "🐛 Reliability",
+          items: [
+            "Fixed the bug where some players' cash could be reset — saves now merge safely instead of ever rolling your progress backward, and the affected accounts were refunded",
+            "Hardened cloud save syncing across logout/login and multiple devices so your account can't be duplicated or clobbered",
+          ],
+        },
+      ],
+    },
     {
       version: "0.8.1",
       subtitle: "Trade offers in chat, emoji, and a real Exp Share fix",
