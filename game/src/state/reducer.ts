@@ -2031,8 +2031,11 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
       (p, i) => i !== next.activePlayerPokemonIndex && p.currentHp > 0
     );
     if (aliveIdx === -1) {
-      if (isBoss) return endBossBattle(next, false, -Math.floor(state.money * 0.25));
-      if (isTrainer) return endTrainerBattle(next, false, -Math.floor(state.money * 0.25));
+      // Pass 0 — the single capped money penalty is applied by handleFaint
+      // (called inside these on a loss). Passing a penalty here too would
+      // double-charge the player.
+      if (isBoss) return endBossBattle(next, false, 0);
+      if (isTrainer) return endTrainerBattle(next, false, 0);
       // Raid wipe: bail out, no white-out penalty. Player returns to the
       // pre-raid location, party stays fainted (heal at a Center first).
       if (next.inRaid) {
@@ -2109,6 +2112,17 @@ function wildMoneyReward(level: number): number {
   return 10 + level * 4;
 }
 
+// Whiteout cash penalty. Capped in ABSOLUTE terms so an auto-battle loss can
+// never wipe a fortune. The idle loop fights continuously without the player's
+// input, so the old "lose 25% of your entire balance" rule scaled the sting
+// with wealth — a couple of unattended losses could crater a rich player's
+// bank, which is exactly what "my money goes down even when I'm winning"
+// reports were: small per-win prizes couldn't offset percentage-of-net-worth
+// losses. 5% capped at $5,000 keeps a minor sting without punishing progress.
+function defeatPenalty(money: number): number {
+  return Math.min(Math.floor(money * 0.05), 5000);
+}
+
 function endTrainerBattle(state: GameState, won: boolean, moneyDelta: number): GameState {
   const money = Math.max(0, state.money + moneyDelta);
   const trainerBattlesWon = won ? state.trainerBattlesWon + 1 : state.trainerBattlesWon;
@@ -2124,7 +2138,7 @@ function endTrainerBattle(state: GameState, won: boolean, moneyDelta: number): G
     won && trainerId && !state.defeatedTrainers.includes(trainerId)
       ? [...state.defeatedTrainers, trainerId]
       : state.defeatedTrainers;
-  const log = won ? `Got $${moneyDelta} for winning!` : `Lost $${Math.abs(moneyDelta)}...`;
+  const log = won ? `Got $${moneyDelta} for winning!` : `You were defeated...`;
   let next: GameState = pushLog(
     {
       ...state,
@@ -2153,7 +2167,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
       }
     : state.battlesWonByLocation;
   const activeEffects = won ? decrementEffects(state.activeEffects) : state.activeEffects;
-  const log = won ? `Got $${moneyDelta} for winning!` : `Lost $${Math.abs(moneyDelta)}...`;
+  const log = won ? `Got $${moneyDelta} for winning!` : `You were defeated...`;
   let defeatedGyms = state.defeatedGyms;
   let defeatedEliteFour = state.defeatedEliteFour;
   let championDefeated = state.championDefeated;
@@ -2249,8 +2263,10 @@ function handleFaint(state: GameState): GameState {
     currentHp: p.maxHp,
     moves: p.moves.map((m) => ({ ...m, pp: m.maxPp })),
   }));
-  // White-out money penalty: lose 5% of bank, rounded down. Min 0.
-  const moneyLost = Math.max(0, Math.floor(state.money * 0.05));
+  // White-out money penalty — capped so an unattended auto-battle loss can't
+  // wipe a fortune (see defeatPenalty). This is the SINGLE place a loss costs
+  // money; the trainer/boss end handlers no longer deduct separately.
+  const moneyLost = defeatPenalty(state.money);
   const moneyAfter = state.money - moneyLost;
 
   // Raid wipe: bail back to the location the player was at when they
