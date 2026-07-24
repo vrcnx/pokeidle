@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.1";
+export const CURRENT_VERSION = "0.9.2";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,42 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.2",
+      subtitle: "A wide screen layout, an honest Pokédex, and EXP for catching",
+      date: "2026-07-24",
+      sections: [
+        {
+          heading: "🖥️ New: Wide layout",
+          items: [
+            "Playing on a big monitor? Settings → Display now lets you switch between Classic and a new Wide layout that fills the screen instead of leaving big empty margins",
+            "The battle view more than doubles in size (and keeps its exact proportions — nothing gets stretched or cropped)",
+            "Classic is still the default, so nothing changes unless you pick Wide. Your choice is remembered on that device, and small screens keep the layout they already had",
+          ],
+        },
+        {
+          heading: "📖 The Pokédex can actually be completed",
+          items: [
+            "The dex counted 288 species, but 35 of those have no way to be caught yet — so players who had genuinely caught everything available were stuck showing 234/288 and could never reach 100%",
+            "It now counts only the 253 species you can actually obtain, so completion (and the Master milestone) is reachable. Type totals are honest too",
+            "The 35 unreleased entries keep their dex numbers but are dimmed and marked \"Not yet available\", so you can tell \"not released\" from \"haven't found it yet\"",
+          ],
+        },
+        {
+          heading: "⭐ Catching gives EXP",
+          items: [
+            "Knocking a wild Pokémon out gave your team EXP but CATCHING it gave nothing — so filling the Pokédex was actively costing you progress. A successful catch now awards the same EXP (and EV yield) that defeating it would have",
+          ],
+        },
+        {
+          heading: "🐛 Fixed",
+          items: [
+            "Fixed a freeze where the game could get stuck on a faint message and stop doing anything, if your active Pokémon fainted while you still had healthy ones on the bench",
+            "Rebuilt the route list on the Map tab — cards now line up properly instead of stretching town rows across empty space, squeezing route names, and cramming unlock requirements side by side",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.1",
       subtitle: "Manual catching, the other starters, and a fairer defeat penalty",
