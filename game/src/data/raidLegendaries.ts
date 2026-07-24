@@ -19,6 +19,7 @@ export const RAID_START_LEVEL = 70;
 export const MYTHICAL_MIN_LEVEL = 90;
 
 export type RaidTierId =
+  | "johtoNursery"
   | "birdsBeasts"
   | "titans"
   | "guardians"
@@ -48,6 +49,24 @@ export interface RaidTier {
 // ---------------------------------------------------------------------
 
 const TIERS_LIST: RaidTier[] = [
+  {
+    // Not legendaries — the Johto species that had no obtainable source at
+    // all. The babies (Pichu, Cleffa, Igglybuff, Togepi, Tyrogue, Smoochum,
+    // Elekid, Magby) are breeding-only in the mainline games and there is no
+    // breeding here, so a raid is their route in. Larvitar rides along as the
+    // chase: a pseudo-legendary deserves to be hunted rather than found in
+    // the grass. Everything they evolve into comes free through levelling.
+    id: "johtoNursery",
+    name: "Johto Nursery",
+    blurb: "Rare young Pokémon found nowhere in the wild — and the Larvitar line, if you're lucky.",
+    startLevel: 15,
+    unlockBadges: 0,
+    pool: {
+      pichu: 14, cleffa: 14, igglybuff: 14,
+      togepi: 12, tyrogue: 12, smoochum: 11, elekid: 11, magby: 11,
+      larvitar: 5,
+    },
+  },
   {
     id: "birdsBeasts",
     name: "Birds & Beasts",

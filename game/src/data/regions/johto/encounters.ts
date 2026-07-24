@@ -58,6 +58,7 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "smeargle", weight: 10, minLevel: 45, maxLevel: 48 },
       { speciesKey: "wooper", weight: 5, minLevel: 45, maxLevel: 48 },
       { speciesKey: "quagsire", weight: 5, minLevel: 45, maxLevel: 48 },
+      { speciesKey: "unown", weight: 10, minLevel: 45, maxLevel: 48 },
     ],
   },
   unionCave: {
@@ -103,6 +104,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "psyduck", weight: 5, minLevel: 48, maxLevel: 51 },
       { speciesKey: "hoothoot", weight: 5, minLevel: 48, maxLevel: 51 },
       { speciesKey: "pidgey", weight: 3, minLevel: 48, maxLevel: 51 },
+      { speciesKey: "pineco", weight: 8, minLevel: 48, maxLevel: 51 },
+      { speciesKey: "heracross", weight: 4, minLevel: 48, maxLevel: 51 },
     ],
   },
   route34: {
@@ -149,6 +152,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "chikorita", weight: 1, minLevel: 52, maxLevel: 55 },
       { speciesKey: "cyndaquil", weight: 1, minLevel: 52, maxLevel: 55 },
       { speciesKey: "totodile", weight: 1, minLevel: 52, maxLevel: 55 },
+      { speciesKey: "aipom", weight: 8, minLevel: 52, maxLevel: 55 },
+      { speciesKey: "yanma", weight: 6, minLevel: 52, maxLevel: 55 },
     ],
   },
   route36: {
@@ -188,6 +193,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "zubat", weight: 12, minLevel: 55, maxLevel: 58 },
       { speciesKey: "raticate", weight: 5, minLevel: 55, maxLevel: 58 },
       { speciesKey: "weezing", weight: 2, minLevel: 55, maxLevel: 58 },
+      { speciesKey: "misdreavus", weight: 7, minLevel: 55, maxLevel: 58 },
+      { speciesKey: "murkrow", weight: 7, minLevel: 55, maxLevel: 58 },
     ],
   },
   route38: {
@@ -200,6 +207,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "pidgeotto", weight: 10, minLevel: 58, maxLevel: 60 },
       { speciesKey: "noctowl", weight: 8, minLevel: 58, maxLevel: 60 },
       { speciesKey: "snubbull", weight: 3, minLevel: 58, maxLevel: 60 },
+      { speciesKey: "houndour", weight: 7, minLevel: 58, maxLevel: 60 },
+      { speciesKey: "houndoom", weight: 3, minLevel: 58, maxLevel: 60 },
     ],
   },
   route39: {
@@ -221,6 +230,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
     encounters: [
       { speciesKey: "tentacool", weight: 25, minLevel: 60, maxLevel: 62 },
       { speciesKey: "tentacruel", weight: 5, minLevel: 60, maxLevel: 62 },
+      { speciesKey: "chinchou", weight: 12, minLevel: 60, maxLevel: 62 },
+      { speciesKey: "qwilfish", weight: 8, minLevel: 60, maxLevel: 62 },
     ],
   },
   whirlIslands: {
@@ -230,6 +241,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "zubat", weight: 22, minLevel: 61, maxLevel: 64 },
       { speciesKey: "seel", weight: 18, minLevel: 61, maxLevel: 64 },
       { speciesKey: "golbat", weight: 8, minLevel: 61, maxLevel: 64 },
+      { speciesKey: "lanturn", weight: 6, minLevel: 61, maxLevel: 64 },
+      { speciesKey: "octillery", weight: 5, minLevel: 61, maxLevel: 64 },
     ],
   },
   route41: {
@@ -238,6 +251,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "tentacool", weight: 22, minLevel: 61, maxLevel: 63 },
       { speciesKey: "tentacruel", weight: 10, minLevel: 61, maxLevel: 63 },
       { speciesKey: "mantine", weight: 3, minLevel: 61, maxLevel: 63 },
+      { speciesKey: "corsola", weight: 10, minLevel: 61, maxLevel: 63 },
+      { speciesKey: "remoraid", weight: 10, minLevel: 61, maxLevel: 63 },
     ],
   },
   route42: {
@@ -248,6 +263,7 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "mankey", weight: 15, minLevel: 58, maxLevel: 61 },
       { speciesKey: "golbat", weight: 8, minLevel: 58, maxLevel: 61 },
       { speciesKey: "marill", weight: 4, minLevel: 58, maxLevel: 61 },
+      { speciesKey: "shuckle", weight: 5, minLevel: 58, maxLevel: 61 },
     ],
   },
   mtMortar: {
@@ -260,6 +276,8 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "raticate", weight: 10, minLevel: 61, maxLevel: 64 },
       { speciesKey: "golbat", weight: 10, minLevel: 61, maxLevel: 64 },
       { speciesKey: "marill", weight: 5, minLevel: 61, maxLevel: 64 },
+      { speciesKey: "sudowoodo", weight: 5, minLevel: 61, maxLevel: 64 },
+      { speciesKey: "forretress", weight: 4, minLevel: 61, maxLevel: 64 },
     ],
   },
   route43: {
@@ -274,6 +292,7 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "furret", weight: 6, minLevel: 64, maxLevel: 66 },
       { speciesKey: "venomoth", weight: 5, minLevel: 64, maxLevel: 66 },
       { speciesKey: "mareep", weight: 3, minLevel: 64, maxLevel: 66 },
+      { speciesKey: "teddiursa", weight: 7, minLevel: 64, maxLevel: 66 },
     ],
   },
   lakeOfRage: {
@@ -325,6 +344,9 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "graveler", weight: 22, minLevel: 67, maxLevel: 70 },
       { speciesKey: "geodude", weight: 18, minLevel: 67, maxLevel: 70 },
       { speciesKey: "gligar", weight: 6, minLevel: 67, maxLevel: 70 },
+      { speciesKey: "skarmory", weight: 5, minLevel: 67, maxLevel: 70 },
+      { speciesKey: "slugma", weight: 8, minLevel: 67, maxLevel: 70 },
+      { speciesKey: "magcargo", weight: 4, minLevel: 67, maxLevel: 70 },
     ],
   },
   route46: {
