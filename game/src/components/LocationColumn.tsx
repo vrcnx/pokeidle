@@ -1,4 +1,5 @@
 import { MiniChat } from "./MiniChat";
+import { MetaDock } from "./GlobalDock";
 import { ChannelHeader } from "./ChannelHeader";
 import { InventoryRibbon } from "./InventoryRibbon";
 import { UnlockHint } from "./ContextPanel";
@@ -9,10 +10,12 @@ import { UnlockHint } from "./ContextPanel";
 // — the right rail hides its copies so they aren't shown twice. Below them
 // a 44px ChannelHeader ("CHAT" label + save status + online count), then
 // the chat itself.
-export function LocationColumn() {
+export function LocationColumn({ wide = false }: { wide?: boolean }) {
   return (
     <div className="location-column chat-column">
       <InventoryRibbon />
+      {/* Wide: PvP / Settings / Social sit directly under the trainer card. */}
+      {wide && <MetaDock />}
       <UnlockHint />
       <ChannelHeader />
       <MiniChat />

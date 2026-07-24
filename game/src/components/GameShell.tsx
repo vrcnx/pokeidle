@@ -96,9 +96,9 @@ export function GameShell() {
               arena CENTER (focal point), control panel RIGHT (party +
               actions + goal + profile). Chat absorbs all vertical
               slack so the left rail never reads half-empty. */}
-          <LocationColumn />
-          <CenterColumn />
-          <PartyColumn showProfileStrip={false} />
+          <LocationColumn wide={layout === "wide"} />
+          <CenterColumn wide={layout === "wide"} />
+          <PartyColumn showProfileStrip={false} wide={layout === "wide"} />
         </div>
       )}
 

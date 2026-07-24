@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { BottomTabs } from "./BottomTabs";
+import { ContextPanel } from "./ContextPanel";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
 import { sfxManager } from "../utils/sfx";
 import { useT } from "../i18n/useT";
@@ -14,7 +15,7 @@ import { useT } from "../i18n/useT";
 // one for music, one for sound effects — so the player can silence
 // either bus without opening Settings.
 
-export function CenterColumn() {
+export function CenterColumn({ wide = false }: { wide?: boolean }) {
   return (
     <div className="center-column">
       <div className="battle-area">
@@ -26,7 +27,10 @@ export function CenterColumn() {
       </div>
       <MovesToolbar />
       <MovesPanel />
-      <BottomTabs />
+      {/* Wide layout keeps the centre purely about the fight: what you're
+          battling sits under your moves, and the Map/Mart/Bag/PC/Dex tabs
+          move to the right rail (see GameShell). */}
+      {wide ? <ContextPanel /> : <BottomTabs />}
     </div>
   );
 }

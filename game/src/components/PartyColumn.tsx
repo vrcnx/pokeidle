@@ -11,6 +11,7 @@ import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
 import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
+import { BottomTabs } from "./BottomTabs";
 import { InventoryRibbon } from "./InventoryRibbon";
 import type { Pokemon, GameState, StatusCondition } from "../types";
 import { useT } from "../i18n/useT";
@@ -67,12 +68,14 @@ function statusBadgeClass(s: StatusCondition): string {
 // Drag a party row onto another to swap slots; drag a box Pokémon onto a
 // party slot to move/swap. The drag system is pointer-events-based so it
 // works on touch.
-export function PartyColumn({ showProfileStrip = true }: { showProfileStrip?: boolean }) {
+export function PartyColumn({ showProfileStrip = true, wide = false }: { showProfileStrip?: boolean; wide?: boolean }) {
   const { state } = useGame();
   const t = useT();
   return (
     <div className="party-column control-column">
-      <MetaDock />
+      {/* Wide: this rail becomes navigation + inventory — the tabs lead, and
+          the dock actions move to the left rail under the trainer card. */}
+      {wide ? <BottomTabs /> : <MetaDock />}
       <section className="ctx-section party-card">
         <h4>{t("Party")}</h4>
         <ul className="party-list">
@@ -82,7 +85,8 @@ export function PartyColumn({ showProfileStrip = true }: { showProfileStrip?: bo
         </ul>
       </section>
 
-      <ContextPanel />
+      {/* Wide moves the wild-Pokémon panel into the centre, under the moves. */}
+      {!wide && <ContextPanel />}
       {/* On desktop the profile strip AND the Next Goal card are hoisted to
           the top of the left chat rail (see LocationColumn); the right rail
           hides them here to avoid showing them twice. Mobile's party tab

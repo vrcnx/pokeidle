@@ -17216,13 +17216,15 @@ html, body {
    this is a second grid template, not a different UI. */
 .dashboard-wide {
   max-width: none;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 2.7fr) minmax(300px, 0.9fr);
+  /* The right rail now carries the Map/Mart/Bag/PC/Dex tabs, so it needs a
+     real content width rather than the narrow 300px status rail it was. */
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 2.1fr) minmax(360px, 1.1fr);
 }
 /* Very wide screens: let the arena take even more, but keep the rails legible
    rather than stretching them into empty columns. */
 @media (min-width: 1900px) {
   .dashboard-wide {
-    grid-template-columns: minmax(300px, 0.75fr) minmax(0, 3.2fr) minmax(320px, 0.8fr);
+    grid-template-columns: minmax(300px, 0.7fr) minmax(0, 2.4fr) minmax(380px, 1fr);
   }
 }
 /* The arena is aspect-ratio locked, but classic sets an explicit width:100%,
