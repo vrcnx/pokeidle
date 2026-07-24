@@ -3,6 +3,8 @@ import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
 import { REPEL_IDS } from "../utils/encounters";
+import { BALL_ORDER } from "../utils/items";
+import { pokeballs } from "../data/pokeballs";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl, trainerSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { rarityFromRate } from "../utils/rarity";
@@ -224,8 +226,55 @@ function IdleRoutePanel() {
   const enc = encounters[here]?.encounters ?? [];
   return (
     <>
+      <ManualCatchSection />
       {enc.length > 0 && <WildPokemonSection routeKey={here} />}
     </>
+  );
+}
+
+// Manual ball throwing. Auto-catch handles the grind, but players repeatedly
+// asked for a way to just throw a ball themselves at whatever is in front of
+// them — especially for a rare spawn their catch rules would skip. Only shows
+// during a live wild battle.
+function ManualCatchSection() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  if (state.phase !== "battle" || !state.enemyPokemon) return null;
+  const target = state.enemyPokemon;
+  const hpPct = Math.max(0, Math.round((target.currentHp / target.maxHp) * 100));
+
+  return (
+    <section className="ctx-section manual-catch">
+      <h3 className="ctx-h3">
+        {t("Throw a ball")}
+        <span className="dim small" style={{ marginLeft: 6 }}>
+          {target.name} · {hpPct}% HP
+        </span>
+      </h3>
+      <div className="manual-catch-balls">
+        {BALL_ORDER.map((id) => {
+          const owned = state.inventory[id] ?? 0;
+          const ball = pokeballs[id];
+          if (!ball) return null;
+          return (
+            <button
+              key={id}
+              className="manual-catch-ball"
+              disabled={owned <= 0}
+              title={owned <= 0 ? t("You have none of these") : `${ball.name} ×${owned}`}
+              onClick={() => dispatch({ type: "CATCH_POKEMON", payload: { ballId: id } })}
+            >
+              <img src={itemSpriteUrl(id)} alt="" width={22} height={22} />
+              <span>{ball.name}</span>
+              <span className="dim">×{owned}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="dim small" style={{ margin: "6px 0 0" }}>
+        {t("Weakening it first (and using a better ball) raises the catch rate.")}
+      </p>
+    </section>
   );
 }
 

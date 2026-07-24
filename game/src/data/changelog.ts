@@ -33,9 +33,23 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 export const changelog: ChangelogEntry[] = [
     {
       version: "0.9.1",
-      subtitle: "Evolution items, a fairer defeat penalty, and Safari access",
+      subtitle: "Manual catching, the other starters, and a fairer defeat penalty",
       date: "2026-07-24",
       sections: [
+        {
+          heading: "🎯 Throw a ball yourself",
+          items: [
+            "You asked for it: during a wild encounter the right-hand panel now has a Throw a ball row — pick any ball you own and throw it by hand, instead of relying entirely on auto-catch rules",
+            "Handy for a rare spawn your catch settings would have skipped. Weakening it first still improves your odds",
+          ],
+        },
+        {
+          heading: "🌱 The other Johto starters",
+          items: [
+            "Chikorita, Cyndaquil and Totodile can now be found — very rarely — in the National Park, so you can complete the lines you didn't pick",
+            "(This mirrors how the Kanto trio has always been catchable in the Safari Zone.)",
+          ],
+        },
         {
           heading: "💰 Your money stops vanishing",
           items: [

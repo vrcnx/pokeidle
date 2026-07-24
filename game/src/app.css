@@ -5489,6 +5489,20 @@ body.dnd-active {
 .detail-evos li.evo-locked strong { color: var(--ink-soft); }
 .detail-evos button { font-size: 11px; padding: 4px 12px; }
 
+/* ---------- Manual ball throwing (wild battle) ---------- */
+.manual-catch-balls { display: flex; flex-wrap: wrap; gap: 6px; }
+.manual-catch-ball {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.manual-catch-ball:disabled { opacity: 0.4; cursor: default; }
+.manual-catch-ball img { image-rendering: pixelated; }
+
 /* ---------- Hyper Training (Bottle Caps) ---------- */
 .hyper-train-card .hyper-train-gold { margin-bottom: 8px; }
 .hyper-train-silver p { margin: 6px 0 6px; }

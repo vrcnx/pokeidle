@@ -143,6 +143,12 @@ export const encounters: Record<string, { name: string; encounters: { speciesKey
       { speciesKey: "pidgey", weight: 6, minLevel: 52, maxLevel: 55 },
       { speciesKey: "caterpie", weight: 3, minLevel: 52, maxLevel: 55 },
       { speciesKey: "weedle", weight: 3, minLevel: 52, maxLevel: 55 },
+      // The Johto starters you didn't pick, as a very rare preserve spawn
+      // (~0.9% each) — mirrors how the Kanto trio is obtainable in the Safari
+      // Zone. Players had no way at all to complete the starter lines before.
+      { speciesKey: "chikorita", weight: 1, minLevel: 52, maxLevel: 55 },
+      { speciesKey: "cyndaquil", weight: 1, minLevel: 52, maxLevel: 55 },
+      { speciesKey: "totodile", weight: 1, minLevel: 52, maxLevel: 55 },
     ],
   },
   route36: {
