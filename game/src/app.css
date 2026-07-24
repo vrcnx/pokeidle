@@ -5489,6 +5489,13 @@ body.dnd-active {
 .detail-evos li.evo-locked strong { color: var(--ink-soft); }
 .detail-evos button { font-size: 11px; padding: 4px 12px; }
 
+/* ---------- Hyper Training (Bottle Caps) ---------- */
+.hyper-train-card .hyper-train-gold { margin-bottom: 8px; }
+.hyper-train-silver p { margin: 6px 0 6px; }
+.hyper-train-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.hyper-train-stats button { font-size: 11px; padding: 4px 10px; }
+.hyper-train-stats button:disabled { opacity: 0.45; }
+
 /* ---------- Catch settings: per-species level threshold input ---------- */
 .catch-name-col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .catch-name-col .catch-name { font-size: 11px; }

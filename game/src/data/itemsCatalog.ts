@@ -109,6 +109,8 @@ const items: CatalogItem[] = [
   { id: "leafstone",    name: "Leaf Stone",    description: "A rare stone with a leaf pattern. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "leaf-stone", implemented: true },
   { id: "moonstone",    name: "Moon Stone",    description: "A mysterious stone that resembles the Moon. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "moon-stone", implemented: true },
   { id: "sunstone",     name: "Sun Stone",     description: "A radiant stone that captures sunlight. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "sun-stone", implemented: true },
+  { id: "goldbottlecap",   name: "Gold Bottle Cap",   description: "Hyper Training — makes ALL of one Pokémon's IVs perfect (31/31). A rare raid drop. Consumed on use.", category: "utility", buyPrice: null, sellPrice: 0, spriteOverride: "gold-bottle-cap", implemented: true },
+  { id: "silverbottlecap", name: "Silver Bottle Cap", description: "Hyper Training — makes ONE chosen stat's IV perfect (31). A rare raid drop. Consumed on use.", category: "utility", buyPrice: null, sellPrice: 0, spriteOverride: "bottle-cap", implemented: true },
 
   // ── Treasure (sellable) ──────────────────────────────────────────────────
   { id: "nugget",     name: "Nugget",      description: "A nugget of pure gold. Sells for a high price.", category: "treasure", buyPrice: null, sellPrice: 5000 },

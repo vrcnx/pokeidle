@@ -170,6 +170,37 @@ export function BagPanel() {
         </>
       )}
 
+      {((state.inventory.goldbottlecap ?? 0) > 0 ||
+        (state.inventory.silverbottlecap ?? 0) > 0) && (
+        <>
+          <h3>{t("Bottle Caps (Hyper Training)")}</h3>
+          <ul className="bag-list">
+            {(state.inventory.goldbottlecap ?? 0) > 0 && (
+              <li>
+                <span>
+                  {getItemInfo("goldbottlecap").name} × {state.inventory.goldbottlecap}
+                  <br />
+                  <span className="dim small">
+                    {t("Perfects every IV. Open a Pokémon's details to use it.")}
+                  </span>
+                </span>
+              </li>
+            )}
+            {(state.inventory.silverbottlecap ?? 0) > 0 && (
+              <li>
+                <span>
+                  {getItemInfo("silverbottlecap").name} × {state.inventory.silverbottlecap}
+                  <br />
+                  <span className="dim small">
+                    {t("Maxes one IV of your choice. Open a Pokémon's details to use it.")}
+                  </span>
+                </span>
+              </li>
+            )}
+          </ul>
+        </>
+      )}
+
       <h3>{t("Repel / Honey (current route)")}</h3>
       {effectItems.length === 0 ? (
         <p className="dim">{t("No consumables. Buy them from a Mart.")}</p>

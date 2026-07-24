@@ -271,6 +271,19 @@ function markCaught(state: GameState, key: string): GameState {
     : { ...next, pokedexSeen: [...next.pokedexSeen, key] };
 }
 
+// Rare Bottle Cap drop on completing a raid (catching the legendary). Bottle
+// Caps are the ONLY source of perfect IVs (Hyper Training) and their only
+// source is raids — so most raids drop nothing. Gold (all IVs) is rarer than
+// Silver (one IV). `wasInRaid` is the raid flag from BEFORE the catch.
+function maybeRaidBottleCapDrop(next: GameState, wasInRaid: boolean): GameState {
+  if (!wasInRaid) return next;
+  const r = Math.random();
+  const drop = r < 0.03 ? "goldbottlecap" : r < 0.15 ? "silverbottlecap" : null;
+  if (!drop) return next;
+  const inventory = { ...next.inventory, [drop]: (next.inventory[drop] ?? 0) + 1 };
+  return pushLog({ ...next, inventory }, `✨ The raid yielded a ${itemsCatalog[drop]?.name ?? drop}!`);
+}
+
 export function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "SELECT_STARTER": {
@@ -558,6 +571,7 @@ export function reducer(state: GameState, action: Action): GameState {
         next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
       }
       next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
+      next = maybeRaidBottleCapDrop(next, state.inRaid);
       // After catch, end battle and go idle
       return {
         ...next,
@@ -681,6 +695,7 @@ export function reducer(state: GameState, action: Action): GameState {
         next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
       }
       next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
+      next = maybeRaidBottleCapDrop(next, state.inRaid);
       return {
         ...next,
         phase: "idle",
@@ -1105,6 +1120,61 @@ export function reducer(state: GameState, action: Action): GameState {
           evolutionState: { partyIndex, toSpeciesKey: match.into, step: 0 },
         },
         `Used a ${stoneName} on ${target.name}!`,
+      );
+    }
+
+    case "USE_BOTTLE_CAP": {
+      // Hyper Training. Gold Bottle Cap → all IVs to 31; Silver Bottle Cap →
+      // one chosen stat's IV to 31. Recomputes the mon's stats and consumes
+      // the cap. Works on a party OR box Pokémon.
+      const { itemId, source, index, stat } = action.payload;
+      const list = source === "party" ? state.party : state.box;
+      if (index < 0 || index >= list.length) return state;
+      const owned = state.inventory[itemId] ?? 0;
+      const capName = itemsCatalog[itemId]?.name ?? itemId;
+      if (owned <= 0) return pushLog(state, `You don't have a ${capName}.`);
+      const mon = list[index];
+      if (!mon) return state;
+      const sp = pokemonTable[mon.speciesKey];
+      if (!sp) return state;
+      let newIvs = { ...mon.ivs };
+      if (itemId === "goldbottlecap") {
+        newIvs = { hp: 31, attack: 31, defense: 31, spAttack: 31, spDefense: 31, speed: 31 };
+      } else {
+        if (!stat || !(stat in newIvs)) return pushLog(state, "Pick a stat to hyper-train.");
+        if ((newIvs as any)[stat] >= 31) return pushLog(state, `${mon.name}'s ${stat} is already perfect.`);
+        newIvs = { ...newIvs, [stat]: 31 };
+      }
+      const stats = calcAllStats(sp, mon.level, newIvs, mon.evs, mon.nature);
+      const hpGain = Math.max(0, stats.hp - mon.maxHp);
+      const trained: Pokemon = {
+        ...mon,
+        ivs: newIvs,
+        maxHp: stats.hp,
+        currentHp: Math.min(stats.hp, mon.currentHp + hpGain),
+        attack: stats.attack,
+        defense: stats.defense,
+        spAttack: stats.spAttack,
+        spDefense: stats.spDefense,
+        speed: stats.speed,
+      };
+      const inventory = { ...state.inventory };
+      const remaining = owned - 1;
+      if (remaining <= 0) delete inventory[itemId];
+      else inventory[itemId] = remaining;
+      const newList = [...list];
+      newList[index] = trained;
+      let next: GameState = source === "party"
+        ? { ...state, party: newList, inventory }
+        : { ...state, box: newList, inventory };
+      if (source === "party" && state.activePlayerPokemonIndex === index) {
+        next = { ...next, playerPokemon: trained };
+      }
+      return pushLog(
+        next,
+        itemId === "goldbottlecap"
+          ? `${mon.name} was hyper-trained — perfect IVs (31 all)!`
+          : `${mon.name}'s ${String(stat)} IV was maxed to 31!`,
       );
     }
 

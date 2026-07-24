@@ -15,6 +15,16 @@ import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
 
+// Stat keys for Silver Bottle Cap hyper-training buttons.
+const HYPER_STATS: { key: "hp" | "attack" | "defense" | "spAttack" | "spDefense" | "speed"; label: string }[] = [
+  { key: "hp", label: "HP" },
+  { key: "attack", label: "Attack" },
+  { key: "defense", label: "Defense" },
+  { key: "spAttack", label: "Sp. Atk" },
+  { key: "spDefense", label: "Sp. Def" },
+  { key: "speed", label: "Speed" },
+];
+
 // Held item row + assignment popover. Lets the player give/take a held
 // item from the open Pokémon. The picker filters the player's inventory
 // to held-category items with implemented effects.
@@ -180,6 +190,28 @@ export function PokemonDetailModal() {
   const blocking = state.phase === "evolution" || state.phase === "starterSelect" || state.phase === "regionStarterSelect";
   const inBattle = blocking;
 
+  // Hyper Training (Bottle Caps). Gold perfects every IV; Silver maxes one
+  // stat. Applied Pokémon-first from here — the modal already knows the exact
+  // party/box slot, and Silver's stat pick is natural next to the stat list.
+  const goldCaps = state.inventory.goldbottlecap ?? 0;
+  const silverCaps = state.inventory.silverbottlecap ?? 0;
+  const ivs = p.ivs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+  const perfectIVs =
+    ivs.hp >= 31 && ivs.attack >= 31 && ivs.defense >= 31 &&
+    ivs.spAttack >= 31 && ivs.spDefense >= 31 && ivs.speed >= 31;
+  function hyperTrain(kind: "gold" | "silver", stat?: keyof typeof ivs) {
+    dispatch({
+      type: "USE_BOTTLE_CAP",
+      payload: {
+        itemId: kind === "gold" ? "goldbottlecap" : "silverbottlecap",
+        source: selected!.type,
+        index: selected!.index,
+        stat,
+      },
+    });
+    closePokemonDetail();
+  }
+
   // All evolution paths for this species, with eligibility flag. We show
   // every possible evolution (greyed out when not eligible) so the player
   // knows what to aim for.
@@ -270,6 +302,10 @@ export function PokemonDetailModal() {
         allEvolutions={allEvolutions}
         evolveTo={evolveTo}
         selected={selected}
+        goldCaps={goldCaps}
+        silverCaps={silverCaps}
+        perfectIVs={perfectIVs}
+        hyperTrain={hyperTrain}
         partySize={state.party.length}
         party={state.party}
         expIntoLevel={expIntoLevel}
@@ -322,6 +358,10 @@ function PokemonDetailDialog({
   allEvolutions,
   evolveTo,
   selected,
+  goldCaps,
+  silverCaps,
+  perfectIVs,
+  hyperTrain,
   partySize,
   party,
   expIntoLevel,
@@ -426,6 +466,52 @@ function PokemonDetailDialog({
             <EvRadar evs={p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 }} ivs={p.ivs} />
           </section>
         </div>
+
+        {(goldCaps > 0 || silverCaps > 0) && (
+          <section className="g-card g-card-full hyper-train-card">
+            <h3>{t("Hyper Training")}</h3>
+            {perfectIVs ? (
+              <p className="dim small">{t("This Pokémon already has perfect IVs.")} 🎉</p>
+            ) : (
+              <>
+                {goldCaps > 0 && (
+                  <button
+                    className="g-btn-primary g-btn-small hyper-train-gold"
+                    disabled={inBattle}
+                    onClick={() => hyperTrain("gold")}
+                  >
+                    ⭐ {t("Perfect all IVs")}{" "}
+                    <span className="dim">— {t("Gold Bottle Cap")} ×{goldCaps}</span>
+                  </button>
+                )}
+                {silverCaps > 0 && (
+                  <div className="hyper-train-silver">
+                    <p className="dim small">
+                      {t("Silver Bottle Cap")} ×{silverCaps} — {t("max a single stat")}:
+                    </p>
+                    <div className="hyper-train-stats">
+                      {HYPER_STATS.map(({ key, label }) => {
+                        const iv = (p.ivs?.[key] as number) ?? 0;
+                        const maxed = iv >= 31;
+                        return (
+                          <button
+                            key={key}
+                            className="g-btn-ghost g-btn-small"
+                            disabled={inBattle || maxed}
+                            title={maxed ? t("Already maxed") : ""}
+                            onClick={() => hyperTrain("silver", key)}
+                          >
+                            {t(label)} <span className="dim">{iv}/31</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         <section className="g-card g-card-full">
           <div className="detail-moves-header">
