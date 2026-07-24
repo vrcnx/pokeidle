@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
+import { isStreamMode } from "../state/streamMode";
 
 // Detects when a newer build has deployed and prompts the player to reload.
 //
@@ -41,6 +42,15 @@ export function UpdateNotice() {
       if (cancelled || availableRef.current) return;
       if (await isNewBuildAvailable() && !cancelled) {
         availableRef.current = true;
+        // A stream has nobody to click "reload", so it would sit on a stale
+        // build indefinitely after a frontend deploy. Reload it automatically
+        // — the save is server-backed and the stream session re-authenticates
+        // from its cookie, so nothing is lost. Short delay so an in-flight
+        // autosave lands first.
+        if (isStreamMode()) {
+          setTimeout(() => window.location.reload(), 3000);
+          return;
+        }
         setAvailable(true);
       }
     };
