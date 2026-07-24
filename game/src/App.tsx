@@ -4,6 +4,7 @@ import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
 import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
+import { useStreamAutoPlay } from "./hooks/useStreamAutoPlay";
 import { StarterSelect } from "./components/StarterSelect";
 import { GameShell } from "./components/GameShell";
 import { ContextMenuHost } from "./components/ContextMenu";
@@ -22,6 +23,7 @@ export function App() {
   useAutoProceed();
   useCatchAnimation();
   useStreamStartRoute();
+  useStreamAutoPlay();
 
   return (
     <>

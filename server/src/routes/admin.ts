@@ -273,6 +273,49 @@ app.get("/users/:id/stream-command-log", async (c) => {
   return c.json({ results: getCommandResults(c.req.param("id")) });
 });
 
+// ── Stream ops (one-shot snapshot + control) ───────────────────────────
+// A single call that answers "what is the stream doing and why is it stuck?"
+// — broadcast state, renderer status, the streamed account's actual progress,
+// and the recent command outcomes. Built for machine/CLI callers (the
+// ADMIN_API_KEY path) so the stream can be tuned without clicking through
+// several dashboard pages.
+app.get("/stream-ops", async (c) => {
+  const b = await getBroadcast();
+  const payload = await broadcastPayload();
+  if (!b.accountUserId) return c.json({ broadcast: payload, account: null });
+  const u = await prisma.user.findUnique({
+    where: { id: b.accountUserId },
+    select: { id: true, username: true, accountLevel: true, saveData: true, saveVersion: true },
+  });
+  const save = u?.saveData ? safeParseObject(u.saveData) : null;
+  const inv = (save?.inventory ?? {}) as Record<string, number>;
+  const party = ((save?.party ?? []) as { name?: string; level?: number; currentHp?: number; maxHp?: number }[]);
+  return c.json({
+    broadcast: payload,
+    commandLog: getCommandResults(b.accountUserId),
+    account: u ? {
+      id: u.id,
+      username: u.username,
+      accountLevel: u.accountLevel,
+      saveVersion: u.saveVersion,
+      online: isOnline(u.id),
+      currentLocation: save?.currentLocation ?? null,
+      money: save?.money ?? 0,
+      badges: (save?.defeatedGyms ?? []) as string[],
+      eliteFour: (save?.defeatedEliteFour ?? []) as string[],
+      autoCatch: save?.autoCatch ?? null,
+      autoProceed: save?.autoProceed ?? null,
+      speed: save?.speed ?? null,
+      partySize: party.length,
+      topLevel: party.reduce((m, p) => Math.max(m, p.level ?? 0), 0),
+      faintedInParty: party.filter((p) => (p.currentHp ?? 0) <= 0).length,
+      boxCount: ((save?.box ?? []) as unknown[]).length,
+      balls: Object.fromEntries(Object.entries(inv).filter(([k]) => k.toLowerCase().includes("ball"))),
+      unlockedCount: ((save?.unlockedLocations ?? []) as unknown[]).length,
+    } : null,
+  });
+});
+
 // ── 24/7 Twitch broadcast control ──────────────────────────────────────
 // The standalone renderer service polls /api/internal/broadcast/state and
 // pushes video to Twitch. These endpoints let an admin set the DESIRED state
