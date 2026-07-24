@@ -94,6 +94,26 @@ export function useBattleLoop(): void {
         return;
       }
 
+      // Deadlock breaker: idle with a FAINTED active Pokémon but healthy
+      // bench members. Nothing moves in that state — the idle branch below
+      // requires a healthy active mon to spawn an encounter, the battle
+      // branch needs phase "battle", and the auto-heal above only fires when
+      // the WHOLE party is down. Players saw this as the game freezing right
+      // after a faint ("Pidgey fainted!" and then nothing forever). Send out
+      // the first healthy mon and carry on.
+      if (
+        cur.phase === "idle" &&
+        cur.playerPokemon &&
+        cur.playerPokemon.currentHp <= 0
+      ) {
+        const healthy = cur.party.findIndex((p) => p.currentHp > 0);
+        if (healthy >= 0) {
+          dispatch({ type: "SWITCH_PLAYER_POKEMON", payload: { partyIndex: healthy } });
+          repoll(200);
+          return;
+        }
+      }
+
       // New opponent? Hold off until the appear animation finishes.
       // Wild: ~700ms (pokeball-pop is 600ms + a little settle)
       // Trainer/boss: ~1800ms (trainer slide-in 0–1100ms + pokeball-pop 1100–1700ms)
