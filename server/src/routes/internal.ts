@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { timingSafeEqual } from "node:crypto";
 import { getBroadcast, reportBroadcastStatus, resolveLoginUrl } from "../lib/broadcast.js";
+import { drainInput, isWatching, putFrame } from "../lib/browserControl.js";
 
 // Internal endpoints for the standalone 24/7 renderer service. Authenticated
 // by a shared bearer secret (RENDERER_TOKEN) — NOT an admin session — because
@@ -9,6 +10,14 @@ import { getBroadcast, reportBroadcastStatus, resolveLoginUrl } from "../lib/bro
 // tiny and machine-only: it never touches player data, only the broadcast
 // control row.
 const app = new Hono();
+
+// A JSON body of literal `null` (or an array/scalar) survives `.catch(() => ({}))`
+// and then throws on property access — a 500 plus a bogus ErrorLog row. Normalise
+// to a plain object first.
+async function jsonObject(c: Context): Promise<Record<string, unknown>> {
+  const raw = await c.req.json().catch(() => null);
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+}
 
 function tokenOk(c: Context): boolean {
   const expected = process.env.RENDERER_TOKEN?.trim();
@@ -45,14 +54,29 @@ app.get("/broadcast/state", async (c) => {
     height: b.height,
     fps: b.fps,
     bitrateKbps: b.bitrateKbps,
+    // Live browser control: capture frames only while an admin is watching
+    // (it costs renderer CPU), and hand over any queued clicks/keystrokes.
+    watching: isWatching(),
+    input: drainInput(),
   });
+});
+
+// POST /api/internal/broadcast/frame — renderer uploads a preview screenshot
+// of the page for the admin's live-control panel. Kept in memory only.
+app.post("/broadcast/frame", async (c) => {
+  const body = (await jsonObject(c)) as { data?: string; width?: number; height?: number };
+  if (!body.data || typeof body.data !== "string") return c.json({ error: "data required" }, 400);
+  // ~4MB of base64 is a generous ceiling for a JPEG frame.
+  if (body.data.length > 4_000_000) return c.json({ error: "frame too large" }, 413);
+  putFrame(body.data, Number(body.width) || 0, Number(body.height) || 0);
+  return c.json({ ok: true });
 });
 
 // POST /api/internal/broadcast/status — the renderer reports its live status
 // (live?, uptime, encoder stats, last error) so the admin dashboard can show
 // what's actually happening on the box.
 app.post("/broadcast/status", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { live?: boolean };
+  const body = (await jsonObject(c)) as { live?: boolean };
   await reportBroadcastStatus(!!body.live, body);
   return c.json({ ok: true });
 });

@@ -3,7 +3,7 @@ import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { CONFIG } from "./config.js";
-import type { DesiredState, ReportedStatus } from "./server.js";
+import type { DesiredState, ReportedStatus, InputCommand } from "./server.js";
 
 const AUDIO_EXT = new Set([".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".flac"]);
 const PLAYLIST_PATH = "/tmp/music.txt";
@@ -90,6 +90,111 @@ export class Broadcaster {
     this.encoder = null;
   }
 
+  // ── Live control (admin preview + input relay) ───────────────────────
+  //
+  // CRITICAL INVARIANT: nothing in here may block the reconcile loop
+  // indefinitely. Playwright's mouse/keyboard/evaluate calls take NO timeout
+  // option and are acked by the page's renderer thread — a wedged (but not
+  // crashed) page never resolves them, which would freeze the 24/7 watchdog so
+  // a dead ffmpeg/browser is never restarted. Every page call below is
+  // therefore deadline-bounded, and a timeout is treated as "page is wedged":
+  // we drop the rest of the batch and force a browser relaunch.
+
+  /** JPEG screenshot of the page for the admin's control panel, base64. */
+  async capture(): Promise<{ data: string; width: number; height: number } | null> {
+    const page = this.page;
+    if (!page || !this.browser?.isConnected() || page.isClosed()) return null;
+    try {
+      const buf = await withDeadline(
+        page.screenshot({ type: "jpeg", quality: 45, timeout: 5000 }),
+        6000,
+        "screenshot",
+      );
+      // Deliberately NOT page.evaluate(innerWidth/innerHeight): that call is
+      // unbounded and would hang on a wedged page. The window is forced
+      // fullscreen on a fixed-size Xvfb screen, so the capture dimensions are
+      // known statically.
+      return { data: buf.toString("base64"), width: CONFIG.captureWidth, height: CONFIG.captureHeight };
+    } catch (e) {
+      console.error("[capture] failed:", (e as Error).message);
+      return null;
+    }
+  }
+
+  /** Apply admin-relayed input to the live page. Normalised coords are scaled
+   *  against the fixed capture size (same basis the preview was taken with). */
+  async applyInput(cmds: InputCommand[]): Promise<void> {
+    if (cmds.length === 0) return;
+    const page = this.page;
+    if (!page || !this.browser?.isConnected() || page.isClosed()) {
+      this.lastError = "live input dropped — the streamed browser isn't running";
+      console.error(`[input] ${this.lastError} (${cmds.length} command(s))`);
+      return;
+    }
+    const w = CONFIG.captureWidth;
+    const h = CONFIG.captureHeight;
+    // Whole-batch wall-clock budget, comfortably under the stall threshold so
+    // the watchdog keeps ticking even if the operator queues a lot of input.
+    const deadline = Date.now() + 8000;
+
+    for (let i = 0; i < cmds.length; i++) {
+      const cmd = cmds[i];
+      if (Date.now() > deadline) {
+        console.error(`[input] batch budget exceeded — dropping ${cmds.length - i} command(s)`);
+        this.lastError = "live input batch timed out";
+        return;
+      }
+      try {
+        switch (cmd.kind) {
+          case "click":
+            await withDeadline(page.mouse.click(cmd.x * w, cmd.y * h, {
+              button: cmd.button ?? "left",
+              clickCount: cmd.clicks ?? 1,
+            }), 2500, "click");
+            break;
+          case "move":
+            await withDeadline(page.mouse.move(cmd.x * w, cmd.y * h), 2500, "move");
+            break;
+          case "scroll":
+            await withDeadline(page.mouse.move(cmd.x * w, cmd.y * h), 2500, "move");
+            await withDeadline(page.mouse.wheel(0, cmd.dy), 2500, "wheel");
+            break;
+          case "type":
+            await withDeadline(page.keyboard.type(cmd.text, { delay: 8 }), 5000, "type");
+            break;
+          case "key":
+            await withDeadline(page.keyboard.press(cmd.key), 2500, "key");
+            break;
+          // Navigations are bounded well under CONFIG.stallMs so a slow load
+          // can't push the status report past the server's staleness window.
+          case "reload":
+            await withDeadline(page.reload({ waitUntil: "domcontentloaded", timeout: 9000 }), 10_000, "reload");
+            break;
+          case "home":
+            if (this.browserUrl) {
+              await withDeadline(page.goto(this.browserUrl, { waitUntil: "domcontentloaded", timeout: 9000 }), 10_000, "home");
+            }
+            break;
+          case "navigate":
+            await withDeadline(page.goto(cmd.url, { waitUntil: "domcontentloaded", timeout: 9000 }), 10_000, "navigate");
+            break;
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        this.lastError = `input ${cmd.kind} failed: ${msg}`;
+        console.error(`[input] ${cmd.kind} failed:`, msg);
+        // A deadline expiry means the page stopped acking input at all —
+        // further commands would each burn their own budget, so abandon the
+        // batch and force a relaunch on the next tick.
+        if (msg.includes("deadline")) {
+          console.error("[input] page appears wedged — forcing a browser relaunch");
+          this.browserUrl = null;
+          return;
+        }
+      }
+    }
+  }
+
   // True when ffmpeg is running but has made no frame progress for stallMs.
   // A fresh spawn gets a 2× grace window before the first stats line.
   private isFfmpegStalled(): boolean {
@@ -147,6 +252,14 @@ export class Broadcaster {
       this.page.on("crash", () => {
         console.error("[browser] page crashed — will relaunch");
         this.browserUrl = null;
+      });
+      // A closed page leaves the browser "connected" but unusable; clearing
+      // browserUrl is what makes the next reconcile tick relaunch it.
+      this.page.on("close", () => {
+        if (this.browserUrl) {
+          console.error("[browser] page closed — will relaunch");
+          this.browserUrl = null;
+        }
       });
       // The stream-login URL 302s to the game origin, sets the session cookie,
       // and the client self-plays. domcontentloaded + a settle wait rather than
@@ -308,6 +421,19 @@ export class Broadcaster {
 
 // Strip secrets from any string before logging: both the path-form Twitch key
 // (rtmp://…/app/<key>) and the query-form stream-login key (…?key=<key>).
+// Bound a promise that has no timeout of its own. Playwright's input and
+// evaluate calls are acked by the page's renderer thread, so a wedged page
+// would otherwise hang the caller forever.
+function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} deadline exceeded after ${ms}ms`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 function redactSecret(s: string): string {
   let out = s.replace(/key=[^&\s]+/g, "key=***");
   if (CONFIG.twitchKey) out = out.split(CONFIG.twitchKey).join("***");

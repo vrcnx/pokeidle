@@ -3231,6 +3231,39 @@ input[type="checkbox"], input[type="radio"] {
   border-color: rgba(99, 102, 241, 0.6);
   color: #fff;
 }
+.live-browser-stage {
+  position: relative;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+  outline: none;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* A focus ring matters here: keystrokes only reach the streamed page while
+   this element is focused, so the operator needs to see that it is. */
+.live-browser-stage:focus-visible { border-color: rgba(99, 102, 241, 0.85); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35); }
+.live-browser-img { display: block; width: 100%; height: auto; cursor: crosshair; user-select: none; }
+/* A stale frame must not read as live — dim it and say so. */
+.live-browser-img.stale { opacity: 0.45; filter: grayscale(0.4); }
+.live-browser-stale-tag {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.live-browser-empty { padding: 40px 12px; font-size: 13px; }
+
 .broadcast-help {
   background: rgba(99, 102, 241, 0.06);
   border: 1px solid rgba(99, 102, 241, 0.2);

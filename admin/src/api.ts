@@ -350,6 +350,14 @@ export const api = {
   broadcastSet: (patch: BroadcastPatch) =>
     req<BroadcastStatus>("POST", "/api/admin/broadcast", patch),
 
+  // Live browser control: latest preview frame + input relay. Fetching a
+  // frame also tells the renderer someone's watching (it only captures then).
+  broadcastFrame: () =>
+    req<{ frame: string | null; at?: number; width?: number; height?: number; ageMs?: number }>(
+      "GET", "/api/admin/broadcast/frame"),
+  broadcastInput: (command: BrowserInput) =>
+    req<{ ok: true; kind: string }>("POST", "/api/admin/broadcast/input", { command }),
+
   // Twitch channel info (title / category / tags) via Helix.
   twitchGet: () => req<TwitchInfo>("GET", "/api/admin/broadcast/twitch"),
   twitchSet: (patch: { title?: string; gameName?: string; tags?: string }) =>
@@ -600,6 +608,17 @@ export interface StreamKeyStatus {
   key?: string;
   loginUrl?: string;
 }
+
+/** Input relayed to the streamed browser. x/y are normalised 0..1. */
+export type BrowserInput =
+  | { kind: "click"; x: number; y: number; button?: "left" | "right"; clicks?: number }
+  | { kind: "move"; x: number; y: number }
+  | { kind: "scroll"; x: number; y: number; dy: number }
+  | { kind: "type"; text: string }
+  | { kind: "key"; key: string }
+  | { kind: "reload" }
+  | { kind: "home" }
+  | { kind: "navigate"; url: string };
 
 export interface TwitchChannel {
   title: string;

@@ -193,6 +193,9 @@ export function BroadcastPage() {
         </div>
       </div>
 
+      {/* ── Live browser (click into the streamed page) ────────────── */}
+      <LiveBrowserCard />
+
       {/* ── Remote control (drive the streamed account) ────────────── */}
       {state?.accountUserId && (
         <div className="broadcast-card">
@@ -211,6 +214,204 @@ export function BroadcastPage() {
           <li>Pick the account here, choose quality, and hit <strong>Go live</strong>. Steer gameplay (fight E4, raids, travel) from the account's Users page — Remote control.</li>
         </ol>
       </div>
+    </div>
+  );
+}
+
+// Live browser control — shows a periodic screenshot of the streamed page and
+// relays clicks/scroll/keystrokes back to it. Frames are only captured while
+// this panel is open (the fetch itself signals "watching" to the renderer).
+const MODIFIER_KEYS = new Set([
+  "Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock", "NumLock", "ScrollLock", "ContextMenu", "Dead",
+]);
+
+function LiveBrowserCard() {
+  const [on, setOn] = useState(false);
+  const [frame, setFrame] = useState<string | null>(null);
+  const [ageMs, setAgeMs] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  // Input errors get their own slot — the 1s frame poll would otherwise clear
+  // a failed click's message before the operator ever saw it.
+  const [inputErr, setInputErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const inputErrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Self-scheduling poll: only one request in flight at a time, and an
+  // out-of-order response can never render an older frame over a newer one.
+  useEffect(() => {
+    if (!on) { setFrame(null); setAgeMs(null); return; }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastAt = 0;
+    const tick = async () => {
+      try {
+        const r = await api.broadcastFrame();
+        if (cancelled) return;
+        const at = r.at ?? Date.now();
+        if (at >= lastAt) {
+          lastAt = at;
+          setFrame(r.frame);
+          setAgeMs(r.ageMs ?? null);
+        }
+        setErr(null);
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof ApiError ? e.message : String(e));
+      } finally {
+        if (!cancelled) timer = setTimeout(tick, 1000);
+      }
+    };
+    tick();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [on]);
+
+  useEffect(() => () => { if (inputErrTimer.current) clearTimeout(inputErrTimer.current); }, []);
+
+  function flagInputErr(msg: string) {
+    setInputErr(msg);
+    if (inputErrTimer.current) clearTimeout(inputErrTimer.current);
+    inputErrTimer.current = setTimeout(() => setInputErr(null), 6000);
+  }
+
+  async function send(command: Parameters<typeof api.broadcastInput>[0], quiet = true) {
+    setBusy(true);
+    try {
+      await api.broadcastInput(command);
+      setInputErr(null);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      flagInputErr(msg);
+      // A full queue / server error is worth a toast even for "quiet" input —
+      // it means nothing is getting through, not just this one click.
+      const status = e instanceof ApiError ? (e as unknown as { status?: number }).status : undefined;
+      if (!quiet || status === 429 || (status ?? 0) >= 500) void notify(`Failed: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Translate a mouse event on the preview image into normalised page coords.
+  function coordsFrom(e: React.MouseEvent): { x: number; y: number } | null {
+    const el = imgRef.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return null;
+    return {
+      x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+      y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
+    };
+  }
+
+  // One admin click = exactly one page click. (A double-click also fires the
+  // single-click event first, so branching on e.detail relayed 3 clicks.)
+  function onImgClick(e: React.MouseEvent) {
+    const c = coordsFrom(e);
+    if (c) void send({ kind: "click", x: c.x, y: c.y });
+  }
+
+  // Wheel events fire in bursts; coalesce them into one command per ~120ms so
+  // a single scroll gesture can't fill the server's 50-slot input queue.
+  const wheelAcc = useRef(0);
+  const wheelPos = useRef<{ x: number; y: number } | null>(null);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function flushWheel() {
+    wheelTimer.current = null;
+    const dy = Math.round(wheelAcc.current);
+    wheelAcc.current = 0;
+    const p = wheelPos.current;
+    if (p && dy) void send({ kind: "scroll", x: p.x, y: p.y, dy });
+  }
+  function onWheel(e: React.WheelEvent) {
+    const c = coordsFrom(e);
+    if (!c) return;
+    // deltaMode 1 = lines, 2 = pages — normalise both to CSS pixels, else
+    // line-scrolling browsers (Firefox) scroll ~30× too little.
+    const pageH = imgRef.current?.getBoundingClientRect().height || 800;
+    const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? pageH : 1;
+    wheelPos.current = c;
+    wheelAcc.current += e.deltaY * scale;
+    if (!wheelTimer.current) wheelTimer.current = setTimeout(flushWheel, 120);
+  }
+
+  // Keystrokes while the preview is focused go to the streamed page. Printable
+  // single characters are typed; everything else is sent as a named key.
+  function onKeyDown(e: React.KeyboardEvent) {
+    // Escape releases focus rather than being relayed — otherwise capturing
+    // Tab (which the streamed page legitimately needs) would trap the
+    // keyboard here with no way out. The Esc BUTTON still sends a real Escape.
+    if (e.key === "Escape") { e.preventDefault(); stageRef.current?.blur(); return; }
+    if (MODIFIER_KEYS.has(e.key)) return;          // Shift/Ctrl/... alone: nothing to send
+    if (e.repeat) return;                          // ignore auto-repeat floods
+    // AltGr (and macOS Option) legitimately produce printable characters.
+    const altGr = (e.ctrlKey && e.altKey) || e.getModifierState?.("AltGraph");
+    if (!altGr && (e.metaKey || e.ctrlKey || e.altKey)) return;
+    e.preventDefault();
+    if (e.key.length === 1) void send({ kind: "type", text: e.key });
+    else void send({ kind: "key", key: e.key });
+  }
+
+  // A frame older than a few seconds is a frozen picture, not a live view —
+  // clicking it would send coordinates derived from stale content.
+  const stale = ageMs != null && ageMs > 5000;
+
+  return (
+    <div className="broadcast-card">
+      <div className="broadcast-status-row">
+        <h3 style={{ margin: 0 }}>Live browser</h3>
+        <span className="broadcast-spacer" />
+        {on && ageMs != null && <span className="dim small">frame {Math.round(ageMs / 100) / 10}s old</span>}
+        <button className={on ? "btn-danger btn-small" : "btn-primary btn-small"} onClick={() => setOn(!on)}>
+          {on ? "Stop control" : "Start control"}
+        </button>
+      </div>
+
+      {!on ? (
+        <p className="dim small">
+          Opens a live view of the streamed browser so you can click into the game, scroll and type.
+          Capturing frames costs renderer CPU, so it only runs while this is on.
+        </p>
+      ) : (
+        <>
+          {err && <div className="broadcast-lasterr">{err}</div>}
+          {inputErr && <div className="broadcast-lasterr">input: {inputErr}</div>}
+          <div
+            ref={stageRef}
+            className="live-browser-stage"
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            title="Click to interact · click here first, then type to send keystrokes · Esc releases focus"
+          >
+            {frame ? (
+              <>
+                <img
+                  ref={imgRef}
+                  className={`live-browser-img${stale ? " stale" : ""}`}
+                  src={`data:image/jpeg;base64,${frame}`}
+                  alt="Streamed browser"
+                  onClick={onImgClick}
+                  onWheel={onWheel}
+                  draggable={false}
+                />
+                {stale && (
+                  <div className="live-browser-stale-tag">
+                    frame {Math.round((ageMs ?? 0) / 1000)}s old — renderer not responding
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="live-browser-empty dim">Waiting for a frame from the renderer…</div>
+            )}
+          </div>
+          <div className="broadcast-btn-row" style={{ marginTop: 10 }}>
+            <button className="btn-ghost btn-small" disabled={busy} onClick={() => void send({ kind: "reload" }, false)}>Reload page</button>
+            <button className="btn-ghost btn-small" disabled={busy} onClick={() => void send({ kind: "home" }, false)}>Back to game</button>
+            <button className="btn-ghost btn-small" disabled={busy} onClick={() => void send({ kind: "key", key: "Escape" }, false)}>Esc</button>
+            <button className="btn-ghost btn-small" disabled={busy} onClick={() => void send({ kind: "key", key: "Enter" }, false)}>Enter</button>
+            <span className="dim small">Click the image to click the page · scroll to scroll · focus it and type to send keys</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../l
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
 import { twitchConfigured, getChannelInfo, setChannelInfo } from "../lib/twitch.js";
+import { markWatching, getFrame, enqueueInput, sanitizeInput } from "../lib/browserControl.js";
 
 const app = new Hono();
 
@@ -305,6 +306,38 @@ async function broadcastPayload() {
 
 app.get("/broadcast", async (c) => {
   return c.json(await broadcastPayload());
+});
+
+// ── Live browser control (screen preview + input relay) ────────────────
+// The renderer uploads periodic frames while an admin is watching; clicks and
+// keystrokes are queued here and picked up on the renderer's next poll.
+app.get("/broadcast/frame", async (c) => {
+  markWatching();
+  const f = getFrame();
+  if (!f) return c.json({ frame: null, watching: true });
+  return c.json({
+    frame: f.data,
+    at: f.at,
+    width: f.width,
+    height: f.height,
+    ageMs: Date.now() - f.at,
+    watching: true,
+  });
+});
+
+app.post("/broadcast/input", async (c) => {
+  const me = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as { command?: unknown };
+  const cmd = sanitizeInput(body.command);
+  if (!cmd) return c.json({ error: "invalid input command" }, 400);
+  markWatching();
+  if (!enqueueInput(cmd)) return c.json({ error: "input queue full — the renderer may be offline" }, 429);
+  // Only audit the state-changing navigations; a click/keystroke stream would
+  // flood the audit log with no forensic value.
+  if (cmd.kind === "navigate" || cmd.kind === "home" || cmd.kind === "reload") {
+    void makeAudit(c)(me.id, "broadcast.browser_input", "", { kind: cmd.kind });
+  }
+  return c.json({ ok: true, kind: cmd.kind });
 });
 
 // ── Twitch channel info (title / category / tags) ──────────────────────
