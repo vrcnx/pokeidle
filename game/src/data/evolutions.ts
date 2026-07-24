@@ -19,6 +19,10 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     nidoranF: [{ into: "nidorina", level: 16 }],
     nidoranM: [{ into: "nidorino", level: 16 }],
     zubat: [{ into: "golbat", level: 22 }],
+    // Golbat→Crobat and Chansey→Blissey are happiness evolutions in canon; with
+    // no happiness mechanic, gate them on a level so they're actually obtainable.
+    golbat: [{ into: "crobat", level: 40 }],
+    chansey: [{ into: "blissey", level: 45 }],
     grimer: [{ into: "muk", level: 38 }],
     koffing: [{ into: "weezing", level: 35 }],
     oddish: [{ into: "gloom", level: 21 }],
@@ -79,6 +83,12 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
       { into: "vaporeon", item: "waterstone" },
       { into: "jolteon", item: "thunderstone" },
       { into: "flareon", item: "firestone" },
+      // Espeon/Umbreon are happiness (day/night) evolutions in canon, which
+      // this game has no mechanic for. Map them to the thematically-matching
+      // stones instead — Espeon is the Sun Pokémon, Umbreon the Moon Pokémon —
+      // so they're obtainable and self-explanatory via the Bag "Evolves:" hint.
+      { into: "espeon", item: "sunstone" },
+      { into: "umbreon", item: "moonstone" },
     ],
     // Trade-only evolutions. Trigger fires after a successful trade
     // with another player — there's no item/level path to these
