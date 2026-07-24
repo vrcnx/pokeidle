@@ -194,7 +194,7 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
             disabled={current}
             onClick={() => onTravel(route.id)}
           >
-            {current ? t("You are here") : t("Go")}
+            {current ? t("Here") : t("Go")}
           </button>
         </>
       ) : (

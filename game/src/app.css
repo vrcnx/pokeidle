@@ -12972,46 +12972,58 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
    desktop host column is a fixed ~470px (dashboard's center-column
    grid track), but mobile spans the full viewport from ~320px phones
    up to ~900px tablets, so this can't assume one target width. */
+/* Fixed 3-column grid rather than a wrapping flex row. The old flex layout
+   was the whole problem: a town card (no sprites, no count) flung its Go
+   button to the far right across a lane of dead space, a route card's sprite
+   strip (flex: 1 1 150px) fought the truncated 150px name for room, and
+   locked cards rendered a completely different child so no two rows lined
+   up. Here every card shares one template — name | count | action — so those
+   three columns align down the whole list, and the sprite strip / unlock
+   requirements sit on their own full-width row that simply collapses to
+   nothing when a location has neither. */
 .route-card {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 6px 12px;
-  /* Consistent min-height so town cards (no sprite row) don't read as
-     squashed next to route cards that carry a sprite strip — the list
-     keeps an even vertical rhythm regardless of a card's contents. */
-  min-height: 46px;
-  padding: 8px 12px;
+  gap: 7px 10px;
+  padding: 9px 12px;
   border-radius: var(--r-sm);
   background: var(--panel-3);
   border: 1px solid var(--border);
+  transition: border-color 120ms ease, background 120ms ease;
 }
+.route-card:hover:not(.locked) { border-color: rgba(255, 255, 255, 0.2); }
+.route-card-head { grid-column: 1; }
+.route-card-progress { grid-column: 2; white-space: nowrap; }
+/* The travel button is the card's only direct <button> child. A shared
+   min-width keeps every card's action column the same size, so the buttons
+   (and the caught-counts beside them) line up down the list instead of
+   stepping in and out with each label's length. */
+.route-card > button { grid-column: 3; min-width: 68px; }
+/* Body row: full width, under the header columns. */
+.route-card-mons,
+.route-card-reqs { grid-column: 1 / -1; }
 .route-card.current {
   border-color: var(--gold);
   background: rgba(248, 208, 48, 0.08);
 }
 .route-card.locked { opacity: 0.6; }
 .route-card-head {
-  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
+  min-width: 0;
 }
 .route-card-icon { display: flex; color: var(--text-muted); flex: 0 0 auto; }
+/* No max-width: the name gets whatever the 1fr column gives it and
+   ellipsises only when genuinely out of room, instead of truncating at a
+   hardcoded 150px while empty space sat to its right. */
 .route-card-name {
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
-}
-/* Below phone width, the head (icon+name+badge) claims the full row
-   on its own line so mons/progress/action get the whole next line
-   instead of squeezing into whatever's left of a fixed 150px label. */
-@media (max-width: 480px) {
-  .route-card-head { flex-basis: 100%; }
+  min-width: 0;
 }
 .route-card-current-badge {
   flex: 0 0 auto;
@@ -13023,7 +13035,6 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   color: #2a2100;
 }
 .route-card-mons {
-  flex: 1 1 150px;
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
@@ -13101,20 +13112,31 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
 }
 .route-card-progress { flex: 0 0 auto; white-space: nowrap; }
 .route-card button { flex: 0 0 auto; margin-left: auto; }
+/* One requirement per row. Side-by-side (flex, min-width:130px) squeezed two
+   unlock conditions into a ~340px panel, so both the label and its bar were
+   cramped and clipped. Stacked rows give the label room and let every bar
+   share the same start/end, so progress is comparable at a glance. */
 .route-card-reqs {
-  flex: 1;
   min-width: 0;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
+  display: grid;
+  gap: 4px;
 }
-.route-card-reqs li { flex: 1; min-width: 130px; color: var(--text-dim); }
+.route-card-reqs li {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(48px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
 .route-card-reqs li.done { color: #b8e8a0; }
 .route-card-req-label {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10.5px;
   white-space: nowrap;
   overflow: hidden;
