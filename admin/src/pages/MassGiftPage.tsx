@@ -177,10 +177,14 @@ export function MassGiftPage() {
             placeholder="🎁 Gift for everyone online — thanks for playing!" maxLength={300} />
         </label>
 
-        <footer className="gv-create-foot">
+        <footer className="gv-create-foot" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <button className="btn-primary" onClick={send} disabled={busy}>
             {busy ? "Sending…" : "Send gift"}
           </button>
+          {/* Feedback next to the button — the page-top banners are easy to
+              miss because the Send button sits far below them. */}
+          {result && <span className="page-ok" role="status" style={{ flex: "1 1 240px" }}>✓ {result}</span>}
+          {err && <span className="page-err" role="alert" style={{ flex: "1 1 240px" }}>{err}</span>}
         </footer>
       </section>
     </div>
