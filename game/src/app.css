@@ -17424,7 +17424,26 @@ html, body {
   align-self: stretch;
   min-height: 178px;
 }
-.dashboard-wide .center-column > .context-panel { overflow-y: auto; }
+/* Stretching the grid item alone wasn't enough: the visible bordered card is
+   .ctx-section, nested two levels inside, and it still sized to its content —
+   so the trainer card sat visibly shorter than the moves card beside it. Make
+   the whole chain fill the row's height and scroll inside the body. */
+.dashboard-wide .center-column > .context-panel {
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-wide .center-column > .context-panel > .context-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+.dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 /* Fade the incoming trainer in rather than hard-swapping it. */
 @keyframes ctx-trainer-in {
