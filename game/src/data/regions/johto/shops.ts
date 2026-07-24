@@ -43,15 +43,12 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "expShare" },
       { itemId: "linkcable" },
       // Trade-evolution catalysts (Steelix, Scizor, Kingdra, Slowking,
-      // Politoed, Rhyperior, Magmortar, Electivire, Porygon2/-Z).
+      // Politoed, Porygon2). Gen-4-target catalysts held back until their
+      // species exist in the dex.
       { itemId: "metalcoat" },
       { itemId: "kingsrock" },
       { itemId: "dragonscale" },
       { itemId: "upgrade" },
-      { itemId: "dubiousdisc" },
-      { itemId: "protector" },
-      { itemId: "electirizer" },
-      { itemId: "magmarizer" },
       { itemId: "leftovers" },
       { itemId: "lifeorb" },
       { itemId: "focussash" },

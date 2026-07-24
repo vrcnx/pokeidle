@@ -107,12 +107,13 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     onix:        [{ into: "steelix",   trade: true, item: "metalcoat" }],
     scyther:     [{ into: "scizor",    trade: true, item: "metalcoat" }],
     porygon:     [{ into: "porygon2",  trade: true, item: "upgrade" }],
-    porygon2:    [{ into: "porygonZ",  trade: true, item: "dubiousdisc" }],
     seadra:      [{ into: "kingdra",   trade: true, item: "dragonscale" }],
-    rhydon:      [{ into: "rhyperior", trade: true, item: "protector" }],
-    electabuzz:  [{ into: "electivire", trade: true, item: "electirizer" }],
-    magmar:      [{ into: "magmortar", trade: true, item: "magmarizer" }],
-  
+    // NOTE: porygon2→porygonZ, rhydon→rhyperior, electabuzz→electivire and
+    // magmar→magmortar are intentionally omitted — those Gen-4 species aren't
+    // in the Pokédex yet, so offering the evolution crashed on their missing
+    // stats. Re-add here (and their catalysts to the shops) once the species
+    // exist in data/pokemon.ts.
+
     // Johto (Gen 2) additions
 
     chikorita: [{ into: "bayleef", level: 16 }],

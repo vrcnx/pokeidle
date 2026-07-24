@@ -829,6 +829,16 @@ export function reducer(state: GameState, action: Action): GameState {
       const old = party[partyIndex];
       if (!old) return { ...state, evolutionState: null, phase: "idle" };
       const sp = pokemonTable[toSpeciesKey];
+      // Defensive: if the evolution target isn't in the dex data (a bad
+      // evolution entry pointing at an unimplemented species), bail cleanly
+      // instead of crashing on sp.baseStats. Callers guard before consuming
+      // items, so nothing is lost here either.
+      if (!sp) {
+        return pushLog(
+          { ...state, evolutionState: null, phase: "idle" },
+          `${old.name} glowed… but its evolution isn't available yet.`,
+        );
+      }
       // Forward EVs + nature into the post-evolution stat recompute so
       // hard-earned EV training and ±10% nature multipliers survive
       // the species swap. The level-up and exp-share branches both
@@ -1063,6 +1073,11 @@ export function reducer(state: GameState, action: Action): GameState {
         }
         return pushLog(state, `${target.name} can't evolve via Link Cable.`);
       }
+      // Don't consume anything if the evolution target isn't implemented —
+      // otherwise the cable + held catalyst are burned for a broken evolve.
+      if (!pokemonTable[(tradeEvo as any).into]) {
+        return pushLog(state, `${target.name}'s evolution isn't available yet — no items were used.`);
+      }
       // Consume the cable from inventory.
       const inventory = { ...state.inventory };
       const remaining = owned - 1;
@@ -1108,6 +1123,10 @@ export function reducer(state: GameState, action: Action): GameState {
         (e) => "item" in e && !("trade" in e) && (e as any).item === itemId,
       ) as { into: string } | undefined;
       if (!match) return pushLog(state, `The ${stoneName} had no effect on ${target.name}.`);
+      // Don't spend the stone if the evolution target isn't implemented.
+      if (!pokemonTable[match.into]) {
+        return pushLog(state, `${target.name}'s evolution isn't available yet — the ${stoneName} was not used.`);
+      }
       const inventory = { ...state.inventory };
       const remaining = owned - 1;
       if (remaining <= 0) delete inventory[itemId];

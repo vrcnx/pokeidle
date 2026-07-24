@@ -88,16 +88,13 @@ export const shops: Record<string, ShopDef> = {
       // without needing a friend.
       { itemId: "linkcable" },
       // Trade-evolution catalysts. Hold + trade (or Link Cable) to evolve:
-      // Steelix, Scizor, Kingdra, Slowking, Politoed, Rhyperior, Magmortar,
-      // Electivire, Porygon2/-Z.
+      // Steelix, Scizor, Kingdra, Slowking, Politoed, Porygon2. (Dubious Disc /
+      // Protector / Electirizer / Magmarizer are held back until Porygon-Z /
+      // Rhyperior / Electivire / Magmortar exist in the dex.)
       { itemId: "metalcoat" },
       { itemId: "kingsrock" },
       { itemId: "dragonscale" },
       { itemId: "upgrade" },
-      { itemId: "dubiousdisc" },
-      { itemId: "protector" },
-      { itemId: "electirizer" },
-      { itemId: "magmarizer" },
       // Battle held items.
       { itemId: "leftovers" },
       { itemId: "lifeorb" },
