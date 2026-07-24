@@ -2509,18 +2509,25 @@ body.dnd-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
-  flex-wrap: wrap;
+  /* Always a single row — the stats used to wrap to two lines once money
+     grew past a few digits. Shrink gaps/font before wrapping, and scroll
+     horizontally only as a last resort on very narrow shells. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   cursor: pointer;
   width: 100%;
   text-align: center;
   color: inherit;
 }
+.profile-strip::-webkit-scrollbar { display: none; }
+.profile-stat { white-space: nowrap; flex: 0 0 auto; }
 .profile-strip:hover {
   background: var(--panel-2);
   border-color: var(--border-strong);
