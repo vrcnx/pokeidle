@@ -4,7 +4,8 @@ import { evolutions } from "../data/evolutions";
 
 // Watches the party for any Pokemon that should evolve by level. The original
 // pauses the simulation and shows the evolution modal; we mirror that.
-// Stone-based evolutions are triggered explicitly from the Bag UI.
+// Stone-based evolutions are triggered explicitly from the Bag UI or the
+// Pokémon detail modal (both dispatch USE_STONE).
 export function useEvolutionTrigger() {
   const { state, dispatch } = useGame();
   const checkedRef = useRef<string>("");

@@ -94,4 +94,5 @@ export const rewardShopCatalog: { itemId: string; tokenCost: number }[] = [
   { itemId: "thunderstone", tokenCost: 1 },
   { itemId: "leafstone",    tokenCost: 1 },
   { itemId: "moonstone",    tokenCost: 2 },
+  { itemId: "sunstone",     tokenCost: 2 },
 ];

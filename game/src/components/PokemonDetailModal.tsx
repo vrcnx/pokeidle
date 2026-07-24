@@ -243,9 +243,14 @@ export function PokemonDetailModal() {
       closePokemonDetail();
       return;
     }
-    // Stone-style item evolution consumes from bag inventory.
+    // Stone-style item evolution goes through USE_STONE — the reducer
+    // validates the match, consumes exactly one stone, and starts the
+    // evolution atomically (no free-evolve if the stone count is 0), the
+    // same path the Bag's item-first flow uses.
     if ("item" in trigger) {
-      dispatch({ type: "CONSUME_ITEM", payload: { itemId: trigger.item, quantity: 1 } });
+      dispatch({ type: "USE_STONE", payload: { itemId: trigger.item, partyIndex: selected.index } });
+      closePokemonDetail();
+      return;
     }
     dispatch({
       type: "START_EVOLUTION",

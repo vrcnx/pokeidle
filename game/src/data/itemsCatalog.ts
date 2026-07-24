@@ -107,8 +107,8 @@ const items: CatalogItem[] = [
   { id: "waterstone",   name: "Water Stone",   description: "A rare stone with a blue, watery appearance. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "water-stone", implemented: true },
   { id: "thunderstone", name: "Thunder Stone", description: "A rare stone that gives off a faint shock. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "thunder-stone", implemented: true },
   { id: "leafstone",    name: "Leaf Stone",    description: "A rare stone with a leaf pattern. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "leaf-stone", implemented: true },
-  { id: "moonstone",    name: "Moon Stone",    description: "A mysterious stone that resembles the Moon. Cannot be bought — only found.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "moon-stone", implemented: true },
-  { id: "sunstone",     name: "Sun Stone",     description: "A radiant stone that captures sunlight. Cannot be bought — only found.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "sun-stone", implemented: true },
+  { id: "moonstone",    name: "Moon Stone",    description: "A mysterious stone that resembles the Moon. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "moon-stone", implemented: true },
+  { id: "sunstone",     name: "Sun Stone",     description: "A radiant stone that captures sunlight. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "sun-stone", implemented: true },
 
   // ── Treasure (sellable) ──────────────────────────────────────────────────
   { id: "nugget",     name: "Nugget",      description: "A nugget of pure gold. Sells for a high price.", category: "treasure", buyPrice: null, sellPrice: 5000 },

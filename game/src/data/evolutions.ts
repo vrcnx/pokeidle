@@ -63,7 +63,10 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     jigglypuff: [{ into: "wigglytuff", item: "moonstone" }],
     vulpix: [{ into: "ninetales", item: "firestone" }],
     growlithe: [{ into: "arcanine", item: "firestone" }],
-    gloom: [{ into: "vileplume", item: "leafstone" }],
+    gloom: [
+      { into: "vileplume", item: "leafstone" },
+      { into: "bellossom", item: "sunstone" },
+    ],
     weepinbell: [{ into: "victreebel", item: "leafstone" }],
     poliwhirl: [
       { into: "poliwrath", item: "waterstone" },
@@ -140,3 +143,20 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     larvitar: [{ into: "pupitar", level: 30 }],
     pupitar: [{ into: "tyranitar", level: 55 }],
 };
+
+// Reverse lookup: which species does this evolution stone evolve? Powers the
+// Bag's item-first "use a stone" flow and the "Evolves: …" hint. Excludes
+// trade+item catalysts (Metal Coat, King's Rock, …) via the `!("trade" in t)`
+// guard so only true held-stone evolutions match.
+export function stoneTargets(stoneId: string): string[] {
+  const out: string[] = [];
+  for (const [from, triggers] of Object.entries(evolutions)) {
+    for (const t of triggers) {
+      if ("item" in t && !("trade" in t) && t.item === stoneId) {
+        out.push(from);
+        break;
+      }
+    }
+  }
+  return out;
+}

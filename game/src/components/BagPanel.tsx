@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useGame } from "../state/GameContext";
 import { evolutionStones } from "../data/evolutionStones";
 import { consumables } from "../data/consumables";
-import { evolutions } from "../data/evolutions";
+import { stoneTargets } from "../data/evolutions";
 import { pokemonTable } from "../data/pokemon";
 import { encounters } from "../data/encounters";
 import { pokemonSpriteUrl } from "../utils/sprites";
@@ -25,9 +25,14 @@ export function BagPanel() {
     (id) => (state.inventory[id] ?? 0) > 0
   );
 
-  // Stones are applied from the Pokémon detail popup (click any party / box
-  // Pokemon → Evolve button appears if they react). Bag just shows the count.
-  void pickStone; void setPickStone; void evolutions;
+  // Stones can be used item-first from here (pick a stone → pick a valid
+  // party member) or Pokémon-first from the detail popup. Both dispatch the
+  // same validated USE_STONE action.
+  function applyStone(partyIndex: number) {
+    if (!pickStone) return;
+    dispatch({ type: "USE_STONE", payload: { itemId: pickStone, partyIndex } });
+    setPickStone(null);
+  }
 
   function applyEffect(speciesKey: string) {
     if (!pickEffect) return;
@@ -49,20 +54,58 @@ export function BagPanel() {
       <h3>{t("Evolution stones")}</h3>
       {stones.length === 0 ? (
         <p className="dim">{t("No stones. Buy them from the Reward Shop after gym wins.")}</p>
-      ) : (
+      ) : pickStone ? (
         <>
-          <ul className="bag-list">
-            {stones.map((id) => (
-              <li key={id}>
-                <span>{getItemInfo(id).name}</span>
-                <span>× {state.inventory[id]}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="dim small">
-            {t("Click a Pokémon in your party or box to use a stone.")}
-          </p>
+          <p>{t("Use")} {getItemInfo(pickStone).name} {t("on which Pokémon?")}</p>
+          <div className="bag-target-grid">
+            {state.party.map((mon, i) => {
+              const eligible = stoneTargets(pickStone).includes(mon.speciesKey);
+              return (
+                <button
+                  key={mon.id}
+                  disabled={!eligible}
+                  title={eligible ? "" : t("No effect")}
+                  onClick={() => applyStone(i)}
+                  style={{ opacity: eligible ? 1 : 0.4 }}
+                >
+                  <img
+                    src={pokemonSpriteUrl(mon.speciesKey)}
+                    alt={mon.speciesKey}
+                    width={48}
+                    height={48}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                  <span>{mon.name} <span className="dim">Lv{mon.level}</span></span>
+                </button>
+              );
+            })}
+          </div>
+          {state.party.every((mon) => !stoneTargets(pickStone!).includes(mon.speciesKey)) && (
+            <p className="dim small">
+              {state.box.some((mon) => stoneTargets(pickStone!).includes(mon.speciesKey))
+                ? t("A Pokémon in your PC can use this — move it to your party first.")
+                : t("None of your Pokémon react to this stone.")}
+            </p>
+          )}
+          <button onClick={() => setPickStone(null)}>{t("Cancel")}</button>
         </>
+      ) : (
+        <ul className="bag-list">
+          {stones.map((id) => {
+            const targets = stoneTargets(id).map((k) => pokemonTable[k]?.name ?? k);
+            return (
+              <li key={id}>
+                <span>
+                  {getItemInfo(id).name} × {state.inventory[id]}
+                  {targets.length > 0 && (
+                    <><br /><span className="dim small">{t("Evolves")}: {targets.join(", ")}</span></>
+                  )}
+                </span>
+                <button onClick={() => setPickStone(id)}>{t("Use")}</button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       <h3>{t("Repel / Honey (current route)")}</h3>

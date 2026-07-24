@@ -1076,6 +1076,38 @@ export function reducer(state: GameState, action: Action): GameState {
       );
     }
 
+    case "USE_STONE": {
+      // Item-first stone evolution. Validate → consume 1 → evolve, all
+      // atomically (mirrors USE_LINK_CABLE), so a stone is never spent
+      // without an evolution and a wrong target gets a clear message
+      // instead of the old silent no-op. Party-only: evolutionState indexes
+      // into state.party.
+      const { itemId, partyIndex } = action.payload;
+      if (partyIndex < 0 || partyIndex >= state.party.length) return state;
+      const owned = state.inventory[itemId] ?? 0;
+      const stoneName = itemsCatalog[itemId]?.name ?? evolutionStones[itemId]?.name ?? itemId;
+      if (owned <= 0) return pushLog(state, `You don't have a ${stoneName}.`);
+      const target = state.party[partyIndex];
+      if (!target) return state;
+      const match = (evolutions[target.speciesKey] ?? []).find(
+        (e) => "item" in e && !("trade" in e) && (e as any).item === itemId,
+      ) as { into: string } | undefined;
+      if (!match) return pushLog(state, `The ${stoneName} had no effect on ${target.name}.`);
+      const inventory = { ...state.inventory };
+      const remaining = owned - 1;
+      if (remaining <= 0) delete inventory[itemId];
+      else inventory[itemId] = remaining;
+      const cleared = bailFromBattle({ ...state, inventory });
+      return pushLog(
+        {
+          ...cleared,
+          phase: "evolution",
+          evolutionState: { partyIndex, toSpeciesKey: match.into, step: 0 },
+        },
+        `Used a ${stoneName} on ${target.name}!`,
+      );
+    }
+
     case "REORDER_BOX": {
       const { from, to } = action.payload;
       if (from < 0 || to < 0 || from >= state.box.length || to >= state.box.length) return state;
