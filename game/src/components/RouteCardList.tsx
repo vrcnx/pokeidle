@@ -10,6 +10,10 @@ import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
 import type { GameState, Route } from "../types";
 
+// Sprites shown per route card before collapsing the rest into a "+N" chip.
+// Two comfortable rows at typical card widths.
+const ROUTE_CARD_MONS = 12;
+
 // Card-based replacement for the graphical TownMap — same TRAVEL dispatch
 // and unlock rules, but a scrollable, filterable list instead of pins on
 // a background image. TownMap.tsx is left in place (unmounted) in case
@@ -138,11 +142,14 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
         <>
           {sorted.length > 0 && (
             <div className="route-card-mons">
-              {/* Show EVERY encounter species, not just the top 8 — the card
-                  said "9 caught" but only rendered 8 sprites, so the rarest
-                  (e.g. Miltank on Route 39) silently vanished from the map.
-                  The row flex-wraps, so extras just wrap to a second line. */}
-              {sorted.map((e) => {
+              {/* Show up to ROUTE_CARD_MONS species, then a "+N" chip. Showing
+                  ALL of them made the Safari Zone's 21 balloon the card (and
+                  push the travel button out of reach); hard-capping at 8 was
+                  worse — the count said 9 while 8 rendered, so the rarest
+                  silently vanished. The chip keeps the card compact AND makes
+                  the remainder discoverable; the Wild Pokémon panel lists
+                  every species in full. */}
+              {sorted.slice(0, ROUTE_CARD_MONS).map((e) => {
                 const seen = state.pokedexSeen.includes(e.speciesKey);
                 const sp = pokemonTable[e.speciesKey];
                 const label = seen
@@ -166,6 +173,14 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
                   </span>
                 );
               })}
+              {sorted.length > ROUTE_CARD_MONS && (
+                <span
+                  className="route-card-mon-more"
+                  title={sorted.slice(ROUTE_CARD_MONS).map((e) => pokemonTable[e.speciesKey]?.name ?? e.speciesKey).join(", ")}
+                >
+                  +{sorted.length - ROUTE_CARD_MONS}
+                </span>
+              )}
             </div>
           )}
           {enc.length > 0 && (

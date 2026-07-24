@@ -3174,7 +3174,14 @@ input[type="checkbox"], input[type="radio"] {
 }
 
 /* ── Broadcast (24/7 Twitch renderer) control ─────────────────────────── */
-.broadcast-page { max-width: 760px; }
+/* Full-width: the live browser preview is the point of this page, and a
+   760px column made it uselessly small. Capped only so it doesn't sprawl on
+   ultrawides. */
+.broadcast-page { max-width: 1600px; }
+/* The form cards read badly when stretched to 1600px, so they keep a sane
+   measure while the live-browser card gets the whole width. */
+.broadcast-page .broadcast-card:not(.broadcast-card-wide) { max-width: 900px; }
+.broadcast-card-wide { max-width: none; }
 .broadcast-err {
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.4);

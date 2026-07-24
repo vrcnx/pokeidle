@@ -356,7 +356,7 @@ function LiveBrowserCard() {
   const stale = ageMs != null && ageMs > 5000;
 
   return (
-    <div className="broadcast-card">
+    <div className="broadcast-card broadcast-card-wide">
       <div className="broadcast-status-row">
         <h3 style={{ margin: 0 }}>Live browser</h3>
         <span className="broadcast-spacer" />

@@ -341,6 +341,11 @@ export const api = {
     opts?: { label?: string; config?: StreamConfig | null },
   ) =>
     req<StreamKeyStatus>("POST", `/api/admin/users/${id}/stream-key`, { action, ...opts }),
+  // What the stream client actually DID with recent commands (delivery alone
+  // doesn't tell you whether the client accepted them).
+  streamCommandLog: (id: string) =>
+    req<{ results: { kind: string; ok: boolean; message: string; at: number }[] }>(
+      "GET", `/api/admin/users/${id}/stream-command-log`),
   streamCommand: (id: string, command: StreamCommand) =>
     req<{ ok: true; delivered: boolean; command: string }>("POST", `/api/admin/users/${id}/stream-command`, { command }),
 

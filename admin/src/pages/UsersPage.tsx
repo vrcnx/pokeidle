@@ -1779,7 +1779,25 @@ export function StreamRemoteControl({ userId }: { userId: string }) {
     setBusy(true); setMsg(null);
     try {
       const res = await api.streamCommand(userId, command);
-      setMsg(res.delivered ? `✓ Sent: ${label}` : `✗ Not delivered: ${label} — the stream isn't online (commands aren't queued; resend once it's live)`);
+      if (!res.delivered) {
+        setMsg(`✗ Not delivered: ${label} — the stream isn't online (commands aren't queued; resend once it's live)`);
+        return;
+      }
+      setMsg(`Sent: ${label} — waiting for the stream to report back…`);
+      // Delivery only means the account had a socket. Poll briefly for what
+      // the client actually did, so a refusal ("that town isn't unlocked")
+      // isn't indistinguishable from success.
+      const before = Date.now();
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 450));
+        const log = await api.streamCommandLog(userId).catch(() => null);
+        const hit = log?.results?.find((r) => r.kind === command.kind && r.at >= before - 500);
+        if (hit) {
+          setMsg(`${hit.ok ? "✓" : "✗"} ${hit.message}`);
+          return;
+        }
+      }
+      setMsg(`Sent: ${label} — no response from the stream client (is it in stream mode?)`);
     } catch (e) {
       setMsg((e as Error).message);
     } finally {

@@ -275,6 +275,20 @@ function markCaught(state: GameState, key: string): GameState {
 // Caps are the ONLY source of perfect IVs (Hyper Training) and their only
 // source is raids — so most raids drop nothing. Gold (all IVs) is rarer than
 // Silver (one IV). `wasInRaid` is the raid flag from BEFORE the catch.
+// EXP for a successful catch. Knocking a wild Pokémon out awarded EXP but
+// CATCHING it awarded nothing, so filling the Pokédex actively cost you
+// progress — players (rightly) flagged that catching should still train the
+// party. Mirrors Gen 6+ behaviour: a catch grants the same EXP (and EV yield)
+// the defeat would have.
+function applyCatchExp(next: GameState, enemy: Pokemon): GameState {
+  const species = pokemonTable[enemy.speciesKey];
+  if (!species || !next.playerPokemon) return next;
+  const exp = expYield(species, enemy.level);
+  if (exp <= 0) return next;
+  const { state: afterExp, logs } = applyExp(next, exp, evYieldFor(enemy.speciesKey));
+  return pushLog(afterExp, ...logs, `${afterExp.playerPokemon?.name ?? "Your Pokémon"} gained ${exp} EXP!`);
+}
+
 function maybeRaidBottleCapDrop(next: GameState, wasInRaid: boolean): GameState {
   if (!wasInRaid) return next;
   const r = Math.random();
@@ -572,6 +586,7 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
       next = maybeRaidBottleCapDrop(next, state.inRaid);
+      next = applyCatchExp(next, state.enemyPokemon);
       // After catch, end battle and go idle
       return {
         ...next,
@@ -696,6 +711,7 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
       next = maybeRaidBottleCapDrop(next, state.inRaid);
+      next = applyCatchExp(next, state.enemyPokemon);
       return {
         ...next,
         phase: "idle",

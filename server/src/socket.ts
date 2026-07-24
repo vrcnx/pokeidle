@@ -8,6 +8,7 @@ import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
 import { readStreamCookie, resolveStreamKey } from "./lib/streamSession.js";
+import { recordCommandResult } from "./lib/streamCommandLog.js";
 import {
   battleRooms,
   newBattleId,
@@ -780,6 +781,18 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     });
     socket.on("auction:unwatch", ({ auctionId }: { auctionId: string }) => {
       if (typeof auctionId === "string" && auctionId) socket.leave(`auction:${auctionId}`);
+    });
+
+    // A stream client reporting back what it did with an admin remote command,
+    // so the dashboard can show "✗ that town isn't unlocked" instead of a
+    // misleading "Sent".
+    socket.on("stream:command:result", (p: { kind?: unknown; ok?: unknown; message?: unknown }) => {
+      if (!p || typeof p !== "object") return;
+      recordCommandResult(user.id, {
+        kind: String(p.kind ?? "?").slice(0, 32),
+        ok: !!p.ok,
+        message: String(p.message ?? "").slice(0, 200),
+      });
     });
 
     // Send an invite to another user. They'll see a toast with accept/decline.

@@ -1020,6 +1020,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           icon: res.ok ? "🎮" : "⚠️",
           text: `Stream: ${res.message}`,
         });
+        // Echo the outcome back so the admin dashboard can show WHY a command
+        // was refused — a rejected command used to look identical to a
+        // successful one from the operator's side.
+        sock.emit("stream:command:result", { kind: cmd?.kind, ok: res.ok, message: res.message });
       } catch { /* malformed command — ignore */ }
     };
     sock.on("auction:sold", onSold);

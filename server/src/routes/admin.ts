@@ -29,6 +29,7 @@ import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
 import { twitchConfigured, getChannelInfo, setChannelInfo } from "../lib/twitch.js";
 import { markWatching, getFrame, enqueueInput, sanitizeInput } from "../lib/browserControl.js";
+import { getCommandResults } from "../lib/streamCommandLog.js";
 
 const app = new Hono();
 
@@ -263,6 +264,13 @@ app.post("/users/:id/stream-command", async (c) => {
   sendToUserGlobal(id, "stream:command", command);
   void makeAudit(c)(me.id, "user.stream_command", id, { kind: command.kind });
   return c.json({ ok: true, delivered, command: command.kind });
+});
+
+// GET /users/:id/stream-command-log — what the stream client actually DID with
+// recent remote commands. Delivery alone told the operator nothing about
+// whether the client accepted the command.
+app.get("/users/:id/stream-command-log", async (c) => {
+  return c.json({ results: getCommandResults(c.req.param("id")) });
 });
 
 // ── 24/7 Twitch broadcast control ──────────────────────────────────────
