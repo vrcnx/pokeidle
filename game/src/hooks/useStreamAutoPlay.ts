@@ -5,6 +5,7 @@ import { executeStreamCommand } from "../utils/streamCommands";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount } from "../utils/unlocks";
 import { encounters } from "../data/encounters";
+import { bestTeamSwap, bestLeadIndex } from "../utils/streamTeam";
 import type { GameState } from "../types";
 
 // Autonomous progression for the 24/7 stream account.
@@ -109,10 +110,27 @@ export function useStreamAutoPlay(): void {
         return;
       }
 
+      // 2. Field the best six it owns. Without this the party fills with
+      //    whatever it caught first while a rare, far stronger mon sits
+      //    forgotten in the PC — weaker AND worse to watch.
+      const swap = bestTeamSwap(s);
+      if (swap) {
+        dispatch({ type: "SWAP_PARTY_BOX", payload: { partyIndex: swap.partyIndex, boxIndex: swap.boxIndex } });
+        return;
+      }
+
+      // 3. Train the whole team, not one carry: put the strongest mon that's
+      //    lagging the party's top level out front so EXP spreads evenly.
+      const lead = bestLeadIndex(s);
+      if (lead >= 0 && lead !== s.activePlayerPokemonIndex) {
+        dispatch({ type: "SWITCH_PLAYER_POKEMON", payload: { partyIndex: lead } });
+        return;
+      }
+
       const region = regions[regionForLocation(s.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
       const best = topLevel(s);
 
-      // 2. Beat the next gym once the party can plausibly win — and if this
+      // 4. Beat the next gym once the party can plausibly win — and if this
       //    gym has already beaten us, demand a wider margin each time.
       const nextGym = region.gymLeaders.find((g) => !s.defeatedGyms.includes(g.id));
       if (nextGym && s.unlockedLocations.includes(nextGym.locationKey)) {
@@ -129,7 +147,7 @@ export function useStreamAutoPlay(): void {
         }
       }
 
-      // 3. All badges in hand → run the league gauntlet once strong enough.
+      // 5. All badges in hand → run the league gauntlet once strong enough.
       if (regionBadgeCount(s, region) >= region.gymLeaders.length) {
         const champ = region.champion;
         const e4Left = region.eliteFour.some((m) => !s.defeatedEliteFour.includes(m.id));
@@ -150,7 +168,7 @@ export function useStreamAutoPlay(): void {
         }
       }
 
-      // 4. Otherwise grind somewhere useful. Normally that's the toughest
+      // 6. Otherwise grind somewhere useful. Normally that's the toughest
       //    route we can handle (fastest EXP), but every whiteout here pulls
       //    the ceiling DOWN, so a run of deaths makes the account retreat to
       //    easier ground and level up instead of feeding the same route.
