@@ -3223,11 +3223,21 @@ body.dnd-active {
    and on a phone they just eat vertical space above the box grid. Hiding
    the WHOLE tools row (as before) also hid the box PAGER that shares it, so
    mobile players couldn't change pages (reported: "los botones de la caja
-   no aparecen, no se puede pasar de página"). Hide only the direct sort
-   button + "Sort" label children; keep .pc-pager and its ‹ › buttons.
-   `!important` because the v2 header rules have higher specificity. */
-.mobile-shell .pc-tab .tab-pane-head-tools > button,
-.mobile-shell .pc-tab .tab-pane-head-tools > .dim { display: none !important; }
+   no aparecen, no se puede pasar de página").
+   Update: an earlier version hid the sort buttons on mobile to save space, but
+   players then had no way to ORGANIZE their box on phones ("no hay ninguno
+   para organizarlas"). Show the sort buttons AND the pager — just let the
+   tools row wrap and shrink so both fit on a narrow screen. */
+.mobile-shell .pc-tab .tab-pane-head-tools {
+  flex-wrap: wrap;
+  gap: 4px;
+  row-gap: 4px;
+}
+.mobile-shell .pc-tab .tab-pane-head-tools > button {
+  padding: 4px 7px !important;
+  font-size: 11px !important;
+}
+.mobile-shell .pc-tab .tab-pane-head-tools .pc-pager { margin-left: auto; }
 
 /* Audio settings — volume slider in the Settings modal. */
 .audio-volume-row {
