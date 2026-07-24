@@ -23,7 +23,7 @@ import { reportClientError } from "../net/errorReporter";
 import { getSocket } from "../net/socket";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
-import { cloudShouldWin } from "./saveReconcile";
+import { cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -485,46 +485,58 @@ export function GameProvider({ children }: { children: ReactNode }) {
           local,
           persistedSyncVersion,
         })) {
-          // Cloud wins. Replace local state. Fires when: local is unusable
-          // (fresh-tab / cleared-localStorage) so we don't overwrite cloud
-          // with initialState; OR the server advanced our save past our last
-          // sync (auction settlement / gift / other device — the version
-          // signal); OR the heuristic says cloud has strictly more progress.
-          const sd = cloudData as Partial<GameState>;
-          const normParty = (sd.party ?? [])
+          // Cloud wins — but HOW depends on whether we have a real local save
+          // to protect.
+          //
+          //  * No usable local (fresh tab / cleared storage / foreign blob):
+          //    adopt cloud wholesale — there's nothing local to lose.
+          //  * Usable local: the server advanced our save (auction / gift /
+          //    giveaway / mass-gift) but we may also hold local progress it
+          //    never saw. MERGE — fold the server's additions into local
+          //    without ever dropping locally-earned money / items / Pokémon.
+          //    Wholesale-replacing here is what reset players' cash after a
+          //    broad saveVersion bump. See mergeCloudAdvance in saveReconcile.
+          const base: any = localOk ? mergeCloudAdvance(local, cloudData) : cloudData;
+          const normParty = ((base.party ?? []) as any[])
             .filter((p: any) => p && typeof p.speciesKey === "string")
             .map(normalizePokemon);
-          const normBox = (sd.box ?? [])
+          const normBox = ((base.box ?? []) as any[])
             .filter((p: any) => p && typeof p.speciesKey === "string")
             .map(normalizePokemon);
-          dispatch({
-            type: "LOAD_SAVE",
-            payload: {
-              state: {
-                ...sd,
-                party: normParty,
-                box: normBox,
-                phase: "idle",
-                enemyPokemon: null,
-                pendingEvents: [],
-                trainerBattle: null,
-                bossBattle: null,
-                healingState: null,
-                playerVolatile: null,
-                evolutionState: null,
-              },
-            },
-          });
-          // Mark this snapshot as already-uploaded so the autosave
-          // useEffect's diff check doesn't re-push cloud right back to
-          // cloud on the first state-change tick.
-          lastUploadedRef.current = JSON.stringify(pickPersistent({
-            ...local,
-            ...sd,
-          } as GameState));
-          // We are now synced to the cloud copy — persist its version so the
-          // next boot compares against THIS, not a stale earlier value.
-          commitCloudVersion(cloud.saveVersion ?? 0);
+          const nextState = {
+            ...base,
+            party: normParty,
+            box: normBox,
+            phase: "idle",
+            enemyPokemon: null,
+            pendingEvents: [],
+            trainerBattle: null,
+            bossBattle: null,
+            healingState: null,
+            playerVolatile: null,
+            evolutionState: null,
+          } as GameState;
+          dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+          if (localOk) {
+            // The merged result differs from cloud (it carries our local
+            // progress), so push it back up so cloud reflects the merge.
+            // CAS on the version we just read; a concurrent write 409s and
+            // the next boot reconciles again.
+            const snapshot = pickPersistent(nextState);
+            lastUploadedRef.current = JSON.stringify(snapshot);
+            try {
+              const res = await api.putSave(snapshot, cloud.saveVersion ?? cloudVersionRef.current);
+              commitCloudVersion(res.saveVersion);
+            } catch {
+              commitCloudVersion(cloud.saveVersion ?? 0);
+            }
+          } else {
+            // Wholesale cloud adoption — mark it already-uploaded so the
+            // autosave diff doesn't immediately re-push, and record the
+            // version we're now synced to.
+            lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
+            commitCloudVersion(cloud.saveVersion ?? 0);
+          }
         } else {
           // Local strictly extends cloud (more milestones / equal +
           // local-only changes). Push local up with the cloud version

@@ -95,6 +95,97 @@ export function localHasMoreMilestones(local: any, cloud: any): boolean {
   return false;
 }
 
+// ─── Non-destructive cloud merge ─────────────────────────────────────────
+// When the version signal fires (the SERVER wrote to this account — auction
+// settlement / gift / giveaway / mass-gift) the browser may ALSO hold local
+// progress the server never saw (money earned, mons caught, items bought
+// since the last autosave upload). Wholesale-adopting cloud there wipes that
+// unsynced progress — which is exactly the "my cash got reset" incident: a
+// broad `saveVersion` bump (e.g. a mass Master Ball gift) made every
+// recipient's client replace its live save with a behind-by-minutes cloud
+// copy.
+//
+// mergeCloudAdvance keeps LOCAL as the base and folds in the server's
+// ADDITIONS, never reducing a resource:
+//   * money      → max(local, cloud)   never lose cash
+//   * inventory  → per-item max         never lose items; delivers gifted items
+//   * box        → local ∪ cloud-only   delivers gifted / auction-won Pokémon
+//   * milestones → union                badges / E4 / dex / locations / champion
+// The one thing it can't do without a shared baseline is apply a server
+// REMOVAL (a sold/traded mon) to an OFFLINE seller — a narrow, known gap that
+// auction escrow closes at the source. Resetting cash for thousands of active
+// players is the far worse failure, so we err on never-lose.
+
+function num(v: unknown): number { return typeof v === "number" && Number.isFinite(v) ? v : 0; }
+function invOf(s: any): Record<string, number> {
+  const inv = s?.inventory;
+  return inv && typeof inv === "object" && !Array.isArray(inv) ? (inv as Record<string, number>) : {};
+}
+function pokeId(p: any): string | null { return p && p.id != null ? String(p.id) : null; }
+function unionArr(a: any, b: any): any[] {
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const arr of [a, b]) {
+    if (!Array.isArray(arr)) continue;
+    for (const x of arr) {
+      const k = typeof x === "object" ? JSON.stringify(x) : String(x);
+      if (!seen.has(k)) { seen.add(k); out.push(x); }
+    }
+  }
+  return out;
+}
+function unionInto(merged: any, local: any, cloud: any, key: string): void {
+  if (Array.isArray(local?.[key]) || Array.isArray(cloud?.[key])) {
+    merged[key] = unionArr(local?.[key], cloud?.[key]);
+  }
+}
+
+export function mergeCloudAdvance(local: any, cloud: any): any {
+  const merged: any = { ...local };
+
+  // Money — never below the local balance.
+  merged.money = Math.max(num(local?.money), num(cloud?.money));
+
+  // Inventory — per-item max (delivers gifted items, never removes bought ones).
+  const li = invOf(local), ci = invOf(cloud);
+  const inv: Record<string, number> = {};
+  for (const k of new Set([...Object.keys(li), ...Object.keys(ci)])) {
+    const q = Math.max(num(li[k]), num(ci[k]));
+    if (q > 0) inv[k] = q;
+  }
+  merged.inventory = inv;
+
+  // Box — keep every local mon, add any cloud mon whose id local doesn't hold
+  // (a gifted or auction-won Pokémon the server dropped into the box).
+  const localParty = Array.isArray(local?.party) ? local.party : [];
+  const localBox = Array.isArray(local?.box) ? local.box : [];
+  const cloudBox = Array.isArray(cloud?.box) ? cloud.box : [];
+  const cloudParty = Array.isArray(cloud?.party) ? cloud.party : [];
+  const localIds = new Set<string>();
+  for (const p of [...localParty, ...localBox]) { const id = pokeId(p); if (id) localIds.add(id); }
+  const additions = [...cloudBox, ...cloudParty].filter((p) => {
+    const id = pokeId(p);
+    return id != null && !localIds.has(id);
+  });
+  merged.party = localParty;
+  merged.box = [...localBox, ...additions];
+
+  // nextPokemonId must stay ahead of every id we now hold.
+  merged.nextPokemonId = Math.max(num(local?.nextPokemonId), num(cloud?.nextPokemonId));
+
+  // Milestone unions — only when the field is actually present on a side, so
+  // we never clobber a local field with [] just because cloud omitted it.
+  unionInto(merged, local, cloud, "defeatedGyms");
+  unionInto(merged, local, cloud, "defeatedEliteFour");
+  unionInto(merged, local, cloud, "pokedexCaught");
+  unionInto(merged, local, cloud, "pokedexSeen");
+  unionInto(merged, local, cloud, "unlockedLocations");
+  unionInto(merged, local, cloud, "claimedRegionStarters");
+  merged.championDefeated = !!local?.championDefeated || !!cloud?.championDefeated;
+
+  return merged;
+}
+
 // The combined "should the cloud copy replace local?" decision, given both
 // the version signal and the heuristic. Kept tiny and pure so the test suite
 // can pin every branch. `localUsable` is false when there is no valid local
