@@ -8,15 +8,27 @@ export function speciesCatchRate(speciesKey: string): number {
   return catchRates[speciesKey] ?? 255;
 }
 
-export function catchProbability(speciesKey: string, ballId: string): number {
+// HP-dependent catch bonus. `hpFraction` is the target's currentHp/maxHp
+// (1 = full). Canonical catch math weights LOW hp far higher, but applying
+// it directly would NERF the long-standing full-HP odds every player is used
+// to. So we treat full HP as the baseline (factor 1, unchanged) and only ADD
+// a bonus as HP drops — pure upside, up to ~2.5x at a sliver of HP. This is
+// what makes the opt-in "weaken before catching" setting actually pay off.
+export function hpCatchFactor(hpFraction: number): number {
+  const f = Math.max(0, Math.min(1, Number.isFinite(hpFraction) ? hpFraction : 1));
+  return 1 + (1 - f) * 1.5; // 1.0 at full HP → 2.5 at ~0 HP
+}
+
+export function catchProbability(speciesKey: string, ballId: string, hpFraction = 1): number {
   const rate = speciesCatchRate(speciesKey);
   const ball = pokeballs[ballId];
   if (!ball) return 0;
-  return Math.min(1, (rate * ball.ballModifier) / 255);
+  const base = (rate * ball.ballModifier) / 255;
+  return Math.min(1, base * hpCatchFactor(hpFraction));
 }
 
-export function rollCatch(speciesKey: string, ballId: string): boolean {
-  return Math.random() < catchProbability(speciesKey, ballId);
+export function rollCatch(speciesKey: string, ballId: string, hpFraction = 1): boolean {
+  return Math.random() < catchProbability(speciesKey, ballId, hpFraction);
 }
 
 // Cheapest enabled ball that has a guaranteed catch (rate * mod / 255 >= 1).

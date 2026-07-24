@@ -183,6 +183,17 @@ function CatchSettingsDialog({
             <p className="g-help" style={{ marginTop: 6 }}>
               {t("Auto-throws cycle through enabled balls in this order — Master > Ultra > Great > Poké.")}
             </p>
+            <label className="catch-mode-row" style={{ marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={!!defaults.weakenFirst}
+                onChange={(e) => updateDefault({ weakenFirst: e.target.checked })}
+              />
+              <span>{t("Weaken before catching")}</span>
+            </label>
+            <p className="g-help" style={{ marginTop: 4 }}>
+              {t("Auto-battle chips wild Pokémon down to low HP before throwing, boosting catch odds. Shinies are always caught immediately.")}
+            </p>
           </section>
         </div>
 

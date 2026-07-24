@@ -199,6 +199,11 @@ export interface CatchSettings {
   mode: CatchMode;
   levelThreshold: number;
   enabledBalls: string[];
+  /** Auto-battle chips the wild Pokémon down to low HP before throwing a
+   *  ball (the low-HP catch bonus then makes the throw far more likely).
+   *  Never applies to shinies — those are caught immediately so weakening
+   *  can't accidentally faint one. Optional for back-compat; absent = off. */
+  weakenFirst?: boolean;
 }
 
 export interface BattleEvent {

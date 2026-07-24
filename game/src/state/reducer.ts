@@ -533,7 +533,9 @@ export function reducer(state: GameState, action: Action): GameState {
       const inv = { ...state.inventory };
       if ((inv[ballId] ?? 0) <= 0) return pushLog(state, "You don't have any!");
       inv[ballId] = inv[ballId] - 1;
-      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId);
+      const catchHpFrac = state.enemyPokemon.maxHp > 0
+        ? state.enemyPokemon.currentHp / state.enemyPokemon.maxHp : 1;
+      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, catchHpFrac);
       if (!success) {
         return pushLog({ ...state, inventory: inv }, `Oh no! The ${state.enemyPokemon.name} broke free!`);
       }
@@ -582,7 +584,9 @@ export function reducer(state: GameState, action: Action): GameState {
       const inv = { ...state.inventory };
       if ((inv[ballId] ?? 0) <= 0) return pushLog(state, "You don't have any!");
       inv[ballId] = inv[ballId] - 1;
-      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId);
+      const tryCatchHpFrac = state.enemyPokemon.maxHp > 0
+        ? state.enemyPokemon.currentHp / state.enemyPokemon.maxHp : 1;
+      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, tryCatchHpFrac);
       const ballName = pokeballs[ballId]?.name ?? itemsCatalog[ballId]?.name ?? ballId;
       return pushLog(
         {

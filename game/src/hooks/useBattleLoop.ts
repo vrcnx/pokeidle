@@ -5,9 +5,16 @@ import { createPokemon } from "../utils/pokemon";
 import { rollShiny, hasShinyCharm } from "../utils/pokemon";
 import { pushToast } from "../components/Toast";
 import { ballForAutoCatch, shouldAutoCatch } from "../utils/catching";
+import { resolveCatchSettings } from "../utils/catchSettings";
 import { routes } from "../data/routes";
 import { getRouteTrainers, buildTeam, trainerSprite } from "../utils/trainerFactory";
 import type { GameState } from "../types";
+
+// Weaken-before-catch: keep attacking until the wild Pokémon is at or below
+// this fraction of max HP, then throw. 0.30 leaves a comfortable buffer above
+// fainting while still deep enough into the HP window to earn most of the
+// low-HP catch bonus.
+const WEAKEN_HP_THRESHOLD = 0.30;
 
 // The simulation tick. While the phase is "idle" the loop kicks off encounters
 // on the current route. While the phase is "battle" it ticks turns until one
@@ -166,6 +173,24 @@ export function useBattleLoop(): void {
           cur.autoCatch &&
           shouldAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.level, enemy.isShiny)
         ) {
+          // Weaken-before-catch: if the rule for this encounter has it on,
+          // keep attacking until the wild Pokémon is at/below the low-HP
+          // window, so the HP catch bonus kicks in — then throw. Shinies are
+          // exempt: they're caught immediately so a weakening hit can never
+          // faint one.
+          const rule = resolveCatchSettings(cur, cur.currentRoute, enemy.speciesKey);
+          const hpFrac = enemy.maxHp > 0 ? enemy.currentHp / enemy.maxHp : 1;
+          const wantWeaken =
+            !!rule.weakenFirst && !enemy.isShiny &&
+            !(enemy.isShiny && cur.alwaysCatchShinies) &&
+            hpFrac > WEAKEN_HP_THRESHOLD;
+          if (wantWeaken) {
+            // Not weak enough yet — attack this turn instead of catching.
+            if (manualWaiting(cur)) { repoll(); return; }
+            dispatch({ type: "EXECUTE_TURN" });
+            schedule();
+            return;
+          }
           const ball = ballForAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.isShiny);
           if (ball) {
             outOfBallsRef.current = false;
