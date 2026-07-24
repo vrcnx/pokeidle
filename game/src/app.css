@@ -17200,3 +17200,10 @@ html, body {
 }
 .mart-qty-jump:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: var(--text); }
 .mart-qty-jump:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Dex entries that exist for numbering but have no encounter yet. Dimmed and
+   dashed so a completionist can tell "not released" apart from "not found". */
+.dex-cell.unreleased {
+  opacity: 0.3;
+  border-style: dashed;
+}

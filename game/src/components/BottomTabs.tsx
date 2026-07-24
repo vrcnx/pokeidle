@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { RouteCardList } from "./RouteCardList";
 import { pokemonSpriteUrl, pokemonStaticSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
+import { obtainableCount, obtainableSpecies } from "../utils/obtainable";
 import { routes } from "../data/routes";
 import { buildUnifiedShop } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
@@ -645,6 +646,8 @@ const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
   { count: 50,  label: "Half-way",      icon: "📚" },
   { count: 100, label: "Centurion",     icon: "💯" },
   { count: 151, label: "Kanto Master",  icon: "🥇" },
+  // Top tier is derived from the obtainable count at render time so it can
+  // never sit above the reachable ceiling (see dexTotal below).
   { count: 245, label: "Master",        icon: "🏆" },
 ];
 
@@ -663,10 +666,17 @@ export function DexTab() {
   const shinySet  = useMemo(() => new Set(state.shinyCaught),   [state.shinyCaught]);
 
   // Per-type completion counts.
+  // Declared ahead of typeCompletion: that memo runs during this render and
+  // reads `obtainable`, so a later `const` would hit the temporal dead zone
+  // and throw before the Dex could paint.
+  const obtainable = obtainableSpecies();
+
   const typeCompletion = useMemo(() => {
     const byType: Record<string, { caught: number; total: number }> = {};
     for (const t of DEX_TYPES) byType[t] = { caught: 0, total: 0 };
     for (const [key, sp] of all) {
+      // Unreleased species would make a type bucket unfinishable.
+      if (!obtainable.has(key)) continue;
       for (const t of sp.types) {
         const bucket = byType[t];
         if (!bucket) continue;
@@ -696,8 +706,17 @@ export function DexTab() {
     });
   }, [all, filter, caughtSet, seenSet, shinySet, q]);
 
-  const completion = (state.pokedexCaught.length / all.length) * 100;
-  const nextMilestone = DEX_MILESTONES.find((m) => state.pokedexCaught.length < m.count);
+  // Count against species that can ACTUALLY be caught. Using the raw
+  // pokemonTable size meant ~35 Johto entries that exist for dex numbering but
+  // have no encounter table were in the denominator, so a player who had
+  // caught literally everything available was shown ~234/288 and could never
+  // reach 100%. obtainableSpecies() derives this from the data, so the total
+  // grows by itself the moment those species are released.
+  const dexTotal = obtainableCount();
+  const caughtObtainable = state.pokedexCaught.filter((k) => obtainable.has(k)).length;
+  const completion = Math.min(100, (caughtObtainable / Math.max(1, dexTotal)) * 100);
+  const milestones = DEX_MILESTONES.filter((m) => m.count <= dexTotal);
+  const nextMilestone = milestones.find((m) => caughtObtainable < m.count);
 
   return (
     <div className="tab-pane dex-tab dex-tab-v2">
@@ -720,7 +739,7 @@ export function DexTab() {
         <div className="dex-hero-stats">
           <div>
             <span className="dex-hero-label">{t("Caught")}</span>
-            <strong className="tabular">{state.pokedexCaught.length}<span className="dim"> / {all.length}</span></strong>
+            <strong className="tabular">{caughtObtainable}<span className="dim"> / {dexTotal}</span></strong>
           </div>
           <div>
             <span className="dex-hero-label">{t("Seen")}</span>
@@ -732,8 +751,8 @@ export function DexTab() {
           </div>
         </div>
         <div className="dex-hero-milestones" aria-label={t("Milestones")}>
-          {DEX_MILESTONES.map((m) => {
-            const done = state.pokedexCaught.length >= m.count;
+          {milestones.map((m) => {
+            const done = caughtObtainable >= m.count;
             const active = nextMilestone && nextMilestone.count === m.count;
             return (
               <div
@@ -827,10 +846,13 @@ export function DexTab() {
             <button
               key={key}
               type="button"
-              className={`dex-cell ${caught ? "caught" : seen ? "seen" : "unknown"} ${shiny ? "is-shiny" : ""}`}
+              className={`dex-cell ${caught ? "caught" : seen ? "seen" : "unknown"} ${shiny ? "is-shiny" : ""} ${!obtainable.has(key) ? "unreleased" : ""}`}
               onClick={() => clickable && setPicked(key)}
               disabled={!clickable}
-              title={clickable ? sp.name : "???"}
+              /* Unreleased species are marked so a completionist doesn't hunt
+                 for something that has no encounter yet — they're excluded
+                 from the counts above, but still occupy their dex number. */
+              title={clickable ? sp.name : !obtainable.has(key) ? "Not yet available" : "???"}
             >
               <img
                 src={pokemonSpriteUrl(key, false, shiny && caught)}
