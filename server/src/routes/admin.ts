@@ -1801,6 +1801,13 @@ app.post("/giveaways/:id/draw", async (c) => {
       // Tell them right now if they are online — a prize you only find
       // out about days later is a much smaller moment.
       try {
+        // gift:received is the channel that actually APPLIES the (additive)
+        // prizes to the winner's live state — the client's RECEIVE_GIFT
+        // handler. Without it an online winner's next autosave clobbered the
+        // freshly-granted prizes (giveaway:won carries no prizes and has no
+        // client handler). Same path mass-gift uses. Additive → gift channel,
+        // NOT the wholesale save:adopt path (which would reset unsynced play).
+        sendToUserGlobal(w.userId, "gift:received", { prizes, summary: describePrizes(prizes) });
         sendToUserGlobal(w.userId, "giveaway:won", {
           giveawayId: g.id,
           title: g.title,
