@@ -27,6 +27,7 @@ import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } fro
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
+import { twitchConfigured, getChannelInfo, setChannelInfo } from "../lib/twitch.js";
 
 const app = new Hono();
 
@@ -304,6 +305,35 @@ async function broadcastPayload() {
 
 app.get("/broadcast", async (c) => {
   return c.json(await broadcastPayload());
+});
+
+// ── Twitch channel info (title / category / tags) ──────────────────────
+app.get("/broadcast/twitch", async (c) => {
+  if (!twitchConfigured()) return c.json({ configured: false });
+  try {
+    const channel = await getChannelInfo();
+    return c.json({ configured: true, channel });
+  } catch (e) {
+    return c.json({ configured: true, error: (e as Error).message }, 502);
+  }
+});
+
+app.post("/broadcast/twitch", async (c) => {
+  if (!twitchConfigured()) return c.json({ error: "Twitch is not configured on the server (set TWITCH_CLIENT_ID/SECRET/REFRESH_TOKEN)." }, 400);
+  const me = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as { title?: string; gameName?: string; tags?: string[] | string };
+  const patch: { title?: string; gameName?: string; tags?: string[] } = {};
+  if (typeof body.title === "string") patch.title = body.title;
+  if (typeof body.gameName === "string") patch.gameName = body.gameName;
+  if (Array.isArray(body.tags)) patch.tags = body.tags.map(String);
+  else if (typeof body.tags === "string") patch.tags = body.tags.split(",").map((t) => t.trim()).filter(Boolean);
+  try {
+    const channel = await setChannelInfo(patch);
+    void makeAudit(c)(me.id, "broadcast.twitch", "", { title: patch.title, gameName: patch.gameName });
+    return c.json({ configured: true, channel });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
 });
 
 app.post("/broadcast", async (c) => {

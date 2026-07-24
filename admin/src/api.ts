@@ -350,6 +350,11 @@ export const api = {
   broadcastSet: (patch: BroadcastPatch) =>
     req<BroadcastStatus>("POST", "/api/admin/broadcast", patch),
 
+  // Twitch channel info (title / category / tags) via Helix.
+  twitchGet: () => req<TwitchInfo>("GET", "/api/admin/broadcast/twitch"),
+  twitchSet: (patch: { title?: string; gameName?: string; tags?: string }) =>
+    req<TwitchInfo>("POST", "/api/admin/broadcast/twitch", patch),
+
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
 
@@ -594,6 +599,19 @@ export interface StreamKeyStatus {
   lastUsedIp?: string | null;
   key?: string;
   loginUrl?: string;
+}
+
+export interface TwitchChannel {
+  title: string;
+  gameName: string;
+  gameId: string;
+  tags: string[];
+  broadcasterLogin: string;
+}
+export interface TwitchInfo {
+  configured: boolean;
+  channel?: TwitchChannel;
+  error?: string;
 }
 
 export interface BroadcastPatch {

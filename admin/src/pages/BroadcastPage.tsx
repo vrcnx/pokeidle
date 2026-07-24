@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError, type BroadcastStatus, type BroadcastPatch } from "../api";
+import { api, ApiError, type BroadcastStatus, type BroadcastPatch, type TwitchInfo } from "../api";
 import { notify } from "../components/Confirm";
+import { StreamRemoteControl } from "./UsersPage";
 
 const RES_PRESETS: { label: string; width: number; height: number }[] = [
   { label: "1080p", width: 1920, height: 1080 },
@@ -192,6 +193,16 @@ export function BroadcastPage() {
         </div>
       </div>
 
+      {/* ── Remote control (drive the streamed account) ────────────── */}
+      {state?.accountUserId && (
+        <div className="broadcast-card">
+          <StreamRemoteControl userId={state.accountUserId} />
+        </div>
+      )}
+
+      {/* ── Twitch channel info ────────────────────────────────────── */}
+      <TwitchCard />
+
       <div className="broadcast-help">
         <h4>How it works</h4>
         <ol>
@@ -199,6 +210,93 @@ export function BroadcastPage() {
           <li>Deploy the <code>renderer</code> service on Railway with <code>TWITCH_STREAM_KEY</code>, <code>SERVER_URL</code> and <code>RENDERER_TOKEN</code> set.</li>
           <li>Pick the account here, choose quality, and hit <strong>Go live</strong>. Steer gameplay (fight E4, raids, travel) from the account's Users page — Remote control.</li>
         </ol>
+      </div>
+    </div>
+  );
+}
+
+// Twitch channel controls — title, category, tags via the server's Helix
+// integration. Renders a "not configured" hint until the server env is set.
+function TwitchCard() {
+  const [info, setInfo] = useState<TwitchInfo | null>(null);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [tags, setTags] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const seeded = useRef(false);
+
+  async function load() {
+    try {
+      const i = await api.twitchGet();
+      setInfo(i);
+      setErr(i.error ?? null);
+      if (i.channel && !seeded.current) {
+        setTitle(i.channel.title);
+        setCategory(i.channel.gameName);
+        setTags(i.channel.tags.join(", "));
+        seeded.current = true;
+      }
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+  useEffect(() => { load(); }, []);
+
+  async function save() {
+    setBusy(true); setErr(null);
+    try {
+      const i = await api.twitchSet({ title, gameName: category, tags });
+      setInfo(i);
+      if (i.channel) {
+        setTitle(i.channel.title);
+        setCategory(i.channel.gameName);
+        setTags(i.channel.tags.join(", "));
+      }
+      void notify("Twitch channel updated");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      setErr(msg);
+      void notify(`Failed: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (info && !info.configured) {
+    return (
+      <div className="broadcast-card">
+        <h3>Twitch channel</h3>
+        <p className="dim small">
+          Not configured. Set <code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code> and{" "}
+          <code>TWITCH_REFRESH_TOKEN</code> (scope <code>channel:manage:broadcast</code>) on the server service
+          to control the title, category and tags from here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="broadcast-card">
+      <h3>Twitch channel</h3>
+      {err && <div className="broadcast-lasterr">{err}</div>}
+      <div className="broadcast-field">
+        <label>Title</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} placeholder="Pokémon Idle — 24/7 auto-play" style={{ maxWidth: 480 }} disabled={busy} />
+      </div>
+      <div className="broadcast-field">
+        <label>Category</label>
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Pokémon FireRed/LeafGreen" disabled={busy} />
+        <span className="dim small">Must match an existing Twitch category name exactly.</span>
+      </div>
+      <div className="broadcast-field">
+        <label>Tags</label>
+        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="comma, separated, tags" disabled={busy} />
+        <span className="dim small">Up to 10 · alphanumeric · ≤25 chars each.</span>
+      </div>
+      <div className="broadcast-btn-row">
+        <button className="btn-primary" onClick={save} disabled={busy}>Save to Twitch</button>
+        {info?.channel && <span className="dim small">Live now: {info.channel.title || "—"} · {info.channel.gameName || "—"}</span>}
       </div>
     </div>
   );

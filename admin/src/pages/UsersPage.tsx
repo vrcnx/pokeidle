@@ -1768,7 +1768,7 @@ const STREAM_RAID_TIERS: { id: string; name: string }[] = [
   { id: "mythical", name: "Mythical" },
 ];
 
-function StreamRemoteControl({ userId }: { userId: string }) {
+export function StreamRemoteControl({ userId }: { userId: string }) {
   const [travelTo, setTravelTo] = useState("");
   const [gym, setGym] = useState(STREAM_GYMS[0].id);
   const [raidTier, setRaidTier] = useState(STREAM_RAID_TIERS[0].id);
