@@ -24,12 +24,20 @@ async function main(): Promise<void> {
   // Reconcile loop: pull desired state, converge the browser+encoder to it,
   // report status. This IS the 24/7 watchdog — a crashed child is simply
   // brought back on the next tick.
+  let lastState: Awaited<ReturnType<typeof fetchDesiredState>> = null;
   while (!shuttingDown) {
     try {
-      const state = await fetchDesiredState();
-      if (state && state.enabled && state.loginUrl && CONFIG.twitchKey) {
-        await bc.ensureRunning(state);
-      } else {
+      const fetched = await fetchDesiredState(); // null = server unreachable
+      if (fetched) lastState = fetched;
+      // If the server is unreachable (e.g. an API redeploy), HOLD the
+      // last-known desired state instead of tearing the stream down. The game
+      // client rides out the blip and reconnects its own socket, so viewers
+      // don't see a drop on every server deploy. Only an explicit disabled
+      // state from a REACHABLE server stops the broadcast.
+      const effective = fetched ?? lastState;
+      if (effective && effective.enabled && effective.loginUrl && CONFIG.twitchKey) {
+        await bc.ensureRunning(effective);
+      } else if (fetched) {
         await bc.stop();
       }
     } catch (e) {

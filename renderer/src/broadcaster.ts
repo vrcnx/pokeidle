@@ -112,7 +112,7 @@ export class Broadcaster {
         args: [
           `--window-position=0,0`,
           `--window-size=${CONFIG.captureWidth},${CONFIG.captureHeight}`,
-          "--kiosk",
+          "--start-fullscreen",
           "--no-sandbox",
           "--disable-gpu",
           "--disable-dev-shm-usage",
@@ -132,6 +132,16 @@ export class Broadcaster {
       });
       this.context = await this.browser.newContext({ viewport: null });
       this.page = await this.context.newPage();
+      // Force the OS window fullscreen via CDP so Chromium hides its tab strip
+      // and address bar. --kiosk/--start-fullscreen alone are unreliable under
+      // Xvfb (no window manager); setWindowBounds fullscreen is deterministic.
+      try {
+        const cdp = await this.context.newCDPSession(this.page);
+        const { windowId } = await cdp.send("Browser.getWindowForTarget");
+        await cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "fullscreen" } });
+      } catch (e) {
+        console.error("[browser] fullscreen via CDP failed:", (e as Error).message);
+      }
       // A renderer-process crash leaves browser.isConnected() true, so watch
       // for it explicitly and drop the browser so the next tick relaunches.
       this.page.on("crash", () => {
