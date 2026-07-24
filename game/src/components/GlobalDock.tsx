@@ -18,6 +18,8 @@ import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { useIncomingRequestCount } from "../state/friendRequests";
+import { useLayoutMode, setLayoutMode, type LayoutMode } from "../state/layoutMode";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { openPvpHub } from "./PvpHubModal";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
@@ -340,7 +342,7 @@ function DockButton({ icon, label, active, disabled, title, badge, onClick }: Do
 //   - Account:  email / join date / sign out / report bug / legal
 // Default tab is Stats since most opens are "check my progress".
 // ---------------------------------------------------------------------------
-type SettingsTab = "stats" | "audio" | "chat" | "account";
+type SettingsTab = "stats" | "display" | "audio" | "chat" | "account";
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
@@ -399,6 +401,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <nav className="settings-tabs" role="tablist" aria-label={t("Settings sections")}>
           <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label={t("Display")} tab="display" active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Audio")}   tab="audio"   active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Account")} tab="account" active={tab} onPick={setTab} />
@@ -510,6 +513,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               </>
             )}
 
+            {tab === "display" && <LayoutPrefsCard />}
             {tab === "audio" && <AudioPrefsCard />}
             {tab === "chat" && <ChatPrefsCard />}
 
@@ -589,3 +593,43 @@ function SettingsTabBtn({
   );
 }
 
+// Desktop layout picker. Wide is a SECONDARY layout: classic remains the
+// default and nobody's view changes unless they pick it here. Hidden on
+// small screens, where the mobile shell renders instead and the choice
+// would do nothing.
+function LayoutPrefsCard() {
+  const t = useT();
+  const mode = useLayoutMode();
+  const isMobile = useMediaQuery("(max-width: 900px)");
+  const OPTIONS: { id: LayoutMode; label: string; blurb: string }[] = [
+    { id: "classic", label: t("Classic"), blurb: t("Centred, fixed-width columns. The original layout.") },
+    { id: "wide", label: t("Wide"), blurb: t("Uses the full screen width and grows the battle view. Best above 1200px.") },
+  ];
+  return (
+    <section className="g-card">
+      <h3>{t("Layout")}</h3>
+      {isMobile && (
+        <p className="g-help" style={{ marginTop: 0 }}>
+          {t("This setting applies to the desktop layout — your screen is using the mobile view.")}
+        </p>
+      )}
+      <div className="layout-pref-options">
+        {OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`layout-pref-option ${mode === o.id ? "active" : ""}`}
+            aria-pressed={mode === o.id}
+            onClick={() => setLayoutMode(o.id)}
+          >
+            <span className={`layout-pref-preview layout-pref-preview-${o.id}`} aria-hidden>
+              <span /><span /><span />
+            </span>
+            <strong>{o.label}</strong>
+            <span className="dim small">{o.blurb}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}

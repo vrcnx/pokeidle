@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { PartyColumn } from "./PartyColumn";
+import { useLayoutMode } from "../state/layoutMode";
 import { CenterColumn } from "./CenterColumn";
 import { LocationColumn } from "./LocationColumn";
 import { MobileShell } from "./MobileShell";
@@ -48,6 +49,8 @@ import { ReportBugModal } from "./ReportBugModal";
 
 export function GameShell() {
   const isMobile = useMediaQuery("(max-width: 900px)");
+  // Opt-in wide desktop layout. Classic stays the default.
+  const layout = useLayoutMode();
   const { state } = useGame();
   // Bind trade socket listeners once GameShell mounts (i.e. once the
   // user is authenticated). The bind is idempotent — the module guards
@@ -88,7 +91,7 @@ export function GameShell() {
       {isMobile ? (
         <MobileShell />
       ) : (
-        <div className="dashboard">
+        <div className={`dashboard ${layout === "wide" ? "dashboard-wide" : ""}`}>
           {/* Twitch-stream layout: chat LEFT (elastic watch surface),
               arena CENTER (focal point), control panel RIGHT (party +
               actions + goal + profile). Chat absorbs all vertical

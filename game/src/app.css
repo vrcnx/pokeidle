@@ -17207,3 +17207,88 @@ html, body {
   opacity: 0.3;
   border-style: dashed;
 }
+
+/* ---------- Wide desktop layout (opt-in secondary) ---------- */
+/* Classic caps the dashboard at 1600px with a 300 / 640+ / 300 split, which
+   on a 1920+ display leaves ~a third of the screen as dead margin. Wide drops
+   the cap and pushes the reclaimed width into the centre column, so the arena
+   grows instead of the margins. Everything else about the shell is unchanged —
+   this is a second grid template, not a different UI. */
+.dashboard-wide {
+  max-width: none;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 2.7fr) minmax(300px, 0.9fr);
+}
+/* Very wide screens: let the arena take even more, but keep the rails legible
+   rather than stretching them into empty columns. */
+@media (min-width: 1900px) {
+  .dashboard-wide {
+    grid-template-columns: minmax(300px, 0.75fr) minmax(0, 3.2fr) minmax(320px, 0.8fr);
+  }
+}
+/* The arena is aspect-ratio locked, but classic sets an explicit width:100%,
+   which on a much wider column would satisfy the width and CROP the height
+   rather than scaling the whole scene. Switching to auto width + a viewport
+   height bound lets the 16:9 box grow until it runs out of VERTICAL room, then
+   shrink its width to keep the ratio exact — so the scene never distorts and
+   the tabs underneath never get pushed below the fold. */
+.dashboard-wide .battle-scene {
+  /* Height-driven, not width-driven. With width:auto a block stretches to
+     fill the column, which then DICTATES the height via the aspect ratio —
+     max-height never binds and on a 1080p screen the scene grew to ~712px,
+     pushing the tab strip below the fold. Setting the height explicitly and
+     letting width:fit-content derive from it keeps 16:9 exact while
+     guaranteeing the scene never eats more than its share of the viewport. */
+  height: min(52vh, 100%);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+/* Below the classic breakpoint the wide template would squeeze the rails, so
+   it simply reverts — wide is a large-desktop affordance only. */
+@media (max-width: 1200px) {
+  .dashboard-wide {
+    max-width: 1600px;
+    grid-template-columns: 300px minmax(640px, 1fr) 300px;
+  }
+  .dashboard-wide .battle-scene {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+  }
+}
+
+/* ---------- Settings: layout picker ---------- */
+.layout-pref-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.layout-pref-option {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  text-align: left;
+  cursor: pointer;
+}
+.layout-pref-option.active { border-color: var(--gold); background: rgba(248, 208, 48, 0.08); }
+/* Tiny wireframe of each layout: three bars whose relative widths mirror the
+   real column split, so the choice is legible without reading the blurb. */
+.layout-pref-preview {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  height: 26px;
+  padding: 3px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.layout-pref-preview span { background: rgba(255, 255, 255, 0.18); border-radius: 2px; }
+.layout-pref-preview-classic { justify-content: center; }
+.layout-pref-preview-classic span:nth-child(1) { width: 22%; }
+.layout-pref-preview-classic span:nth-child(2) { width: 34%; background: rgba(248, 208, 48, 0.55); }
+.layout-pref-preview-classic span:nth-child(3) { width: 22%; }
+.layout-pref-preview-wide span:nth-child(1) { width: 20%; }
+.layout-pref-preview-wide span:nth-child(2) { flex: 1; background: rgba(248, 208, 48, 0.55); }
+.layout-pref-preview-wide span:nth-child(3) { width: 22%; }
