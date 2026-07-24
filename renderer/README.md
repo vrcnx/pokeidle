@@ -68,6 +68,19 @@ at `/app/music`.
 > own — usually muting the VOD, not the live stream. Since you own it, disputes
 > are straightforward. Start silent if you want zero risk.
 
+## Live browser control
+
+The Broadcast page has a **Live browser** card: hit *Start control* and it shows
+a ~1 fps screenshot of the streamed page that you can click, scroll and type
+into. Input is relayed admin → server → renderer → Playwright, so expect ~1–2s
+of latency — it's for occasional intervention (dismissing something, clicking a
+menu), not twitch play.
+
+Frames are only captured while that panel is open (it costs renderer CPU), and
+they're held in server memory only — never written to the database. The renderer
+also ticks faster (1s instead of 5s) while you're watching so clicks land
+promptly.
+
 ## Operating it
 
 1. On the streaming account's **Users** page, enable a **Stream login** and set
