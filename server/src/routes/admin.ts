@@ -26,6 +26,7 @@ import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js
 import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
+import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
 
 const app = new Hono();
 
@@ -260,6 +261,96 @@ app.post("/users/:id/stream-command", async (c) => {
   sendToUserGlobal(id, "stream:command", command);
   void makeAudit(c)(me.id, "user.stream_command", id, { kind: command.kind });
   return c.json({ ok: true, delivered, command: command.kind });
+});
+
+// ── 24/7 Twitch broadcast control ──────────────────────────────────────
+// The standalone renderer service polls /api/internal/broadcast/state and
+// pushes video to Twitch. These endpoints let an admin set the DESIRED state
+// (on/off, which account, encode quality) and read the renderer's reported
+// status. The Twitch stream key lives ONLY on the renderer service's env —
+// the server never sees or stores it.
+async function broadcastPayload() {
+  const b = await getBroadcast();
+  const account = b.accountUserId
+    ? await prisma.user.findUnique({
+        where: { id: b.accountUserId },
+        select: { id: true, username: true, name: true },
+      })
+    : null;
+  const key = b.accountUserId
+    ? await prisma.streamKey.findUnique({ where: { userId: b.accountUserId }, select: { enabled: true } })
+    : null;
+  let status: unknown = null;
+  if (b.lastStatus) { try { status = JSON.parse(b.lastStatus); } catch { status = null; } }
+  // The renderer stops reporting `live` when it dies; treat a stale status
+  // (no report in 45s) as offline so the dashboard doesn't lie.
+  const stale = !b.lastStatusAt || Date.now() - new Date(b.lastStatusAt).getTime() > 45_000;
+  return {
+    enabled: b.enabled,
+    account,
+    accountUserId: b.accountUserId,
+    streamKeyReady: !!key?.enabled,
+    width: b.width,
+    height: b.height,
+    fps: b.fps,
+    bitrateKbps: b.bitrateKbps,
+    live: b.live && !stale,
+    statusStale: stale,
+    status,
+    lastStatusAt: b.lastStatusAt,
+    updatedAt: b.updatedAt,
+  };
+}
+
+app.get("/broadcast", async (c) => {
+  return c.json(await broadcastPayload());
+});
+
+app.post("/broadcast", async (c) => {
+  const me = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    enabled?: boolean; account?: string | null;
+    width?: number; height?: number; fps?: number; bitrateKbps?: number;
+  };
+  const patch: BroadcastPatch = {};
+  if ("enabled" in body) patch.enabled = !!body.enabled;
+  if ("width" in body) patch.width = body.width;
+  if ("height" in body) patch.height = body.height;
+  if ("fps" in body) patch.fps = body.fps;
+  if ("bitrateKbps" in body) patch.bitrateKbps = body.bitrateKbps;
+
+  // `account` may be a userId or a username — resolve to an id (or clear it).
+  if ("account" in body) {
+    const raw = (body.account ?? "").toString().trim();
+    if (!raw) {
+      patch.accountUserId = null;
+    } else {
+      const acc = await prisma.user.findFirst({
+        where: { OR: [{ id: raw }, { username: raw }] },
+        select: { id: true },
+      });
+      if (!acc) return c.json({ error: `no user matches "${raw}"` }, 400);
+      patch.accountUserId = acc.id;
+    }
+  }
+
+  // Refuse to go live without a working stream login for the target account —
+  // otherwise the renderer would just spin on a dead URL.
+  const willEnable = patch.enabled ?? (await getBroadcast()).enabled;
+  if (willEnable) {
+    const accId = patch.accountUserId !== undefined ? patch.accountUserId : (await getBroadcast()).accountUserId;
+    if (!accId) return c.json({ error: "choose an account before going live" }, 400);
+    const key = await prisma.streamKey.findUnique({ where: { userId: accId }, select: { enabled: true } });
+    if (!key?.enabled) {
+      return c.json({ error: "that account has no enabled stream login — set one up on its Users page first" }, 400);
+    }
+  }
+
+  await setBroadcast(patch);
+  void makeAudit(c)(me.id, "broadcast.config", patch.accountUserId ?? "", {
+    enabled: patch.enabled, width: patch.width, height: patch.height, fps: patch.fps,
+  });
+  return c.json(await broadcastPayload());
 });
 
 // Promote / demote. Refuses self-action so a sole admin can't lock

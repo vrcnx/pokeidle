@@ -1,0 +1,22 @@
+{
+  "name": "pkmn-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "24/7 headless renderer: drives the game in Chromium and pushes 1080p to Twitch via ffmpeg. Controlled by the admin dashboard through the server's broadcast API.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright-core": "^1.48.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

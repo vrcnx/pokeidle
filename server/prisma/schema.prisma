@@ -150,6 +150,29 @@ model StreamKey {
   @@index([key])
 }
 
+/// Singleton control row for the 24/7 Twitch renderer service. The admin
+/// dashboard writes the DESIRED broadcast state (on/off, which account, and
+/// encode quality); the external renderer polls it over a token-authed
+/// internal endpoint, drives a headless Chromium + ffmpeg → Twitch RTMP, and
+/// writes its LIVE status back here. Exactly one row, id = "singleton".
+model BroadcastState {
+  id            String    @id @default("singleton")
+  enabled       Boolean   @default(false)
+  /// The User whose stream-login the renderer opens. Must have an enabled
+  /// StreamKey. Stored as a plain id (no FK) so deleting the row is trivial.
+  accountUserId String?
+  width         Int       @default(1920)
+  height        Int       @default(1080)
+  fps           Int       @default(30)
+  bitrateKbps   Int       @default(6000)
+  updatedAt     DateTime  @updatedAt
+  /// Reported by the renderer on each poll:
+  live          Boolean   @default(false)
+  lastStatus    String?
+  lastStatusAt  DateTime?
+  createdAt     DateTime  @default(now())
+}
+
 /// Append-only checkpoints of a player's save, so a bad or clobbered write
 /// is recoverable. The server keeps NO other history — saveData is a single
 /// column overwritten in place — so before this, any accepted-but-wrong

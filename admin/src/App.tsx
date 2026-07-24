@@ -14,10 +14,11 @@ import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { GiveawaysPage } from "./pages/GiveawaysPage";
 import { MassGiftPage } from "./pages/MassGiftPage";
 import { PollsPage } from "./pages/PollsPage";
+import { BroadcastPage } from "./pages/BroadcastPage";
 import { ConfirmHost } from "./components/Confirm";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
-export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements" | "broadcast";
 
 // What a page can be asked to focus on when navigated to. The bus used
 // to carry a page name and nothing else, which meant every cross-page
@@ -34,7 +35,7 @@ export interface NavParams {
 
 const PAGES: Page[] = [
   "analytics", "liveops", "users", "map", "chat",
-  "bugs", "errors", "tournaments", "giveaways", "audit", "announcements",
+  "bugs", "errors", "tournaments", "giveaways", "massgift", "polls", "audit", "announcements", "broadcast",
 ];
 
 // ── Hash routing ──────────────────────────────────────────────────────
@@ -212,6 +213,7 @@ export function App() {
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Tools</span>
+            <NavItem active={page === "broadcast"} onClick={() => gotoPage("broadcast")} label="Broadcast" icon={<IconBroadcast />} />
             <NavItem active={page === "map"} onClick={() => gotoPage("map")} label="Map editor" icon={<IconMap />} />
           </div>
         </nav>
@@ -236,6 +238,7 @@ export function App() {
         {page === "giveaways" && <GiveawaysPage />}
         {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
+        {page === "broadcast" && <BroadcastPage />}
       </main>
       <ConfirmHost />
     </div>
@@ -320,6 +323,14 @@ function IconMap() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+function IconBroadcast() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <path d="M4.93 19.07a10 10 0 0 1 0-14.14M19.07 4.93a10 10 0 0 1 0 14.14M7.76 16.24a6 6 0 0 1 0-8.49M16.24 7.76a6 6 0 0 1 0 8.49" />
     </svg>
   );
 }

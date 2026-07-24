@@ -344,6 +344,12 @@ export const api = {
   streamCommand: (id: string, command: StreamCommand) =>
     req<{ ok: true; delivered: boolean; command: string }>("POST", `/api/admin/users/${id}/stream-command`, { command }),
 
+  // 24/7 Twitch broadcast control. The desired state (on/off, account, quality)
+  // is set here; the standalone renderer service polls it and pushes to Twitch.
+  broadcastGet: () => req<BroadcastStatus>("GET", "/api/admin/broadcast"),
+  broadcastSet: (patch: BroadcastPatch) =>
+    req<BroadcastStatus>("POST", "/api/admin/broadcast", patch),
+
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
 
@@ -588,6 +594,47 @@ export interface StreamKeyStatus {
   lastUsedIp?: string | null;
   key?: string;
   loginUrl?: string;
+}
+
+export interface BroadcastPatch {
+  enabled?: boolean;
+  account?: string | null;
+  width?: number;
+  height?: number;
+  fps?: number;
+  bitrateKbps?: number;
+}
+
+export interface BroadcastEncoderStats {
+  fps?: number;
+  bitrate?: string;
+  frame?: number;
+  dropped?: number;
+  speed?: string;
+}
+
+export interface BroadcastStatus {
+  enabled: boolean;
+  account: { id: string; username: string; name: string | null } | null;
+  accountUserId: string | null;
+  streamKeyReady: boolean;
+  width: number;
+  height: number;
+  fps: number;
+  bitrateKbps: number;
+  live: boolean;
+  statusStale: boolean;
+  status: {
+    live?: boolean;
+    account?: string | null;
+    startedAt?: number | null;
+    restarts?: number;
+    lastError?: string | null;
+    encoder?: BroadcastEncoderStats | null;
+    music?: number;
+  } | null;
+  lastStatusAt: string | null;
+  updatedAt: string;
 }
 
 export interface UserMessage {

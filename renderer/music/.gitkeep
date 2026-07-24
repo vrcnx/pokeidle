@@ -1,0 +1,3 @@
+# Drop your owned audio files here (.mp3/.m4a/.aac/.ogg/.opus/.wav/.flac).
+# They're looped as the stream's music bed, in filename order. An empty folder
+# streams silently. These files are git-ignored (see ../.gitignore).

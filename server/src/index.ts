@@ -17,6 +17,7 @@ import dailiesRoute from "./routes/dailies.js";
 import publicRoute from "./routes/public.js";
 import auctionsRoute from "./routes/auctions.js";
 import pollsRoute from "./routes/polls.js";
+import internalRoute from "./routes/internal.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
@@ -201,6 +202,7 @@ app.route("/api/dailies", dailiesRoute);
 app.route("/api/public", publicRoute);
 app.route("/api/auctions", auctionsRoute);
 app.route("/api/polls", pollsRoute);
+app.route("/api/internal", internalRoute);
 
 // Global error handler — anything that throws inside a route handler
 // without being caught lands here. We persist a structured ErrorLog
