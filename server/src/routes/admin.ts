@@ -25,6 +25,7 @@ import {
 import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
 import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
+import { emitSaveAdopt } from "../lib/saveAdopt.js";
 
 const app = new Hono();
 
@@ -465,6 +466,9 @@ app.post("/users/:id/save-patch", async (c) => {
     data: {
       saveData: JSON.stringify(merged),
       saveVersion: { increment: 1 },
+      // Authoritative admin edit — force the target client to ADOPT this save
+      // wholesale instead of re-uploading its local copy and undoing the edit.
+      saveAdoptSeq: { increment: 1 },
       saveUpdatedAt: new Date(),
       accountLevel: derived.accountLevel,
       totalCaughtLevels: derived.totalCaughtLevels,
@@ -474,6 +478,7 @@ app.post("/users/:id/save-patch", async (c) => {
   if (claim.count === 0) {
     return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
   }
+  emitSaveAdopt(id);
 
   void makeAudit(c)(me.id, "user.save_patch", id, { keys: appliedKeys });
   // Only announce if the patch actually changed something — an empty
@@ -660,6 +665,9 @@ app.post("/users/:id/snapshots/:snapshotId/restore", async (c) => {
     data: {
       saveData: snap.saveData,
       saveVersion: { increment: 1 },
+      // Authoritative rollback — force the client to adopt the restored save
+      // wholesale rather than re-uploading its newer local copy over it.
+      saveAdoptSeq: { increment: 1 },
       saveUpdatedAt: new Date(),
       accountLevel: derived.accountLevel,
       totalCaughtLevels: derived.totalCaughtLevels,
@@ -667,6 +675,7 @@ app.post("/users/:id/snapshots/:snapshotId/restore", async (c) => {
     },
     select: { id: true, saveVersion: true, accountLevel: true },
   });
+  emitSaveAdopt(id);
   void makeAudit(c)(me.id, "user.restore_save", id, {
     snapshotId, snapshotVersion: snap.saveVersion, snapshotTakenAt: snap.createdAt,
   });
@@ -860,12 +869,16 @@ app.post("/users/:id/items", async (c) => {
     data: {
       saveData: JSON.stringify(merged),
       saveVersion: { increment: 1 },
+      // Authoritative — force the client to adopt this (an item-set can be a
+      // REMOVAL, which the non-destructive merge would otherwise undo).
+      saveAdoptSeq: { increment: 1 },
       saveUpdatedAt: new Date(),
     },
   });
   if (claim.count === 0) {
     return c.json({ error: "save changed since this page loaded — reload and retry" }, 409);
   }
+  emitSaveAdopt(id);
   void makeAudit(c)(me.id, "user.set_item", id, { itemId, quantity });
   // Only announce if the quantity actually changed, for the same reason
   // save-patch gates on appliedKeys — a no-op grant shouldn't be able to

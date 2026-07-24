@@ -19,13 +19,17 @@ app.get("/", requireUser, async (c) => {
   const user = c.get("user");
   const u = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { saveData: true, saveVersion: true, saveUpdatedAt: true },
+    select: { saveData: true, saveVersion: true, saveUpdatedAt: true, saveAdoptSeq: true },
   });
   if (!u) return c.json({ error: "user not found" }, 404);
   return c.json({
     saveData: u.saveData ? JSON.parse(u.saveData) : null,
     saveVersion: u.saveVersion,
     saveUpdatedAt: u.saveUpdatedAt,
+    // Bumped by the server on an authoritative rewrite (admin edit / reset /
+    // restore / item-set). A client that last adopted a lower value adopts the
+    // cloud save WHOLESALE (see game reconcile), so admin edits stick.
+    saveAdoptSeq: u.saveAdoptSeq,
   });
 });
 

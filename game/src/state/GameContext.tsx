@@ -21,6 +21,7 @@ import { api } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 import { reportClientError } from "../net/errorReporter";
 import { getSocket } from "../net/socket";
+import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
@@ -267,6 +268,23 @@ function clearSyncVersion(): void {
   try { localStorage.removeItem(SYNC_VERSION_KEY); } catch { /* */ }
 }
 
+// The server-owned `saveAdoptSeq` this client last adopted. When getSave
+// reports a higher value, the server AUTHORITATIVELY rewrote this save (admin
+// edit / reset / restore / item-set) and the client must adopt it WHOLESALE,
+// bypassing the protective merge — otherwise the merge / re-upload would undo
+// the admin's change. See server/src/lib/saveAdopt.ts.
+const ADOPT_SEQ_KEY = SAVE_KEY + ":adoptseq";
+function readAdoptSeq(): number {
+  try {
+    const raw = localStorage.getItem(ADOPT_SEQ_KEY);
+    const n = raw == null ? 0 : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  } catch { return 0; }
+}
+function writeAdoptSeq(v: number): void {
+  try { localStorage.setItem(ADOPT_SEQ_KEY, String(v)); } catch { /* */ }
+}
+
 // Which account's progress the local blob holds.
 //
 // SAVE_KEY is one global string for the whole browser and is never cleared
@@ -465,7 +483,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        if (!cloudOk) {
+        // Server-authoritative adopt (admin edit / restore / item-set). The
+        // server bumped saveAdoptSeq past what we last adopted, so this cloud
+        // copy is an intentional authoritative rewrite — adopt it WHOLESALE,
+        // bypassing the protective merge, so the admin's change sticks instead
+        // of being undone by our local copy. Additive gifts do NOT bump the
+        // seq (they use the additive gift path), so this never fires on a gift.
+        const cloudAdoptSeq = typeof (cloud as any).saveAdoptSeq === "number" ? (cloud as any).saveAdoptSeq : 0;
+        const forcedAdopt = cloudOk && cloudAdoptSeq > readAdoptSeq();
+
+        if (forcedAdopt) {
+          const sd = cloudData as Partial<GameState>;
+          const normParty = ((sd.party ?? []) as any[])
+            .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
+          const normBox = ((sd.box ?? []) as any[])
+            .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
+          const nextState = {
+            ...sd, party: normParty, box: normBox,
+            phase: "idle", enemyPokemon: null, pendingEvents: [],
+            trainerBattle: null, bossBattle: null, healingState: null,
+            playerVolatile: null, evolutionState: null,
+          } as GameState;
+          dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+          lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
+          writeAdoptSeq(cloudAdoptSeq);
+          commitCloudVersion(cloud.saveVersion ?? 0);
+        } else if (!cloudOk) {
           // Empty/garbage cloud row: either a brand-new account, or a
           // returning player whose cloud was somehow wiped. We may ONLY seed
           // this empty cloud from the browser's local save if that save is
@@ -938,15 +981,42 @@ export function GameProvider({ children }: { children: ReactNode }) {
       } catch { /* private mode */ }
       if (typeof window !== "undefined") window.location.reload();
     };
+    // Admin authoritatively rewrote our save (edit / restore / item-set).
+    // Fetch it and adopt WHOLESALE so the change sticks instead of being undone
+    // by our local copy on the next autosave.
+    const onSaveAdopt = async () => {
+      try {
+        const fresh = await api.getSave();
+        const fd = fresh.saveData as Partial<GameState> | null;
+        if (!fd || !(fd as any).playerPokemon) return;
+        const normParty = ((fd.party ?? []) as any[])
+          .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
+        const normBox = ((fd.box ?? []) as any[])
+          .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
+        const nextState = {
+          ...fd, party: normParty, box: normBox,
+          phase: "idle", enemyPokemon: null, pendingEvents: [],
+          trainerBattle: null, bossBattle: null, healingState: null,
+          playerVolatile: null, evolutionState: null,
+        } as GameState;
+        dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+        lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
+        if (typeof fresh.saveAdoptSeq === "number") writeAdoptSeq(fresh.saveAdoptSeq);
+        commitCloudVersion(fresh.saveVersion);
+        pushToast({ kind: "info", icon: "🛠️", text: "Your save was updated by an admin." });
+      } catch { /* transient; boot reconcile will adopt via saveAdoptSeq */ }
+    };
     sock.on("auction:sold", onSold);
     sock.on("auction:won", onWon);
     sock.on("gift:received", onGift);
     sock.on("save:reset", onSaveReset);
+    sock.on("save:adopt", onSaveAdopt);
     return () => {
       sock.off("auction:sold", onSold);
       sock.off("auction:won", onWon);
       sock.off("gift:received", onGift);
       sock.off("save:reset", onSaveReset);
+      sock.off("save:adopt", onSaveAdopt);
     };
   }, []);
 

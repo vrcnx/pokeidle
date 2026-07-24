@@ -153,7 +153,7 @@ export const api = {
   cancelAuction: (id: string) => request<{ ok: true }>("POST", `/api/auctions/${id}/cancel`),
 
   // Saves
-  getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string }>(
+  getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string; saveAdoptSeq?: number }>(
     "GET",
     "/api/saves"
   ),

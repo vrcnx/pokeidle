@@ -81,6 +81,13 @@ model User {
   saveData        String?   // JSON-encoded
   saveVersion     Int       @default(0)
   saveUpdatedAt   DateTime  @default(now())
+  /// Monotonic counter the SERVER bumps whenever it authoritatively rewrites
+  /// this account's save (admin edit / reset / item set / snapshot restore).
+  /// The client never writes it. When getSave reports a higher value than the
+  /// client last adopted, the client adopts the cloud save WHOLESALE, bypassing
+  /// the protective non-destructive merge — so admin reductions/removals stick
+  /// (online via the save:adopt socket event, offline via this boot check).
+  saveAdoptSeq    Int       @default(0)
 
   // Profile — derived metrics surfaced to other players.
   accountLevel        Int   @default(0)
