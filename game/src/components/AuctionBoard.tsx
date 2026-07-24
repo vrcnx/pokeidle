@@ -149,18 +149,29 @@ export function AuctionBoard() {
 
 function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onBid: () => void; readOnly?: boolean }) {
   const t = useT();
+  const { syncNow } = useGame();
   const mon = auction.pokemon as (Pokemon & { speciesKey: string }) | null;
   const [amount, setAmount] = useState<number>(auction.currentBid > 0 ? auction.currentBid + 1 : auction.startingBid);
   const [busy, setBusy] = useState(false);
   const [showBids, setShowBids] = useState(false);
   const [bids, setBids] = useState<AuctionBid[] | null>(null);
 
-  const bid = () => {
+  const bid = async () => {
     setBusy(true);
-    api.placeBid(auction.id, amount)
-      .then(() => { pushToast({ kind: "success", text: t("Bid placed!") }); onBid(); })
-      .catch((e) => pushToast({ kind: "warn", text: e?.message ?? t("Couldn't place bid.") }))
-      .finally(() => setBusy(false));
+    try {
+      // Flush the player's live money to the cloud FIRST — the server checks
+      // the bid against last-uploaded saveData, so without this a player who
+      // just earned money (but hasn't autosaved yet) gets a wrong "insufficient
+      // funds" rejection. This is the "no funds despite 67M" fix.
+      await syncNow();
+      await api.placeBid(auction.id, amount);
+      pushToast({ kind: "success", text: t("Bid placed!") });
+      onBid();
+    } catch (e: any) {
+      pushToast({ kind: "warn", text: e?.message ?? t("Couldn't place bid.") });
+    } finally {
+      setBusy(false);
+    }
   };
   const cancel = () => {
     setBusy(true);
@@ -232,6 +243,7 @@ function ListPokemonForm({
   party, box, onDone, onCancel,
 }: { party: Pokemon[]; box: Pokemon[]; onDone: () => void; onCancel: () => void }) {
   const t = useT();
+  const { syncNow } = useGame();
   const [picked, setPicked] = useState<Pokemon | null>(null);
   const [startingBid, setStartingBid] = useState(100);
   const [durationMinutes, setDurationMinutes] = useState(60);
@@ -242,13 +254,22 @@ function ListPokemonForm({
     ...box.map((p) => ({ mon: p, from: "box" as const })),
   ];
 
-  const submit = () => {
+  const submit = async () => {
     if (!picked) return;
     setBusy(true);
-    api.createAuction({ pokemonId: picked.id, startingBid, durationMinutes })
-      .then(() => { pushToast({ kind: "success", text: t("Listed!") }); onDone(); })
-      .catch((e) => pushToast({ kind: "warn", text: e?.message ?? t("Couldn't list that Pokemon.") }))
-      .finally(() => setBusy(false));
+    try {
+      // Flush the live save first so the server can see (and escrow) the
+      // Pokémon — a just-caught mon that hasn't autosaved yet would otherwise
+      // fail the "you don't own that Pokemon" ownership check.
+      await syncNow();
+      await api.createAuction({ pokemonId: picked.id, startingBid, durationMinutes });
+      pushToast({ kind: "success", text: t("Listed!") });
+      onDone();
+    } catch (e: any) {
+      pushToast({ kind: "warn", text: e?.message ?? t("Couldn't list that Pokemon.") });
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!picked) {

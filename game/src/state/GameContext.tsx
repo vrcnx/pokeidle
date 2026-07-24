@@ -85,6 +85,10 @@ interface GameContextValue {
    *  no save has succeeded this session. Lets the indicator show
    *  "Saved · 12s ago" instead of a static "Saved". */
   lastSavedAt: number | null;
+  /** Force an immediate cloud flush and resolve when it settles. Call before
+   *  a server action validated against the cloud save (auction bid / listing)
+   *  so it sees the player's live money / Pokémon, not a stale autosave. */
+  syncNow: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -714,6 +718,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshProfile]);
 
+  // Force an immediate cloud flush of the CURRENT state and resolve when it
+  // settles. Callers use this before a server action that validates against
+  // the last-uploaded save — an auction bid checks the bidder's money and a
+  // listing checks Pokémon ownership against cloud saveData, so between
+  // autosave ticks the server can see stale numbers and wrongly reject a
+  // player who actually has the money / the mon (the "no funds despite 67M"
+  // report). Best-effort: on 409/offline it still resolves and the caller
+  // proceeds; the server re-validates authoritatively anyway.
+  const syncNow = useCallback(async (): Promise<void> => {
+    try {
+      const snapshot = pickPersistent(stateRef.current);
+      const serialized = JSON.stringify(snapshot);
+      if (serialized !== lastUploadedRef.current) {
+        pendingRef.current = { snapshot, serialized };
+      }
+      await flushCloud();
+    } catch { /* best effort — never block the caller on a sync failure */ }
+  }, [flushCloud]);
+
   // ── Local save (ALWAYS, unconditionally) ──
   // Writing localStorage is local-only. It cannot clobber the cloud, it
   // cannot lose anyone else's data, and it is the player's safety net when
@@ -937,6 +960,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         dispatch: dispatch as Dispatch,
         saveStatus,
         lastSavedAt,
+        syncNow,
       }}
     >
       {children}
