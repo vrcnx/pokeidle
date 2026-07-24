@@ -466,21 +466,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
 
         if (!cloudOk) {
-          // First-ever play, or cloud row is null/garbage. Keep local
-          // (loadSaved already seeded the reducer) and bootstrap the
-          // cloud with whatever we have.
-          if (localOk) {
+          // Empty/garbage cloud row: either a brand-new account, or a
+          // returning player whose cloud was somehow wiped. We may ONLY seed
+          // this empty cloud from the browser's local save if that save is
+          // PROVABLY ours — i.e. it carries our own owner stamp.
+          //
+          // The old test was merely "not foreign", which treated an UNSTAMPED
+          // (legacy / null-owner) blob as adoptable. That is exactly how a new
+          // account created in a browser that had just played a different
+          // account inherited — and re-uploaded — that account's Pokémon and
+          // money: log out of A, sign up B, B's cloud is empty, A's local blob
+          // reads "not foreign", B adopts it → dupe. Require a positive match.
+          const localOwnedByMe = localOk && myId !== null && localOwner === myId;
+          // Admin reset detection (offline case): the server wiped this
+          // account's save (saveData null, saveVersion reset to 0). If we last
+          // synced to a HIGHER version, the cloud version went BACKWARDS — that
+          // only happens on a deliberate reset, never on normal play. Honor it:
+          // drop local and start fresh instead of re-uploading and undoing the
+          // reset. (Online clients also get a `save:reset` socket event.)
+          const cloudWasReset =
+            localOwnedByMe &&
+            typeof persistedSyncVersion === "number" &&
+            (cloud.saveVersion ?? 0) < persistedSyncVersion;
+          if (cloudWasReset) {
+            dispatch({ type: "LOAD_SAVE", payload: { state: pickPersistent(initialState) } });
+            try { localStorage.removeItem(SAVE_KEY); } catch { /* */ }
+            clearSyncVersion();
+          } else if (localOwnedByMe) {
             const snapshot = pickPersistent(local);
             try {
               const res = await api.putSave(snapshot, cloudVersionRef.current);
               commitCloudVersion(res.saveVersion);
             } catch { /* offline: try again on next change */ }
-          } else if (localIsForeign) {
-            // No cloud save AND the local blob is someone else's: this is a
-            // genuinely new account. useReducer already seeded the UI from
-            // that foreign blob, so reset it — otherwise the player would be
-            // looking at a stranger's Pokemon and would then upload them.
+          } else {
+            // Not provably ours (foreign OR unstamped OR unknown-me). The
+            // reducer was seeded from localStorage at init, so it may be
+            // showing someone else's save — reset it to a fresh game and drop
+            // the cache so nothing can read or upload it.
             dispatch({ type: "LOAD_SAVE", payload: { state: pickPersistent(initialState) } });
+            try { localStorage.removeItem(SAVE_KEY); } catch { /* */ }
+            clearSyncVersion();
           }
         } else if (cloudShouldWin({
           localUsable: localOk,
@@ -901,13 +926,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (!prizes || prizes.length === 0) return;
       dispatch({ type: "RECEIVE_GIFT", payload: { prizes: prizes as any } });
     };
+    // Admin wiped this account's save. The whole reason a reset "doesn't
+    // stick" is that this client would otherwise re-upload its intact local
+    // copy and undo it — so clear the local cache and hard-reload into a fresh
+    // game. On boot the empty cloud + no local yields a clean initialState.
+    const onSaveReset = () => {
+      try {
+        for (const k of Object.keys(localStorage)) {
+          if (k === "pokemon-idle-save" || k.startsWith("pokemon-idle-save")) localStorage.removeItem(k);
+        }
+      } catch { /* private mode */ }
+      if (typeof window !== "undefined") window.location.reload();
+    };
     sock.on("auction:sold", onSold);
     sock.on("auction:won", onWon);
     sock.on("gift:received", onGift);
+    sock.on("save:reset", onSaveReset);
     return () => {
       sock.off("auction:sold", onSold);
       sock.off("auction:won", onWon);
       sock.off("gift:received", onGift);
+      sock.off("save:reset", onSaveReset);
     };
   }, []);
 

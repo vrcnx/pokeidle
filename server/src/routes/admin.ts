@@ -562,6 +562,11 @@ app.post("/users/:id/reset-save", async (c) => {
       data: { saveData: null, saveVersion: 0, accountLevel: 0, totalCaughtLevels: 0, pokedexCaughtCount: 0 },
       select: { id: true, saveVersion: true },
     });
+    // Tell the player's open client to drop its LOCAL save and reload —
+    // otherwise it would just re-upload its intact copy on the next autosave
+    // and silently undo the reset. Offline clients honour the reset on their
+    // next boot via the cloud-version-went-backwards check (GameContext).
+    try { sendToUserGlobal(id, "save:reset", { reason: "admin_reset" }); } catch { /* socket may be down */ }
     void makeAudit(c)(me.id, "user.reset_save", id);
     return c.json(u);
   } catch {

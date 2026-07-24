@@ -58,6 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // guaranteed to leave the user signed out at the next request.
     try { await api.signOut(); } catch { /* fall through */ }
     try { await api.signOutAll(); } catch { /* fall through */ }
+    // Wipe this browser's cached game save on the way out. It's only an
+    // offline cache — the account's real save lives in the cloud — and
+    // leaving it behind is how the NEXT account signed into this browser
+    // could inherit it (empty-cloud bootstrap). Clearing it here is the
+    // first line of defence; the boot reconcile's owner check is the second.
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k === "pokemon-idle-save" || k.startsWith("pokemon-idle-save")) localStorage.removeItem(k);
+      }
+    } catch { /* private mode / disabled storage */ }
     if (typeof window !== "undefined") {
       // replace() so the user can't browser-back into a partially-
       // signed-in state. Hard navigation also drops every module-
