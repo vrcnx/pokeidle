@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { auth } from "../auth.js";
 import { prisma } from "../db.js";
 import { kickSession } from "../socket.js";
+import { readStreamCookie, resolveStreamKey, touchStreamKey } from "./streamSession.js";
 
 function notifySessionKicked(userId: string, sessionId: string) {
   // Disconnect the matching socket(s) and notify the client so the
@@ -20,6 +21,13 @@ declare module "hono" {
      *  a browser session. Read by routes/admin.ts to stamp the audit
      *  trail so agent actions are distinguishable from dashboard clicks. */
     viaApiKey?: boolean;
+    /** True when the caller authenticated via a StreamKey cookie (an
+     *  OBS/24-7 auto-login) rather than a real Better Auth session. Such
+     *  sessions are RESTRICTED — isAdmin is forced false and the
+     *  blockStream guard rejects sensitive actions (account settings,
+     *  trades, auctions). The client reads it (via /api/profile/me) to
+     *  auto-dismiss dialogs and hide sensitive UI. */
+    isStream?: boolean;
   }
 }
 
@@ -33,6 +41,26 @@ export const requireUser: MiddlewareHandler = async (c, next) => {
 
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user) {
+    // No Better Auth session — try a stream auto-login cookie before
+    // giving up. A valid StreamKey resolves to a RESTRICTED session: it
+    // plays and saves like a normal user, but isAdmin is forced false and
+    // the blockStream guard rejects sensitive actions. It deliberately
+    // does NOT run the single-active-session enforcement below, so it
+    // coexists with the account owner's own browser session.
+    const streamKey = readStreamCookie(c.req.header("cookie"));
+    const stream = await resolveStreamKey(streamKey);
+    if (stream && streamKey) {
+      touchStreamKey(streamKey, clientIpOf(c));
+      c.set("user", {
+        id: stream.userId,
+        username: stream.username,
+        email: "",
+        name: null,
+        isAdmin: false,
+      });
+      c.set("isStream", true);
+      return next();
+    }
     return c.json({ error: "unauthorized" }, 401);
   }
 
@@ -136,6 +164,39 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
   if (!user.isAdmin) return c.json({ error: "forbidden" }, 403);
   await next();
 };
+
+// Reject sensitive actions for restricted stream sessions. Layer on top
+// of requireUser on any mutation a leaked stream link must never be able
+// to perform on the account's behalf — trades and auctions (asset
+// transfer). Account settings are already unreachable to a stream session
+// because they go through Better Auth, which a stream cookie can't
+// satisfy. A normal (non-stream) session passes straight through.
+export const blockStream: MiddlewareHandler = async (c, next) => {
+  if (c.get("isStream")) {
+    return c.json(
+      { error: "stream_restricted", reason: "This action is disabled for stream auto-login sessions." },
+      403,
+    );
+  }
+  await next();
+};
+
+// Best-effort client IP for stamping StreamKey.lastUsedIp. Mirrors the
+// trusted-proxy logic in index.ts but header-only (no socket access here).
+function clientIpOf(c: Parameters<MiddlewareHandler>[0]): string | null {
+  const trust = (process.env.TRUSTED_PROXY ?? "").toLowerCase() === "true";
+  if (trust) {
+    const xff = c.req.header("x-forwarded-for");
+    if (xff) {
+      const hops = xff.split(",").map((s) => s.trim()).filter(Boolean);
+      const last = hops[hops.length - 1];
+      if (last) return last;
+    }
+    const real = c.req.header("x-real-ip");
+    if (real) return real.trim();
+  }
+  return null;
+}
 
 // ── Machine auth for admin endpoints ──────────────────────────────────
 // Lets non-browser callers (the scripts/admin.ts CLI, cron jobs, an

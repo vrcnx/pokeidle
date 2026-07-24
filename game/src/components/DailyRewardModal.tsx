@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useDailyStatus, setDailyStatus, bindDailies } from "../state/dailies";
 import { api } from "../net/api";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
+import { useStreamMode } from "../state/streamMode";
 
 // Daily reward. Auto-opens once on login when a claim is available (wired via
 // bindDailies), and can be reopened from Settings. The server owns the streak
@@ -22,11 +23,30 @@ export function DailyRewardModal() {
   const status = useDailyStatus();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const isStream = useStreamMode();
+  const streamClaimed = useRef(false);
   const t = useT();
 
   useEffect(() => {
     bindDailies(() => setOpen(true));
   }, []);
+
+  // Stream auto-login sessions never show the daily popup. Silently claim
+  // once (so the streak keeps ticking on the streamed account), then close
+  // — an unattended OBS box can't click "Claim".
+  useEffect(() => {
+    if (!open || !isStream) return;
+    if (status && !status.claimedToday && !streamClaimed.current) {
+      streamClaimed.current = true;
+      api.claimDaily()
+        .then((res) => {
+          dispatch({ type: "APPLY_DAILY_REWARD", payload: { money: res.reward.money, items: res.reward.items } });
+          setDailyStatus(res.status);
+        })
+        .catch(() => undefined);
+    }
+    setOpen(false);
+  }, [open, isStream, status, dispatch]);
 
   useEffect(() => {
     if (!open) return;

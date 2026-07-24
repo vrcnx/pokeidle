@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -1532,28 +1532,126 @@ function SessionsTab({ userId }: { userId: string }) {
       .finally(() => setBusy(false));
   }, [userId]);
 
-  if (busy) return <p className="dim">Loading sessions…</p>;
-  if (err) return <div className="page-err">{err}</div>;
-  if (sessions.length === 0) return <p className="dim">No active or recent sessions. Better Auth removes expired rows automatically.</p>;
+  return (
+    <>
+      <StreamLoginCard userId={userId} />
+      <h3 style={{ margin: "22px 0 8px" }}>Active sessions</h3>
+      {busy ? (
+        <p className="dim">Loading sessions…</p>
+      ) : err ? (
+        <div className="page-err">{err}</div>
+      ) : sessions.length === 0 ? (
+        <p className="dim">No active or recent sessions. Better Auth removes expired rows automatically.</p>
+      ) : (
+        <table className="sessions-table">
+          <thead>
+            <tr><th>Created</th><th>Last seen</th><th>IP</th><th>Country</th><th>User agent</th><th>Expires</th></tr>
+          </thead>
+          <tbody>
+            {sessions.map((s) => (
+              <tr key={s.id}>
+                <td className="dim small">{new Date(s.createdAt).toLocaleString()}</td>
+                <td className="dim small">{new Date(s.updatedAt).toLocaleString()}</td>
+                <td className="mono">{s.ipAddress ?? "—"}</td>
+                <td className="dim small">{s.country ?? "—"}</td>
+                <td className="dim small ua-cell" title={s.userAgent ?? ""}>{shortenUA(s.userAgent)}</td>
+                <td className="dim small">{new Date(s.expiresAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
+// Stream auto-login (OBS / 24-7) management for one account. Enables a
+// stable link OBS can hit to log itself into this account. The resulting
+// session is RESTRICTED — it plays + saves but is blocked from account
+// settings, trades and auctions — so a leaked link can't drain the
+// account. Revoke by disabling (or regenerate to rotate the secret).
+function StreamLoginCard({ userId }: { userId: string }) {
+  const [st, setSt] = useState<StreamKeyStatus | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = () => {
+    setBusy(true); setErr(null);
+    api.streamKeyGet(userId)
+      .then(setSt)
+      .catch((e) => setErr((e as Error).message))
+      .finally(() => setBusy(false));
+  };
+  useEffect(load, [userId]);
+
+  const act = async (action: "enable" | "disable" | "regenerate") => {
+    if (action === "disable" && !window.confirm("Revoke this account's stream login? Any running OBS session will lose access on its next request.")) return;
+    if (action === "regenerate" && !window.confirm("Generate a new key? The old link stops working immediately — you'll need to update OBS with the new one.")) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await api.streamKeySet(userId, action);
+      setSt(res);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    }, () => undefined);
+  };
+
+  const active = !!st?.exists && !!st?.enabled;
 
   return (
-    <table className="sessions-table">
-      <thead>
-        <tr><th>Created</th><th>Last seen</th><th>IP</th><th>Country</th><th>User agent</th><th>Expires</th></tr>
-      </thead>
-      <tbody>
-        {sessions.map((s) => (
-          <tr key={s.id}>
-            <td className="dim small">{new Date(s.createdAt).toLocaleString()}</td>
-            <td className="dim small">{new Date(s.updatedAt).toLocaleString()}</td>
-            <td className="mono">{s.ipAddress ?? "—"}</td>
-            <td className="dim small">{s.country ?? "—"}</td>
-            <td className="dim small ua-cell" title={s.userAgent ?? ""}>{shortenUA(s.userAgent)}</td>
-            <td className="dim small">{new Date(s.expiresAt).toLocaleDateString()}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <section className="profile-section" style={{ border: "1px solid var(--border, #2a2a35)", borderRadius: 10, padding: 14 }}>
+      <h3 style={{ marginTop: 0 }}>📺 Stream auto-login</h3>
+      <p className="dim small" style={{ marginTop: -4 }}>
+        A stable link OBS can load to auto-login this account 24/7. The session is <strong>restricted</strong>: it plays and saves, but can't touch account settings, trades, or auctions, and popups auto-dismiss. Revoke or rotate any time.
+      </p>
+      {err && <div className="page-err" style={{ marginBottom: 10 }}>{err}</div>}
+
+      {busy && !st ? (
+        <p className="dim">Loading…</p>
+      ) : active ? (
+        <>
+          <label className="dim small" style={{ display: "block", marginBottom: 4 }}>OBS browser-source URL</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              readOnly
+              value={st?.loginUrl ?? ""}
+              onFocus={(e) => e.currentTarget.select()}
+              className="mono"
+              style={{ flex: "1 1 340px", minWidth: 0, fontSize: 12 }}
+            />
+            <button className="btn-secondary btn-small" onClick={() => st?.loginUrl && copy(st.loginUrl)}>{copied ? "Copied ✓" : "Copy"}</button>
+          </div>
+          <p className="dim small" style={{ marginTop: 8 }}>
+            Last used: {st?.lastUsedAt ? new Date(st.lastUsedAt).toLocaleString() : "never"}
+            {st?.lastUsedIp ? ` · ${st.lastUsedIp}` : ""}
+          </p>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button className="btn-ghost btn-small" onClick={() => act("regenerate")} disabled={busy}>Regenerate key</button>
+            <button className="btn-danger btn-small" onClick={() => act("disable")} disabled={busy}>Disable</button>
+          </div>
+          <p className="dim small" style={{ marginTop: 8, color: "#fbbf24" }}>
+            ⚠ This URL is a login secret — anyone with it can play as this account. Only paste it into OBS.
+          </p>
+        </>
+      ) : (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button className="btn-primary btn-small" onClick={() => act("enable")} disabled={busy}>
+            {st?.exists ? "Re-enable stream login" : "Enable stream login"}
+          </button>
+          {st?.exists && <span className="dim small">Previously configured, currently disabled.</span>}
+        </div>
+      )}
+    </section>
   );
 }
 

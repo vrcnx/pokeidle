@@ -116,6 +116,27 @@ model User {
   auctionsSelling   Auction[]     @relation("AuctionSeller")
   bids              Bid[]         @relation("Bidder")
   pollVotes         PollVote[]
+  streamKey         StreamKey?
+}
+
+/// Per-account constant secret that lets an OBS/24-7 stream auto-login via
+/// a stable link (pokeidle.com/stream-login?key=…). Only accounts an admin
+/// explicitly enables have one. The resulting session is RESTRICTED — it can
+/// play and save but is blocked from account settings, trades and auctions —
+/// so a leaked link can't be used to drain or hijack the account. Revoke by
+/// setting enabled=false (or regenerate to rotate the secret).
+model StreamKey {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  key        String    @unique
+  enabled    Boolean   @default(true)
+  label      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  lastUsedIp String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([key])
 }
 
 /// Append-only checkpoints of a player's save, so a bad or clobbered write

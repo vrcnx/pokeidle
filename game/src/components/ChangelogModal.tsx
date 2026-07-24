@@ -6,6 +6,7 @@ import {
   LAST_SEEN_VERSION_KEY,
 } from "../data/changelog";
 import { useT } from "../i18n/useT";
+import { isStreamMode } from "../state/streamMode";
 import type { ChangelogEntry } from "../types";
 
 // What's New.
@@ -51,6 +52,11 @@ export function ChangelogModal() {
   }, []);
 
   useEffect(() => {
+    // Stream auto-login sessions never get the What's New popup — an
+    // unattended OBS box would just sit on it. Mark caught-up so it stays
+    // quiet, and bail before any auto-open.
+    if (isStreamMode()) { writeSeen(CURRENT_VERSION); return; }
+
     const seen = readSeen();
     if (seen === CURRENT_VERSION) return;         // already caught up
 

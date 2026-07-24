@@ -7,6 +7,7 @@ import { canAccessChannel, GLOBAL_CHANNEL, TRADE_CHANNEL, parseDmChannel } from 
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
+import { readStreamCookie, resolveStreamKey } from "./lib/streamSession.js";
 import {
   battleRooms,
   newBattleId,
@@ -53,7 +54,11 @@ const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173"
 interface SocketUser {
   id: string;
   username: string;
+  isAdmin?: boolean;
   sessionId?: string;
+  /** True for OBS/24-7 stream auto-login sockets. Sensitive socket actions
+   *  (trade:*, etc.) reject when set — mirrors the HTTP blockStream guard. */
+  isStream?: boolean;
 }
 
 declare module "socket.io" {
@@ -284,7 +289,23 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       const cookie = socket.request.headers.cookie;
       if (cookie) headers.set("cookie", cookie);
       const session = await auth.api.getSession({ headers });
-      if (!session?.user) return next(new Error("unauthorized"));
+      if (!session?.user) {
+        // No Better Auth session — try a stream auto-login cookie. Stream
+        // sockets are RESTRICTED (isAdmin false, isStream true) and the
+        // sensitive socket handlers reject them.
+        const streamKey = readStreamCookie(cookie);
+        const stream = await resolveStreamKey(streamKey);
+        if (stream) {
+          socket.data.user = {
+            id: stream.userId,
+            username: stream.username,
+            isAdmin: false,
+            isStream: true,
+          };
+          return next();
+        }
+        return next(new Error("unauthorized"));
+      }
       const sessionId = (session as any).session?.id as string | undefined;
       const dbUser = await prisma.user.findUnique({
         where: { id: session.user.id },
@@ -765,6 +786,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     socket.on(
       "trade:invite",
       async ({ toUserId }: { toUserId: string }, ack?: (r: any) => void) => {
+        if (user.isStream) { ack?.({ ok: false, error: "stream_restricted" }); return; }
         if (typeof toUserId !== "string" || !toUserId || toUserId === user.id) {
           ack?.({ ok: false, error: "bad target" });
           return;
@@ -839,6 +861,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     socket.on(
       "trade:respond",
       ({ tradeId, accept }: { tradeId: string; accept: boolean }, ack?: (r: any) => void) => {
+        if (user.isStream) { ack?.({ ok: false, error: "stream_restricted" }); return; }
         const t = trades.get(tradeId);
         if (!t) { ack?.({ ok: false, error: "no such trade" }); return; }
         if (t.status !== "invited") { ack?.({ ok: false, error: "trade not pending" }); return; }
@@ -870,6 +893,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     socket.on(
       "trade:offer",
       ({ tradeId, offer }: { tradeId: string; offer: unknown }, ack?: (r: any) => void) => {
+        if (user.isStream) { ack?.({ ok: false, error: "stream_restricted" }); return; }
         const t = trades.get(tradeId);
         if (!t || t.status !== "active") { ack?.({ ok: false, error: "trade not active" }); return; }
         const me = mySide(t);
@@ -924,6 +948,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           { tradeId: string; locked: boolean; liveSnapshot?: unknown },
         ack?: (r: any) => void,
       ) => {
+        if (user.isStream) { ack?.({ ok: false, error: "stream_restricted" }); return; }
         const t = trades.get(tradeId);
         if (!t || t.status !== "active") { ack?.({ ok: false, error: "trade not active" }); return; }
         const me = mySide(t);

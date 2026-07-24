@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { requireUser } from "../lib/middleware.js";
+import { requireUser, blockStream } from "../lib/middleware.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 import { getIo, sendToUserGlobal } from "../socket.js";
 import { recordError } from "../lib/errorReporting.js";
@@ -136,7 +136,7 @@ const CreateBody = z.object({
 
 // POST /api/auctions — list a specific Pokemon (by its stable per-mon id,
 // from the caller's own party or box) for auction.
-app.post("/", requireUser, async (c) => {
+app.post("/", requireUser, blockStream, async (c) => {
   const user = c.get("user");
   if (!listLimiter.consume(user.id)) return c.json({ error: "rate_limited", retryAfter: 60 }, 429);
   const body = CreateBody.safeParse(await c.req.json().catch(() => null));
@@ -178,7 +178,7 @@ const BidBody = z.object({ amount: z.number().int().min(1).max(MAX_BID) });
 // POST /api/auctions/:id/bids — place a bid. Soft-validated against the
 // bidder's current money now; re-validated authoritatively at settlement
 // (see lib/auctionSettlement.ts's doc comment for why there's no escrow).
-app.post("/:id/bids", requireUser, async (c) => {
+app.post("/:id/bids", requireUser, blockStream, async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
   if (!bidLimiter.consume(user.id)) return c.json({ error: "rate_limited", retryAfter: 60 }, 429);
@@ -239,7 +239,7 @@ app.post("/:id/bids", requireUser, async (c) => {
 // before anyone has bid (once there's a live bid, yanking the listing
 // out from under the bidder is exactly the "sucks" trade-tab UX this
 // feature replaces — better to let it run to settlement or expiry).
-app.post("/:id/cancel", requireUser, async (c) => {
+app.post("/:id/cancel", requireUser, blockStream, async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
   const claim = await prisma.auction.updateMany({

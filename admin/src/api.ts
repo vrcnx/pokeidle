@@ -330,6 +330,14 @@ export const api = {
       { itemId, quantity, announce },
     ),
 
+  // Stream auto-login key (OBS / 24-7). GET reports current status; POST
+  // enables / disables / regenerates. The key + full login URL are only
+  // returned to the admin here — treat as a bearer secret.
+  streamKeyGet: (id: string) =>
+    req<StreamKeyStatus>("GET", `/api/admin/users/${id}/stream-key`),
+  streamKeySet: (id: string, action: "enable" | "disable" | "regenerate", label?: string) =>
+    req<StreamKeyStatus>("POST", `/api/admin/users/${id}/stream-key`, { action, label }),
+
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
 
@@ -544,6 +552,17 @@ export interface UserSession {
   updatedAt: string;
   expiresAt: string;
   country: string | null;
+}
+
+export interface StreamKeyStatus {
+  exists: boolean;
+  enabled?: boolean;
+  label?: string | null;
+  createdAt?: string;
+  lastUsedAt?: string | null;
+  lastUsedIp?: string | null;
+  key?: string;
+  loginUrl?: string;
 }
 
 export interface UserMessage {

@@ -463,6 +463,10 @@ export interface MeProfile {
   pokedexCaughtCount: number;
   createdAt: string;
   lastSeenAt: string;
+  /** True when this is a restricted OBS/24-7 stream auto-login session.
+   *  The client uses it to auto-dismiss popups (update / daily / etc.) and
+   *  hide sensitive UI (trades, auctions, account settings). */
+  isStream?: boolean;
 }
 
 export interface PublicProfile {

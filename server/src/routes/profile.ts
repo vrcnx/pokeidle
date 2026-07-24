@@ -97,7 +97,10 @@ app.get("/me", requireUser, async (c) => {
     },
   });
   if (!u) return c.json({ error: "user not found" }, 404);
-  return c.json(u);
+  // isStream tells the client it's a restricted OBS/24-7 auto-login session
+  // so it can auto-dismiss dialogs and hide sensitive UI (trades, auctions,
+  // account settings). Absent/false for normal sessions.
+  return c.json({ ...u, isStream: !!c.get("isStream") });
 });
 
 // GET /api/profile/:username — public profile (no email).

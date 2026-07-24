@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type MeProfile } from "../net/api";
+import { setStreamMode } from "../state/streamMode";
 
 interface AuthState {
   status: "loading" | "anonymous" | "authenticated";
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const profile = await api.meProfile();
       setMe(profile);
+      setStreamMode(!!profile.isStream);
       setStatus("authenticated");
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {

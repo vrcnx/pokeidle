@@ -24,6 +24,7 @@ import {
 } from "../pvp.js";
 import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
 import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
+import { generateStreamKey } from "../lib/streamSession.js";
 
 const app = new Hono();
 
@@ -148,6 +149,74 @@ app.get("/users/:id", async (c) => {
     void makeAudit(c)(me.id, "user.read_save", id);
   }
   return c.json(u);
+});
+
+// ── Stream auto-login key ──────────────────────────────────────────────
+// Manage a user's OBS/24-7 stream auto-login key (see lib/streamSession.ts
+// + POST /stream-login). The key value is a bearer secret — it's returned
+// here (and embedded in loginUrl) only so the operator can paste it into
+// OBS. GET reports status; POST enables / disables / regenerates.
+function streamLoginUrl(c: { req: { url: string } }, key: string): string {
+  const base = (process.env.BETTER_AUTH_URL?.trim() || new URL(c.req.url).origin).replace(/\/$/, "");
+  return `${base}/stream-login?key=${encodeURIComponent(key)}`;
+}
+
+app.get("/users/:id/stream-key", async (c) => {
+  const id = c.req.param("id");
+  const row = await prisma.streamKey.findUnique({ where: { userId: id } });
+  if (!row) return c.json({ exists: false });
+  return c.json({
+    exists: true,
+    enabled: row.enabled,
+    label: row.label,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt,
+    lastUsedIp: row.lastUsedIp,
+    key: row.key,
+    loginUrl: streamLoginUrl(c, row.key),
+  });
+});
+
+app.post("/users/:id/stream-key", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { action?: string; label?: string };
+  const action = body.action;
+  if (action !== "enable" && action !== "disable" && action !== "regenerate") {
+    return c.json({ error: "action must be enable|disable|regenerate" }, 400);
+  }
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return c.json({ error: "user not found" }, 404);
+  const label = typeof body.label === "string" ? body.label.slice(0, 60) : undefined;
+
+  if (action === "disable") {
+    const row = await prisma.streamKey
+      .update({ where: { userId: id }, data: { enabled: false } })
+      .catch(() => null);
+    void makeAudit(c)(me.id, "user.stream_key_disable", id);
+    return c.json({ exists: !!row, enabled: false });
+  }
+
+  // enable (create if missing, keep existing secret) or regenerate (new secret).
+  const existing = await prisma.streamKey.findUnique({ where: { userId: id } });
+  const key = action === "regenerate" || !existing ? generateStreamKey() : existing.key;
+  const row = await prisma.streamKey.upsert({
+    where: { userId: id },
+    create: { userId: id, key, enabled: true, label },
+    update: { key, enabled: true, ...(label !== undefined ? { label } : {}) },
+  });
+  void makeAudit(
+    c,
+  )(me.id, action === "regenerate" ? "user.stream_key_regenerate" : "user.stream_key_enable", id);
+  return c.json({
+    exists: true,
+    enabled: row.enabled,
+    label: row.label,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt,
+    key: row.key,
+    loginUrl: streamLoginUrl(c, row.key),
+  });
 });
 
 // Promote / demote. Refuses self-action so a sole admin can't lock

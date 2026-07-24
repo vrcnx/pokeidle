@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
+import { useStreamMode } from "../state/streamMode";
 
 // First-visit fan-game disclaimer. Shown once per browser (localStorage-
 // flagged). Doesn't gate the app — the user clicks "I understand" and
@@ -29,7 +30,15 @@ function setAcked(): void {
 export function FirstVisitDisclaimer() {
   const [open, setOpen] = useState(() => !isAcked());
   const dialogRef = useModalEnter();
+  const isStream = useStreamMode();
   const t = useT();
+
+  // Stream auto-login sessions must never sit behind the disclaimer — an
+  // unattended OBS box can't click "I understand". Once the profile
+  // resolves and flags the session as a stream, silently ack + close.
+  useEffect(() => {
+    if (isStream && open) { setAcked(); setOpen(false); }
+  }, [isStream, open]);
 
   // Lock body scroll while the disclaimer is open so the player can't
   // scroll the page underneath. Restore on unmount.

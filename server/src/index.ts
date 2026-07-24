@@ -104,6 +104,42 @@ app.post("/api/auth/sign-out-all", async (c) => {
   return c.json({ ok: true });
 });
 
+// ── Stream auto-login (OBS / 24-7 stream box) ─────────────────────────
+// A StreamKey-enabled account exposes a stable link an unattended browser
+// source can hit to log itself in:
+//     https://<api>/stream-login?key=<key>
+// On a valid key we set the httpOnly `pkmn_stream` cookie and 302 to the
+// game. The redirect strips the key from the visible URL so it doesn't
+// linger in browser history, referrer headers, or access logs. The
+// resulting session is RESTRICTED (see lib/streamSession.ts + blockStream).
+import {
+  resolveStreamKey,
+  streamCookieHeader,
+  clearStreamCookieHeader,
+} from "./lib/streamSession.js";
+const streamLoginLimiter = makeRateLimiter({ tokens: 20, windowMs: 15 * 60_000 });
+app.get("/stream-login", async (c) => {
+  // Rate-limit by IP so a leaked-URL guessing attempt can't brute-force
+  // keys. Real use is a handful of hits (OBS reloads), well under 20/15min.
+  if (!streamLoginLimiter.consume(`stream:${clientIp(c)}`)) {
+    return c.text("Too many attempts, slow down.", 429);
+  }
+  const key = c.req.query("key");
+  const stream = await resolveStreamKey(key);
+  if (!stream || !key) {
+    return c.text("Invalid, disabled, or unknown stream key.", 403);
+  }
+  c.header("Set-Cookie", streamCookieHeader(key), { append: true });
+  // Always land on our own game origin — never honour a caller-supplied
+  // redirect target (open-redirect guard).
+  const target = FRONTEND_ORIGINS[0] ?? "/";
+  return c.redirect(target, 302);
+});
+app.get("/stream-logout", (c) => {
+  c.header("Set-Cookie", clearStreamCookieHeader(), { append: true });
+  return c.text("Stream session ended.", 200);
+});
+
 // Better Auth — handles /api/auth/* (signup, signin, OAuth callbacks, etc).
 // Rate-limit credential / signup endpoints by client IP so a single
 // attacker can't credential-stuff or pile up account-creation requests.
