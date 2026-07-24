@@ -10651,15 +10651,19 @@ input:focus, textarea:focus, select:focus {
   gap: 8px;
 }
 .g-stat-pill {
-  min-width: 64px;
-  padding: 7px 10px;
+  /* Equal-width pills so a long money value doesn't make its pill dominate
+     the row — Level / Money / Status stay balanced. */
+  flex: 1 1 0;
+  min-width: 84px;
+  padding: 8px 10px;
   border: none;
   border-radius: 9px;
   background: var(--m-surface-2, #262a33);
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 3px;
 }
 .g-stat-pill strong {
   font-size: 14px;
