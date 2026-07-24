@@ -17363,3 +17363,45 @@ html, body {
   background: rgba(248, 208, 48, 0.13);
   box-shadow: inset 0 0 0 1px rgba(248, 208, 48, 0.35);
 }
+
+/* ---------- Wide layout: v2 polish ---------- */
+/* Moves and the wild/trainer panel sat stacked, so the centre ran tall while
+   half its width went unused. Side by side fills the space the wide layout
+   exists to give us; everything else still spans the full column. */
+.dashboard-wide .center-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-content: start;
+  gap: 6px;
+}
+.dashboard-wide .center-column > .battle-area,
+.dashboard-wide .center-column > .moves-toolbar { grid-column: 1 / -1; }
+.dashboard-wide .center-column > .moves-panel,
+.dashboard-wide .center-column > .moves-panel-wrap { grid-column: 1; }
+.dashboard-wide .center-column > .context-panel { grid-column: 2; min-width: 0; }
+
+/* The CHAT header was its own bordered card sitting on top of another
+   bordered card — two frames for one thing. Merge them into a single card by
+   dropping the seam between them. */
+.location-column > .channel-header:not(.channel-header--announce) {
+  border-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-bottom: 0;
+}
+.location-column > .channel-header:not(.channel-header--announce) + .mini-chat {
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: 0;
+}
+
+/* ---------- Routes card: reclaim the wasted frame ---------- */
+/* Outer pane padding + grid padding + card padding stacked into a wide dead
+   gutter on both sides, and the header row was taller than the rows it
+   labels. Tighten all three so the cards start where the title does. */
+.route-card-list { padding: 8px 8px 4px; }
+.route-card-list .route-card-grid { padding: 0; gap: 5px; }
+.route-card-list .route-card { padding: 7px 10px; }
+.route-card-list header.tab-pane-head.v2 .tab-pane-head-row { padding: 0 0 5px; }
+.route-card-list header.tab-pane-head.v2 { margin-bottom: 6px; }
