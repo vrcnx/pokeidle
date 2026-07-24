@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 export interface StreamConfig {
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+  autoProceed?: boolean;
+  autoCatch?: boolean;
+  speed?: number;
 }
 
 // Stream-mode singleton.

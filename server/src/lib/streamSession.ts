@@ -37,6 +37,10 @@ export type StreamAuth = {
 export interface StreamConfig {
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+  /** Applied once on stream boot so the account self-plays. */
+  autoProceed?: boolean;   // auto-travel to newly-unlocked routes
+  autoCatch?: boolean;     // auto-throw balls at wild encounters
+  speed?: number;          // battle speed 1..5
 }
 
 export function sanitizeStreamConfig(raw: unknown): StreamConfig | null {
@@ -52,6 +56,12 @@ export function sanitizeStreamConfig(raw: unknown): StreamConfig | null {
     const ballId = typeof a.ballId === "string" ? a.ballId : "pokeball";
     const restockTo = Math.max(1, Math.min(9999, Math.floor(Number(a.restockTo) || 50)));
     out.autoBuyBalls = { enabled: !!a.enabled, ballId, restockTo };
+  }
+  if (typeof r.autoProceed === "boolean") out.autoProceed = r.autoProceed;
+  if (typeof r.autoCatch === "boolean") out.autoCatch = r.autoCatch;
+  if (r.speed !== undefined) {
+    const s = Math.max(1, Math.min(5, Math.floor(Number(r.speed) || 1)));
+    out.speed = s;
   }
   return Object.keys(out).length > 0 ? out : null;
 }

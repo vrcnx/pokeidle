@@ -25,6 +25,8 @@ import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
+import { isStreamMode } from "./streamMode";
+import { executeStreamCommand } from "../utils/streamCommands";
 
 // Defensive normalization on save load:
 //   1. totalExp >= the level baseline (guards against hand-edited saves)
@@ -1006,17 +1008,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
         pushToast({ kind: "info", icon: "🛠️", text: "Your save was updated by an admin." });
       } catch { /* transient; boot reconcile will adopt via saveAdoptSeq */ }
     };
+    // Remote control from the admin dashboard (stream/OBS accounts only).
+    // Drives the same game flows the UI uses — travel, fight the Elite Four,
+    // start a raid, toggle auto-play settings.
+    const onStreamCommand = (cmd: any) => {
+      if (!isStreamMode()) return; // only stream sessions obey remote commands
+      try {
+        const res = executeStreamCommand(cmd, stateRef.current, dispatch);
+        pushToast({
+          kind: res.ok ? "info" : "warn",
+          icon: res.ok ? "🎮" : "⚠️",
+          text: `Stream: ${res.message}`,
+        });
+      } catch { /* malformed command — ignore */ }
+    };
     sock.on("auction:sold", onSold);
     sock.on("auction:won", onWon);
     sock.on("gift:received", onGift);
     sock.on("save:reset", onSaveReset);
     sock.on("save:adopt", onSaveAdopt);
+    sock.on("stream:command", onStreamCommand);
     return () => {
       sock.off("auction:sold", onSold);
       sock.off("auction:won", onWon);
       sock.off("gift:received", onGift);
       sock.off("save:reset", onSaveReset);
       sock.off("save:adopt", onSaveAdopt);
+      sock.off("stream:command", onStreamCommand);
     };
   }, []);
 

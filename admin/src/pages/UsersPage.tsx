@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig, type StreamCommand } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -1665,12 +1665,17 @@ function StreamAutomationEditor({ userId, config, onSaved }: {
   const [abEnabled, setAbEnabled] = useState(!!config?.autoBuyBalls?.enabled);
   const [ballId, setBallId] = useState(config?.autoBuyBalls?.ballId ?? "pokeball");
   const [restockTo, setRestockTo] = useState(config?.autoBuyBalls?.restockTo ?? 50);
+  const [autoProceed, setAutoProceed] = useState(config?.autoProceed ?? true);
+  const [autoCatch, setAutoCatch] = useState(config?.autoCatch ?? true);
+  const [speed, setSpeed] = useState(config?.speed ?? 5);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const save = async () => {
     setSaving(true); setMsg(null);
-    const cfg: StreamConfig = {};
+    const cfg: StreamConfig = {
+      autoProceed, autoCatch, speed: Math.max(1, Math.min(5, speed || 1)),
+    };
     if (startRoute.trim()) cfg.startRoute = startRoute.trim();
     if (abEnabled) cfg.autoBuyBalls = { enabled: true, ballId, restockTo: Math.max(1, Math.min(9999, restockTo || 1)) };
     try {
@@ -1692,6 +1697,22 @@ function StreamAutomationEditor({ userId, config, onSaved }: {
       </label>
       <input value={startRoute} onChange={(e) => setStartRoute(e.target.value.trim())} placeholder="e.g. route1" style={{ maxWidth: 220 }} />
       <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+        <input type="checkbox" checked={autoProceed} onChange={(e) => setAutoProceed(e.target.checked)} />
+        <span>Auto-play — travel to newly-unlocked routes automatically (self-progresses)</span>
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+        <input type="checkbox" checked={autoCatch} onChange={(e) => setAutoCatch(e.target.checked)} />
+        <span>Auto-catch wild Pokémon</span>
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+        <span>Battle speed</span>
+        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          <option value={1}>1× (slow)</option>
+          <option value={2}>2×</option>
+          <option value={5}>5× (fastest)</option>
+        </select>
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
         <input type="checkbox" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} />
         <span>Auto-buy Poké Balls when the stream runs low (money permitting)</span>
       </label>
@@ -1711,8 +1732,48 @@ function StreamAutomationEditor({ userId, config, onSaved }: {
         {msg && <span className="dim small" style={{ color: msg === "Saved ✓" ? "#86efac" : "#fca5a5" }}>{msg}</span>}
       </div>
       <p className="dim small" style={{ marginTop: 6 }}>
-        The auto-buy ball must be enabled in the account's catch settings or it won't be thrown. Poké Ball is enabled by default.
+        Boot settings apply when the stream loads. The auto-buy ball must be enabled in the account's catch settings. Poké Ball is enabled by default.
       </p>
+
+      <StreamRemoteControl userId={userId} />
+    </div>
+  );
+}
+
+// Live remote control — send a command to a running stream session.
+function StreamRemoteControl({ userId }: { userId: string }) {
+  const [travelTo, setTravelTo] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const send = async (command: StreamCommand, label: string) => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await api.streamCommand(userId, command);
+      setMsg(res.delivered ? `Sent: ${label}` : `Queued: ${label} (stream offline — will not run until it's online)`);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border, #2a2a35)" }}>
+      <h4 style={{ margin: "0 0 4px" }}>🎮 Remote control</h4>
+      <p className="dim small" style={{ marginTop: 0 }}>Drive the live stream account. Only runs if it's online as a stream session.</p>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "eliteFour" }, "Elite Four gauntlet")}>Fight Elite Four</button>
+        <button className="btn-secondary btn-small" disabled={busy} onClick={() => send({ kind: "raid" }, "raid")}>Start Raid</button>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: true }, "auto-play on")}>Auto-play ON</button>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "autoProceed", value: false }, "auto-play off")}>Auto-play OFF</button>
+        <button className="btn-ghost btn-small" disabled={busy} onClick={() => send({ kind: "speed", value: 5 }, "speed 5×")}>Speed 5×</button>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input value={travelTo} onChange={(e) => setTravelTo(e.target.value.trim())} placeholder="route id e.g. route29" style={{ maxWidth: 180 }} />
+        <button className="btn-ghost btn-small" disabled={busy || !travelTo} onClick={() => send({ kind: "travel", locationId: travelTo }, `travel ${travelTo}`)}>Travel</button>
+      </div>
+      {msg && <p className="dim small" style={{ marginTop: 6 }}>{msg}</p>}
     </div>
   );
 }

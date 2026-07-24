@@ -5,7 +5,7 @@ import { adminApiKey, requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit as auditRaw } from "../lib/audit.js";
 import { validateSave } from "../lib/saveValidation.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot, broadcastAnnouncement } from "../socket.js";
+import { broadcastChatCleared, sendToUserGlobal, getIo, kickUser, liveOnlineSnapshot, broadcastAnnouncement, isOnline } from "../socket.js";
 import { TRADE_CHANNEL } from "../lib/chatChannels.js";
 import { recordError } from "../lib/errorReporting.js";
 import {
@@ -238,6 +238,28 @@ app.post("/users/:id/stream-key", async (c) => {
     c,
   )(me.id, action === "regenerate" ? "user.stream_key_regenerate" : "user.stream_key_enable", id);
   return c.json(streamStatus(c, row));
+});
+
+// POST /users/:id/stream-command — remote-control a stream (OBS/24-7) account.
+// Relays a command over the stream:command socket event; the client only obeys
+// it when it's actually a stream session (isStream). Requires an enabled key.
+const STREAM_COMMAND_KINDS = new Set(["travel", "speed", "autoProceed", "autoCatch", "raid", "gym", "eliteFour", "champion"]);
+app.post("/users/:id/stream-command", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const body = (await c.req.json().catch(() => ({}))) as { command?: { kind?: string } };
+  const command = body.command;
+  if (!command || typeof command !== "object" || !command.kind || !STREAM_COMMAND_KINDS.has(command.kind)) {
+    return c.json({ error: "invalid command" }, 400);
+  }
+  const key = await prisma.streamKey.findUnique({ where: { userId: id }, select: { enabled: true } });
+  if (!key || !key.enabled) {
+    return c.json({ error: "this account has no enabled stream login" }, 400);
+  }
+  const delivered = isOnline(id);
+  sendToUserGlobal(id, "stream:command", command);
+  void makeAudit(c)(me.id, "user.stream_command", id, { kind: command.kind });
+  return c.json({ ok: true, delivered, command: command.kind });
 });
 
 // Promote / demote. Refuses self-action so a sole admin can't lock

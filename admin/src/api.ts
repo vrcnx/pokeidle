@@ -341,6 +341,8 @@ export const api = {
     opts?: { label?: string; config?: StreamConfig | null },
   ) =>
     req<StreamKeyStatus>("POST", `/api/admin/users/${id}/stream-key`, { action, ...opts }),
+  streamCommand: (id: string, command: StreamCommand) =>
+    req<{ ok: true; delivered: boolean; command: string }>("POST", `/api/admin/users/${id}/stream-command`, { command }),
 
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
@@ -561,7 +563,20 @@ export interface UserSession {
 export interface StreamConfig {
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+  autoProceed?: boolean;
+  autoCatch?: boolean;
+  speed?: number;
 }
+
+export type StreamCommand =
+  | { kind: "travel"; locationId: string }
+  | { kind: "speed"; value: number }
+  | { kind: "autoProceed"; value: boolean }
+  | { kind: "autoCatch"; value: boolean }
+  | { kind: "raid"; tier?: string }
+  | { kind: "gym"; gymId: string }
+  | { kind: "eliteFour" }
+  | { kind: "champion" };
 
 export interface StreamKeyStatus {
   exists: boolean;

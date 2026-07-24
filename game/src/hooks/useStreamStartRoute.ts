@@ -2,11 +2,15 @@ import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { useStreamConfig } from "../state/streamMode";
 
-// Stream automation: on a stream-session boot, travel to the admin-configured
-// start route exactly once, so a 24/7 OBS stream always resumes on the route
-// the operator intends rather than wherever the save happened to leave off.
-// No-op for normal sessions, when no start route is configured, or if that
-// route isn't unlocked on the account yet.
+// Stream automation applied ONCE on a stream-session boot, so a 24/7 OBS
+// account self-plays the way the operator configured it:
+//   * startRoute   — travel there (if unlocked) instead of resuming where saved
+//   * autoProceed  — auto-travel to newly-unlocked routes (keeps advancing)
+//   * autoCatch    — auto-throw balls at wild encounters
+//   * speed        — battle speed 1..5
+// No-op for normal sessions or when nothing is configured. Auto-buy balls is
+// handled live in the battle loop; remote commands (fight E4, raid, …) come in
+// over the stream:command socket event.
 export function useStreamStartRoute(): void {
   const { state, dispatch } = useGame();
   const cfg = useStreamConfig();
@@ -14,15 +18,24 @@ export function useStreamStartRoute(): void {
 
   useEffect(() => {
     if (done.current) return;
-    const route = cfg?.startRoute;
-    if (!route) return;
-    // Wait for the save to actually load (a party mon present) so
-    // unlockedLocations is populated before we decide anything.
+    if (!cfg) return;
+    // Wait for the save to load (a party mon present) so unlockedLocations and
+    // the toggle states are real before we act.
     if (!state.playerPokemon) return;
-    done.current = true; // one-shot regardless of the outcome below
-    if (!state.unlockedLocations.includes(route)) return; // not unlocked — leave as-is
-    if (state.currentLocation !== route) {
-      dispatch({ type: "TRAVEL", payload: { locationId: route } });
+    done.current = true; // one-shot regardless of outcome
+
+    if (cfg.startRoute && state.unlockedLocations.includes(cfg.startRoute) && state.currentLocation !== cfg.startRoute) {
+      dispatch({ type: "TRAVEL", payload: { locationId: cfg.startRoute } });
     }
-  }, [cfg, state.playerPokemon, state.unlockedLocations, state.currentLocation, dispatch]);
+    if (typeof cfg.autoProceed === "boolean" && state.autoProceed !== cfg.autoProceed) {
+      dispatch({ type: "TOGGLE_AUTO_PROCEED" });
+    }
+    if (typeof cfg.autoCatch === "boolean" && state.autoCatch !== cfg.autoCatch) {
+      dispatch({ type: "TOGGLE_AUTO_CATCH" });
+    }
+    if (typeof cfg.speed === "number") {
+      const s = Math.max(1, Math.min(5, Math.floor(cfg.speed)));
+      if (state.speed !== s) dispatch({ type: "SET_SPEED", payload: { speed: s } });
+    }
+  }, [cfg, state.playerPokemon, state.unlockedLocations, state.currentLocation, state.autoProceed, state.autoCatch, state.speed, dispatch]);
 }
