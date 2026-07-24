@@ -17,8 +17,14 @@ export function LocationColumn({ wide = false }: { wide?: boolean }) {
       {/* Wide: PvP / Settings / Social sit directly under the trainer card. */}
       {wide && <MetaDock />}
       <UnlockHint />
-      <ChannelHeader />
-      <MiniChat />
+      {/* One card, not two. These were siblings of the flex column, so the
+          column's `gap` drove a visible seam between them no matter what the
+          borders did — CSS can't close a gap for a single pair. Wrapping them
+          makes them a single flex child that owns its own internal spacing. */}
+      <div className="chat-card">
+        <ChannelHeader />
+        <MiniChat />
+      </div>
     </div>
   );
 }

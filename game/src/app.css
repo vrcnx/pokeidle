@@ -17381,15 +17381,22 @@ html, body {
 .dashboard-wide .center-column > .context-panel { grid-column: 2; min-width: 0; }
 
 /* The CHAT header was its own bordered card sitting on top of another
-   bordered card — two frames for one thing. Merge them into a single card by
-   dropping the seam between them. */
-.location-column > .channel-header:not(.channel-header--announce) {
+   bordered card — two frames for one thing. They're now wrapped in .chat-card
+   (see LocationColumn) so they share one frame with no gap between them. */
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.chat-card > .mini-chat { flex: 1 1 auto; min-height: 0; }
+.chat-card > .channel-header:not(.channel-header--announce) {
   border-bottom: 0;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   margin-bottom: 0;
 }
-.location-column > .channel-header:not(.channel-header--announce) + .mini-chat {
+.chat-card > .channel-header:not(.channel-header--announce) + .mini-chat {
   border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
@@ -17405,3 +17412,26 @@ html, body {
 .route-card-list .route-card { padding: 7px 10px; }
 .route-card-list header.tab-pane-head.v2 .tab-pane-head-row { padding: 0 0 5px; }
 .route-card-list header.tab-pane-head.v2 { margin-bottom: 6px; }
+
+/* ---------- Wide: keep the lower centre row a stable height ---------- */
+/* The moves card and the trainer/wild panel both sized to their own content,
+   so the row's height jumped every time an opponent changed or a move list
+   differed. Pinning a floor (and letting the context panel scroll inside)
+   keeps the arena above it from shifting on every battle. */
+.dashboard-wide .center-column > .moves-panel,
+.dashboard-wide .center-column > .moves-panel-wrap,
+.dashboard-wide .center-column > .context-panel {
+  align-self: stretch;
+  min-height: 178px;
+}
+.dashboard-wide .center-column > .context-panel { overflow-y: auto; }
+
+/* Fade the incoming trainer in rather than hard-swapping it. */
+@keyframes ctx-trainer-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.ctx-trainer-card--enter { animation: ctx-trainer-in 220ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .ctx-trainer-card--enter { animation: none; }
+}

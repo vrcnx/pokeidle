@@ -160,7 +160,10 @@ function BattleTrainerPanel() {
   return (
     <section className="ctx-section">
       <h4>{translate("Trainer battle")}</h4>
-      <div className="ctx-trainer-card">
+      {/* Keyed on the trainer so React REMOUNTS this card when the opponent
+          changes — that's what replays the fade-in. Without a key React
+          reuses the node and the new trainer just pops in. */}
+      <div className="ctx-trainer-card ctx-trainer-card--enter" key={`${t.trainerName}:${t.spriteKey}`}>
         <img
           src={trainerSpriteUrl(t.spriteKey)}
           alt={t.trainerName}
