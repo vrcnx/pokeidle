@@ -83,7 +83,13 @@ function validatePokemon(p: PokemonShape, where: string): string | null {
   // Level + EXP
   if (typeof p.level !== "number" || !Number.isInteger(p.level) || p.level < 1 || p.level > MAX_LEVEL)
     return `${where}: level must be 1..${MAX_LEVEL}`;
-  if (typeof p.totalExp !== "number" || p.totalExp < 0 || p.totalExp > 2_000_000)
+  // totalExp is a pure tracking number — it grants no stat and level is
+  // validated separately (1..MAX_LEVEL), so a huge value is harmless, not a
+  // cheat. The old 2,000,000 cap rejected legit saves: a level-100 Pokémon
+  // keeps accumulating exp past its level requirement, so a long-grinding
+  // mon's totalExp climbs above 2M and bricked the whole save's cloud backup
+  // ("not backing up"). Keep only a sane anti-garbage ceiling.
+  if (typeof p.totalExp !== "number" || !Number.isFinite(p.totalExp) || p.totalExp < 0 || p.totalExp > 1_000_000_000)
     return `${where}: bad totalExp`;
 
   // HP
@@ -220,4 +226,26 @@ export function validateSave(save: unknown): { ok: true } | { ok: false; reason:
   }
 
   return { ok: true };
+}
+
+// Clamp recoverable, harmless per-Pokémon inconsistencies IN PLACE before
+// validation, so legitimate play doesn't brick the whole save's cloud backup.
+// The prime offender: currentHp > maxHp (a transient after an evolution or an
+// over-heal). Clamping HP DOWN can never be a cheat — battles already cap at
+// maxHp — so it's always safe to fix rather than reject. Returns true if it
+// changed anything (useful for logging), but callers can ignore that.
+export function sanitizeSave(save: unknown): boolean {
+  if (!save || typeof save !== "object") return false;
+  let changed = false;
+  const clampMon = (m: any) => {
+    if (!m || typeof m !== "object") return;
+    if (typeof m.maxHp === "number" && typeof m.currentHp === "number") {
+      if (m.currentHp > m.maxHp) { m.currentHp = m.maxHp; changed = true; }
+      else if (m.currentHp < 0) { m.currentHp = 0; changed = true; }
+    }
+  };
+  const s = save as { party?: unknown; box?: unknown };
+  if (Array.isArray(s.party)) s.party.forEach(clampMon);
+  if (Array.isArray(s.box)) s.box.forEach(clampMon);
+  return changed;
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../lib/middleware.js";
 import { computeAccountLevel } from "../lib/level.js";
-import { validateSave, MAX_BOX } from "../lib/saveValidation.js";
+import { validateSave, sanitizeSave, MAX_BOX } from "../lib/saveValidation.js";
 import { maybeSnapshot } from "../lib/saveHistory.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 
@@ -100,6 +100,11 @@ app.post("/", requireUser, async (c) => {
   if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
 
   const save = parsed.data.saveData;
+
+  // 0) Clamp recoverable inconsistencies (e.g. currentHp > maxHp after an
+  // evolution / over-heal) so a legit save isn't rejected — and thus never
+  // backed up — over something harmless.
+  sanitizeSave(save);
 
   // 1) Anti-cheat: bounds-check the payload before persisting. Rejects
   // obviously bogus saves (level > 100, negative money, party > 6, ...).
