@@ -1,5 +1,8 @@
 import type { GymLeader } from "../../../types";
 
+// Johto Elite Four sit just above the gym ceiling (Clair ~75) and climb
+// 75 → 82 across the four members, with Champion Lance topping out at 85 —
+// matching the Kanto endgame band so beating Johto is a real capstone.
 export const eliteFour: GymLeader[] = [
   {
     id: "will",
@@ -9,7 +12,7 @@ export const eliteFour: GymLeader[] = [
     badgeName: "",
     badgeColor: "#7755aa",
     spriteKey: "will-gen2",
-    team: [{ speciesKey: "xatu", level: 40 }, { speciesKey: "jynx", level: 41 }, { speciesKey: "exeggutor", level: 41 }, { speciesKey: "slowbro", level: 41 }, { speciesKey: "xatu", level: 42 }],
+    team: [{ speciesKey: "xatu", level: 75 }, { speciesKey: "jynx", level: 76 }, { speciesKey: "exeggutor", level: 76 }, { speciesKey: "slowbro", level: 77 }, { speciesKey: "xatu", level: 78 }],
   },
   {
     id: "kogaJohto",
@@ -19,7 +22,7 @@ export const eliteFour: GymLeader[] = [
     badgeName: "",
     badgeColor: "#7755aa",
     spriteKey: "koga-gen2",
-    team: [{ speciesKey: "ariados", level: 40 }, { speciesKey: "venomoth", level: 41 }, { speciesKey: "forretress", level: 43 }, { speciesKey: "muk", level: 42 }, { speciesKey: "crobat", level: 44 }],
+    team: [{ speciesKey: "ariados", level: 76 }, { speciesKey: "venomoth", level: 77 }, { speciesKey: "muk", level: 78 }, { speciesKey: "forretress", level: 79 }, { speciesKey: "crobat", level: 80 }],
   },
   {
     id: "brunoJohto",
@@ -29,7 +32,7 @@ export const eliteFour: GymLeader[] = [
     badgeName: "",
     badgeColor: "#7755aa",
     spriteKey: "bruno-gen2",
-    team: [{ speciesKey: "hitmontop", level: 42 }, { speciesKey: "hitmonlee", level: 42 }, { speciesKey: "hitmonchan", level: 42 }, { speciesKey: "onix", level: 43 }, { speciesKey: "machamp", level: 46 }],
+    team: [{ speciesKey: "hitmontop", level: 78 }, { speciesKey: "hitmonlee", level: 78 }, { speciesKey: "hitmonchan", level: 78 }, { speciesKey: "onix", level: 79 }, { speciesKey: "machamp", level: 81 }],
   },
   {
     id: "karen",
@@ -39,7 +42,7 @@ export const eliteFour: GymLeader[] = [
     badgeName: "",
     badgeColor: "#7755aa",
     spriteKey: "karen-gen2",
-    team: [{ speciesKey: "umbreon", level: 42 }, { speciesKey: "vileplume", level: 42 }, { speciesKey: "gengar", level: 45 }, { speciesKey: "murkrow", level: 44 }, { speciesKey: "houndoom", level: 47 }],
+    team: [{ speciesKey: "umbreon", level: 79 }, { speciesKey: "vileplume", level: 79 }, { speciesKey: "murkrow", level: 80 }, { speciesKey: "gengar", level: 81 }, { speciesKey: "houndoom", level: 82 }],
   },
 ];
 
@@ -51,5 +54,5 @@ export const champion: GymLeader = {
   badgeName: "",
   badgeColor: "#dd6644",
   spriteKey: "lance-gen2",
-  team: [{ speciesKey: "gyarados", level: 44 }, { speciesKey: "dragonite", level: 47 }, { speciesKey: "charizard", level: 46 }, { speciesKey: "aerodactyl", level: 46 }, { speciesKey: "dragonite", level: 47 }, { speciesKey: "dragonite", level: 50 }],
+  team: [{ speciesKey: "gyarados", level: 82 }, { speciesKey: "charizard", level: 83 }, { speciesKey: "aerodactyl", level: 83 }, { speciesKey: "dragonite", level: 84 }, { speciesKey: "dragonite", level: 84 }, { speciesKey: "dragonite", level: 85 }],
 };

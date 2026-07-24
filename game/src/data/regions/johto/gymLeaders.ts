@@ -1,5 +1,8 @@
 import type { GymLeader } from "../../../types";
 
+// Johto gym progression is tuned as a "static region tier" that sits ABOVE
+// Kanto's gym band and ramps toward the Kanto endgame: aces climb 50 → 75
+// across the eight badges so a post-Kanto roster still has a real fight.
 export const gymLeaders: GymLeader[] = [
   {
     id: "falkner",
@@ -9,7 +12,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Zephyr Badge",
     badgeColor: "#B9A0E3",
     spriteKey: "falkner-gen2",
-    team: [{ speciesKey: "pidgey", level: 7 }, { speciesKey: "pidgeotto", level: 9 }],
+    team: [{ speciesKey: "pidgey", level: 48 }, { speciesKey: "pidgeotto", level: 50 }],
   },
   {
     id: "bugsy",
@@ -19,7 +22,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Hive Badge",
     badgeColor: "#C0C0C0",
     spriteKey: "bugsy-gen2",
-    team: [{ speciesKey: "metapod", level: 14 }, { speciesKey: "kakuna", level: 14 }, { speciesKey: "scyther", level: 16 }],
+    team: [{ speciesKey: "metapod", level: 51 }, { speciesKey: "kakuna", level: 51 }, { speciesKey: "scyther", level: 54 }],
   },
   {
     id: "whitney",
@@ -29,7 +32,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Plain Badge",
     badgeColor: "#E8D9B5",
     spriteKey: "whitney-gen2",
-    team: [{ speciesKey: "clefairy", level: 18 }, { speciesKey: "miltank", level: 20 }],
+    team: [{ speciesKey: "clefairy", level: 55 }, { speciesKey: "miltank", level: 57 }],
   },
   {
     id: "morty",
@@ -39,7 +42,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Fog Badge",
     badgeColor: "#7B8FA8",
     spriteKey: "morty-gen2",
-    team: [{ speciesKey: "gastly", level: 21 }, { speciesKey: "haunter", level: 21 }, { speciesKey: "gengar", level: 25 }, { speciesKey: "haunter", level: 23 }],
+    team: [{ speciesKey: "gastly", level: 58 }, { speciesKey: "haunter", level: 59 }, { speciesKey: "haunter", level: 59 }, { speciesKey: "gengar", level: 61 }],
   },
   {
     id: "chuck",
@@ -49,7 +52,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Storm Badge",
     badgeColor: "#4A6FE0",
     spriteKey: "chuck-gen2",
-    team: [{ speciesKey: "primeape", level: 27 }, { speciesKey: "poliwrath", level: 30 }],
+    team: [{ speciesKey: "primeape", level: 62 }, { speciesKey: "poliwrath", level: 64 }],
   },
   {
     id: "jasmine",
@@ -59,7 +62,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Mineral Badge",
     badgeColor: "#9CA3AF",
     spriteKey: "jasmine-gen2",
-    team: [{ speciesKey: "magnemite", level: 30 }, { speciesKey: "magnemite", level: 30 }, { speciesKey: "steelix", level: 35 }],
+    team: [{ speciesKey: "magnemite", level: 64 }, { speciesKey: "magnemite", level: 64 }, { speciesKey: "steelix", level: 67 }],
   },
   {
     id: "pryce",
@@ -69,7 +72,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Glacier Badge",
     badgeColor: "#A8D8E8",
     spriteKey: "pryce-gen2",
-    team: [{ speciesKey: "seel", level: 27 }, { speciesKey: "dewgong", level: 29 }, { speciesKey: "piloswine", level: 31 }],
+    team: [{ speciesKey: "seel", level: 67 }, { speciesKey: "dewgong", level: 68 }, { speciesKey: "piloswine", level: 70 }],
   },
   {
     id: "clair",
@@ -79,6 +82,6 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Rising Badge",
     badgeColor: "#2E4A9E",
     spriteKey: "clair-gen2",
-    team: [{ speciesKey: "dragonair", level: 37 }, { speciesKey: "dragonair", level: 37 }, { speciesKey: "dragonair", level: 37 }, { speciesKey: "kingdra", level: 40 }],
+    team: [{ speciesKey: "dragonair", level: 72 }, { speciesKey: "dragonair", level: 72 }, { speciesKey: "dragonair", level: 73 }, { speciesKey: "kingdra", level: 75 }],
   },
 ];
