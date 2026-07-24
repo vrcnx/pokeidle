@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError, type BroadcastStatus, type BroadcastPatch, type TwitchInfo } from "../api";
+import { api, ApiError, type BroadcastStatus, type BroadcastPatch, type TwitchInfo, type StreamConfig } from "../api";
 import { notify } from "../components/Confirm";
 import { StreamRemoteControl } from "./UsersPage";
 
@@ -202,6 +202,9 @@ export function BroadcastPage() {
           <StreamRemoteControl userId={state.accountUserId} />
         </div>
       )}
+
+      {/* ── Stream layout ──────────────────────────────────────────── */}
+      {state?.accountUserId && <StreamLayoutCard userId={state.accountUserId} />}
 
       {/* ── Twitch channel info ────────────────────────────────────── */}
       <TwitchCard />
@@ -520,4 +523,64 @@ function formatUptime(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${sec}s`;
   return `${sec}s`;
+}
+
+// Which desktop layout the STREAMED browser boots into. This has to live in
+// the account's stream config rather than the game's own device preference:
+// the renderer opens a fresh browser context on every launch, so anything
+// stored client-side is back at the default each time the stream restarts.
+function StreamLayoutCard({ userId }: { userId: string }) {
+  const [cfg, setCfg] = useState<StreamConfig | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let dead = false;
+    api.streamKeyGet(userId)
+      .then((r) => { if (!dead) setCfg(r.config ?? {}); })
+      .catch((e) => { if (!dead) setErr(e instanceof ApiError ? e.message : String(e)); });
+    return () => { dead = true; };
+  }, [userId]);
+
+  async function pick(layout: "classic" | "wide") {
+    setBusy(true);
+    try {
+      // Merge, never replace: this endpoint takes the WHOLE config, so
+      // sending just the layout would wipe startRoute/auto-buy/speed.
+      const next: StreamConfig = { ...(cfg ?? {}), layout };
+      const r = await api.streamKeySet(userId, "config", { config: next });
+      setCfg(r.config ?? next);
+      setErr(null);
+      void notify(`Stream layout set to ${layout}. Restart the stream to apply.`);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      setErr(msg);
+      void notify(`Failed: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = cfg?.layout ?? "classic";
+  return (
+    <div className="broadcast-card">
+      <h3>Stream layout</h3>
+      {err && <div className="broadcast-lasterr">{err}</div>}
+      <div className="broadcast-btn-row">
+        {(["classic", "wide"] as const).map((id) => (
+          <button
+            key={id}
+            className={`btn-ghost btn-small ${active === id ? "sel" : ""}`}
+            disabled={busy || !cfg}
+            onClick={() => pick(id)}
+          >
+            {id === "classic" ? "Classic" : "Wide"}
+          </button>
+        ))}
+        <span className="dim small">
+          Applies on the stream's next boot — hit Stop then Go live to switch immediately.
+        </span>
+      </div>
+    </div>
+  );
 }

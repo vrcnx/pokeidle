@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { setLayoutMode } from "../state/layoutMode";
 import { useStreamConfig } from "../state/streamMode";
 
 // Stream automation applied ONCE on a stream-session boot, so a 24/7 OBS
@@ -23,6 +24,12 @@ export function useStreamStartRoute(): void {
     // the toggle states are real before we act.
     if (!state.playerPokemon) return;
     done.current = true; // one-shot regardless of outcome
+
+    // Layout first, before anything visual settles: the renderer opens a
+    // fresh browser context every launch, so the device-local preference is
+    // always back at its default and the stream would otherwise never honour
+    // the layout picked on the Broadcast page.
+    if (cfg.layout === "classic" || cfg.layout === "wide") setLayoutMode(cfg.layout);
 
     if (cfg.startRoute && state.unlockedLocations.includes(cfg.startRoute) && state.currentLocation !== cfg.startRoute) {
       dispatch({ type: "TRAVEL", payload: { locationId: cfg.startRoute } });

@@ -166,15 +166,24 @@ export function MartTab() {
                   style={{ imageRendering: "pixelated" }}
                 />
                 <div className="mart-row-info">
-                  <strong>{info.name}</strong>
+                  <strong>
+                    {info.name}
+                    {/* Descriptions are long and pushed every row tall enough
+                        that only a few items fit on screen. Behind an info
+                        icon they're one hover away without costing the list
+                        its density. The row still carries `title` for touch. */}
+                    <span className="mart-info" tabIndex={0} aria-label={resolved.description}>
+                      <span aria-hidden>i</span>
+                      <span className="mart-info-tip">{resolved.description}</span>
+                    </span>
+                  </strong>
                   {locked ? (
                     <small className="dim">
                       {t("Unlocks at")} {entry.unlockWildBattlesWon} {t("wild battles")} ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
                     </small>
                   ) : (
                     <small className="dim">
-                      {resolved.description}
-                      <span style={{ opacity: 0.7 }}> · {t("First found at")} {entry.firstSoldAtName}</span>
+                      {t("First found at")} {entry.firstSoldAtName}
                     </small>
                   )}
                 </div>

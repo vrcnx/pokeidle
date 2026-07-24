@@ -587,6 +587,8 @@ export interface UserSession {
 export interface StreamConfig {
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+  /** Desktop layout the streamed browser boots into. */
+  layout?: "classic" | "wide";
   autoProceed?: boolean;
   autoCatch?: boolean;
   speed?: number;

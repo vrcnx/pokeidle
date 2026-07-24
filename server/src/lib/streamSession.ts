@@ -35,6 +35,8 @@ export type StreamAuth = {
 // Stream automation config an admin sets per key. Validated loosely (admin
 // input) before it's stored; the client applies it when the stream boots.
 export interface StreamConfig {
+  /** Desktop layout for the streamed browser. */
+  layout?: "classic" | "wide";
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
   /** Applied once on stream boot so the account self-plays. */
@@ -57,6 +59,11 @@ export function sanitizeStreamConfig(raw: unknown): StreamConfig | null {
     const restockTo = Math.max(1, Math.min(9999, Math.floor(Number(a.restockTo) || 50)));
     out.autoBuyBalls = { enabled: !!a.enabled, ballId, restockTo };
   }
+  // Which desktop layout the streamed browser should use. Delivered via the
+  // config (not localStorage) because the renderer opens a FRESH browser
+  // context each launch, so anything device-local resets to the default every
+  // time the stream restarts.
+  if (r.layout === "classic" || r.layout === "wide") out.layout = r.layout;
   if (typeof r.autoProceed === "boolean") out.autoProceed = r.autoProceed;
   if (typeof r.autoCatch === "boolean") out.autoCatch = r.autoCatch;
   if (r.speed !== undefined) {

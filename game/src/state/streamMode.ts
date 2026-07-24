@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 // StreamConfig; delivered to the client on /api/profile/me for a stream
 // session. Applied on boot: travel to startRoute, auto-buy balls when low.
 export interface StreamConfig {
+  /** Desktop layout the streamed browser should use. */
+  layout?: "classic" | "wide";
   startRoute?: string;
   autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
   autoProceed?: boolean;
