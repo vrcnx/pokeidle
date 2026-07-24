@@ -529,7 +529,7 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
           <ProfileTab data={data} banned={banned} busy={busy} setBusy={setBusy} reload={reload} onChange={onChange} onClose={onBack} />
         )}
         {tab === "pokemon" && save && (
-          <PokemonTab save={save} edit={edit} onEdit={setEdit} />
+          <PokemonTab save={save} edit={edit} onEdit={setEdit} userId={id} onGifted={reload} />
         )}
         {tab === "items" && save && (
           <ItemsTab save={save} edit={edit} onEdit={setEdit} userId={id} username={data.username} reload={reload} />
@@ -872,9 +872,12 @@ function SaveHistorySection({ userId, username, onRestored }: {
 }
 
 // ─── Pokémon tab — party + box editor + give-mon ────────────────────────
-function PokemonTab({ save, edit, onEdit }: {
+function PokemonTab({ save, edit, onEdit, userId, onGifted }: {
   save: any; edit: SaveEdit; onEdit: (e: SaveEdit) => void;
+  userId: string; onGifted: () => void;
 }) {
+  const [giveMsg, setGiveMsg] = useState<string | null>(null);
+  const [giving, setGiving] = useState(false);
   const live = useMemo(() => ({
     party: edit.party ?? (save.party ?? []),
     box: edit.box ?? (save.box ?? []),
@@ -912,35 +915,38 @@ function PokemonTab({ save, edit, onEdit }: {
     level: 5,
     isShiny: false,
   });
-  const giveMon = () => {
-    if (!give.species) {
-      window.alert("Pick a Pokémon first.");
-      return;
-    }
+  // Gift the Pokémon via the mass-gift grant path (audience = this one
+  // player) rather than staging it into the save-edit buffer + Save.
+  //
+  // The old flow patched the save with compare-and-swap on saveVersion, so
+  // if the target had their game open it 409'd against their own live
+  // autosave and the gift silently did nothing ("gift players doesn't work").
+  // grantPrizesToUser increments the version without a CAS and the player's
+  // client adopts it (online via the gift:received socket, offline via the
+  // boot cloud-adoption sync), so the mon always lands — open tab or not.
+  const giveMon = async () => {
+    if (!give.species) { window.alert("Pick a Pokémon first."); return; }
     const sp = give.species;
     const level = clamp(give.level, 1, 100);
-    // Use the game's createPokemon factory so the new mon has correctly
-    // derived stats / max HP / totalExp / starting moveset / nature /
-    // ability — all matching what the game would produce for a freshly
-    // caught wild encounter at this level. Without this the player's
-    // client would render with wrong HP / Attack until they manually
-    // re-saved.
-    //
-    // Use a string-collision-safe id rather than the game's numeric
-    // counter — we don't have access to nextPokemonId from the user's
-    // save here, and the game accepts arbitrary string ids.
-    const fakeNumericId = Date.now() + Math.floor(Math.random() * 1000);
     const mon = {
-      ...createPokemon(sp.speciesKey, level, fakeNumericId, give.isShiny),
+      ...createPokemon(sp.speciesKey, level, Date.now() % 1_000_000, give.isShiny),
       id: `admin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     };
-    if (give.where === "party") {
-      if (live.party.length >= 6) { window.alert("Party is full (6)."); return; }
-      onEdit({ ...edit, party: [...live.party, mon] });
-    } else {
-      onEdit({ ...edit, box: [...live.box, mon] });
+    setGiving(true); setGiveMsg(null);
+    try {
+      await api.massGift({
+        audience: "selected",
+        userIds: [userId],
+        prizes: [{ kind: "pokemon", label: `${give.isShiny ? "Shiny " : ""}${sp.name} Lv${level}`, mon: mon as unknown as Record<string, unknown> }],
+      });
+      setGiveMsg(`Gifted ${give.isShiny ? "Shiny " : ""}${sp.name} (Lv${level}) — delivered live if they're online, on next load otherwise.`);
+      setGive({ ...give, species: null, speciesQuery: "" });
+      onGifted();
+    } catch (e) {
+      setGiveMsg(`Failed: ${(e as Error).message}`);
+    } finally {
+      setGiving(false);
     }
-    setGive({ ...give, species: null, speciesQuery: "" });
   };
 
   return (
@@ -1026,10 +1032,11 @@ function PokemonTab({ save, edit, onEdit }: {
             />
             Shiny
           </label>
-          <button className="btn-primary btn-small" onClick={giveMon} disabled={!give.species}>Give</button>
+          <button className="btn-primary btn-small" onClick={giveMon} disabled={!give.species || giving}>{giving ? "Gifting…" : "Give"}</button>
         </div>
+        {giveMsg && <p className="dim small" role="status" style={{ color: giveMsg.startsWith("Failed") ? "#fca5a5" : undefined }}>{giveMsg}</p>}
         <p className="dim small">
-          Adds a fresh Pokémon with perfect IVs and the given level. Stats re-derive from the species catalog on the user's next save load.
+          Delivers the Pokémon directly (perfect IVs, given level) — works even while the player has their game open, unlike the Save-changes editor above. Stats re-derive from the species catalog on load.
         </p>
       </section>
     </>
