@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useGame } from "../state/GameContext";
 import { evolutionStones } from "../data/evolutionStones";
 import { consumables } from "../data/consumables";
-import { stoneTargets } from "../data/evolutions";
+import { stoneTargets, evolutions } from "../data/evolutions";
 import { pokemonTable } from "../data/pokemon";
 import { encounters } from "../data/encounters";
 import { pokemonSpriteUrl } from "../utils/sprites";
@@ -17,10 +17,20 @@ export function BagPanel() {
   const t = useT();
   const [pickStone, setPickStone] = useState<string | null>(null);
   const [pickEffect, setPickEffect] = useState<string | null>(null);
+  const [pickCable, setPickCable] = useState(false);
 
   const stones = Object.keys(evolutionStones).filter(
     (id) => (state.inventory[id] ?? 0) > 0
   );
+  const cableCount = state.inventory.linkcable ?? 0;
+  // A Pokémon can use a Link Cable if it has any trade-based evolution.
+  function hasTradeEvo(speciesKey: string): boolean {
+    return (evolutions[speciesKey] ?? []).some((e) => "trade" in e);
+  }
+  function applyCable(partyIndex: number) {
+    dispatch({ type: "USE_LINK_CABLE", payload: { partyIndex } });
+    setPickCable(false);
+  }
   const effectItems = Object.keys(consumables).filter(
     (id) => (state.inventory[id] ?? 0) > 0
   );
@@ -106,6 +116,58 @@ export function BagPanel() {
             );
           })}
         </ul>
+      )}
+
+      {cableCount > 0 && (
+        <>
+          <h3>{t("Link Cable")}</h3>
+          {pickCable ? (
+            <>
+              <p>{t("Use a Link Cable on which Pokémon?")}</p>
+              <div className="bag-target-grid">
+                {state.party.map((mon, i) => {
+                  const eligible = hasTradeEvo(mon.speciesKey);
+                  return (
+                    <button
+                      key={mon.id}
+                      disabled={!eligible}
+                      title={eligible ? "" : t("No trade evolution")}
+                      onClick={() => applyCable(i)}
+                      style={{ opacity: eligible ? 1 : 0.4 }}
+                    >
+                      <img
+                        src={pokemonSpriteUrl(mon.speciesKey)}
+                        alt={mon.speciesKey}
+                        width={48}
+                        height={48}
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                      <span>{mon.name} <span className="dim">Lv{mon.level}</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+              {state.party.every((mon) => !hasTradeEvo(mon.speciesKey)) && (
+                <p className="dim small">
+                  {state.box.some((mon) => hasTradeEvo(mon.speciesKey))
+                    ? t("A Pokémon in your PC can use this — move it to your party first.")
+                    : t("None of your party Pokémon evolve by trade.")}
+                </p>
+              )}
+              <button onClick={() => setPickCable(false)}>{t("Cancel")}</button>
+            </>
+          ) : (
+            <ul className="bag-list">
+              <li>
+                <span>
+                  {getItemInfo("linkcable").name} × {cableCount}
+                  <br /><span className="dim small">{t("Evolves trade-only Pokémon (Haunter, Kadabra, Machoke, Graveler, Onix + Metal Coat, …). Consumed on use.")}</span>
+                </span>
+                <button onClick={() => setPickCable(true)}>{t("Use")}</button>
+              </li>
+            </ul>
+          )}
+        </>
       )}
 
       <h3>{t("Repel / Honey (current route)")}</h3>
