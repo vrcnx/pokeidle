@@ -335,8 +335,12 @@ export const api = {
   // returned to the admin here — treat as a bearer secret.
   streamKeyGet: (id: string) =>
     req<StreamKeyStatus>("GET", `/api/admin/users/${id}/stream-key`),
-  streamKeySet: (id: string, action: "enable" | "disable" | "regenerate", label?: string) =>
-    req<StreamKeyStatus>("POST", `/api/admin/users/${id}/stream-key`, { action, label }),
+  streamKeySet: (
+    id: string,
+    action: "enable" | "disable" | "regenerate" | "config",
+    opts?: { label?: string; config?: StreamConfig | null },
+  ) =>
+    req<StreamKeyStatus>("POST", `/api/admin/users/${id}/stream-key`, { action, ...opts }),
 
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
@@ -554,10 +558,16 @@ export interface UserSession {
   country: string | null;
 }
 
+export interface StreamConfig {
+  startRoute?: string;
+  autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+}
+
 export interface StreamKeyStatus {
   exists: boolean;
   enabled?: boolean;
   label?: string | null;
+  config?: StreamConfig | null;
   createdAt?: string;
   lastUsedAt?: string | null;
   lastUsedIp?: string | null;

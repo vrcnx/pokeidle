@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus } from "../api";
+import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
   POKEMON_LIST,
@@ -1642,6 +1642,7 @@ function StreamLoginCard({ userId }: { userId: string }) {
           <p className="dim small" style={{ marginTop: 8, color: "#fbbf24" }}>
             ⚠ This URL is a login secret — anyone with it can play as this account. Only paste it into OBS.
           </p>
+          <StreamAutomationEditor userId={userId} config={st?.config} onSaved={setSt} />
         </>
       ) : (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1652,6 +1653,67 @@ function StreamLoginCard({ userId }: { userId: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+// Stream automation editor — start route + auto-buy balls. Persisted via the
+// "config" action on the stream-key endpoint.
+function StreamAutomationEditor({ userId, config, onSaved }: {
+  userId: string; config: StreamConfig | null | undefined; onSaved: (s: StreamKeyStatus) => void;
+}) {
+  const [startRoute, setStartRoute] = useState(config?.startRoute ?? "");
+  const [abEnabled, setAbEnabled] = useState(!!config?.autoBuyBalls?.enabled);
+  const [ballId, setBallId] = useState(config?.autoBuyBalls?.ballId ?? "pokeball");
+  const [restockTo, setRestockTo] = useState(config?.autoBuyBalls?.restockTo ?? 50);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true); setMsg(null);
+    const cfg: StreamConfig = {};
+    if (startRoute.trim()) cfg.startRoute = startRoute.trim();
+    if (abEnabled) cfg.autoBuyBalls = { enabled: true, ballId, restockTo: Math.max(1, Math.min(9999, restockTo || 1)) };
+    try {
+      const res = await api.streamKeySet(userId, "config", { config: Object.keys(cfg).length ? cfg : null });
+      onSaved(res);
+      setMsg("Saved ✓");
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border, #2a2a35)" }}>
+      <h4 style={{ margin: "0 0 8px" }}>Automation</h4>
+      <label className="dim small" style={{ display: "block", marginBottom: 4 }}>
+        Start route <em>(route id like <code>route1</code> — must be unlocked on the account; blank = resume where saved)</em>
+      </label>
+      <input value={startRoute} onChange={(e) => setStartRoute(e.target.value.trim())} placeholder="e.g. route1" style={{ maxWidth: 220 }} />
+      <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+        <input type="checkbox" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} />
+        <span>Auto-buy Poké Balls when the stream runs low (money permitting)</span>
+      </label>
+      {abEnabled && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+          <select value={ballId} onChange={(e) => setBallId(e.target.value)}>
+            <option value="pokeball">Poké Ball</option>
+            <option value="greatball">Great Ball</option>
+            <option value="ultraball">Ultra Ball</option>
+          </select>
+          <span className="dim small">restock to</span>
+          <input type="number" min={1} max={9999} value={restockTo} onChange={(e) => setRestockTo(Number(e.target.value) || 1)} style={{ width: 90 }} />
+        </div>
+      )}
+      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+        <button className="btn-secondary btn-small" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save automation"}</button>
+        {msg && <span className="dim small" style={{ color: msg === "Saved ✓" ? "#86efac" : "#fca5a5" }}>{msg}</span>}
+      </div>
+      <p className="dim small" style={{ marginTop: 6 }}>
+        The auto-buy ball must be enabled in the account's catch settings or it won't be thrown. Poké Ball is enabled by default.
+      </p>
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { prisma } from "../db.js";
 import { requireUser } from "../lib/middleware.js";
+import { parseStreamConfig } from "../lib/streamSession.js";
 
 const app = new Hono();
 
@@ -99,8 +100,14 @@ app.get("/me", requireUser, async (c) => {
   if (!u) return c.json({ error: "user not found" }, 404);
   // isStream tells the client it's a restricted OBS/24-7 auto-login session
   // so it can auto-dismiss dialogs and hide sensitive UI (trades, auctions,
-  // account settings). Absent/false for normal sessions.
-  return c.json({ ...u, isStream: !!c.get("isStream") });
+  // account settings). streamConfig carries the admin-set automation (start
+  // route, auto-buy balls). Absent for normal sessions.
+  const isStream = !!c.get("isStream");
+  return c.json({
+    ...u,
+    isStream,
+    streamConfig: isStream ? parseStreamConfig(c.get("streamConfig")) : undefined,
+  });
 });
 
 // GET /api/profile/:username — public profile (no email).

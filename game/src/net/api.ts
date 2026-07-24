@@ -467,6 +467,12 @@ export interface MeProfile {
    *  The client uses it to auto-dismiss popups (update / daily / etc.) and
    *  hide sensitive UI (trades, auctions, account settings). */
   isStream?: boolean;
+  /** Admin-set stream automation for this session (start route, auto-buy
+   *  balls). Present only for stream sessions. */
+  streamConfig?: {
+    startRoute?: string;
+    autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+  } | null;
 }
 
 export interface PublicProfile {

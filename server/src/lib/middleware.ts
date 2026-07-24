@@ -28,6 +28,9 @@ declare module "hono" {
      *  trades, auctions). The client reads it (via /api/profile/me) to
      *  auto-dismiss dialogs and hide sensitive UI. */
     isStream?: boolean;
+    /** Raw JSON stream-automation config for the resolved StreamKey (start
+     *  route, auto-buy balls). Surfaced to the client via /api/profile/me. */
+    streamConfig?: string | null;
   }
 }
 
@@ -59,6 +62,7 @@ export const requireUser: MiddlewareHandler = async (c, next) => {
         isAdmin: false,
       });
       c.set("isStream", true);
+      c.set("streamConfig", stream.config);
       return next();
     }
     return c.json({ error: "unauthorized" }, 401);

@@ -3,6 +3,7 @@ import { useBattleLoop } from "./hooks/useBattleLoop";
 import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
+import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
 import { StarterSelect } from "./components/StarterSelect";
 import { GameShell } from "./components/GameShell";
 import { ContextMenuHost } from "./components/ContextMenu";
@@ -20,6 +21,7 @@ export function App() {
   useEventDriver();
   useAutoProceed();
   useCatchAnimation();
+  useStreamStartRoute();
 
   return (
     <>

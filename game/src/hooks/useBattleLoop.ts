@@ -6,6 +6,8 @@ import { rollShiny, hasShinyCharm } from "../utils/pokemon";
 import { pushToast } from "../components/Toast";
 import { ballForAutoCatch, shouldAutoCatch } from "../utils/catching";
 import { resolveCatchSettings } from "../utils/catchSettings";
+import { pokeballs } from "../data/pokeballs";
+import { getStreamConfig, isStreamMode } from "../state/streamMode";
 import { routes } from "../data/routes";
 import { getRouteTrainers, buildTeam, trainerSprite } from "../utils/trainerFactory";
 import type { GameState } from "../types";
@@ -197,6 +199,25 @@ export function useBattleLoop(): void {
             dispatch({ type: "TRY_CATCH", payload: { ballId: ball } });
             schedule();
             return;
+          }
+          // Stream auto-buy: an unattended 24/7 stream restocks balls instead
+          // of silently pausing. Only fires for a stream session with the
+          // feature configured, and only for a ball that's actually enabled
+          // for auto-catch on this encounter (otherwise buying wouldn't let
+          // ballForAutoCatch pick it and we'd loop-buy forever). Money-gated.
+          const sc = getStreamConfig();
+          const ab = isStreamMode() && sc?.autoBuyBalls?.enabled ? sc.autoBuyBalls : null;
+          if (ab) {
+            const rule = resolveCatchSettings(cur, cur.currentRoute, enemy.speciesKey);
+            const usable = rule.enabledBalls.includes(ab.ballId) || (enemy.isShiny && cur.alwaysCatchShinies);
+            const price = pokeballs[ab.ballId]?.buyPrice ?? null;
+            if (usable && price != null && cur.money >= price) {
+              const qty = Math.max(1, Math.min(ab.restockTo, Math.floor(cur.money / price)));
+              dispatch({ type: "BUY_ITEM", payload: { itemId: ab.ballId, quantity: qty } });
+              outOfBallsRef.current = false;
+              schedule();
+              return;
+            }
           }
           // We WANTED to catch this and had no ball for it. Previously
           // this just fell through to EXECUTE_TURN, so the game quietly

@@ -24,7 +24,7 @@ import {
 } from "../pvp.js";
 import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
 import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
-import { generateStreamKey } from "../lib/streamSession.js";
+import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 
 const app = new Hono();
 
@@ -161,40 +161,64 @@ function streamLoginUrl(c: { req: { url: string } }, key: string): string {
   return `${base}/stream-login?key=${encodeURIComponent(key)}`;
 }
 
-app.get("/users/:id/stream-key", async (c) => {
-  const id = c.req.param("id");
-  const row = await prisma.streamKey.findUnique({ where: { userId: id } });
-  if (!row) return c.json({ exists: false });
-  return c.json({
+function streamStatus(c: { req: { url: string } }, row: {
+  enabled: boolean; label: string | null; config: string | null;
+  createdAt: Date; lastUsedAt: Date | null; lastUsedIp: string | null; key: string;
+}) {
+  return {
     exists: true,
     enabled: row.enabled,
     label: row.label,
+    config: parseStreamConfig(row.config),
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     lastUsedIp: row.lastUsedIp,
     key: row.key,
     loginUrl: streamLoginUrl(c, row.key),
-  });
+  };
+}
+
+app.get("/users/:id/stream-key", async (c) => {
+  const id = c.req.param("id");
+  const row = await prisma.streamKey.findUnique({ where: { userId: id } });
+  if (!row) return c.json({ exists: false });
+  return c.json(streamStatus(c, row));
 });
 
 app.post("/users/:id/stream-key", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
-  const body = (await c.req.json().catch(() => ({}))) as { action?: string; label?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { action?: string; label?: string; config?: unknown };
   const action = body.action;
-  if (action !== "enable" && action !== "disable" && action !== "regenerate") {
-    return c.json({ error: "action must be enable|disable|regenerate" }, 400);
+  if (action !== "enable" && action !== "disable" && action !== "regenerate" && action !== "config") {
+    return c.json({ error: "action must be enable|disable|regenerate|config" }, 400);
   }
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
   if (!target) return c.json({ error: "user not found" }, 404);
   const label = typeof body.label === "string" ? body.label.slice(0, 60) : undefined;
+  // `config` in the body: undefined = leave as-is; present = replace (a sanitized
+  // null clears it). Stored as a JSON string.
+  const configProvided = Object.prototype.hasOwnProperty.call(body, "config");
+  const configJson = configProvided
+    ? (() => { const cfg = sanitizeStreamConfig(body.config); return cfg ? JSON.stringify(cfg) : null; })()
+    : undefined;
 
   if (action === "disable") {
     const row = await prisma.streamKey
       .update({ where: { userId: id }, data: { enabled: false } })
       .catch(() => null);
     void makeAudit(c)(me.id, "user.stream_key_disable", id);
-    return c.json({ exists: !!row, enabled: false });
+    return c.json(row ? streamStatus(c, row) : { exists: false, enabled: false });
+  }
+
+  if (action === "config") {
+    // Update automation config only — requires an existing key.
+    const row = await prisma.streamKey
+      .update({ where: { userId: id }, data: { config: configJson ?? null } })
+      .catch(() => null);
+    if (!row) return c.json({ error: "no stream key to configure — enable it first" }, 404);
+    void makeAudit(c)(me.id, "user.stream_key_config", id);
+    return c.json(streamStatus(c, row));
   }
 
   // enable (create if missing, keep existing secret) or regenerate (new secret).
@@ -202,21 +226,17 @@ app.post("/users/:id/stream-key", async (c) => {
   const key = action === "regenerate" || !existing ? generateStreamKey() : existing.key;
   const row = await prisma.streamKey.upsert({
     where: { userId: id },
-    create: { userId: id, key, enabled: true, label },
-    update: { key, enabled: true, ...(label !== undefined ? { label } : {}) },
+    create: { userId: id, key, enabled: true, label, config: configJson ?? null },
+    update: {
+      key, enabled: true,
+      ...(label !== undefined ? { label } : {}),
+      ...(configProvided ? { config: configJson ?? null } : {}),
+    },
   });
   void makeAudit(
     c,
   )(me.id, action === "regenerate" ? "user.stream_key_regenerate" : "user.stream_key_enable", id);
-  return c.json({
-    exists: true,
-    enabled: row.enabled,
-    label: row.label,
-    createdAt: row.createdAt,
-    lastUsedAt: row.lastUsedAt,
-    key: row.key,
-    loginUrl: streamLoginUrl(c, row.key),
-  });
+  return c.json(streamStatus(c, row));
 });
 
 // Promote / demote. Refuses self-action so a sole admin can't lock

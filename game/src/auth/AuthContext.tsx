@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const profile = await api.meProfile();
       setMe(profile);
-      setStreamMode(!!profile.isStream);
+      setStreamMode(!!profile.isStream, profile.streamConfig ?? null);
       setStatus("authenticated");
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {

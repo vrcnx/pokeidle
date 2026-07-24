@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 
+// Stream automation config (admin-set per StreamKey). Mirrors the server's
+// StreamConfig; delivered to the client on /api/profile/me for a stream
+// session. Applied on boot: travel to startRoute, auto-buy balls when low.
+export interface StreamConfig {
+  startRoute?: string;
+  autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+}
+
 // Stream-mode singleton.
 //
 // True when the current session is a restricted OBS/24-7 stream auto-login
@@ -14,18 +22,28 @@ import { useEffect, useState } from "react";
 // behind a dialog and a leaked link can't reach a destructive control.
 
 let _isStream = false;
+let _config: StreamConfig | null = null;
 const subs = new Set<() => void>();
 
-export function setStreamMode(v: boolean): void {
-  if (_isStream === v) return;
-  _isStream = v;
+function notify() {
   for (const f of subs) {
     try { f(); } catch { /* subscriber threw — ignore */ }
   }
 }
 
+export function setStreamMode(v: boolean, config: StreamConfig | null = null): void {
+  const changed = _isStream !== v || _config !== config;
+  _isStream = v;
+  _config = v ? config : null;
+  if (changed) notify();
+}
+
 export function isStreamMode(): boolean {
   return _isStream;
+}
+
+export function getStreamConfig(): StreamConfig | null {
+  return _config;
 }
 
 export function useStreamMode(): boolean {
@@ -34,6 +52,17 @@ export function useStreamMode(): boolean {
     const f = () => setV(_isStream);
     subs.add(f);
     f(); // sync in case it flipped between initial render and effect
+    return () => { subs.delete(f); };
+  }, []);
+  return v;
+}
+
+export function useStreamConfig(): StreamConfig | null {
+  const [v, setV] = useState(_config);
+  useEffect(() => {
+    const f = () => setV(_config);
+    subs.add(f);
+    f();
     return () => { subs.delete(f); };
   }, []);
   return v;

@@ -131,6 +131,10 @@ model StreamKey {
   key        String    @unique
   enabled    Boolean   @default(true)
   label      String?
+  /// JSON stream automation config the admin sets for an unattended run:
+  /// { startRoute?: string, autoBuyBalls?: { enabled, ballId, restockTo } }.
+  /// Applied client-side when a stream session boots (see streamMode.ts).
+  config     String?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
   lastUsedIp String?

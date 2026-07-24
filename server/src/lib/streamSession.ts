@@ -29,7 +29,37 @@ export const STREAM_COOKIE = "pkmn_stream";
 export type StreamAuth = {
   userId: string;
   username: string;
+  config: string | null;
 };
+
+// Stream automation config an admin sets per key. Validated loosely (admin
+// input) before it's stored; the client applies it when the stream boots.
+export interface StreamConfig {
+  startRoute?: string;
+  autoBuyBalls?: { enabled: boolean; ballId: string; restockTo: number };
+}
+
+export function sanitizeStreamConfig(raw: unknown): StreamConfig | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const out: StreamConfig = {};
+  if (typeof r.startRoute === "string" && r.startRoute.length > 0 && r.startRoute.length < 64) {
+    out.startRoute = r.startRoute;
+  }
+  const ab = r.autoBuyBalls;
+  if (ab && typeof ab === "object") {
+    const a = ab as Record<string, unknown>;
+    const ballId = typeof a.ballId === "string" ? a.ballId : "pokeball";
+    const restockTo = Math.max(1, Math.min(9999, Math.floor(Number(a.restockTo) || 50)));
+    out.autoBuyBalls = { enabled: !!a.enabled, ballId, restockTo };
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export function parseStreamConfig(json: string | null | undefined): StreamConfig | null {
+  if (!json) return null;
+  try { return sanitizeStreamConfig(JSON.parse(json)); } catch { return null; }
+}
 
 // Mint a fresh high-entropy key. 32 bytes → 64 hex chars. `sk_` prefix
 // makes it recognisable in logs/URLs as a stream key (never logged in
@@ -65,6 +95,7 @@ export async function resolveStreamKey(key: string | null | undefined): Promise<
     where: { key },
     select: {
       enabled: true,
+      config: true,
       user: { select: { id: true, username: true, email: true, bannedUntil: true } },
     },
   });
@@ -73,6 +104,7 @@ export async function resolveStreamKey(key: string | null | undefined): Promise<
   return {
     userId: row.user.id,
     username: row.user.username ?? row.user.email.split("@")[0],
+    config: row.config ?? null,
   };
 }
 
