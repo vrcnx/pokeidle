@@ -47,7 +47,7 @@ const items: CatalogItem[] = [
 
   // ── Held items (only the ones with real mechanics) ───────────────────────
   { id: "expShare",   name: "Exp. Share",  description: "Activates a 300-battle buff that shares 25% EXP with every non-fainted party member. Sold at the Celadon Dept. Store.", category: "held", buyPrice: 20000, sellPrice: 0, spriteOverride: "exp-share", implemented: true },
-  { id: "shinycharm", name: "Shiny Charm", description: "Doubles shiny encounter rate. Earned automatically by completing the Pokédex.", category: "held", buyPrice: null, sellPrice: 0, spriteOverride: "shiny-charm", implemented: true },
+  { id: "shinycharm", name: "Shiny Charm", description: "Doubles shiny encounter rate. Earned automatically by completing the Pokédex.", category: "held", buyPrice: 12000, sellPrice: 0, spriteOverride: "shiny-charm", implemented: true },
 
   // Battle held items — equippable on individual Pokémon via the Pokémon Detail modal.
   { id: "leftovers",      name: "Leftovers",       description: "Restores 1/16 max HP each turn while held.", category: "held", buyPrice: 4000, sellPrice: 2000, spriteOverride: "leftovers", implemented: true },
@@ -87,14 +87,14 @@ const items: CatalogItem[] = [
 
   // ── Trade-evolution catalysts (held; consumed when the holder is
   //    traded into its matching evolution) ─────────────────────────────
-  { id: "metalcoat",     name: "Metal Coat",     description: "A held item that triggers an evolution when its holder is traded. (Onix → Steelix, Scyther → Scizor)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "metal-coat", implemented: true },
-  { id: "kingsrock",     name: "King's Rock",    description: "A held item that triggers an evolution when its holder is traded. (Slowpoke → Slowking, Poliwhirl → Politoed)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "kings-rock", implemented: true },
-  { id: "dragonscale",   name: "Dragon Scale",   description: "A held item that triggers an evolution when its holder is traded. (Seadra → Kingdra)", category: "held", buyPrice: null, sellPrice: 2100, spriteOverride: "dragon-scale", implemented: true },
-  { id: "upgrade",       name: "Up-Grade",       description: "A held item that triggers an evolution when its holder is traded. (Porygon → Porygon2)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "up-grade", implemented: true },
-  { id: "dubiousdisc",   name: "Dubious Disc",   description: "A held item that triggers an evolution when its holder is traded. (Porygon2 → Porygon-Z)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "dubious-disc", implemented: true },
-  { id: "protector",     name: "Protector",      description: "A held item that triggers an evolution when its holder is traded. (Rhydon → Rhyperior)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "protector", implemented: true },
-  { id: "electirizer",   name: "Electirizer",    description: "A held item that triggers an evolution when its holder is traded. (Electabuzz → Electivire)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "electirizer", implemented: true },
-  { id: "magmarizer",    name: "Magmarizer",     description: "A held item that triggers an evolution when its holder is traded. (Magmar → Magmortar)", category: "held", buyPrice: null, sellPrice: 1050, spriteOverride: "magmarizer", implemented: true },
+  { id: "metalcoat",     name: "Metal Coat",     description: "A held item that triggers an evolution when its holder is traded. (Onix → Steelix, Scyther → Scizor)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "metal-coat", implemented: true },
+  { id: "kingsrock",     name: "King's Rock",    description: "A held item that triggers an evolution when its holder is traded. (Slowpoke → Slowking, Poliwhirl → Politoed)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "kings-rock", implemented: true },
+  { id: "dragonscale",   name: "Dragon Scale",   description: "A held item that triggers an evolution when its holder is traded. (Seadra → Kingdra)", category: "held", buyPrice: 12000, sellPrice: 2100, spriteOverride: "dragon-scale", implemented: true },
+  { id: "upgrade",       name: "Up-Grade",       description: "A held item that triggers an evolution when its holder is traded. (Porygon → Porygon2)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "up-grade", implemented: true },
+  { id: "dubiousdisc",   name: "Dubious Disc",   description: "A held item that triggers an evolution when its holder is traded. (Porygon2 → Porygon-Z)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "dubious-disc", implemented: true },
+  { id: "protector",     name: "Protector",      description: "A held item that triggers an evolution when its holder is traded. (Rhydon → Rhyperior)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "protector", implemented: true },
+  { id: "electirizer",   name: "Electirizer",    description: "A held item that triggers an evolution when its holder is traded. (Electabuzz → Electivire)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "electirizer", implemented: true },
+  { id: "magmarizer",    name: "Magmarizer",     description: "A held item that triggers an evolution when its holder is traded. (Magmar → Magmortar)", category: "held", buyPrice: 12000, sellPrice: 1050, spriteOverride: "magmarizer", implemented: true },
   // Link Cable — a consumable bought from the Celadon Dept. Store
   // that triggers a SOLO trade-evolution on a chosen party Pokémon.
   // Honours the trade+item entries too: using a Link Cable on Onix
@@ -107,8 +107,8 @@ const items: CatalogItem[] = [
   { id: "waterstone",   name: "Water Stone",   description: "A rare stone with a blue, watery appearance. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "water-stone", implemented: true },
   { id: "thunderstone", name: "Thunder Stone", description: "A rare stone that gives off a faint shock. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "thunder-stone", implemented: true },
   { id: "leafstone",    name: "Leaf Stone",    description: "A rare stone with a leaf pattern. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "leaf-stone", implemented: true },
-  { id: "moonstone",    name: "Moon Stone",    description: "A mysterious stone that resembles the Moon. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "moon-stone", implemented: true },
-  { id: "sunstone",     name: "Sun Stone",     description: "A radiant stone that captures sunlight. Available from the Elite Four Reward Shop.", category: "stone", buyPrice: null, sellPrice: 60000, spriteOverride: "sun-stone", implemented: true },
+  { id: "moonstone",    name: "Moon Stone",    description: "A mysterious stone that resembles the Moon. Evolves Nidorina/Nidorino, Clefairy, Jigglypuff, and Eevee (Umbreon).", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "moon-stone", implemented: true },
+  { id: "sunstone",     name: "Sun Stone",     description: "A radiant stone that captures sunlight. Evolves Gloom (Bellossom), Sunkern, and Eevee (Espeon).", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "sun-stone", implemented: true },
   { id: "goldbottlecap",   name: "Gold Bottle Cap",   description: "Hyper Training — makes ALL of one Pokémon's IVs perfect (31/31). A rare raid drop. Consumed on use.", category: "utility", buyPrice: null, sellPrice: 0, spriteOverride: "gold-bottle-cap", implemented: true },
   { id: "silverbottlecap", name: "Silver Bottle Cap", description: "Hyper Training — makes ONE chosen stat's IV perfect (31). A rare raid drop. Consumed on use.", category: "utility", buyPrice: null, sellPrice: 0, spriteOverride: "bottle-cap", implemented: true },
 

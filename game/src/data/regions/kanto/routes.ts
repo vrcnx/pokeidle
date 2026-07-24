@@ -696,7 +696,11 @@ export const routes: Record<string, Route> = {
           { locationId: "route15", count: 20 },
           { locationId: "fuchsiaCity", count: 5 },
         ],
-        badgesRequired: 5,
+        // Matches Fuchsia City's own 4-badge gate — requiring 5 stranded
+        // players who'd reached Fuchsia (4 badges) but not yet beaten Koga,
+        // which blocked the Safari Zone and, through it, the whole Kanto
+        // endgame (route22 → Victory Road → League chain off Safari battles).
+        badgesRequired: 4,
       },
       unlockOrder: 34,
       position: { x: 54.99, y: 75.18 },

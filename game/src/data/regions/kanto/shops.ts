@@ -73,6 +73,8 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "waterstone" },
       { itemId: "thunderstone" },
       { itemId: "leafstone" },
+      { itemId: "moonstone" },
+      { itemId: "sunstone" },
       { itemId: "repel" },
       { itemId: "superrepel" },
       { itemId: "maxrepel" },
@@ -85,6 +87,17 @@ export const shops: Record<string, ShopDef> = {
       // on a held mon. Lets offline players finish the Pokédex
       // without needing a friend.
       { itemId: "linkcable" },
+      // Trade-evolution catalysts. Hold + trade (or Link Cable) to evolve:
+      // Steelix, Scizor, Kingdra, Slowking, Politoed, Rhyperior, Magmortar,
+      // Electivire, Porygon2/-Z.
+      { itemId: "metalcoat" },
+      { itemId: "kingsrock" },
+      { itemId: "dragonscale" },
+      { itemId: "upgrade" },
+      { itemId: "dubiousdisc" },
+      { itemId: "protector" },
+      { itemId: "electirizer" },
+      { itemId: "magmarizer" },
       // Battle held items.
       { itemId: "leftovers" },
       { itemId: "lifeorb" },

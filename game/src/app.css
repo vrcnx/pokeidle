@@ -13015,6 +13015,12 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
+  /* Bound the strip so a species-heavy route (e.g. the Safari Zone's 21
+     encounters) can't balloon the card and shove the travel button out of
+     view — it scrolls instead. Matches the capped-list pattern used by the
+     auction picker / catch-species / team-builder grids. */
+  max-height: 84px;
+  overflow-y: auto;
 }
 .route-card-mon {
   position: relative;
