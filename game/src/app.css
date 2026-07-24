@@ -17320,32 +17320,7 @@ html, body {
   vertical-align: 1px;
 }
 .mart-info:hover, .mart-info:focus-visible { color: var(--text); border-color: var(--gold); outline: none; }
-.mart-info-tip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 240px;
-  white-space: normal;
-  text-align: left;
-  background: #14161c;
-  color: var(--text);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 400;
-  line-height: 1.45;
-  padding: 6px 9px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-  z-index: 20;
-}
-.mart-info:hover .mart-info-tip, .mart-info:focus-visible .mart-info-tip { opacity: 1; visibility: visible; }
+
 
 /* ---------- Wide: right rail tab card is a fixed frame ---------- */
 /* The card grew and shrank with whichever tab was open (Dex tall, Mart short),

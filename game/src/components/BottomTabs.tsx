@@ -172,20 +172,27 @@ export function MartTab() {
                         that only a few items fit on screen. Behind an info
                         icon they're one hover away without costing the list
                         its density. The row still carries `title` for touch. */}
-                    <span className="mart-info" tabIndex={0} aria-label={resolved.description}>
+                    <span
+                      className="mart-info"
+                      tabIndex={0}
+                      /* Native title, not a positioned element: the mart list
+                         scrolls, so an absolutely-positioned tooltip was
+                         clipped by that overflow and showed as a stray bar.
+                         The browser renders `title` outside any clipping
+                         context, so it works everywhere. */
+                      title={`${resolved.description}
+
+${t("First found at")} ${entry.firstSoldAtName}`}
+                      aria-label={`${resolved.description}. ${t("First found at")} ${entry.firstSoldAtName}`}
+                    >
                       <span aria-hidden>i</span>
-                      <span className="mart-info-tip">{resolved.description}</span>
                     </span>
                   </strong>
                   {locked ? (
                     <small className="dim">
                       {t("Unlocks at")} {entry.unlockWildBattlesWon} {t("wild battles")} ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
                     </small>
-                  ) : (
-                    <small className="dim">
-                      {t("First found at")} {entry.firstSoldAtName}
-                    </small>
-                  )}
+                  ) : null}
                 </div>
                 <span className="mart-price">${resolved.price.toLocaleString()}</span>
                 {/* Restocking 99 balls used to be 98 clicks on "+".
