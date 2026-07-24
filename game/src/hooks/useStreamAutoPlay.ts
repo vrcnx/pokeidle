@@ -12,19 +12,34 @@ import type { GameState } from "../types";
 // The generic idle loop only ever grinds whatever route you're standing on —
 // it never decides to challenge a gym, run the Elite Four, or move somewhere
 // more useful. Left alone a stream account therefore farms its starting route
-// forever (players watching it saw "perma catching Pokémon"). This hook is the
-// missing director: on a stream session it periodically looks at the game state
-// and takes the single most sensible next action.
+// forever. This hook is the missing director: on a stream session it
+// periodically looks at the game state and takes the single most sensible next
+// action.
+//
+// It also LEARNS. A purely static "is my level high enough" rule keeps walking
+// back into a fight it can't win — the stream then loops death → heal → death
+// on the same route. So whiteouts are recorded per location and per boss: a
+// place that keeps killing us is avoided and we drop to an easier route to
+// level, and a gym that beat us has to be cleared by a wider margin next time.
+// Both fade after a while so the account retries once it has actually grown.
 //
 // Deliberately conservative — it only acts while idle and out of battle, one
 // action per tick, so it can never fight the normal loop or the admin's manual
 // remote commands.
 
 const TICK_MS = 6000;
-/** Only challenge a boss when the party's best mon is at least this far above
- *  the boss's ace — losing on stream repeatedly is worse than grinding. */
+/** Only challenge a boss when the party's best mon clears the boss's ace by
+ *  this much — losing on stream repeatedly is worse than grinding. */
 const GYM_LEVEL_MARGIN = 2;
 const E4_LEVEL_MARGIN = 3;
+/** Each recorded loss to a boss adds this to the margin it must clear. */
+const LOSS_MARGIN_STEP = 3;
+/** Whiteouts at a location before we treat it as too dangerous. */
+const DANGER_LIMIT = 2;
+/** Recorded losses fade after this, so nowhere is written off forever. */
+const DANGER_TTL_MS = 15 * 60_000;
+
+interface Strike { count: number; at: number }
 
 function topLevel(state: GameState): number {
   return state.party.reduce((m, p) => Math.max(m, p.level), 0);
@@ -35,11 +50,49 @@ function healthyCount(state: GameState): number {
 function aceLevel(team: { level: number }[]): number {
   return team.reduce((m, t) => Math.max(m, t.level), 0);
 }
+/** Live strike count, ignoring anything that has aged out. */
+function strikes(map: Map<string, Strike>, key: string): number {
+  const s = map.get(key);
+  if (!s) return 0;
+  if (Date.now() - s.at > DANGER_TTL_MS) { map.delete(key); return 0; }
+  return s.count;
+}
+function addStrike(map: Map<string, Strike>, key: string): void {
+  const prev = strikes(map, key);
+  map.set(key, { count: prev + 1, at: Date.now() });
+}
 
 export function useStreamAutoPlay(): void {
   const { state, dispatch } = useGame();
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Learned danger, kept in refs: this is scratch heuristics, not player
+  // progress, so it deliberately doesn't touch the save. A reload just makes
+  // the director re-learn, which is cheap.
+  const routeDanger = useRef(new Map<string, Strike>());
+  const bossLosses = useRef(new Map<string, Strike>());
+  const lastWhiteoutKey = useRef<number | null>(state.whiteoutAnim?.key ?? null);
+  // Remember what we were fighting/where, so a whiteout can be attributed
+  // after the fact (by then the battle state is already cleared).
+  const lastBossId = useRef<string | null>(null);
+  const lastLocation = useRef<string>(state.currentLocation);
+
+  if (state.bossBattle) lastBossId.current = state.bossBattle.bossId;
+  if (!state.enemyPokemon && state.phase === "idle") lastLocation.current = state.currentLocation;
+
+  // Record a loss whenever the party gets wiped.
+  useEffect(() => {
+    if (!isStreamMode()) return;
+    const key = state.whiteoutAnim?.key ?? null;
+    if (key == null || key === lastWhiteoutKey.current) return;
+    lastWhiteoutKey.current = key;
+    addStrike(routeDanger.current, lastLocation.current);
+    if (lastBossId.current) {
+      addStrike(bossLosses.current, lastBossId.current);
+      lastBossId.current = null;
+    }
+  }, [state.whiteoutAnim?.key]);
 
   useEffect(() => {
     if (!isStreamMode()) return;
@@ -59,10 +112,14 @@ export function useStreamAutoPlay(): void {
       const region = regions[regionForLocation(s.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
       const best = topLevel(s);
 
-      // 2. Beat the next gym as soon as the party can plausibly win it.
+      // 2. Beat the next gym once the party can plausibly win — and if this
+      //    gym has already beaten us, demand a wider margin each time.
       const nextGym = region.gymLeaders.find((g) => !s.defeatedGyms.includes(g.id));
       if (nextGym && s.unlockedLocations.includes(nextGym.locationKey)) {
-        if (best >= aceLevel(nextGym.team) + GYM_LEVEL_MARGIN) {
+        const need = aceLevel(nextGym.team)
+          + GYM_LEVEL_MARGIN
+          + strikes(bossLosses.current, nextGym.id) * LOSS_MARGIN_STEP;
+        if (best >= need) {
           if (s.currentLocation !== nextGym.locationKey) {
             executeStreamCommand({ kind: "travel", locationId: nextGym.locationKey }, s, dispatch);
           } else {
@@ -82,26 +139,43 @@ export function useStreamAutoPlay(): void {
             ...region.eliteFour.map((m) => aceLevel(m.team)),
             champ ? aceLevel(champ.team) : 0,
           );
-          if (best >= bar + E4_LEVEL_MARGIN) {
+          const lost = Math.max(
+            ...region.eliteFour.map((m) => strikes(bossLosses.current, m.id)),
+            champ ? strikes(bossLosses.current, champ.id) : 0,
+          );
+          if (best >= bar + E4_LEVEL_MARGIN + lost * LOSS_MARGIN_STEP) {
             executeStreamCommand({ kind: "eliteFour" }, s, dispatch);
             return;
           }
         }
       }
 
-      // 4. Otherwise grind somewhere useful: the highest-level unlocked route
-      //    the party can still safely handle. Standing in a town (no wild
-      //    encounters) or on a starter route at Lv60 both waste stream time.
+      // 4. Otherwise grind somewhere useful. Normally that's the toughest
+      //    route we can handle (fastest EXP), but every whiteout here pulls
+      //    the ceiling DOWN, so a run of deaths makes the account retreat to
+      //    easier ground and level up instead of feeding the same route.
+      const hereDanger = strikes(routeDanger.current, s.currentLocation);
+      const ceiling = best + 3 - hereDanger * 4;
       const candidates = s.unlockedLocations
         .filter((id) => (encounters[id]?.encounters?.length ?? 0) > 0)
+        // Somewhere that has wiped us repeatedly is off the table until the
+        // strike ages out.
+        .filter((id) => strikes(routeDanger.current, id) < DANGER_LIMIT)
         .map((id) => {
           const list = encounters[id]!.encounters;
           return { id, top: list.reduce((m, e) => Math.max(m, e.maxLevel), 0) };
         })
-        // Anything more than a few levels above our best mon is a losing fight.
-        .filter((c) => c.top <= best + 3)
+        .filter((c) => c.top <= ceiling)
         .sort((a, b) => b.top - a.top);
-      const target = candidates[0];
+
+      // If everything unlocked is now considered too hard, fall back to the
+      // single easiest route rather than standing still doing nothing.
+      const easiest = s.unlockedLocations
+        .filter((id) => (encounters[id]?.encounters?.length ?? 0) > 0)
+        .map((id) => ({ id, top: encounters[id]!.encounters.reduce((m, e) => Math.max(m, e.maxLevel), 0) }))
+        .sort((a, b) => a.top - b.top)[0];
+
+      const target = candidates[0] ?? easiest;
       if (target && target.id !== s.currentLocation) {
         executeStreamCommand({ kind: "travel", locationId: target.id }, s, dispatch);
       }
