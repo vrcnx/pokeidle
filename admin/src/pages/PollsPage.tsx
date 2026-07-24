@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type AdminPoll } from "../api";
 
 // Poll operations. Unlike a Giveaway (one-time entry, drawn once), a
@@ -33,7 +34,7 @@ export function PollsPage() {
   };
 
   const del = async (p: AdminPoll) => {
-    if (!window.confirm(`Delete "${p.question}"?`)) return;
+    if (!await confirm(`Delete "${p.question}"?`)) return;
     setBusy(true); setErr(null);
     try { await api.deletePoll(p.id); load(); }
     catch (e) { setErr((e as Error).message); }

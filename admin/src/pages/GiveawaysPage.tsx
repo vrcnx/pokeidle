@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type AdminGiveaway, type GiveawayPrizeInput } from "../api";
 import { POKEMON_LIST, ITEM_LIST, createPokemon } from "../data/gameCatalog";
 import { Combobox } from "../components/Combobox";
@@ -43,7 +44,7 @@ export function GiveawaysPage() {
   const draw = async (g: AdminGiveaway) => {
     // Everything irreversible about this is stated up front. "Draw" with
     // no numbers attached is how an operator draws the wrong giveaway.
-    if (!window.confirm(
+    if (!await confirm(
       `Draw "${g.title}" now?\n\n`
       + `• ${g.entryCount} entries\n`
       + `• ${g.winnerCount} winner${g.winnerCount === 1 ? "" : "s"}\n`
@@ -64,7 +65,7 @@ export function GiveawaysPage() {
           + `Those players are marked winners but need a manual grant.`
         );
       } else {
-        window.alert(`Drawn!\n\nWinners: ${won}\n\nPrizes granted and announced in global chat.`);
+        void notify(`Drawn!\n\nWinners: ${won}\n\nPrizes granted and announced in global chat.`);
       }
       load();
     } catch (e) {
@@ -73,7 +74,7 @@ export function GiveawaysPage() {
   };
 
   const del = async (g: AdminGiveaway) => {
-    if (!window.confirm(`Delete "${g.title}"? This removes it and its entries.`)) return;
+    if (!await confirm(`Delete "${g.title}"? This removes it and its entries.`)) return;
     setBusy(true); setErr(null);
     try { await api.deleteGiveaway(g.id); load(); }
     catch (e) { setErr((e as Error).message); }

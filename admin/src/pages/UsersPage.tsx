@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig, type StreamCommand } from "../api";
 import { Combobox } from "../components/Combobox";
 import {
@@ -338,8 +339,8 @@ function BulkBar({
         <button
           className="btn-ghost btn-small"
           disabled={busy}
-          onClick={() => {
-            if (!window.confirm(`Unban ${count} account${count === 1 ? "" : "s"}?`)) return;
+          onClick={async () => {
+            if (!await confirm(`Unban ${count} account${count === 1 ? "" : "s"}?`)) return;
             void run(onUnban);
           }}
         >Unban</button>
@@ -668,8 +669,8 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
       reload(); onChange();
     });
 
-  const resetSave = () => {
-    if (!window.confirm(`Reset ${data.username}'s save? This cannot be undone.`)) return;
+  const resetSave = async () => {
+    if (!await confirm(`Reset ${data.username}'s save? This cannot be undone.`)) return;
     return run("Reset save", async () => {
       await api.resetSave(data.id);
       reload(); onChange();
@@ -698,7 +699,7 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
     });
   };
   const sendPasswordReset = async () => {
-    if (!window.confirm(
+    if (!await confirm(
       `Send a password-reset email to ${data.email}?\n\n`
       + `They'll receive a one-shot link (1 hour expiry) to choose a new password. `
       + `You will not be able to see their new password.`
@@ -810,7 +811,7 @@ function SaveHistorySection({ userId, username, onRestored }: {
 
   const restore = async (snap: SaveSnapshotRow) => {
     const when = new Date(snap.createdAt).toLocaleString();
-    if (!window.confirm(
+    if (!await confirm(
       `Restore ${username} to the save from ${when} (v${snap.saveVersion})?\n\n`
       + `Their CURRENT save is checkpointed first, so this is reversible. `
       + `Any device they have open will be bumped and re-pull on its next save.`
@@ -889,9 +890,9 @@ function PokemonTab({ save, edit, onEdit, userId, onGifted }: {
     next[idx] = { ...next[idx], ...patch };
     onEdit({ ...edit, [where]: next });
   };
-  const removeMon = (where: "party" | "box", idx: number) => {
+  const removeMon = async (where: "party" | "box", idx: number) => {
     const p = live[where][idx];
-    if (!window.confirm(`Remove ${p?.nickname ?? p?.name ?? "this Pokémon"} from ${where}?`)) return;
+    if (!await confirm(`Remove ${p?.nickname ?? p?.name ?? "this Pokémon"} from ${where}?`)) return;
     const next = live[where].filter((_: any, i: number) => i !== idx);
     onEdit({ ...edit, [where]: next });
   };
@@ -925,7 +926,7 @@ function PokemonTab({ save, edit, onEdit, userId, onGifted }: {
   // client adopts it (online via the gift:received socket, offline via the
   // boot cloud-adoption sync), so the mon always lands — open tab or not.
   const giveMon = async () => {
-    if (!give.species) { window.alert("Pick a Pokémon first."); return; }
+    if (!give.species) { void notify("Pick a Pokémon first."); return; }
     const sp = give.species;
     const level = clamp(give.level, 1, 100);
     const mon = {
@@ -1177,7 +1178,7 @@ function ItemsTab({ save, edit, onEdit, userId, username, reload }: {
   // to hand someone an item without going through the patch save flow.
   const grantNow = async () => {
     if (!pickedItem) {
-      window.alert("Pick an item first.");
+      void notify("Pick an item first.");
       return;
     }
     setGrantBusy(true);
@@ -1586,8 +1587,8 @@ function StreamLoginCard({ userId }: { userId: string }) {
   useEffect(load, [userId]);
 
   const act = async (action: "enable" | "disable" | "regenerate") => {
-    if (action === "disable" && !window.confirm("Revoke this account's stream login? Any running OBS session will lose access on its next request.")) return;
-    if (action === "regenerate" && !window.confirm("Generate a new key? The old link stops working immediately — you'll need to update OBS with the new one.")) return;
+    if (action === "disable" && !await confirm("Revoke this account's stream login? Any running OBS session will lose access on its next request.")) return;
+    if (action === "regenerate" && !await confirm("Generate a new key? The old link stops working immediately — you'll need to update OBS with the new one.")) return;
     setBusy(true); setErr(null);
     try {
       const res = await api.streamKeySet(userId, action);
@@ -1791,8 +1792,8 @@ function RawSaveTab({ save }: { save: any }) {
   const json = JSON.stringify(save, null, 2);
   const copy = () => {
     navigator.clipboard.writeText(json).then(
-      () => window.alert("Save JSON copied to clipboard."),
-      () => window.alert("Couldn't copy — your browser blocked clipboard write."),
+      () => void notify("Save JSON copied to clipboard."),
+      () => void notify("Couldn't copy — your browser blocked clipboard write."),
     );
   };
   return (

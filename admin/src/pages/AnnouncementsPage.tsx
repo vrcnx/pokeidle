@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type ChatMessage, type AdminAnnouncement, type AdminAnnouncementRow, type AnnouncementType } from "../api";
 
 // Two distinct tools live here, because they are genuinely different things:
@@ -92,7 +93,7 @@ function BannerManager() {
     }
     const expiresAt = hours !== null ? new Date(Date.now() + hours * 3_600_000).toISOString() : null;
 
-    if (!window.confirm(`Pin this ${type} banner to EVERY player's chat header?\n\n"${m}"${h ? `\n\nLink: ${h}` : ""}${expiresAt ? `\n\nAuto-clears in ${hours}h.` : ""}`)) return;
+    if (!await confirm(`Pin this ${type} banner to EVERY player's chat header?\n\n"${m}"${h ? `\n\nLink: ${h}` : ""}${expiresAt ? `\n\nAuto-clears in ${hours}h.` : ""}`)) return;
 
     setBusy(true); setErr(null);
     try {
@@ -111,7 +112,7 @@ function BannerManager() {
   };
 
   const clear = async () => {
-    if (!window.confirm("Take the banner down for everyone?")) return;
+    if (!await confirm("Take the banner down for everyone?")) return;
     setBusy(true); setErr(null);
     try {
       await api.clearAnnouncement();
@@ -246,7 +247,7 @@ function ChatBroadcast() {
     const c = content.trim();
     if (!c) return;
     if (c.length > MAX_LEN) { setErr(`Too long — max ${MAX_LEN} characters (you have ${c.length}).`); return; }
-    if (!window.confirm(`Send this as a one-off message into global chat?\n\n"${c}"\n\nIt will scroll away like any chat message. For something players should keep seeing, use the pinned banner above.`)) return;
+    if (!await confirm(`Send this as a one-off message into global chat?\n\n"${c}"\n\nIt will scroll away like any chat message. For something players should keep seeing, use the pinned banner above.`)) return;
     setBusy(true); setErr(null);
     try {
       const res = await api.announce(c);

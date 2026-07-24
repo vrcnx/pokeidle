@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type AdminTournament } from "../api";
 
 // Tournament admin page — v1 capabilities:
@@ -178,7 +179,7 @@ function TournamentDetail({
     }
   };
   const removeEntry = async (entryId: string) => {
-    if (!window.confirm("Remove this participant?")) return;
+    if (!await confirm("Remove this participant?")) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -210,7 +211,7 @@ function TournamentDetail({
     }
   };
   const remove = async () => {
-    if (!window.confirm(`Delete tournament "${tournament.name}"? Cascades to entries.`)) return;
+    if (!await confirm(`Delete tournament "${tournament.name}"? Cascades to entries.`)) return;
     setBusy(true);
     try {
       await api.deleteTournament(tournament.id);
@@ -344,7 +345,7 @@ function BracketSection({
     : null;
 
   const generate = async () => {
-    if (!window.confirm(`Generate bracket from ${tournament.entries.length} participants? Status flips to 'live'.`)) return;
+    if (!await confirm(`Generate bracket from ${tournament.entries.length} participants? Status flips to 'live'.`)) return;
     setBusy(true);
     setMsg(null);
     try {

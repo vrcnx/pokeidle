@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type ChatMessage } from "../api";
 import { navigateTo } from "../App";
 import { getSocket } from "../net/socket";
@@ -169,7 +170,7 @@ function LiveChat() {
   };
 
   const del = async (id: string) => {
-    if (!window.confirm("Delete this message?")) return;
+    if (!await confirm("Delete this message?")) return;
     try {
       await api.deleteChat(id);
       setByChannel((prev) => ({
@@ -182,7 +183,7 @@ function LiveChat() {
   };
 
   const clearAll = async () => {
-    if (!window.confirm(
+    if (!await confirm(
       "Clear ALL messages in the public live chat (global + all area channels)?\n\n"
       + "This deletes them from the database and wipes them from every connected "
       + "player's screen. DMs are not affected. This cannot be undone."
@@ -197,7 +198,7 @@ function LiveChat() {
         }
         return next;
       });
-      window.alert(`Cleared ${res.deleted} message${res.deleted === 1 ? "" : "s"}.`);
+      void notify(`Cleared ${res.deleted} message${res.deleted === 1 ? "" : "s"}.`);
     } catch (e: any) {
       setErr(e?.message ?? "clear failed");
     }
@@ -311,13 +312,13 @@ function ChatSearch() {
   }, [channel, q, username, limit]);
 
   const del = async (id: string) => {
-    if (!window.confirm("Delete this message?")) return;
+    if (!await confirm("Delete this message?")) return;
     await api.deleteChat(id).catch((e) => setErr(e.message));
     setMsgs((m) => m.filter((x) => x.id !== id));
   };
 
   const clearAll = async () => {
-    if (!window.confirm(
+    if (!await confirm(
       "Clear ALL messages in the public live chat (global + all area channels)?\n\n"
       + "This deletes them from the database and wipes them from every connected "
       + "player's screen. DMs are not affected. This cannot be undone."
@@ -327,7 +328,7 @@ function ChatSearch() {
     try {
       const res = await api.clearAllChat();
       setMsgs([]);
-      window.alert(`Cleared ${res.deleted} message${res.deleted === 1 ? "" : "s"}.`);
+      void notify(`Cleared ${res.deleted} message${res.deleted === 1 ? "" : "s"}.`);
     } catch (e: any) {
       setErr(e?.message ?? "clear failed");
     } finally {

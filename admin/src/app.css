@@ -3139,3 +3139,37 @@ input[type="checkbox"], input[type="radio"] {
 @media (max-width: 900px) {
   .gv-form-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── In-app confirm/alert (replaces window.confirm/alert, which the browser
+   can suppress after repeated native dialogs, silently breaking buttons) ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+.confirm-box {
+  background: var(--panel-2, #1e2027);
+  border: 1px solid var(--border, #2a2a35);
+  border-radius: 12px;
+  padding: 18px 18px 14px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.confirm-msg {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-size: 14px;
+  color: var(--text, #e5e7eb);
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

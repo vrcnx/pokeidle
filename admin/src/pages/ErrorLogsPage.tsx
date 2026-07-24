@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type ErrorEntry, type ErrorGroup } from "../api";
 
 type Kind = "all" | "server" | "client";
@@ -108,7 +109,7 @@ export function ErrorLogsPage() {
           expanded={expandedFingerprint}
           onToggle={(fp) => setExpandedFingerprint(expandedFingerprint === fp ? null : fp)}
           onResolve={async (g) => {
-            if (!window.confirm(
+            if (!await confirm(
               `Resolve this error group?\n\n${g.message.slice(0, 160)}\n\n`
               + `This permanently deletes all ${g.count.toLocaleString()} recorded `
               + `occurrence(s). Do this once the bug is actually FIXED — the history `
@@ -336,8 +337,8 @@ function ErrorRaw({ errors }: { errors: ErrorEntry[] }) {
   const text = useMemo(() => formatRaw(errors), [errors]);
   const copy = () => {
     navigator.clipboard.writeText(text).then(
-      () => window.alert(`Copied ${errors.length} error${errors.length === 1 ? "" : "s"} to clipboard.`),
-      () => window.alert("Couldn't copy — clipboard write blocked."),
+      () => void notify(`Copied ${errors.length} error${errors.length === 1 ? "" : "s"} to clipboard.`),
+      () => void notify("Couldn't copy — clipboard write blocked."),
     );
   };
   return (

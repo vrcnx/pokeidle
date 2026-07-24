@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { confirm, notify } from "../components/Confirm";
 import { api, type GiveawayPrizeInput, type AdminUser } from "../api";
 import { POKEMON_LIST, ITEM_LIST, createPokemon } from "../data/gameCatalog";
 import { Combobox } from "../components/Combobox";
@@ -56,7 +57,7 @@ export function MassGiftPage() {
       audience === "all" ? "EVERY account"
       : audience === "online" ? "everyone online right now"
       : `${selected.length} selected player${selected.length === 1 ? "" : "s"}`;
-    if (!window.confirm(`Send this gift to ${who}? This writes directly to their saves and can't be undone.`)) return;
+    if (!await confirm(`Send this gift to ${who}? This writes directly to their saves and can't be undone.`)) return;
     setBusy(true);
     try {
       const res = await api.massGift({

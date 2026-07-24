@@ -14,6 +14,7 @@ import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { GiveawaysPage } from "./pages/GiveawaysPage";
 import { MassGiftPage } from "./pages/MassGiftPage";
 import { PollsPage } from "./pages/PollsPage";
+import { ConfirmHost } from "./components/Confirm";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
 export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements";
@@ -237,6 +238,7 @@ export function App() {
         {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
       </main>
+      <ConfirmHost />
     </div>
   );
 }
