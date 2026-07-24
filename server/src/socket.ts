@@ -576,7 +576,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         const stored = await prisma.chatMessage.create({
           data: { channelId, userId: user.id, content: trimmed, kind: safeKind, meta: safeMeta },
           include: {
-            user: { select: { id: true, username: true, name: true, accountLevel: true } },
+            user: { select: { id: true, username: true, name: true, accountLevel: true, isAdmin: true } },
           },
         });
         const payload = {

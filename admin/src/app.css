@@ -231,7 +231,6 @@ button:focus-visible {
   margin-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
-.admin-brand-icon { width: 26px; height: 26px; }
 .admin-brand-mark { height: 16px; width: auto; opacity: 0.95; }
 .admin-brand-tag {
   margin-left: auto;

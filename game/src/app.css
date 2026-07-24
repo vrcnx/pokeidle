@@ -13358,6 +13358,18 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+.g-chat-msg-admin {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: linear-gradient(135deg, #e0245e, #c81d4e);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  align-self: center;
+  box-shadow: 0 1px 3px rgba(224,36,94,0.4);
+}
 .g-chat-msg-time { font-size: 10px; color: var(--text-muted); }
 .g-chat-msg-body {
   font-size: 12px;

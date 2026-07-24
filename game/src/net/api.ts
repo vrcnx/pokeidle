@@ -514,5 +514,5 @@ export interface ChatMessage {
   kind?: string;
   meta?: { offering?: string; wanting?: string; giveawayId?: string; username?: string; pollId?: string } | null;
   createdAt: string;
-  user: { id: string; username: string; name: string | null; accountLevel: number };
+  user: { id: string; username: string; name: string | null; accountLevel: number; isAdmin?: boolean };
 }

@@ -179,7 +179,6 @@ export function App() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <img src="/logos/pokeidle-icon.svg" alt="" className="admin-brand-icon" />
           <img src="/logos/Pokeidle.svg" alt="Pokémon Idle" className="admin-brand-mark" />
           <span className="admin-brand-tag">Admin</span>
         </div>

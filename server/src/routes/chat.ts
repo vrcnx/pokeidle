@@ -18,7 +18,7 @@ app.get("/:channelId/history", requireUser, async (c) => {
     where: { channelId },
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
+    include: { user: { select: { id: true, username: true, name: true, accountLevel: true, isAdmin: true } } },
   });
   // Send oldest-first so the client can append from the bottom up.
   rows.reverse();

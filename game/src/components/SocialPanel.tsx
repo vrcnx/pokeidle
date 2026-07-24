@@ -378,6 +378,9 @@ function ChatTab({
                   >
                     <strong>{m.user.name ?? m.user.username}</strong>
                   </button>
+                  {m.user.isAdmin && (
+                    <span className="g-chat-msg-admin" title={t("Admin")}>★ {t("ADMIN")}</span>
+                  )}
                   <span className="g-chat-msg-lv">{t("Lv ")}{m.user.accountLevel}</span>
                   <span className="g-chat-msg-time">{new Date(m.createdAt).toLocaleTimeString()}</span>
                 </div>
