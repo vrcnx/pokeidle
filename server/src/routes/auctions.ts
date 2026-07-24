@@ -5,6 +5,8 @@ import { requireUser, blockStream } from "../lib/middleware.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 import { getIo, sendToUserGlobal } from "../socket.js";
 import { recordError } from "../lib/errorReporting.js";
+import { computeAccountLevel } from "../lib/level.js";
+import { emitSaveAdopt } from "../lib/saveAdopt.js";
 
 const app = new Hono();
 
@@ -149,27 +151,65 @@ app.post("/", requireUser, blockStream, async (c) => {
   });
   if (existing) return c.json({ error: "that Pokemon is already listed in an active auction" }, 409);
 
-  const me = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true } });
+  const me = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true, saveVersion: true } });
   const save = safeParseSave(me?.saveData ?? null);
   if (!save) return c.json({ error: "no save data" }, 400);
   const mon = findMonInSave(save, pokemonId);
   if (!mon) return c.json({ error: "you don't own that Pokemon" }, 404);
   const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
+  const box = Array.isArray(save.box) ? (save.box as Record<string, unknown>[]) : [];
   const isInParty = party.some((m) => m && m.id === pokemonId);
   if (isInParty && party.length <= 1) {
     return c.json({ error: "can't list your only Pokemon — you'd be left with an empty party" }, 400);
   }
 
-  const auction = await prisma.auction.create({
-    data: {
-      sellerId: user.id,
-      pokemonId,
-      pokemonSnapshot: JSON.stringify(mon),
-      startingBid,
-      endsAt: new Date(Date.now() + durationMinutes * 60_000),
-    },
-    select: AUCTION_SELECT,
-  });
+  // ESCROW: remove the mon from the seller's save the moment it's listed, so
+  // it can't be used in battle, traded, or double-listed while up for auction
+  // (that was the dupe vector). pokemonSnapshot preserves its data for
+  // settlement (→ winner) or cancel/expiry (→ returned to the seller). The
+  // save write + auction create are one transaction (CAS on the version we
+  // read); saveAdoptSeq is bumped so the seller's client drops the mon too.
+  const escrowedSave = {
+    ...save,
+    party: party.filter((m) => !(m && m.id === pokemonId)),
+    box: box.filter((m) => !(m && m.id === pokemonId)),
+  };
+  const derived = computeAccountLevel(escrowedSave);
+
+  let auction;
+  try {
+    auction = await prisma.$transaction(async (tx) => {
+      const claim = await tx.user.updateMany({
+        where: { id: user.id, saveVersion: me!.saveVersion },
+        data: {
+          saveData: JSON.stringify(escrowedSave),
+          saveVersion: { increment: 1 },
+          saveAdoptSeq: { increment: 1 },
+          saveUpdatedAt: new Date(),
+          accountLevel: derived.accountLevel,
+          totalCaughtLevels: derived.totalCaughtLevels,
+          pokedexCaughtCount: derived.pokedexCaughtCount,
+        },
+      });
+      if (claim.count === 0) throw new Error("save_conflict");
+      return tx.auction.create({
+        data: {
+          sellerId: user.id,
+          pokemonId,
+          pokemonSnapshot: JSON.stringify(mon),
+          startingBid,
+          endsAt: new Date(Date.now() + durationMinutes * 60_000),
+        },
+        select: AUCTION_SELECT,
+      });
+    });
+  } catch (e) {
+    if ((e as Error).message === "save_conflict") {
+      return c.json({ error: "your save just changed — reload and try again" }, 409);
+    }
+    throw e;
+  }
+  emitSaveAdopt(user.id);
   return c.json({ auction: await serializeAuction(auction) }, 201);
 });
 
@@ -242,13 +282,59 @@ app.post("/:id/bids", requireUser, blockStream, async (c) => {
 app.post("/:id/cancel", requireUser, blockStream, async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
-  const claim = await prisma.auction.updateMany({
+  const auction = await prisma.auction.findFirst({
     where: { id, sellerId: user.id, status: "active", currentBidderId: null },
-    data: { status: "cancelled", settledAt: new Date() },
+    select: { id: true, pokemonSnapshot: true },
   });
-  if (claim.count === 0) {
+  if (!auction) {
     return c.json({ error: "can't cancel — not yours, already ended, or already has a bid" }, 409);
   }
+  let mon: Record<string, unknown> | null = null;
+  try { mon = JSON.parse(auction.pokemonSnapshot); } catch { /* no restore possible */ }
+
+  const me = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true, saveVersion: true } });
+  const save = safeParseSave(me?.saveData ?? null);
+
+  // Cancel the listing AND return the escrowed mon to the seller's box, in one
+  // transaction. If either CAS loses a race, nothing commits and the seller
+  // can retry — no way to end up with the auction cancelled but the mon lost.
+  try {
+    await prisma.$transaction(async (tx) => {
+      const cancelClaim = await tx.auction.updateMany({
+        where: { id, sellerId: user.id, status: "active", currentBidderId: null },
+        data: { status: "cancelled", settledAt: new Date() },
+      });
+      if (cancelClaim.count === 0) throw new Error("auction_gone");
+      if (save && mon && typeof mon.id === "string") {
+        const box = Array.isArray(save.box) ? (save.box as Record<string, unknown>[]) : [];
+        const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
+        const alreadyHas = box.some((m) => m && m.id === mon!.id) || party.some((m) => m && m.id === mon!.id);
+        if (!alreadyHas) {
+          const restoredSave = { ...save, box: [...box, mon] };
+          const derived = computeAccountLevel(restoredSave);
+          const saveClaim = await tx.user.updateMany({
+            where: { id: user.id, saveVersion: me!.saveVersion },
+            data: {
+              saveData: JSON.stringify(restoredSave),
+              saveVersion: { increment: 1 },
+              saveAdoptSeq: { increment: 1 },
+              saveUpdatedAt: new Date(),
+              accountLevel: derived.accountLevel,
+              totalCaughtLevels: derived.totalCaughtLevels,
+              pokedexCaughtCount: derived.pokedexCaughtCount,
+            },
+          });
+          if (saveClaim.count === 0) throw new Error("save_conflict");
+        }
+      }
+    });
+  } catch (e) {
+    const m = (e as Error).message;
+    if (m === "auction_gone") return c.json({ error: "can't cancel — already ended or bid on" }, 409);
+    if (m === "save_conflict") return c.json({ error: "your save just changed — reload and try again" }, 409);
+    throw e;
+  }
+  emitSaveAdopt(user.id);
   return c.json({ ok: true });
 });
 
