@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.0";
+export const CURRENT_VERSION = "0.9.1";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,36 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.1",
+      subtitle: "Evolution items, a fairer defeat penalty, and Safari access",
+      date: "2026-07-24",
+      sections: [
+        {
+          heading: "💰 Your money stops vanishing",
+          items: [
+            "Losing a battle used to cost a quarter of your entire bank — and because the game fights on its own while you're away, that quietly outpaced everything you earned. Several of you reported your balance going DOWN while winning",
+            "The defeat penalty is now capped at 5% of your money, up to $5,000 max. Losses sting a little; they can't wipe a fortune any more",
+            "(A separate double-charge on the same loss is fixed too — you were being billed twice.)",
+          ],
+        },
+        {
+          heading: "🪨 Evolution items you can actually buy",
+          items: [
+            "Moon Stone and Sun Stone are now stocked at the Celadon and Goldenrod Dept. Stores instead of being Elite-Four-reward-only — Nidoqueen, Nidoking, Clefable, Wigglytuff, Espeon, Umbreon, Bellossom and Sunflora are all reachable now",
+            "Trade-evolution catalysts are on the shelves too: Metal Coat, King's Rock, Dragon Scale and Up-Grade. Combine one with a Link Cable to get Steelix, Scizor, Kingdra, Slowking, Politoed and Porygon2",
+          ],
+        },
+        {
+          heading: "🐛 Fixed",
+          items: [
+            "The Safari Zone needed one more badge than the town it sits in, stranding players who'd reached Fuchsia — it now opens with Fuchsia itself (this also unblocked the route to Victory Road)",
+            "Route cards with lots of encounter species (hello, Safari Zone) no longer stretch so far that the travel button gets pushed out of reach",
+            "Using an evolution item on a Pokémon whose evolution isn't in the game yet no longer errors out — and no longer eats the item",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.0",
       subtitle: "Johto is open — plus auctions, evolutions, and Hyper Training",
