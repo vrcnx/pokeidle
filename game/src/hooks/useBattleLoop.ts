@@ -80,6 +80,12 @@ export function useBattleLoop(): void {
 
       if (cur.awaitingSwitch) { repoll(); return; }
       if (cur.pendingEvents.length > 0) { repoll(); return; }
+      // A ball is mid-flight. The outcome is already rolled, so letting turns
+      // keep running underneath the animation meant the enemy attacked (and
+      // could faint your mon, or itself) while the ball was still arcing —
+      // the throw read as a cosmetic overlay rather than an action. Hold the
+      // loop until the throw resolves.
+      if (cur.catchAnim) { repoll(); return; }
 
       // Defensive: if every party member is fainted while idle (ie. the
       // game ended up in a stuck state somehow), auto-heal so the loop
