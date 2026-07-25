@@ -5,6 +5,7 @@ import { executeStreamCommand } from "../utils/streamCommands";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount } from "../utils/unlocks";
 import { encounters } from "../data/encounters";
+import { evolutions } from "../data/evolutions";
 import { bestTeamSwap, bestLeadIndex } from "../utils/streamTeam";
 import type { GameState } from "../types";
 
@@ -110,7 +111,32 @@ export function useStreamAutoPlay(): void {
         return;
       }
 
-      // 2. Field the best six it owns. Without this the party fills with
+      // 2. Evolve anything it can. Level-up evolutions fire on their own in
+      //    the reducer, but stone / Link Cable ones need the item used from
+      //    the Bag — so the bot would sit on a Moon Stone next to an eligible
+      //    Nidorina forever. One per tick, and the evolution phase blocks the
+      //    rest of the director anyway (the guard above bails unless idle).
+      for (let i = 0; i < s.party.length; i++) {
+        const mon = s.party[i];
+        const trigger = (evolutions[mon.speciesKey] ?? []).find((e) => {
+          const anyE = e as { item?: string; trade?: boolean; into?: string };
+          if (!anyE.item || !anyE.into) return false;
+          // Only what the bot can actually action from the Bag.
+          if (anyE.trade) {
+            return (s.inventory.linkcable ?? 0) > 0 && mon.heldItem === anyE.item;
+          }
+          return (s.inventory[anyE.item] ?? 0) > 0;
+        }) as { item?: string; trade?: boolean } | undefined;
+        if (!trigger) continue;
+        if (trigger.trade) {
+          dispatch({ type: "USE_LINK_CABLE", payload: { partyIndex: i } });
+        } else {
+          dispatch({ type: "USE_STONE", payload: { itemId: trigger.item!, partyIndex: i } });
+        }
+        return;
+      }
+
+      // 3. Field the best six it owns. Without this the party fills with
       //    whatever it caught first while a rare, far stronger mon sits
       //    forgotten in the PC — weaker AND worse to watch.
       const swap = bestTeamSwap(s);
@@ -119,7 +145,7 @@ export function useStreamAutoPlay(): void {
         return;
       }
 
-      // 3. Train the whole team, not one carry: put the strongest mon that's
+      // 4. Train the whole team, not one carry: put the strongest mon that's
       //    lagging the party's top level out front so EXP spreads evenly.
       const lead = bestLeadIndex(s);
       if (lead >= 0 && lead !== s.activePlayerPokemonIndex) {
@@ -130,7 +156,7 @@ export function useStreamAutoPlay(): void {
       const region = regions[regionForLocation(s.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
       const best = topLevel(s);
 
-      // 4. Beat the next gym once the party can plausibly win — and if this
+      // 5. Beat the next gym once the party can plausibly win — and if this
       //    gym has already beaten us, demand a wider margin each time.
       const nextGym = region.gymLeaders.find((g) => !s.defeatedGyms.includes(g.id));
       if (nextGym && s.unlockedLocations.includes(nextGym.locationKey)) {
@@ -147,7 +173,7 @@ export function useStreamAutoPlay(): void {
         }
       }
 
-      // 5. All badges in hand → run the league gauntlet once strong enough.
+      // 6. All badges in hand → run the league gauntlet once strong enough.
       if (regionBadgeCount(s, region) >= region.gymLeaders.length) {
         const champ = region.champion;
         const e4Left = region.eliteFour.some((m) => !s.defeatedEliteFour.includes(m.id));
@@ -168,7 +194,7 @@ export function useStreamAutoPlay(): void {
         }
       }
 
-      // 6. Otherwise grind somewhere useful. Normally that's the toughest
+      // 7. Otherwise grind somewhere useful. Normally that's the toughest
       //    route we can handle (fastest EXP), but every whiteout here pulls
       //    the ceiling DOWN, so a run of deaths makes the account retreat to
       //    easier ground and level up instead of feeding the same route.

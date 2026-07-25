@@ -56,6 +56,10 @@ export function BagPanel() {
   }
 
   const routeEncounters = encounters[state.currentRoute]?.encounters ?? [];
+  // Battles left on the shared-EXP buff, so the Bag can say whether it's
+  // actually running rather than leaving the player guessing.
+  const expShareBattles =
+    state.activeEffects.find((e) => e.itemId === "expShare")?.battlesRemaining ?? 0;
 
   return (
     <div className="bag-panel">
@@ -197,6 +201,38 @@ export function BagPanel() {
                 </span>
               </li>
             )}
+          </ul>
+        </>
+      )}
+
+      {((state.inventory.expShare ?? 0) > 0 || expShareBattles > 0) && (
+        <>
+          <h3>{t("Exp. Share")}</h3>
+          <ul className="bag-list">
+            <li>
+              <span>
+                {getItemInfo("expShare").name} × {state.inventory.expShare ?? 0}
+                <br />
+                {expShareBattles > 0 ? (
+                  <span className="bag-active-badge">
+                    {t("Active")} · {expShareBattles} {t("battles left")}
+                  </span>
+                ) : (
+                  <span className="dim small">
+                    {t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
+                  </span>
+                )}
+              </span>
+              <button
+                disabled={(state.inventory.expShare ?? 0) <= 0}
+                onClick={() => {
+                  dispatch({ type: "USE_EXP_SHARE" });
+                  pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
+                }}
+              >
+                {expShareBattles > 0 ? t("Extend") : t("Use")}
+              </button>
+            </li>
           </ul>
         </>
       )}

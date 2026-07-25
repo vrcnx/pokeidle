@@ -17513,3 +17513,17 @@ html, body {
    don't slide up and down as the catch card comes and goes. */
 .dashboard-wide .center-column > .context-panel > .context-panel-body { justify-content: flex-start; }
 .dashboard-wide .center-column > .context-panel .manual-catch { flex: 0 0 auto; }
+
+/* Active-effect pill in the Bag — a running buff should be unmistakable. */
+.bag-active-badge {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}

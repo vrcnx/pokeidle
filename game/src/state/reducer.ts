@@ -1213,6 +1213,35 @@ export function reducer(state: GameState, action: Action): GameState {
       );
     }
 
+    case "USE_EXP_SHARE": {
+      // Activating from the Bag. Buying an Exp. Share credits the inventory,
+      // but nothing consumed it — players sat on a stack with no way to turn
+      // it on and no sign of whether it was running. Consumes one and adds
+      // (or extends) the shared-EXP effect, reusing the same uncapped
+      // stacking the purchase path uses.
+      const owned = state.inventory.expShare ?? 0;
+      if (owned <= 0) return pushLog(state, "You don't have an Exp. Share.");
+      const addBattles = consumables.expShare?.duration ?? 300;
+      const inventory = { ...state.inventory };
+      const remaining = owned - 1;
+      if (remaining <= 0) delete inventory.expShare;
+      else inventory.expShare = remaining;
+      const existing = state.activeEffects.find((e) => e.itemId === "expShare");
+      const activeEffects = existing
+        ? state.activeEffects.map((e) =>
+            e === existing ? { ...e, battlesRemaining: e.battlesRemaining + addBattles } : e
+          )
+        : [
+            ...state.activeEffects,
+            { itemId: "expShare", battlesRemaining: addBattles, speciesKey: "", routeKey: "" },
+          ];
+      const total = existing ? existing.battlesRemaining + addBattles : addBattles;
+      return pushLog(
+        { ...state, inventory, activeEffects },
+        `Exp. Share activated — sharing EXP for the next ${total} battles.`,
+      );
+    }
+
     case "USE_EV_BERRY": {
       // Lower one stat's EVs by 10. EV training had no undo, so a mon trained
       // into the wrong spread was permanently mis-built — players asked for a
