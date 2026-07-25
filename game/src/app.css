@@ -17527,3 +17527,22 @@ html, body {
   color: #86efac;
   border: 1px solid rgba(74, 222, 128, 0.4);
 }
+
+/* ---------- Pokémon detail: evolution card ---------- */
+.detail-evo-card.ready {
+  background: linear-gradient(90deg, rgba(56, 160, 235, 0.26), rgba(56, 160, 235, 0.12));
+  border-color: rgba(125, 211, 252, 0.75);
+}
+.detail-evo-card.ready h3 { color: #dff2ff; }
+.detail-evo-ready-pill {
+  margin-left: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.9);
+  color: #06283d;
+  vertical-align: 2px;
+}

@@ -467,6 +467,58 @@ function PokemonDetailDialog({
           </div>
         </section>
 
+        {allEvolutions.length > 0 && (
+          /* Hoisted above the stats grid and given the same blue treatment as
+             a ready-to-evolve party row. Evolving is the most consequential
+             thing you can do from this screen and it used to sit last, below
+             stats and the whole move list. */
+          <section className={`g-card g-card-full detail-evo-card${allEvolutions.some((e: any) => e.eligible) ? " ready" : ""}`}>
+            <h3>
+              {t("Evolution")}
+              {allEvolutions.some((e: any) => e.eligible) && (
+                <span className="detail-evo-ready-pill">{t("Ready")}</span>
+              )}
+            </h3>
+            <ul className="detail-evos">
+              {allEvolutions.map((e: any) => {
+                const target = pokemonTable[e.trigger.into];
+                return (
+                  <li key={e.trigger.into} className={e.eligible ? "" : "evo-locked"}>
+                    <img
+                      src={pokemonSpriteUrl(e.trigger.into, false, p.isShiny)}
+                      alt={target?.name ?? e.trigger.into}
+                      width={40}
+                      height={40}
+                      style={{
+                        imageRendering: "pixelated",
+                        filter: e.eligible ? "none" : "grayscale(1) brightness(0.6)",
+                      }}
+                    />
+                    <div>
+                      <strong>→ {target?.name ?? e.trigger.into}</strong>
+                      <small className="dim">{e.reason}</small>
+                    </div>
+                    <button
+                      disabled={!isPartySelection || inBattle || !e.eligible}
+                      title={
+                        !e.eligible ? e.reason :
+                        !isPartySelection ? t("Move to party first") :
+                        undefined
+                      }
+                      onClick={() => e.eligible && evolveTo(e.trigger)}
+                    >
+                      {t("Evolve")}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {!isPartySelection && allEvolutions.some((e: any) => e.eligible) && (
+              <p className="g-help">{t("Move this Pokémon to your party to evolve it.")}</p>
+            )}
+          </section>
+        )}
+
         <div className="g-grid">
           <section className="g-card">
             <h3>{t("Stats")}</h3>
@@ -589,48 +641,7 @@ function PokemonDetailDialog({
           </ul>
         </section>
 
-        {allEvolutions.length > 0 && (
-          <section className="g-card g-card-full">
-            <h3>{t("Evolution")}</h3>
-            <ul className="detail-evos">
-              {allEvolutions.map((e: any) => {
-                const target = pokemonTable[e.trigger.into];
-                return (
-                  <li key={e.trigger.into} className={e.eligible ? "" : "evo-locked"}>
-                    <img
-                      src={pokemonSpriteUrl(e.trigger.into, false, p.isShiny)}
-                      alt={target?.name ?? e.trigger.into}
-                      width={40}
-                      height={40}
-                      style={{
-                        imageRendering: "pixelated",
-                        filter: e.eligible ? "none" : "grayscale(1) brightness(0.6)",
-                      }}
-                    />
-                    <div>
-                      <strong>→ {target?.name ?? e.trigger.into}</strong>
-                      <small className="dim">{e.reason}</small>
-                    </div>
-                    <button
-                      disabled={!isPartySelection || inBattle || !e.eligible}
-                      title={
-                        !e.eligible ? e.reason :
-                        !isPartySelection ? t("Move to party first") :
-                        undefined
-                      }
-                      onClick={() => e.eligible && evolveTo(e.trigger)}
-                    >
-                      {t("Evolve")}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {!isPartySelection && allEvolutions.some((e: any) => e.eligible) && (
-              <p className="g-help">{t("Move this Pokémon to your party to evolve it.")}</p>
-            )}
-          </section>
-        )}
+
       </div>
 
       {swapPicking && (
