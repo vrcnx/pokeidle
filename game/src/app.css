@@ -3274,9 +3274,16 @@ body.dnd-active {
    nudge the player toward evolving without being noisy. Pulses
    gently so a glance is enough to spot it but it doesn't compete
    with the active-mon highlight. */
+/* Ready to evolve. A thin outer glow was easy to miss against a busy party
+   list — players walked past evolutions for ages. The whole card now turns
+   blue so the state reads at a glance, with the glow kept as a secondary
+   pulse rather than the only signal. */
 .party-row.evo-ready {
   position: relative;
+  background: linear-gradient(90deg, rgba(56, 160, 235, 0.30), rgba(56, 160, 235, 0.16));
+  border-color: rgba(125, 211, 252, 0.75);
 }
+.party-row.evo-ready .party-row-name > strong { color: #dff2ff; }
 .party-row.evo-ready::before {
   content: "";
   position: absolute;
@@ -3284,13 +3291,16 @@ body.dnd-active {
   border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    0 0 0 1px rgba(125, 211, 252, 0.55),
-    0 0 14px rgba(125, 211, 252, 0.35);
+    0 0 0 1px rgba(125, 211, 252, 0.7),
+    0 0 16px rgba(125, 211, 252, 0.4);
   animation: evo-ready-pulse 2.2s ease-in-out infinite;
 }
 @keyframes evo-ready-pulse {
-  0%, 100% { opacity: 0.55; }
+  0%, 100% { opacity: 0.5; }
   50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .party-row.evo-ready::before { animation: none; opacity: 0.85; }
 }
 
 /* Pokemon Detail modal — Manage moves shortcut sits inline next to
