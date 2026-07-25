@@ -244,6 +244,9 @@ function ManualCatchSection() {
   const t = useT();
   if (state.phase !== "battle" || !state.enemyPokemon) return null;
   const target = state.enemyPokemon;
+  // A throw is already in the air — queueing another would burn a second ball
+  // against an outcome that's already decided.
+  const throwing = !!state.catchAnim;
   const hpPct = Math.max(0, Math.round((target.currentHp / target.maxHp) * 100));
 
   return (
@@ -263,9 +266,14 @@ function ManualCatchSection() {
             <button
               key={id}
               className="manual-catch-ball"
-              disabled={owned <= 0}
+              disabled={owned <= 0 || throwing}
               title={owned <= 0 ? t("You have none of these") : `${ball.name} ×${owned}`}
-              onClick={() => dispatch({ type: "CATCH_POKEMON", payload: { ballId: id } })}
+              // TRY_CATCH, not CATCH_POKEMON: the former pre-rolls the
+              // result and hands it to the ball-throw animation (arc + three
+              // shakes), which is the same path auto-catch uses. Dispatching
+              // CATCH_POKEMON resolved the catch instantly, so a manual throw
+              // skipped the animation entirely and felt like a free catch.
+              onClick={() => dispatch({ type: "TRY_CATCH", payload: { ballId: id } })}
             >
               <img src={itemSpriteUrl(id)} alt="" width={22} height={22} />
               <span>{ball.name}</span>
