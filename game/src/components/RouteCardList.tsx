@@ -87,7 +87,7 @@ export function RouteCardList() {
   return (
     <div className="tab-pane route-card-list">
       <TabPaneHead
-        title={t("Routes")}
+        title=""
         className="route-card-head-pane"
         meta={
           <span className="route-head-meta">
