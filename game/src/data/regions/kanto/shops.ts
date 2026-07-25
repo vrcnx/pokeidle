@@ -95,6 +95,14 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "kingsrock" },
       { itemId: "dragonscale" },
       { itemId: "upgrade" },
+      // EV berries — each lowers one stat's EVs by 10, so a mis-trained
+      // spread can be reworked instead of the Pokémon being written off.
+      { itemId: "pomegberry" },
+      { itemId: "kelpsyberry" },
+      { itemId: "qualotberry" },
+      { itemId: "hondewberry" },
+      { itemId: "grepaberry" },
+      { itemId: "tamatoberry" },
       // Battle held items.
       { itemId: "leftovers" },
       { itemId: "lifeorb" },

@@ -1213,6 +1213,64 @@ export function reducer(state: GameState, action: Action): GameState {
       );
     }
 
+    case "USE_EV_BERRY": {
+      // Lower one stat's EVs by 10. EV training had no undo, so a mon trained
+      // into the wrong spread was permanently mis-built — players asked for a
+      // way back. Mirrors USE_BOTTLE_CAP: validate, recompute, consume.
+      type EvStat = "hp" | "attack" | "defense" | "spAttack" | "spDefense" | "speed";
+      const EV_BERRY_STAT: Record<string, EvStat> = {
+        pomegberry: "hp",
+        kelpsyberry: "attack",
+        qualotberry: "defense",
+        hondewberry: "spAttack",
+        grepaberry: "spDefense",
+        tamatoberry: "speed",
+      };
+      const { itemId, source, index } = action.payload;
+      const stat = EV_BERRY_STAT[itemId];
+      if (!stat) return state;
+      const list = source === "party" ? state.party : state.box;
+      if (index < 0 || index >= list.length) return state;
+      const owned = state.inventory[itemId] ?? 0;
+      const berryName = itemsCatalog[itemId]?.name ?? itemId;
+      if (owned <= 0) return pushLog(state, `You don't have a ${berryName}.`);
+      const mon = list[index];
+      if (!mon) return state;
+      const sp = pokemonTable[mon.speciesKey];
+      if (!sp) return state;
+      const curEvs = mon.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+      if ((curEvs[stat] ?? 0) <= 0) {
+        return pushLog(state, `${mon.name} has no ${String(stat)} EVs to lower.`);
+      }
+      const newEvs = { ...curEvs, [stat]: Math.max(0, (curEvs[stat] ?? 0) - 10) } as typeof curEvs;
+      const stats = calcAllStats(sp, mon.level, mon.ivs, newEvs, mon.nature);
+      const updated: Pokemon = {
+        ...mon,
+        evs: newEvs,
+        maxHp: stats.hp,
+        // Never leave the mon above its (possibly lower) new max.
+        currentHp: Math.min(stats.hp, mon.currentHp),
+        attack: stats.attack,
+        defense: stats.defense,
+        spAttack: stats.spAttack,
+        spDefense: stats.spDefense,
+        speed: stats.speed,
+      };
+      const inventory = { ...state.inventory };
+      const remaining = owned - 1;
+      if (remaining <= 0) delete inventory[itemId];
+      else inventory[itemId] = remaining;
+      const newList = [...list];
+      newList[index] = updated;
+      let next: GameState = source === "party"
+        ? { ...state, party: newList, inventory }
+        : { ...state, box: newList, inventory };
+      if (source === "party" && state.activePlayerPokemonIndex === index) {
+        next = { ...next, playerPokemon: updated };
+      }
+      return pushLog(next, `${mon.name}'s ${String(stat)} EVs fell to ${newEvs[stat]}.`);
+    }
+
     case "REORDER_BOX": {
       const { from, to } = action.payload;
       if (from < 0 || to < 0 || from >= state.box.length || to >= state.box.length) return state;

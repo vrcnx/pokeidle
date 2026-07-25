@@ -102,6 +102,18 @@ const items: CatalogItem[] = [
   // consumed alongside the cable.
   { id: "linkcable",     name: "Link Cable",     description: "A handcrafted cable that mimics a peer-to-peer trade. Use on a Pokémon that evolves by trade to trigger its evolution. Consumed on use.", category: "utility", buyPrice: 9800, sellPrice: 4900, spriteOverride: "link-cable", implemented: true },
 
+  // ── EV berries (lower a single stat's EVs) ───────────────────────────────
+  // EV training is easy to get wrong and was previously irreversible — a mon
+  // could be permanently mis-trained with no way back. These mirror the
+  // mainline berries: each drops 10 EVs from one stat, so a spread can be
+  // reworked rather than the Pokémon written off.
+  { id: "pomegberry", name: "Pomeg Berry",  description: "Lowers a Pokémon's HP EVs by 10.",      category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "pomeg-berry",  implemented: true },
+  { id: "kelpsyberry", name: "Kelpsy Berry", description: "Lowers a Pokémon's Attack EVs by 10.",  category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "kelpsy-berry", implemented: true },
+  { id: "qualotberry", name: "Qualot Berry", description: "Lowers a Pokémon's Defense EVs by 10.", category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "qualot-berry", implemented: true },
+  { id: "hondewberry", name: "Hondew Berry", description: "Lowers a Pokémon's Sp. Atk EVs by 10.", category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "hondew-berry", implemented: true },
+  { id: "grepaberry",  name: "Grepa Berry",  description: "Lowers a Pokémon's Sp. Def EVs by 10.", category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "grepa-berry",  implemented: true },
+  { id: "tamatoberry", name: "Tamato Berry", description: "Lowers a Pokémon's Speed EVs by 10.",   category: "utility", buyPrice: 6000, sellPrice: 3000, spriteOverride: "tamato-berry", implemented: true },
+
   // ── Evolution Stones (luxury items — extremely expensive) ────────────────
   { id: "firestone",    name: "Fire Stone",    description: "A rare stone that radiates heat. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "fire-stone", implemented: true },
   { id: "waterstone",   name: "Water Stone",   description: "A rare stone with a blue, watery appearance. Evolves certain Pokémon.", category: "stone", buyPrice: 100000, sellPrice: 50000, spriteOverride: "water-stone", implemented: true },

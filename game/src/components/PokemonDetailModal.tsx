@@ -199,6 +199,21 @@ export function PokemonDetailModal() {
   const perfectIVs =
     ivs.hp >= 31 && ivs.attack >= 31 && ivs.defense >= 31 &&
     ivs.spAttack >= 31 && ivs.spDefense >= 31 && ivs.speed >= 31;
+  // EV berries: one per stat, each -10 EVs. Only offered for stats the mon
+  // actually HAS EVs in, so the row can't be a dead end.
+  const EV_BERRIES: { id: string; stat: keyof typeof ivs; label: string }[] = [
+    { id: "pomegberry", stat: "hp", label: "HP" },
+    { id: "kelpsyberry", stat: "attack", label: "Attack" },
+    { id: "qualotberry", stat: "defense", label: "Defense" },
+    { id: "hondewberry", stat: "spAttack", label: "Sp. Atk" },
+    { id: "grepaberry", stat: "spDefense", label: "Sp. Def" },
+    { id: "tamatoberry", stat: "speed", label: "Speed" },
+  ];
+  const monEvs = p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
+  function useEvBerry(itemId: string) {
+    dispatch({ type: "USE_EV_BERRY", payload: { itemId, source: selected!.type, index: selected!.index } });
+  }
+
   function hyperTrain(kind: "gold" | "silver", stat?: keyof typeof ivs) {
     dispatch({
       type: "USE_BOTTLE_CAP",
@@ -302,6 +317,8 @@ export function PokemonDetailModal() {
         allEvolutions={allEvolutions}
         evolveTo={evolveTo}
         selected={selected}
+        evBerries={EV_BERRIES.map((b) => ({ ...b, owned: state.inventory[b.id] ?? 0, ev: (monEvs as unknown as Record<string, number>)[b.stat] ?? 0 }))}
+        useEvBerry={useEvBerry}
         goldCaps={goldCaps}
         silverCaps={silverCaps}
         perfectIVs={perfectIVs}
@@ -358,6 +375,8 @@ function PokemonDetailDialog({
   allEvolutions,
   evolveTo,
   selected,
+  evBerries,
+  useEvBerry,
   goldCaps,
   silverCaps,
   perfectIVs,
@@ -466,6 +485,27 @@ function PokemonDetailDialog({
             <EvRadar evs={p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 }} ivs={p.ivs} />
           </section>
         </div>
+
+        {evBerries.some((b: any) => b.owned > 0 && b.ev > 0) && (
+          <section className="g-card g-card-full">
+            <h3>{t("Lower EVs")}</h3>
+            <p className="dim small" style={{ margin: "0 0 6px" }}>
+              {t("Each berry removes 10 EVs from one stat.")}
+            </p>
+            <div className="hyper-train-stats">
+              {evBerries.filter((b: any) => b.owned > 0 && b.ev > 0).map((b: any) => (
+                <button
+                  key={b.id}
+                  className="g-btn-ghost g-btn-small"
+                  disabled={inBattle}
+                  onClick={() => useEvBerry(b.id)}
+                >
+                  {t(b.label)} <span className="dim">{b.ev} EV · ×{b.owned}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {(goldCaps > 0 || silverCaps > 0) && (
           <section className="g-card g-card-full hyper-train-card">

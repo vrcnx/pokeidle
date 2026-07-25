@@ -498,6 +498,7 @@ export type Action =
   | { type: "USE_LINK_CABLE"; payload: { partyIndex: number } }
   | { type: "USE_STONE"; payload: { itemId: string; partyIndex: number } }
   | { type: "USE_BOTTLE_CAP"; payload: { itemId: string; source: "party" | "box"; index: number; stat?: keyof Stats } }
+  | { type: "USE_EV_BERRY"; payload: { itemId: string; source: "party" | "box"; index: number } }
   | { type: "SELL_ITEM"; payload: { itemId: string; quantity: number } }
   | { type: "LOAD_SAVE"; payload: { state: Partial<GameState> } };
 
