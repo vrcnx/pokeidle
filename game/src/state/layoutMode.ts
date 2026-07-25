@@ -8,8 +8,15 @@ import { useEffect, useState } from "react";
 // would add a field to save validation/merging for something with no gameplay
 // meaning.
 //
-// "classic" stays the default so no existing player's view changes without
-// them asking for it — this is a secondary layout, not a replacement.
+// "wide" is the default: it uses the screen people actually have instead of
+// leaving a third of it as margin, and the reception was strongly positive.
+// Classic remains one click away for anyone who prefers it.
+//
+// The read below checks for "classic" rather than defaulting to it, so a
+// player who DELIBERATELY picked Classic keeps it, while everyone who never
+// touched the setting moves to Wide. Below 1200px the wide grid reverts to
+// the classic template anyway, and mobile uses a different shell entirely, so
+// small screens are unaffected either way.
 
 export type LayoutMode = "classic" | "wide";
 
@@ -19,9 +26,9 @@ let current: LayoutMode = read();
 
 function read(): LayoutMode {
   try {
-    return localStorage.getItem(KEY) === "wide" ? "wide" : "classic";
+    return localStorage.getItem(KEY) === "classic" ? "classic" : "wide";
   } catch {
-    return "classic";
+    return "wide";
   }
 }
 

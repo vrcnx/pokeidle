@@ -603,7 +603,7 @@ function LayoutPrefsCard() {
   const isMobile = useMediaQuery("(max-width: 900px)");
   const OPTIONS: { id: LayoutMode; label: string; blurb: string }[] = [
     { id: "classic", label: t("Classic"), blurb: t("Centred, fixed-width columns. The original layout.") },
-    { id: "wide", label: t("Wide"), blurb: t("Uses the full screen width and grows the battle view. Best above 1200px.") },
+    { id: "wide", label: t("Wide"), blurb: t("Default. Uses the full screen width and grows the battle view. Best above 1200px.") },
   ];
   return (
     <section className="g-card">
