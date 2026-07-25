@@ -17225,6 +17225,12 @@ html, body {
   /* The right rail now carries the Map/Mart/Bag/PC/Dex tabs, so it needs a
      real content width rather than the narrow 300px status rail it was. */
   grid-template-columns: minmax(280px, 0.8fr) minmax(0, 2.1fr) minmax(360px, 1.1fr);
+  /* The real cause of the arena shrinking on species-heavy routes: the
+     dashboard's single grid row defaults to `auto`, so a tall column stretched
+     the row PAST the dashboard's own height — and the arena, sized as a % of
+     that row, was computed against the inflated value. minmax(0, 1fr) pins the
+     row to the container so columns scroll internally instead of growing it. */
+  grid-template-rows: minmax(0, 1fr);
 }
 /* Very wide screens: let the arena take even more, but keep the rails legible
    rather than stretching them into empty columns. */
@@ -17371,11 +17377,21 @@ html, body {
 .dashboard-wide .center-column {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-content: start;
+  /* Explicit rows are what protect the arena. Without them the bottom row
+     sized to its content, so a species-heavy location (the Safari Zone lists
+     21) grew the column past the viewport and the arena — sized off the space
+     left over — got squeezed shorter. Now the arena and toolbar rows take
+     their natural height and the bottom row absorbs whatever remains,
+     scrolling internally instead of pushing anything. */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   gap: 6px;
 }
 .dashboard-wide .center-column > .battle-area,
 .dashboard-wide .center-column > .moves-toolbar { grid-column: 1 / -1; }
+.dashboard-wide .center-column > .battle-area { min-height: 0; align-self: start; }
 .dashboard-wide .center-column > .moves-panel,
 .dashboard-wide .center-column > .moves-panel-wrap { grid-column: 1; }
 .dashboard-wide .center-column > .context-panel { grid-column: 2; min-width: 0; }
@@ -17422,7 +17438,8 @@ html, body {
 .dashboard-wide .center-column > .moves-panel-wrap,
 .dashboard-wide .center-column > .context-panel {
   align-self: stretch;
-  min-height: 178px;
+  min-height: 0;
+  overflow-y: auto;
 }
 /* Stretching the grid item alone wasn't enough: the visible bordered card is
    .ctx-section, nested two levels inside, and it still sized to its content —
