@@ -17454,3 +17454,19 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .ctx-trainer-card--enter { animation: none; }
 }
+
+/* ---------- Routes: List / Map view toggle ---------- */
+.route-view-toggle { display: inline-flex; gap: 2px; padding: 2px; background: rgba(0,0,0,0.3); border-radius: 6px; }
+.route-view-toggle button {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.route-view-toggle button.active { background: var(--gold); color: #2a2100; }
+.route-card-list .town-map { flex: 1 1 auto; min-height: 0; }

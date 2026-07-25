@@ -8,6 +8,7 @@ import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
 import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
+import { TownMap } from "./TownMap";
 import type { GameState, Route } from "../types";
 
 // Sprites shown per route card before collapsing the rest into a "+N" chip.
@@ -68,6 +69,10 @@ export function RouteCardList() {
   const t = useT();
   const regionList = useMemo(() => Object.values(regions), []);
   const [activeRegion, setActiveRegion] = useState(regionList[0]?.id ?? "");
+  // List vs the positional map. TownMap has always existed (routes carry x/y
+  // coordinates) but was never mounted, so "Map" only ever meant a list of
+  // rows. Both views drive the same TRAVEL dispatch and unlock rules.
+  const [view, setView] = useState<"list" | "map">("list");
 
   const routesInRegion = useMemo(
     () =>
@@ -107,15 +112,33 @@ export function RouteCardList() {
                 ))}
               </nav>
             )}
+            <span className="route-view-toggle" role="group" aria-label={t("Map view")}>
+              <button
+                type="button"
+                className={view === "list" ? "active" : ""}
+                aria-pressed={view === "list"}
+                onClick={() => setView("list")}
+              >{t("List")}</button>
+              <button
+                type="button"
+                className={view === "map" ? "active" : ""}
+                aria-pressed={view === "map"}
+                onClick={() => setView("map")}
+              >{t("Map")}</button>
+            </span>
             <span className="dim small route-here">{t("Here: ")}{currentName}</span>
           </span>
         }
       />
-      <div className="route-card-grid">
-        {routesInRegion.map((route) => (
-          <RouteCard key={route.id} route={route} onTravel={travel} />
-        ))}
-      </div>
+      {view === "map" ? (
+        <TownMap />
+      ) : (
+        <div className="route-card-grid">
+          {routesInRegion.map((route) => (
+            <RouteCard key={route.id} route={route} onTravel={travel} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
