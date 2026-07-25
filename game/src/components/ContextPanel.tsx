@@ -247,7 +247,7 @@ function ManualCatchSection() {
   const hpPct = Math.max(0, Math.round((target.currentHp / target.maxHp) * 100));
 
   return (
-    <section className="ctx-section manual-catch">
+    <section className="ctx-section manual-catch ctx-fade-in">
       <h3 className="ctx-h3">
         {t("Throw a ball")}
         <span className="dim small" style={{ marginLeft: 6 }}>

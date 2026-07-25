@@ -17487,3 +17487,19 @@ html, body {
 }
 .route-view-toggle button.active { background: var(--gold); color: #2a2100; }
 .route-card-list .town-map { flex: 1 1 auto; min-height: 0; }
+
+/* ---------- Context panel: settle instead of jump ---------- */
+/* The "Throw a ball" card mounts when a wild battle starts and unmounts when
+   it ends, so the panel's contents popped in and shoved the wild list down.
+   Fading it in reads as the card arriving rather than the layout breaking. */
+@keyframes ctx-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.ctx-fade-in { animation: ctx-fade-in 180ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .ctx-fade-in { animation: none; } }
+
+/* Hold a stable floor for the wide layout's context column so the cards below
+   don't slide up and down as the catch card comes and goes. */
+.dashboard-wide .center-column > .context-panel > .context-panel-body { justify-content: flex-start; }
+.dashboard-wide .center-column > .context-panel .manual-catch { flex: 0 0 auto; }
