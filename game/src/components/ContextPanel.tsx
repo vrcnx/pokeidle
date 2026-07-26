@@ -414,145 +414,155 @@ function IdleRaidPanel() {
             {tierInfo}
           </p>
         )}
-        {onCooldown && (
-          <div className="raid-cooldown-banner" role="status">
-            <span className="raid-cooldown-icon" aria-hidden>⏱</span>
-            <div className="raid-cooldown-text">
-              <strong>{t("On cooldown")}</strong>
-              <span className="raid-cooldown-time">
-                {formatCooldown(cdLeft)} <span className="dim">{t("until next raid")}</span>
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Controls on the left, spawn reference list on the right —
+            but only once the card is wide enough to seat both; see
+            .raid-layout, which falls back to this stack in the narrow
+            rail. The wrappers exist for that split alone. */}
+        <div className="raid-layout">
+          <div className="raid-controls">
+            {onCooldown && (
+              <div className="raid-cooldown-banner" role="status">
+                <span className="raid-cooldown-icon" aria-hidden>⏱</span>
+                <div className="raid-cooldown-text">
+                  <strong>{t("On cooldown")}</strong>
+                  <span className="raid-cooldown-time">
+                    {formatCooldown(cdLeft)} <span className="dim">{t("until next raid")}</span>
+                  </span>
+                </div>
+              </div>
+            )}
 
-        {/* Card-grid picker — desktop / tablet. Hidden via CSS at
-            phone breakpoints in favour of the dropdown below. */}
-        <div className="raid-tier-picker">
-          {raidTiersOrdered.map((t) => {
-            const unlocked = isTierUnlocked(t, state);
-            const active = t.id === selectedTier;
-            const cdMs = cooldownLeftFor(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`raid-tier-card ${active ? "active" : ""} ${unlocked ? "" : "locked"} ${cdMs > 0 ? "cooling" : ""}`}
-                /* Cooling tiers stay selectable on purpose — picking one
-                   is how the player gets to its spawn list and the big
-                   countdown banner. Only the begin button is blocked. */
-                disabled={!unlocked}
-                onClick={() => setSelectedTier(t.id)}
-                title={
-                  !unlocked
-                    ? tierUnlockHint(t)
-                    : cdMs > 0
-                      ? `${t.name} — on cooldown, ${formatCooldown(cdMs)} left`
-                      : `${t.name} — Lv. ${t.startLevel}`
-                }
-              >
-                <span className="raid-tier-card-name">{t.name}</span>
-                <span className="raid-tier-card-meta">
-                  {!unlocked ? "🔒" : cdMs > 0 ? `⏱ ${formatCooldown(cdMs)}` : `Lv. ${t.startLevel}`}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tier picker + begin button share a row. The button used to sit
-            on its own line underneath, which read as unrelated to the
-            selection it acts on and pushed the primary action further
-            down an already tall panel. */}
-        <div className="raid-tier-row">
-          {/* Native-select picker — phones. Hidden on desktop via CSS.
-              Locked tiers are still rendered (with a 🔒) so the player
-              can see what's coming, but disabled so they can't pick.
-              Cooling tiers show their remaining time here too: the card
-              grid above is the only other place that state surfaces, and
-              it's CSS-hidden on phones. */}
-          <label className="raid-tier-select">
-            <select
-              value={selectedTier}
-              onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
-              aria-label={t("Raid tier")}
-            >
+            {/* Card-grid picker — desktop / tablet. Hidden via CSS at
+                phone breakpoints in favour of the dropdown below. */}
+            <div className="raid-tier-picker">
               {raidTiersOrdered.map((t) => {
                 const unlocked = isTierUnlocked(t, state);
-                const hint = tierUnlockHintShort(t);
+                const active = t.id === selectedTier;
                 const cdMs = cooldownLeftFor(t.id);
                 return (
-                  <option
+                  <button
                     key={t.id}
-                    value={t.id}
+                    type="button"
+                    className={`raid-tier-card ${active ? "active" : ""} ${unlocked ? "" : "locked"} ${cdMs > 0 ? "cooling" : ""}`}
+                    /* Cooling tiers stay selectable on purpose — picking one
+                       is how the player gets to its spawn list and the big
+                       countdown banner. Only the begin button is blocked. */
                     disabled={!unlocked}
+                    onClick={() => setSelectedTier(t.id)}
+                    title={
+                      !unlocked
+                        ? tierUnlockHint(t)
+                        : cdMs > 0
+                          ? `${t.name} — on cooldown, ${formatCooldown(cdMs)} left`
+                          : `${t.name} — Lv. ${t.startLevel}`
+                    }
                   >
-                    {/* Cooldown leads the label rather than trailing it:
-                        the select ellipsizes on a narrow phone, and a
-                        trailing "· ⏱ 4:12" is the first thing to get cut. */}
-                    {!unlocked
-                      ? `🔒 ${t.name}${hint ? ` · ${hint}` : ""}`
-                      : cdMs > 0
-                        ? `⏱ ${formatCooldown(cdMs)} · ${t.name}`
-                        : `${t.name} · Lv. ${t.startLevel}`}
-                  </option>
+                    <span className="raid-tier-card-name">{t.name}</span>
+                    <span className="raid-tier-card-meta">
+                      {!unlocked ? "🔒" : cdMs > 0 ? `⏱ ${formatCooldown(cdMs)}` : `Lv. ${t.startLevel}`}
+                    </span>
+                  </button>
                 );
               })}
-            </select>
-          </label>
+            </div>
 
-          <button
-            type="button"
-            className="raid-begin-btn"
-            disabled={!canRaid || !tierUnlocked}
-            onClick={() => dispatch({ type: "START_RAID", payload: { tier: selectedTier } })}
-            title={
-              !canRaid
-                ? onCooldown
-                  ? t("On cooldown")
-                  : t("Already raiding")
-                : !tierUnlocked
-                  ? tierUnlockHint(tier)
-                  : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
-            }
-          >
-            {t("⚡ Begin raid")}
-          </button>
-        </div>
+            {/* Tier picker + begin button share a row. The button used to sit
+                on its own line underneath, which read as unrelated to the
+                selection it acts on and pushed the primary action further
+                down an already tall panel. */}
+            <div className="raid-tier-row">
+              {/* Native-select picker — phones. Hidden on desktop via CSS.
+                  Locked tiers are still rendered (with a 🔒) so the player
+                  can see what's coming, but disabled so they can't pick.
+                  Cooling tiers show their remaining time here too: the card
+                  grid above is the only other place that state surfaces, and
+                  it's CSS-hidden on phones. */}
+              <label className="raid-tier-select">
+                <select
+                  value={selectedTier}
+                  onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
+                  aria-label={t("Raid tier")}
+                >
+                  {raidTiersOrdered.map((t) => {
+                    const unlocked = isTierUnlocked(t, state);
+                    const hint = tierUnlockHintShort(t);
+                    const cdMs = cooldownLeftFor(t.id);
+                    return (
+                      <option
+                        key={t.id}
+                        value={t.id}
+                        disabled={!unlocked}
+                      >
+                        {/* Cooldown leads the label rather than trailing it:
+                            the select ellipsizes on a narrow phone, and a
+                            trailing "· ⏱ 4:12" is the first thing to get cut. */}
+                        {!unlocked
+                          ? `🔒 ${t.name}${hint ? ` · ${hint}` : ""}`
+                          : cdMs > 0
+                            ? `⏱ ${formatCooldown(cdMs)} · ${t.name}`
+                            : `${t.name} · Lv. ${t.startLevel}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
 
-        <div className="raid-lineup-label dim small">
-          {t("Possible spawns (")}{lineup.length})
-        </div>
-        <ul className="raid-lineup">
-          {lineup.map(({ speciesKey, weight }) => {
-            const caught = state.pokedexCaught.includes(speciesKey);
-            const tagged = tier.rarityTag;
-            return (
-              <li
-                key={speciesKey}
-                className={`raid-lineup-row ${caught ? "caught" : ""} ${tier.id === "mythical" ? "mythical" : ""}`}
+              <button
+                type="button"
+                className="raid-begin-btn"
+                disabled={!canRaid || !tierUnlocked}
+                onClick={() => dispatch({ type: "START_RAID", payload: { tier: selectedTier } })}
                 title={
-                  `${humaniseSpecies(speciesKey)} · spawn weight ${weight}` +
-                  (caught ? " · already caught" : "")
+                  !canRaid
+                    ? onCooldown
+                      ? t("On cooldown")
+                      : t("Already raiding")
+                    : !tierUnlocked
+                      ? tierUnlockHint(tier)
+                      : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
                 }
               >
-                <img
-                  src={pokemonSpriteUrl(speciesKey)}
-                  alt={speciesKey}
-                  width={28}
-                  height={28}
-                  style={{
-                    imageRendering: "pixelated",
-                    filter: caught ? "none" : "brightness(0.7)",
-                  }}
-                />
-                <span className="raid-lineup-name">{humaniseSpecies(speciesKey)}</span>
-                {tagged && <span className="raid-mythical-tag">{tagged}</span>}
-                {caught && <span className="raid-caught-tag">✓</span>}
-              </li>
-            );
-          })}
-        </ul>
+                {t("⚡ Begin raid")}
+              </button>
+            </div>
+          </div>
+
+          <div className="raid-spawns">
+            <div className="raid-lineup-label dim small">
+              {t("Possible spawns (")}{lineup.length})
+            </div>
+            <ul className="raid-lineup">
+              {lineup.map(({ speciesKey, weight }) => {
+                const caught = state.pokedexCaught.includes(speciesKey);
+                const tagged = tier.rarityTag;
+                return (
+                  <li
+                    key={speciesKey}
+                    className={`raid-lineup-row ${caught ? "caught" : ""} ${tier.id === "mythical" ? "mythical" : ""}`}
+                    title={
+                      `${humaniseSpecies(speciesKey)} · spawn weight ${weight}` +
+                      (caught ? " · already caught" : "")
+                    }
+                  >
+                    <img
+                      src={pokemonSpriteUrl(speciesKey)}
+                      alt={speciesKey}
+                      width={28}
+                      height={28}
+                      style={{
+                        imageRendering: "pixelated",
+                        filter: caught ? "none" : "brightness(0.7)",
+                      }}
+                    />
+                    <span className="raid-lineup-name">{humaniseSpecies(speciesKey)}</span>
+                    {tagged && <span className="raid-mythical-tag">{tagged}</span>}
+                    {caught && <span className="raid-caught-tag">✓</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       </section>
     </>
   );

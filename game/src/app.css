@@ -3131,6 +3131,63 @@ body.dnd-active {
 /* Dropdown is the default tier picker on every viewport now — the
    six-card grid was a lot of visual weight for a single click. */
 .raid-tier-picker { display: none; }
+/* Controls left, spawn list right — the stack ran the card very tall
+   while the whole right half of the wide layout's centre column sat
+   empty. The split keys off the CARD's own width rather than the
+   viewport, because the same card renders at ~250px in the classic
+   right rail and at ~500px in the wide centre column at identical
+   viewport widths. Browsers without container queries simply never
+   match the rule and keep the stack. */
+.raid-layout {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+.raid-layout > * {
+  /* 100% basis is what guarantees the stack: only the container query
+     below ever puts two of these on one line. */
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.raid-controls,
+.raid-spawns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.raid-spawns { gap: 4px; }
+/* Spacing is the layout's gaps now — the children's own margins would
+   double it up, and in two columns they'd also knock the two column
+   heads out of alignment with each other. */
+.raid-layout .raid-cooldown-banner { margin-bottom: 0; }
+.raid-layout .raid-tier-row { margin: 0; }
+.raid-layout .raid-lineup-label { margin-top: 0; }
+/* 480px is the width at which BOTH columns still hold their content: the
+   left seats the select and the BEGIN RAID button on one line, and the
+   right fits a full spawn row (sprite + longest name + "Box Legend" tag
+   + caught tick). Splitting any earlier bought horizontal space with a
+   wrapped begin button or two-line spawn rows. */
+@container (min-width: 480px) {
+  .raid-layout > .raid-controls { flex: 1 1 255px; }
+  .raid-layout > .raid-spawns { flex: 1 1 200px; }
+  /* Side by side the card is only as tall as its taller column, so the
+     list can show a few more rows before it starts scrolling. */
+  .raid-layout > .raid-spawns > .raid-lineup { max-height: 260px; }
+  /* A spawn row has ~10px of slack in this column, so a longer species
+     name has to give somewhere. Ellipsis on the name (which the title
+     attribute already spells out in full) rather than a wrapped tag,
+     which turned a single row into a ragged two-line one. */
+  .raid-layout .raid-mythical-tag { white-space: nowrap; }
+  .raid-layout .raid-lineup-name {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
 /* Picker + begin button on one row. The select takes the slack and the
    button keeps its intrinsic width, so the pair still fits a 320px
    phone panel: min-width 0 lets the select shrink and ellipsize its
@@ -3220,6 +3277,7 @@ body.dnd-active {
 /* Hide the spawn sprites + label on mobile — the dropdown picker
    already conveys the tier choice, no scroll needed before the begin
    button. Desktop keeps the spawn list since there's room. */
+.mobile-shell .raid-spawns,
 .mobile-shell .raid-lineup,
 .mobile-shell .raid-lineup-label { display: none; }
 
