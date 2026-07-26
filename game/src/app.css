@@ -3139,7 +3139,6 @@ body.dnd-active {
    viewport widths. Browsers without container queries simply never
    match the rule and keep the stack. */
 .raid-layout {
-  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -3165,18 +3164,82 @@ body.dnd-active {
 .raid-layout .raid-cooldown-banner { margin-bottom: 0; }
 .raid-layout .raid-tier-row { margin: 0; }
 .raid-layout .raid-lineup-label { margin-top: 0; }
-/* 480px is the width at which BOTH columns still hold their content: the
-   left seats the select and the BEGIN RAID button on one line, and the
-   right fits a full spawn row (sprite + longest name + "Box Legend" tag
-   + caught tick). Splitting any earlier bought horizontal space with a
-   wrapped begin button or two-line spawn rows. */
-@container (min-width: 480px) {
-  .raid-layout > .raid-controls { flex: 1 1 255px; }
-  .raid-layout > .raid-spawns { flex: 1 1 200px; }
-  /* Side by side the card is only as tall as its taller column, so the
-     list can show a few more rows before it starts scrolling. */
-  .raid-layout > .raid-spawns > .raid-lineup { max-height: 260px; }
-  /* A spawn row has ~10px of slack in this column, so a longer species
+/* The classic right rail is too narrow to seat the select and the begin
+   button on one line: the select gave up its width and ellipsized the
+   tier name to "Johto Nurs...", which is the one string in this card the
+   player has to read to know what they're about to fight. Stack them for
+   the same reason the two-column mode does. */
+@container (max-width: 320px) {
+  .raid-layout .raid-tier-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+/* The raid card fills the panel so it ends level with the moves card on
+   the left, instead of stopping at its content and leaving dead space.
+   Everything below the heading is one flex column, and the spawn list is
+   the part that absorbs the slack. Content-sized contexts (the classic
+   rail) are unaffected: with no height to grow into, `flex: 1 1 auto`
+   just sizes to content. */
+/* The query container is the SECTION, not .raid-layout. A @container rule
+   can only style a container's descendants, never the container element
+   itself — and .raid-layout is exactly the element that has to change
+   (it must grow to fill the card in two-column mode, but must NOT grow
+   when stacked, or align-content would spread the two rows apart and
+   reintroduce the dead space this change is removing). */
+.ctx-section--raid {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* 370px of CONTENT width (the section carries 14px of padding a side, so
+   this is ~398px of border box). Measured, not guessed: 165 + 10 gap + 210
+   = 385, which a 1600px-wide desktop clears at 387 — so the split reaches
+   1600 screens rather than only 1900+ ones. The classic right rail sits at
+   ~227 and stays stacked with room to spare. Stacking the begin button
+   UNDER the select is what bought the headroom: side by side, the select
+   surrendered its width to the button and ellipsized the tier name.
+   flex-wrap is the safety net either way — bases that can't both fit wrap
+   back to the stack on their own. */
+@container (min-width: 370px) {
+  /* Only now does the layout stretch to the card's height — stacked, it
+     stays content-sized.
+     nowrap is load-bearing, not tidiness: in a WRAPPED flex container each
+     line takes the cross size of its tallest content, so `align-items:
+     stretch` binds the columns to the LINE, not to the container. The
+     spawn column therefore grew to its full list height (1034px inside a
+     366px layout) and spilled straight out of the card no matter how many
+     `min-height: 0`s sat under it. Single-line, the columns finally
+     inherit the card's height and the list scrolls inside itself.
+     Wrapping is what we're deliberately giving up here, and we can: above
+     this threshold 165 + 10 + 210 always fits, and min-width:0 on the
+     children lets them shrink rather than overflow. */
+  .ctx-section--raid > .raid-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-wrap: nowrap;
+  }
+  .raid-layout > .raid-controls { flex: 1 1 165px; }
+  .raid-layout > .raid-spawns { flex: 1 1 210px; min-height: 0; }
+  /* Select above button. Side by side, the select gave up its width to
+     the button and ellipsized the tier name — which is the one string in
+     this card the player actually needs to read. */
+  .raid-layout .raid-tier-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* Fill the column and scroll, rather than a fixed cap. A fixed
+     max-height that doesn't divide evenly by the row height leaves a
+     half-drawn row at the boundary, which reads as the list spilling out
+     of the card (same defect as the old route-card clipping). */
+  .raid-layout > .raid-spawns > .raid-lineup {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* A spawn row has little slack in this column, so a longer species
      name has to give somewhere. Ellipsis on the name (which the title
      attribute already spells out in full) rather than a wrapped tag,
      which turned a single row into a ragged two-line one. */

@@ -405,7 +405,7 @@ function IdleRaidPanel() {
 
   return (
     <>
-      <section className="ctx-section">
+      <section className="ctx-section ctx-section--raid">
         <h4 className="ctx-section-h4-with-info">
           {t("Legendary Raids")}
           <button
