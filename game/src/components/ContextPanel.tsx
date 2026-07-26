@@ -36,9 +36,24 @@ export function ContextPanel() {
   const phase = getUIPhase(state);
   const route = routes[state.currentLocation];
 
+  // The League and Gym cards belong to the LOCATION, not to the phase, so they
+  // live here rather than inside the town/trainer panels. They used to be
+  // rendered by both IdleTownPanel and BattleTrainerPanel — different component
+  // types at the same position, so every time a town auto-battle started or
+  // ended React unmounted the cards and mounted fresh ones. In a town with
+  // back-to-back trainers (Blackthorn is the worst) that reads as a constant
+  // flicker. Rendering them once, above the phase switch, keeps them mounted
+  // across the swap.
+  const showsLocationCards = phase === "idle-town" || phase === "battle-trainer";
+  const leader = getGymLeaderForLocation(state.currentLocation);
+  const hasGym = !!(leader && leader.name);
+  const atLeague = isLeagueLocation(state.currentLocation);
+
   return (
     <div className="context-panel">
       <div className="context-panel-body">
+        {showsLocationCards && atLeague && <LeagueCard />}
+        {showsLocationCards && hasGym && <GymLeaderCard />}
         {/* Wild battles use the same route rendering as idle so the panel
             doesn't flicker between encounters at higher speeds. Manual ball
             throws live in the moves-panel "⋯ → Catch" popover. */}
@@ -132,15 +147,15 @@ function BattleTrainerPanel() {
   const leader = getGymLeaderForLocation(state.currentLocation);
   const hasGym = !!(leader && leader.name);
 
-  // At a gym and/or League town, keep the League + Gym cards on screen even
-  // mid town-trainer-battle, so the player can always punch through to the
-  // gauntlet or the gym challenge and the cards don't flicker away between
-  // the town's rapid auto-battles.
+  // The League + Gym cards are rendered by ContextPanel for this phase, so the
+  // player can still punch through to the gauntlet or the gym challenge mid
+  // town-battle. This branch only decides how the OPPONENT is presented: in a
+  // gym/League town the trainers arrive back-to-back, so the card is plain
+  // text that updates in place rather than a sprite card that re-runs its
+  // fade-in on every swap.
   if (atLeague || hasGym) {
     return (
       <>
-        {atLeague && <LeagueCard />}
-        {hasGym && <GymLeaderCard />}
         <section className="ctx-section">
           <h4>{translate("Currently battling")}</h4>
           <p className="dim small" style={{ margin: 0 }}>
@@ -299,8 +314,10 @@ function IdleTownPanel() {
 
   return (
     <>
-      {isLeagueLocation(here) && <LeagueCard />}
-      {leader && leader.name && <GymLeaderCard />}
+      {/* The League + Gym cards are rendered by ContextPanel for this phase —
+          see the note there. `showsSomething` still tracks whether they were
+          shown, since it decides whether this town needs the empty-state copy
+          below. */}
       {/* A town with no gym and no League rendered nothing at all here —
           reads as "the game is broken" rather than "there's nothing to
           do in town, go find a route." Most jarring at New Bark Town
