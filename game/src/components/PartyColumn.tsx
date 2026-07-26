@@ -2,7 +2,7 @@ import { useGame } from "../state/GameContext";
 import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
 import { pokemonTable } from "../data/pokemon";
 import { itemsCatalog } from "../data/itemsCatalog";
-import { itemSpriteSlug } from "../utils/items";
+import { itemSpriteSlug, getItemInfo } from "../utils/items";
 import { expForLevel } from "../utils/stats";
 import { openPokemonDetail } from "./PokemonDetailModal";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
@@ -16,6 +16,28 @@ import { InventoryRibbon } from "./InventoryRibbon";
 import type { Pokemon, GameState, StatusCondition } from "../types";
 import { useT } from "../i18n/useT";
 
+// The stone evolution this Pokémon could take right now — the stone to
+// spend and the species it becomes — or null if there isn't one. Split
+// out of canEvolveNow so the party row's context menu can offer the
+// evolution as an action instead of re-deriving which trigger matched.
+function readyStoneEvolution(
+  p: Pokemon,
+  inventory: GameState["inventory"],
+): { item: string; into: string } | null {
+  for (const t of evolutions[p.speciesKey] ?? []) {
+    // Stone-style item evolution (use from bag). Exclude trade+item
+    // triggers — those only fire during a trade, not by using the
+    // catalyst item out of your inventory.
+    if (!("item" in t) || "trade" in t) continue;
+    if ((inventory[t.item] ?? 0) <= 0) continue;
+    // USE_STONE refuses to spend a stone on a species that isn't in the
+    // dex yet, so don't advertise one either.
+    if (!pokemonTable[t.into]) continue;
+    return { item: t.item, into: t.into };
+  }
+  return null;
+}
+
 // Returns true when this party member can evolve right now — either
 // it has reached the level threshold, or it has a stone-evolution
 // trigger and the player owns the stone in inventory. Trade-only
@@ -23,14 +45,8 @@ import { useT } from "../i18n/useT";
 // paint a glow on ready party rows so the player knows to act.
 function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
   const triggers = evolutions[p.speciesKey] ?? [];
-  for (const t of triggers) {
-    if ("level" in t && p.level >= t.level) return true;
-    // Stone-style item evolution (use from bag). Exclude trade+item
-    // triggers — those only fire during a trade, not by using the
-    // catalyst item out of your inventory.
-    if ("item" in t && !("trade" in t) && (inventory[t.item] ?? 0) > 0) return true;
-  }
-  return false;
+  if (triggers.some((t) => "level" in t && p.level >= t.level)) return true;
+  return readyStoneEvolution(p, inventory) !== null;
 }
 
 // 3-letter abbreviations for the major status conditions, used by
@@ -110,6 +126,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
   const expRaw = (expIntoLevel / expSpan) * 100;
   const expPct = expRaw === 0 ? 0 : Math.max(2, Math.min(100, expRaw));
   const active = idx === state.activePlayerPokemonIndex;
+  const stoneEvo = readyStoneEvolution(p, state.inventory);
   const evoReady = canEvolveNow(p, state.inventory);
 
   const ref = useDragAndDrop<HTMLLIElement>({
@@ -166,6 +183,28 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
         const isFront = idx === 0;
         const partySize = state.party.length;
         openContextMenu(e, [
+          // Level evolutions fire on their own inside the reducer, so the only
+          // one worth a menu entry is the stone the player has to spend.
+          ...(stoneEvo
+            ? [{
+                label: t("Evolve"),
+                hint: getItemInfo(stoneEvo.item).name,
+                icon: (
+                  <img
+                    src={itemSpriteUrl(stoneEvo.item, itemSpriteSlug(stoneEvo.item))}
+                    alt=""
+                    width={14}
+                    height={14}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                ),
+                onClick: () =>
+                  dispatch({
+                    type: "USE_STONE",
+                    payload: { itemId: stoneEvo.item, partyIndex: idx },
+                  }),
+              }]
+            : []),
           {
             label: t("View details"),
             onClick: () => openPokemonDetail({ type: "party", index: idx }),

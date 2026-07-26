@@ -336,27 +336,40 @@ function IdleRaidPanel() {
   const tierUnlocked = isTierUnlocked(tier, state);
 
   // Per-tier cooldown — clearing one tier no longer locks every
-  // tier. Falls back to the legacy global field for old saves that
-  // predate the per-tier map.
-  const tierCooldown = state.raidCooldowns?.[selectedTier] ?? 0;
-  const legacyCooldown = state.raidCooldownEnd ?? 0;
-  const cooldown = Math.max(tierCooldown, 0);
-  // Old saves that only have raidCooldownEnd — honor it for the
-  // currently-set selectedTier so we don't suddenly unlock raids
-  // mid-cooldown for upgrading players. Once any new raid completes
-  // the per-tier map takes over.
-  const effectiveCooldown = state.raidCooldowns ? cooldown : legacyCooldown;
-  const cdLeft = Math.max(0, effectiveCooldown - Date.now());
+  // tier. Resolved for EVERY tier rather than just the selected one:
+  // with the countdown computed only for the selection, a player
+  // sitting on a ready tier got no hint at all that the tier they'd
+  // just wiped in was still cooling down.
+  const now = Date.now();
+  const cooldownLeftFor = (id: RaidTierId) => {
+    // Old saves only have the global raidCooldownEnd — honor it for
+    // every tier so we don't suddenly unlock raids mid-cooldown for
+    // upgrading players. Once any new raid completes the per-tier map
+    // takes over.
+    const end = state.raidCooldowns
+      ? state.raidCooldowns[id] ?? 0
+      : state.raidCooldownEnd ?? 0;
+    return Math.max(0, end - now);
+  };
+  const cdLeft = cooldownLeftFor(selectedTier);
   const onCooldown = cdLeft > 0;
+  const anyOnCooldown = raidTiersOrdered.some((t) => cooldownLeftFor(t.id) > 0);
   const canRaid = !onCooldown && !state.inRaid;
 
-  // Live ticker so the cooldown timer counts down in the UI.
+  // Live ticker so the cooldown timers count down in the UI. Driven by
+  // *any* tier cooling down, not just the selected one, otherwise the
+  // per-tier labels in the picker would sit frozen.
   const [, force] = useState(0);
   useEffect(() => {
-    if (!onCooldown) return;
+    if (!anyOnCooldown) return;
     const t = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [onCooldown]);
+  }, [anyOnCooldown]);
+
+  // Tap-to-expand blurb for touch, where `title` never fires. Held in
+  // React state rather than toggled onto the DOM node by hand so the
+  // text re-renders when the player switches tiers while it's open.
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // Build the per-tier lineup from the tier's pool; sorted by weight
   // desc so the most-likely spawns are listed first.
@@ -375,30 +388,32 @@ function IdleRaidPanel() {
 
   return (
     <>
-      <section className="ctx-section ctx-section-with-info">
+      <section className="ctx-section">
         <h4 className="ctx-section-h4-with-info">
           {t("Legendary Raids")}
           <button
             type="button"
             className="ctx-info-btn"
+            /* Native title, not a positioned popover: this panel sits in
+               `.context-panel-body`, which is `overflow-y: auto`, so the
+               absolutely-positioned popover was clipped away entirely —
+               the same bug that took the mart tooltip down. The browser
+               paints `title` outside every clipping context. */
             title={tierInfo}
             aria-label={t("About Legendary Raids")}
-            onClick={(e) => {
-              // Mobile / tap-to-expand: surface the tooltip text inline
-              // because hover doesn't exist. Toggles the popover open
-              // class on a sibling at the section level.
-              e.preventDefault();
-              const section = (e.currentTarget as HTMLElement).closest(".ctx-section");
-              const el = section?.querySelector(".ctx-info-popover") as HTMLElement | null;
-              if (el) el.classList.toggle("open");
-            }}
+            aria-expanded={infoOpen}
+            onClick={() => setInfoOpen((open) => !open)}
           >
             <IconInfo size={15} strokeWidth={1.75} />
           </button>
         </h4>
-        <span className="ctx-info-popover" role="tooltip">
-          {tierInfo}
-        </span>
+        {/* Touch has no hover and never shows `title`, so the tap toggles
+            the same text into normal flow, where nothing can clip it. */}
+        {infoOpen && (
+          <p className="ctx-info-inline" role="note">
+            {tierInfo}
+          </p>
+        )}
         {onCooldown && (
           <div className="raid-cooldown-banner" role="status">
             <span className="raid-cooldown-icon" aria-hidden>⏱</span>
@@ -417,72 +432,93 @@ function IdleRaidPanel() {
           {raidTiersOrdered.map((t) => {
             const unlocked = isTierUnlocked(t, state);
             const active = t.id === selectedTier;
+            const cdMs = cooldownLeftFor(t.id);
             return (
               <button
                 key={t.id}
                 type="button"
-                className={`raid-tier-card ${active ? "active" : ""} ${unlocked ? "" : "locked"}`}
+                className={`raid-tier-card ${active ? "active" : ""} ${unlocked ? "" : "locked"} ${cdMs > 0 ? "cooling" : ""}`}
+                /* Cooling tiers stay selectable on purpose — picking one
+                   is how the player gets to its spawn list and the big
+                   countdown banner. Only the begin button is blocked. */
                 disabled={!unlocked}
                 onClick={() => setSelectedTier(t.id)}
                 title={
-                  unlocked
-                    ? `${t.name} — Lv. ${t.startLevel}`
-                    : tierUnlockHint(t)
+                  !unlocked
+                    ? tierUnlockHint(t)
+                    : cdMs > 0
+                      ? `${t.name} — on cooldown, ${formatCooldown(cdMs)} left`
+                      : `${t.name} — Lv. ${t.startLevel}`
                 }
               >
                 <span className="raid-tier-card-name">{t.name}</span>
                 <span className="raid-tier-card-meta">
-                  {unlocked ? `Lv. ${t.startLevel}` : "🔒"}
+                  {!unlocked ? "🔒" : cdMs > 0 ? `⏱ ${formatCooldown(cdMs)}` : `Lv. ${t.startLevel}`}
                 </span>
               </button>
             );
           })}
         </div>
 
-        {/* Native-select picker — phones. Hidden on desktop via CSS.
-            Locked tiers are still rendered (with a 🔒) so the player
-            can see what's coming, but disabled so they can't pick. */}
-        <label className="raid-tier-select">
-          <select
-            value={selectedTier}
-            onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
-            aria-label={t("Raid tier")}
-          >
-            {raidTiersOrdered.map((t) => {
-              const unlocked = isTierUnlocked(t, state);
-              const hint = tierUnlockHintShort(t);
-              return (
-                <option
-                  key={t.id}
-                  value={t.id}
-                  disabled={!unlocked}
-                >
-                  {unlocked
-                    ? `${t.name} · Lv. ${t.startLevel}`
-                    : `🔒 ${t.name}${hint ? ` · ${hint}` : ""}`}
-                </option>
-              );
-            })}
-          </select>
-        </label>
+        {/* Tier picker + begin button share a row. The button used to sit
+            on its own line underneath, which read as unrelated to the
+            selection it acts on and pushed the primary action further
+            down an already tall panel. */}
+        <div className="raid-tier-row">
+          {/* Native-select picker — phones. Hidden on desktop via CSS.
+              Locked tiers are still rendered (with a 🔒) so the player
+              can see what's coming, but disabled so they can't pick.
+              Cooling tiers show their remaining time here too: the card
+              grid above is the only other place that state surfaces, and
+              it's CSS-hidden on phones. */}
+          <label className="raid-tier-select">
+            <select
+              value={selectedTier}
+              onChange={(e) => setSelectedTier(e.target.value as RaidTierId)}
+              aria-label={t("Raid tier")}
+            >
+              {raidTiersOrdered.map((t) => {
+                const unlocked = isTierUnlocked(t, state);
+                const hint = tierUnlockHintShort(t);
+                const cdMs = cooldownLeftFor(t.id);
+                return (
+                  <option
+                    key={t.id}
+                    value={t.id}
+                    disabled={!unlocked}
+                  >
+                    {/* Cooldown leads the label rather than trailing it:
+                        the select ellipsizes on a narrow phone, and a
+                        trailing "· ⏱ 4:12" is the first thing to get cut. */}
+                    {!unlocked
+                      ? `🔒 ${t.name}${hint ? ` · ${hint}` : ""}`
+                      : cdMs > 0
+                        ? `⏱ ${formatCooldown(cdMs)} · ${t.name}`
+                        : `${t.name} · Lv. ${t.startLevel}`}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
 
-        <button
-          type="button"
-          className="raid-begin-btn"
-          disabled={!canRaid || !tierUnlocked}
-          onClick={() => dispatch({ type: "START_RAID", payload: { tier: selectedTier } })}
-          title={
-            !canRaid
-              ? onCooldown
-                ? t("On cooldown")
-                : t("Already raiding")
-              : !tierUnlocked
-                ? tierUnlockHint(tier)
-                : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
-          }
-        >
-          {t("⚡ Begin raid")}
-        </button>
+          <button
+            type="button"
+            className="raid-begin-btn"
+            disabled={!canRaid || !tierUnlocked}
+            onClick={() => dispatch({ type: "START_RAID", payload: { tier: selectedTier } })}
+            title={
+              !canRaid
+                ? onCooldown
+                  ? t("On cooldown")
+                  : t("Already raiding")
+                : !tierUnlocked
+                  ? tierUnlockHint(tier)
+                  : `Begin a ${tier.name} raid at Lv. ${tier.startLevel}`
+            }
+          >
+            {t("⚡ Begin raid")}
+          </button>
+        </div>
 
         <div className="raid-lineup-label dim small">
           {t("Possible spawns (")}{lineup.length})

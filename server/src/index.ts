@@ -22,6 +22,7 @@ import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
 import { startAuctionSettlementLoop } from "./lib/auctionSettlement.js";
+import { startGiveawayDrawLoop } from "./lib/giveawayDraw.js";
 
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173")
   .split(",")
@@ -254,6 +255,12 @@ attachSocketServer(server as any);
 // Auctions settle on a timer independent of either player being
 // connected — see lib/auctionSettlement.ts.
 startAuctionSettlementLoop();
+
+// Giveaways draw themselves once endsAt passes, on the same kind of
+// wall-clock timer — an operator no longer has to be awake and at the
+// dashboard for a deadline to mean anything. Idempotent: the draw's
+// compare-and-swap means a repeated tick can never draw twice.
+startGiveawayDrawLoop();
 
 // Catch truly fatal failures that would otherwise just exit the
 // process silently. Log + persist (best-effort) before letting the

@@ -23,7 +23,9 @@ import {
   type BattleRoom,
 } from "../pvp.js";
 import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
-import { newDrawSeed, pickWinners, parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
+import { parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
+import { drawGiveaway } from "../lib/giveawayDraw.js";
+import { grantPrizesToUser } from "../lib/prizeGrant.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
@@ -1975,224 +1977,30 @@ app.delete("/giveaways/:id", async (c) => {
 // ── The draw ────────────────────────────────────────────────────────
 // Picks winners deterministically from a stored seed, then grants the
 // prizes straight into the winners' saves.
+//
+// The implementation lives in lib/giveawayDraw.ts so this manual
+// endpoint and the automatic endsAt sweep run the exact same code —
+// including the atomic compare-and-swap that makes a concurrent draw
+// (two operators, a retry, or a sweep tick landing mid-click) grant
+// nothing. This handler is only the HTTP shell around it.
 app.post("/giveaways/:id/draw", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
-  const g = await prisma.giveaway.findUnique({ where: { id }, include: { entries: true } });
-  if (!g) return c.json({ error: "giveaway not found" }, 404);
-  if (g.drawnAt) {
-    return c.json({
-      error: "already drawn",
-      reason: "This giveaway has already been drawn. Re-drawing would change who won after the fact.",
-    }, 409);
+  const res = await drawGiveaway(id, { id: me.id, viaApiKey: c.get("viaApiKey") });
+  if (!res.ok) {
+    return c.json(
+      res.reason ? { error: res.error, reason: res.reason } : { error: res.error },
+      res.status ?? 500,
+    );
   }
-  if (g.status !== "open" && g.status !== "closed") {
-    return c.json({ error: "giveaway must be open or closed to draw" }, 409);
-  }
-  if (g.entries.length === 0) return c.json({ error: "no entries to draw from" }, 400);
-
-  const seed = newDrawSeed();
-  const drawnAt = new Date();
-  // Atomic claim BEFORE picking winners or granting anything. The two
-  // checks above (drawnAt/status) are TOCTOU-vulnerable on their own —
-  // two overlapping requests (a double-click before the button
-  // disables, a client retry, two admin sessions) can both pass them
-  // before either has written anything, each draw with a different
-  // seed, and each grant prizes — more winners than winnerCount, and a
-  // winner picked by both runs getting paid twice. This updateMany is
-  // the actual guard: only one concurrent call can match
-  // `drawnAt: null` and win the row.
-  const claimed = await prisma.giveaway.updateMany({
-    where: { id, drawnAt: null, status: { in: ["open", "closed"] } },
-    data: { status: "drawn", drawnAt, drawSeed: seed },
-  });
-  if (claimed.count === 0) {
-    return c.json({
-      error: "already drawn",
-      reason: "This giveaway has already been drawn. Re-drawing would change who won after the fact.",
-    }, 409);
-  }
-
-  const winnerEntryIds = pickWinners(seed, g.entries.map((e) => e.id), g.winnerCount);
-  const winners = g.entries.filter((e) => winnerEntryIds.includes(e.id));
-  const prizes = parsePrizes(g.prizes);
-
-  // Grant prizes. Per-winner and best-effort: one corrupt save must not
-  // block the rest of the draw, and the result is reported per winner so
-  // the operator can see exactly who still needs paying out rather than
-  // guessing.
-  //
-  // The two writes below (grant the prize, then record the claim) are
-  // NOT atomic — grantPrizesToUser can succeed and the much smaller,
-  // much less likely to fail claimedAt update can still throw right
-  // after (a transient DB blip). Getting that ordering wrong here once
-  // meant a real prize grant got reported as ok:false / claimedAt:null
-  // ("UNPAID" in the dashboard), which steers an operator toward
-  // manually re-granting a prize that was already delivered — a real
-  // double-payout. So a failure AFTER the grant already succeeded is
-  // handled separately from a failure IN the grant itself: retry the
-  // small tracking write once, and if it still fails, never report
-  // ok:false for a prize that did land.
-  const granted: { username: string; ok: boolean; error?: string }[] = [];
-  for (const w of winners) {
-    let grantDelivered = false;
-    try {
-      await grantPrizesToUser(w.userId, prizes);
-      grantDelivered = true;
-      await prisma.giveawayEntry.update({
-        where: { id: w.id },
-        data: { isWinner: true, claimedAt: new Date() },
-      });
-      granted.push({ username: w.username, ok: true });
-      // Tell them right now if they are online — a prize you only find
-      // out about days later is a much smaller moment.
-      try {
-        // gift:received is the channel that actually APPLIES the (additive)
-        // prizes to the winner's live state — the client's RECEIVE_GIFT
-        // handler. Without it an online winner's next autosave clobbered the
-        // freshly-granted prizes (giveaway:won carries no prizes and has no
-        // client handler). Same path mass-gift uses. Additive → gift channel,
-        // NOT the wholesale save:adopt path (which would reset unsynced play).
-        sendToUserGlobal(w.userId, "gift:received", { prizes, summary: describePrizes(prizes) });
-        sendToUserGlobal(w.userId, "giveaway:won", {
-          giveawayId: g.id,
-          title: g.title,
-          prizeSummary: describePrizes(prizes),
-        });
-      } catch { /* socket layer optional */ }
-    } catch (e) {
-      if (grantDelivered) {
-        // The prize already landed — only the bookkeeping write failed.
-        // One retry, since this is a tiny two-column update far less
-        // likely to fail twice than the transient blip that just hit it.
-        try {
-          await prisma.giveawayEntry.update({
-            where: { id: w.id },
-            data: { isWinner: true, claimedAt: new Date() },
-          });
-          granted.push({ username: w.username, ok: true });
-        } catch (e2) {
-          // Still couldn't record it. isWinner is set so the win itself
-          // isn't lost, but claimedAt stays null on a PAID entry — the
-          // dashboard's "UNPAID" badge would be actively wrong here, so
-          // this is audited loudly instead of silently reported as a
-          // normal failure an operator would react to by re-granting.
-          await prisma.giveawayEntry.update({ where: { id: w.id }, data: { isWinner: true } })
-            .catch(() => undefined);
-          void makeAudit(c)(me.id, "giveaway.claim_record_failed", id, {
-            entryId: w.id, userId: w.userId, username: w.username,
-            error: String((e2 as Error).message ?? e2),
-          });
-          granted.push({
-            username: w.username, ok: true,
-            error: "Prize WAS granted — only recording the claim failed twice. Do not re-grant; fix claimedAt on this entry manually.",
-          });
-        }
-        continue;
-      }
-      // The grant itself failed — genuinely unpaid, safe to re-grant.
-      await prisma.giveawayEntry.update({ where: { id: w.id }, data: { isWinner: true } });
-      granted.push({ username: w.username, ok: false, error: String((e as Error).message ?? e) });
-    }
-  }
-
-  // The claim above already wrote status/drawnAt/drawSeed atomically —
-  // build the response from what we already know rather than a second
-  // round trip.
-  const updated = { ...g, status: "drawn" as const, drawnAt, drawSeed: seed };
-
-  void makeAudit(c)(me.id, "giveaway.draw", id, {
-    seed,                              // the proof — must be in the ledger
-    entryCount: g.entries.length,
-    winners: granted.map((x) => x.username),
-    failedGrants: granted.filter((x) => !x.ok).map((x) => x.username),
-  });
-
-  // Announce in global chat. A giveaway nobody sees the result of might
-  // as well not have happened.
-  try {
-    const io = getIo();
-    if (io && granted.length > 0) {
-      const names = granted.map((x) => `@${x.username}`).join(", ");
-      // kind: "giveaway" — rendered as a system card, so content drops
-      // the emoji prefix that used to be the only way to recognize it.
-      const stored = await prisma.chatMessage.create({
-        data: {
-          channelId: "global",
-          userId: me.id,
-          content: `"${g.title}" has been drawn! Congratulations ${names} — you won ${describePrizes(prizes)}!`,
-          kind: "giveaway",
-        },
-        include: { user: { select: { id: true, username: true, name: true, accountLevel: true } } },
-      });
-      io.to("global").emit("chat:message", {
-        id: stored.id, channelId: stored.channelId, content: stored.content,
-        kind: stored.kind, createdAt: stored.createdAt, user: stored.user,
-      });
-    }
-  } catch { /* announcement is a nice-to-have, never fail the draw for it */ }
-
   return c.json({
     ok: true,
-    giveaway: updated,
-    seed,
-    winners: granted,
-    entryCount: g.entries.length,
+    giveaway: res.giveaway,
+    seed: res.seed,
+    winners: res.granted,
+    entryCount: res.entryCount,
   });
 });
-
-// Write prizes into a user's save, reusing the same validate-then-write
-// discipline as the manual item grant so a prize can never produce a
-// save the game would reject.
-async function grantPrizesToUser(userId: string, prizes: Prize[]): Promise<void> {
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { saveData: true } });
-  if (!target) throw new Error("user not found");
-  const base = target.saveData ? safeParseObject(target.saveData) : {};
-  if (!base) throw new Error("save is corrupt");
-
-  const save: Record<string, unknown> = { ...base };
-
-  for (const p of prizes) {
-    if (p.kind === "item") {
-      const inv: Record<string, number> = {
-        ...((save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
-          ? (save.inventory as Record<string, number>) : {}),
-      };
-      inv[p.itemId] = Math.min(999_999, (inv[p.itemId] ?? 0) + p.quantity);
-      save.inventory = inv;
-    } else if (p.kind === "money") {
-      const cur = typeof save.money === "number" ? save.money : 0;
-      save.money = Math.min(999_999_999, cur + p.amount);
-    } else if (p.kind === "pokemon") {
-      // Into the BOX, never the party: overwriting a party slot would be
-      // a hostile way to receive a gift.
-      const box = Array.isArray(save.box) ? [...(save.box as unknown[])] : [];
-      const nextId = typeof save.nextPokemonId === "number" ? save.nextPokemonId : Date.now();
-      // Re-id so the prize cannot collide with a mon the winner already
-      // owns — an id clash would confuse trade ownership lookups, which
-      // match by id.
-      box.push({ ...p.mon, id: `g${nextId}` });
-      save.box = box;
-      save.nextPokemonId = nextId + 1;
-    }
-  }
-
-  const v = validateSave(save);
-  if (!v.ok) throw new Error(`prize would corrupt save: ${v.reason}`);
-
-  const derived = computeAccountLevel(save);
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      saveData: JSON.stringify(save),
-      saveVersion: { increment: 1 },
-      saveUpdatedAt: new Date(),
-      accountLevel: derived.accountLevel,
-      totalCaughtLevels: derived.totalCaughtLevels,
-      pokedexCaughtCount: derived.pokedexCaughtCount,
-    },
-  });
-}
 
 // ── Mass gift ────────────────────────────────────────────────────────
 // Direct grant (not an opt-in raffle) of any item / money / Pokémon to a

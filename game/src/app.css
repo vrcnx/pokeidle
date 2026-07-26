@@ -2906,13 +2906,9 @@ body.dnd-active {
 .trainer-card-elite-list small { font-size: 10px; }
 .trainer-card-elite-list .check { color: var(--good); font-weight: 700; }
 
-/* Info icon + popover next to a section title. The blurb that used
-   to take two paragraphs of vertical space lives here — surfaced on
-   hover (desktop) or tap (mobile). The popover is a sibling of the
-   h4 (not a child) so it can position relative to the section card,
-   not the inline title — otherwise its left/right would stretch only
-   to the width of the title text. */
-.ctx-section-with-info { position: relative; }
+/* Info icon next to a section title. The blurb that used to take two
+   paragraphs of vertical space lives here — surfaced on hover via the
+   button's native `title`, or on tap via the inline block below. */
 .ctx-section-h4-with-info {
   display: inline-flex;
   align-items: center;
@@ -2934,17 +2930,15 @@ body.dnd-active {
   border-radius: 50%;
 }
 .ctx-info-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
-.ctx-info-popover {
-  /* Span the full width of the parent .ctx-section so the popover
-     can never overflow the card on a narrow phone. min(360px, ...)
-     caps the width on desktop so the popover doesn't stretch
-     comically wide on a 1200px column. */
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  width: auto;
-  max-width: min(360px, 100%);
+/* Tap-expanded blurb. This used to be an absolutely-positioned
+   popover anchored to the bottom of the section, which put it well
+   below the fold of `.context-panel-body` — and that body is
+   `overflow-y: auto`, so it clipped the popover out of existence.
+   Same failure the mart tooltip hit. In normal flow there is nothing
+   to clip, and desktop hover is covered by the button's native
+   `title`, which the browser paints outside every clipping context. */
+.ctx-info-inline {
+  margin: 0;
   padding: 10px 12px;
   background: var(--panel-2, #1a1a1a);
   border: 1px solid var(--border);
@@ -2954,29 +2948,10 @@ body.dnd-active {
   letter-spacing: normal;
   line-height: 1.5;
   color: var(--text);
+  /* The blurb is a single template string with \n\n between the tier
+     text and the raid rules — pre-line keeps that break. */
   white-space: pre-line;
   text-transform: none;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-  z-index: 30;
-  opacity: 0;
-  transform: translateY(-4px);
-  pointer-events: none;
-  transition: opacity 0.12s ease, transform 0.12s ease;
-}
-/* Desktop: show when the title row (which contains the icon) is
-   hovered. Also kept open while the user hovers the popover itself
-   so they can read it without it vanishing as the cursor moves down. */
-.ctx-section-h4-with-info:hover ~ .ctx-info-popover,
-.ctx-info-popover:hover {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-/* Mobile: open class via tap, since hover doesn't exist on touch. */
-.ctx-info-popover.open {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
 }
 
 /* On mobile, the Party tab content panel renders just the party —
@@ -3156,6 +3131,35 @@ body.dnd-active {
 /* Dropdown is the default tier picker on every viewport now — the
    six-card grid was a lot of visual weight for a single click. */
 .raid-tier-picker { display: none; }
+/* Picker + begin button on one row. The select takes the slack and the
+   button keeps its intrinsic width, so the pair still fits a 320px
+   phone panel: min-width 0 lets the select shrink and ellipsize its
+   option text instead of shoving the button past the card edge. */
+.raid-tier-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.raid-tier-row > .raid-tier-select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+.raid-tier-row > .raid-begin-btn {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0;
+  white-space: nowrap;
+  /* Tighter than the standalone full-width button was. The panel lives
+     in a 300px rail (narrower still on a phone), so every pixel the
+     button gives back is a pixel of tier name the select can show
+     before it ellipsizes. */
+  padding: 10px 12px;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
 .raid-tier-select {
   display: block;
   width: 100%;
@@ -3437,6 +3441,14 @@ body.dnd-active {
 .raid-tier-card.locked {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* Cooling down. Dimmed but still clickable — selecting the tier is how
+   the player reaches its spawn list and the full countdown banner; it's
+   the begin button that refuses, not the card. */
+.raid-tier-card.cooling:not(.active) { opacity: 0.6; }
+.raid-tier-card.cooling .raid-tier-card-meta {
+  color: #ef4444;
+  font-weight: 600;
 }
 .raid-tier-card-name {
   font-weight: 700;
@@ -12870,6 +12882,14 @@ body { background: transparent !important; }
 }
 .ctx-menu-item:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.07);
+}
+/* Arrow-key navigation moves real focus between rows, so the keyboard
+   traveller needs the same row highlight the mouse gets on top of the
+   global gold focus ring. Inset so the ring isn't clipped by the menu
+   padding on the first and last rows. */
+.ctx-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  outline-offset: -2px;
 }
 .ctx-menu-item:disabled {
   opacity: 0.4;
