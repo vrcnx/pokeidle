@@ -67,12 +67,20 @@ export function RouteCardList() {
   const { state, dispatch } = useGame();
   const t = useT();
   const regionList = useMemo(() => Object.values(regions), []);
+  // Raid islands get their own tab rather than being buried mid-list inside
+  // whichever region happens to own them — they're a separate activity, not a
+  // step on a region's route chain.
+  const RAID_TAB = "__raid";
   const [activeRegion, setActiveRegion] = useState(regionList[0]?.id ?? "");
 
   const routesInRegion = useMemo(
     () =>
       Object.values(routes)
-        .filter((r) => regionForLocation(r.id) === activeRegion)
+        .filter((r) =>
+          activeRegion === RAID_TAB
+            ? r.type === "raid"
+            : regionForLocation(r.id) === activeRegion && r.type !== "raid"
+        )
         .sort((a, b) => a.unlockOrder - b.unlockOrder),
     [activeRegion]
   );
@@ -91,22 +99,29 @@ export function RouteCardList() {
         className="route-card-head-pane"
         meta={
           <span className="route-head-meta">
-            {regionList.length > 1 && (
-              <nav className="route-region-tabs" role="tablist">
-                {regionList.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeRegion === r.id}
-                    className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
-                    onClick={() => setActiveRegion(r.id)}
-                  >
-                    {r.name}
-                  </button>
-                ))}
-              </nav>
-            )}
+            <nav className="route-region-tabs" role="tablist">
+              {regionList.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeRegion === r.id}
+                  className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
+                  onClick={() => setActiveRegion(r.id)}
+                >
+                  {r.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeRegion === RAID_TAB}
+                className={`route-region-tab ${activeRegion === RAID_TAB ? "active" : ""}`}
+                onClick={() => setActiveRegion(RAID_TAB)}
+              >
+                {t("Raids")}
+              </button>
+            </nav>
             <span className="dim small route-here">{t("Here: ")}{currentName}</span>
           </span>
         }
