@@ -17608,9 +17608,36 @@ html, body {
   gap: 6px;
   overflow-y: auto;
 }
+/* `flex-grow: 1` here is what made the gym cards "flash". Every .ctx-section
+   shared out the column's leftover height, so the SIZE of each card depended
+   on how many siblings happened to be mounted. At a gym/League town the count
+   alternates on every single town trainer (League + Gym while idle; League +
+   Gym + "Currently battling" during the fight), and Blackthorn runs six
+   trainers back to back at ~200ms of idle between them — so both persistent
+   cards pulsed ~50px and the Challenge button jumped ~50px, continuously.
+   Measured against the real stylesheet: with grow, League 399→348px and Gym
+   236→186px across that transition; with grow removed the delta is 0.
+
+   Shrink has to go with it: below a short viewport the same three cards
+   overflow instead of underflowing, and flex-shrink redistributes exactly the
+   same way (measured: League -58px, Gym -25px on the same transition). The
+   cards now take their content height in both regimes, and overflow scrolls
+   on .context-panel-body, which already sets `overflow-y: auto` — that also
+   stops a species-heavy route (Safari Zone lists 21) from being squeezed
+   under its own content and spilling outside the card's border, since
+   .ctx-section has no overflow of its own. The body's `justify-content:
+   flex-start` below top-aligns the cards now that none of them expand. */
 .dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
+}
+/* The raid card is the one section that genuinely needs the extra height: its
+   two-column mode (@container min-width: 370px) stretches .raid-layout to the
+   card and scrolls the spawn list inside it, which only works if the card is
+   taller than its content. It is always the sole section in the raid phase, so
+   it can grow without any sibling to redistribute against. */
+.dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section--raid {
+  flex: 1 1 auto;
 }
 
 /* Fade the incoming trainer in rather than hard-swapping it. */

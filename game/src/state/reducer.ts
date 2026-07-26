@@ -298,6 +298,117 @@ function maybeRaidBottleCapDrop(next: GameState, wasInRaid: boolean): GameState 
   return pushLog({ ...next, inventory }, `✨ The raid yielded a ${itemsCatalog[drop]?.name ?? drop}!`);
 }
 
+// THE single "the raid wave was cleared, bring on the next one" routine.
+//
+// A wave ends one of two ways — the legendary faints, or the player catches
+// it — and both MUST continue the raid. They used to be written out
+// separately (only the faint path existed), so catching a legendary left
+// `inRaid: true` with no enemy on the field and the raid silently stalled.
+// Every caller now funnels through here so the two outcomes cannot drift
+// apart again.
+//
+// The next legendary is rolled fresh from the SAME tier the player started
+// in (persisted on `raidLegendary.tier`; older saves without a tier fall
+// back to the legacy level-based picker) at +5 levels, capped at 100. Shiny
+// rate matches wild encounters. The lead is re-derived so a party reorder
+// made during the fight takes effect between waves.
+//
+// There is deliberately NO terminal condition: like the faint path always
+// has, the raid runs until the player wipes (handleFaint / resolveTurnEnd)
+// or bails (TRAVEL / HEAL / END_RAID). At level 100 the cap simply holds and
+// waves keep coming at 100.
+//
+// Returns null when this isn't a live raid so callers fall through to their
+// normal end-of-encounter handling. Note it applies `decrementEffects`
+// itself — callers must not also decrement.
+function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | null {
+  if (!state.inRaid || !state.raidLegendary) return null;
+  const newLevel = Math.min(100, clearedLevel + 5);
+  const tierId = state.raidLegendary.tier;
+  const nextSpeciesKey = tierId
+    ? pickRandomLegendaryForTier(tierId, newLevel)
+    : pickRandomLegendary(newLevel);
+  const isShiny = rollShiny(hasShinyCharm(state.pokedexCaught));
+  const incoming = createPokemon(nextSpeciesKey, newLevel, state.nextPokemonId, isShiny);
+  const leadIdx = firstHealthyIndex(state.party);
+  const lead = state.party[leadIdx] ?? state.playerPokemon;
+  const playerSwapped = !!lead && lead.id !== state.playerPokemon?.id;
+  return pushLog(
+    {
+      ...state,
+      phase: "battle",
+      enemyPokemon: incoming,
+      raidLegendary: { speciesKey: nextSpeciesKey, level: newLevel, tier: tierId },
+      raidLevel: state.raidLevel + 1,
+      nextPokemonId: state.nextPokemonId + 1,
+      activeEffects: decrementEffects(state.activeEffects),
+      activePlayerPokemonIndex: leadIdx,
+      playerPokemon: lead,
+      // Reset volatile so the new lead doesn't inherit the previous mon's
+      // stat stages / locked move.
+      playerVolatile: playerSwapped
+        ? {
+            statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
+            mustRecharge: false,
+            lockedMove: null,
+            lockTurnsRemaining: 0,
+          }
+        : state.playerVolatile,
+    },
+    ...(playerSwapped && lead ? [`Go, ${lead.name}!`] : []),
+    `Wave ${state.raidLevel + 1}: ${incoming.name} appears at Lv. ${newLevel}!`
+  );
+}
+
+// Everything that happens once a ball actually connects. Shared by the
+// instant path (CATCH_POKEMON) and the animated path
+// (TRY_CATCH -> CATCH_RESOLVE) so the two can't diverge: party/box
+// placement, Pokédex + shiny registration, the "Gotcha!" line, the raid
+// Bottle Cap roll, catch EXP, and the win counters.
+//
+// `next` is the state with the ball already spent (and, on the animated
+// path, `catchAnim` already cleared). `enemy` is the Pokémon that was on
+// the field. `wasInRaid` is the raid flag read before the catch.
+//
+// In a raid the catch clears the wave exactly like a KO does and the next
+// legendary comes straight in; outside a raid the encounter ends and the
+// player drops to idle, unchanged.
+function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean): GameState {
+  const caught: Pokemon = { ...enemy, id: String(state.nextPokemonId) };
+  let next: GameState = { ...state, nextPokemonId: state.nextPokemonId + 1 };
+  if (next.party.length < 6) {
+    next = { ...next, party: [...next.party, caught] };
+  } else {
+    next = { ...next, box: [...next.box, caught] };
+  }
+  next = markCaught(next, caught.speciesKey);
+  if (caught.isShiny && !next.shinyCaught.includes(caught.speciesKey)) {
+    next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
+  }
+  next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
+  next = maybeRaidBottleCapDrop(next, wasInRaid);
+  next = applyCatchExp(next, enemy);
+  next = {
+    ...next,
+    wildBattlesWon: next.wildBattlesWon + 1,
+    battlesWonByLocation: {
+      ...next.battlesWonByLocation,
+      [next.currentLocation]: (next.battlesWonByLocation[next.currentLocation] ?? 0) + 1,
+    },
+  };
+  // Raid: the wave is cleared, so summon the next one (+5 levels) rather
+  // than dumping the player to idle with `inRaid` still set.
+  const continued = spawnNextRaidWave(next, enemy.level);
+  if (continued) return continued;
+  // Outside a raid: end the battle and go idle.
+  return {
+    ...next,
+    phase: "idle",
+    enemyPokemon: null,
+    activeEffects: decrementEffects(next.activeEffects),
+  };
+}
+
 export function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "SELECT_STARTER": {
@@ -566,39 +677,9 @@ export function reducer(state: GameState, action: Action): GameState {
       if (!success) {
         return pushLog({ ...state, inventory: inv }, `Oh no! The ${state.enemyPokemon.name} broke free!`);
       }
-      const caught: Pokemon = {
-        ...state.enemyPokemon,
-        id: String(state.nextPokemonId),
-      };
-      let next: GameState = {
-        ...state,
-        inventory: inv,
-        nextPokemonId: state.nextPokemonId + 1,
-      };
-      if (next.party.length < 6) {
-        next = { ...next, party: [...next.party, caught] };
-      } else {
-        next = { ...next, box: [...next.box, caught] };
-      }
-      next = markCaught(next, caught.speciesKey);
-      if (caught.isShiny && !next.shinyCaught.includes(caught.speciesKey)) {
-        next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
-      }
-      next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
-      next = maybeRaidBottleCapDrop(next, state.inRaid);
-      next = applyCatchExp(next, state.enemyPokemon);
-      // After catch, end battle and go idle
-      return {
-        ...next,
-        phase: "idle",
-        enemyPokemon: null,
-        wildBattlesWon: next.wildBattlesWon + 1,
-        battlesWonByLocation: {
-          ...next.battlesWonByLocation,
-          [next.currentLocation]: (next.battlesWonByLocation[next.currentLocation] ?? 0) + 1,
-        },
-        activeEffects: decrementEffects(next.activeEffects),
-      };
+      // Shared with CATCH_RESOLVE — party/box, dex, EXP, counters, and (in a
+      // raid) the next wave.
+      return applyCatchSuccess({ ...state, inventory: inv }, state.enemyPokemon, state.inRaid);
     }
 
     case "TRY_CATCH": {
@@ -644,8 +725,9 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "CATCH_RESOLVE": {
       // Animation finished — apply the pre-rolled outcome. If success, copy
-      // the (still-on-field) enemy into the party/box and end the battle;
-      // if failure, just clear the animation and let the battle continue.
+      // the (still-on-field) enemy into the party/box and end the encounter
+      // (or, in a raid, roll straight into the next wave); if failure, just
+      // clear the animation and let the battle continue.
       const anim = state.catchAnim;
       if (!anim || !state.enemyPokemon) {
         return { ...state, catchAnim: null };
@@ -691,38 +773,9 @@ export function reducer(state: GameState, action: Action): GameState {
           `Oh no! The ${state.enemyPokemon.name} broke free!`
         );
       }
-      const caught: Pokemon = {
-        ...state.enemyPokemon,
-        id: String(state.nextPokemonId),
-      };
-      let next: GameState = {
-        ...state,
-        catchAnim: null,
-        nextPokemonId: state.nextPokemonId + 1,
-      };
-      if (next.party.length < 6) {
-        next = { ...next, party: [...next.party, caught] };
-      } else {
-        next = { ...next, box: [...next.box, caught] };
-      }
-      next = markCaught(next, caught.speciesKey);
-      if (caught.isShiny && !next.shinyCaught.includes(caught.speciesKey)) {
-        next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
-      }
-      next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
-      next = maybeRaidBottleCapDrop(next, state.inRaid);
-      next = applyCatchExp(next, state.enemyPokemon);
-      return {
-        ...next,
-        phase: "idle",
-        enemyPokemon: null,
-        wildBattlesWon: next.wildBattlesWon + 1,
-        battlesWonByLocation: {
-          ...next.battlesWonByLocation,
-          [next.currentLocation]: (next.battlesWonByLocation[next.currentLocation] ?? 0) + 1,
-        },
-        activeEffects: decrementEffects(next.activeEffects),
-      };
+      // Shared with CATCH_POKEMON — party/box, dex, EXP, counters, and (in a
+      // raid) the next wave.
+      return applyCatchSuccess({ ...state, catchAnim: null }, state.enemyPokemon, state.inRaid);
     }
 
     case "TOGGLE_AUTO_CATCH":
@@ -2079,55 +2132,10 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
 
     // Raid: when the legendary faints, spawn a stronger version (+5 levels)
     // immediately. raidLevel grows so the player can rack up wins until they
-    // wipe. Money / battle counts still tick. Between waves, also re-derive
-    // the active Pokémon — if the player reordered the party, the new slot-0
-    // (or first healthy) lead is sent out for the next wave.
-    if (next.inRaid && next.raidLegendary) {
-      const newLevel = Math.min(100, enemy.level + 5);
-      // Each wave picks a fresh random legendary FROM THE SAME TIER the
-      // player started in (persisted on raidLegendary.tier). Falls back
-      // to the legacy level-based picker for older saves that don't have
-      // a tier stamped. Shiny rate matches wild encounters.
-      const tierId = next.raidLegendary.tier;
-      const nextSpeciesKey = tierId
-        ? pickRandomLegendaryForTier(tierId, newLevel)
-        : pickRandomLegendary(newLevel);
-      const isShiny = rollShiny(hasShinyCharm(next.pokedexCaught));
-      const incoming = createPokemon(
-        nextSpeciesKey,
-        newLevel,
-        next.nextPokemonId,
-        isShiny
-      );
-      const leadIdx = firstHealthyIndex(next.party);
-      const lead = next.party[leadIdx] ?? next.playerPokemon;
-      const playerSwapped = lead && lead.id !== next.playerPokemon?.id;
-      next = pushLog(
-        {
-          ...next,
-          enemyPokemon: incoming,
-          raidLegendary: { speciesKey: nextSpeciesKey, level: newLevel, tier: next.raidLegendary.tier },
-          raidLevel: next.raidLevel + 1,
-          nextPokemonId: next.nextPokemonId + 1,
-          activeEffects: decrementEffects(next.activeEffects),
-          activePlayerPokemonIndex: leadIdx,
-          playerPokemon: lead,
-          // Reset volatile so the new lead doesn't inherit the previous mon's
-          // stat stages / locked move.
-          playerVolatile: playerSwapped
-            ? {
-                statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
-                mustRecharge: false,
-                lockedMove: null,
-                lockTurnsRemaining: 0,
-              }
-            : next.playerVolatile,
-        },
-        ...(playerSwapped && lead ? [`Go, ${lead.name}!`] : []),
-        `Wave ${next.raidLevel + 1}: ${incoming.name} appears at Lv. ${newLevel}!`
-      );
-      return next;
-    }
+    // wipe. Money / battle counts still tick. Shared with the catch paths —
+    // see spawnNextRaidWave.
+    const nextWave = spawnNextRaidWave(next, enemy.level);
+    if (nextWave) return nextWave;
 
     // Wild battles award no money — only trainer / gym / E4 / champion
     // fights pay out. Wild fights still grant XP, items (catches), and

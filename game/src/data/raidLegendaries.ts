@@ -2,8 +2,9 @@ import type { CatchSettings } from "../types";
 
 // Raid configuration. Raids drop the player onto a special arena
 // (currentLocation = "raidIsland"), spawning a randomly-picked
-// legendary from the chosen tier. Defeating one summons the next at +5
-// levels until the player wipes — at which point a cooldown begins.
+// legendary from the chosen tier. Clearing a wave — by defeating the
+// legendary OR by catching it — summons the next at +5 levels until the
+// player wipes, at which point a cooldown begins.
 //
 // Tiers gate which legendaries can spawn AND set the starting level.
 // The player picks a tier when starting a raid; lower tiers are
