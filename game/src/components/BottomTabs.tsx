@@ -539,7 +539,10 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
       }
       if (payload.kind === "box") {
         const fromIdx = (payload.data as { index: number }).index;
-        return fromIdx !== real;
+        // Only a slot REORDER_BOX will actually accept. It rejects an
+        // out-of-range target, so lighting up a trailing empty cell would
+        // promise a move and then silently do nothing on release.
+        return fromIdx !== real && real < state.box.length;
       }
       return false;
     },
@@ -558,7 +561,17 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
           dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: fromIdx } });
         }
       }
-      // box→box reordering isn't a separate action; sort buttons cover it.
+      // Box→box reordering. The drag already worked end to end — the cell
+      // was a drag source, this target already accepted the payload, the
+      // slot lit up — but nothing was ever dispatched, so releasing did
+      // nothing and the box looked broken. REORDER_BOX has existed and
+      // been correct the whole time; only this call was missing.
+      if (payload.kind === "box") {
+        const fromIdx = (payload.data as { index: number }).index;
+        if (fromIdx !== real) {
+          dispatch({ type: "REORDER_BOX", payload: { from: fromIdx, to: real } });
+        }
+      }
       if (slotRef.current) requestAnimationFrame(() => animatePop(slotRef.current!, 1.08));
     },
   });
