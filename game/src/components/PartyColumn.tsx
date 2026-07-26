@@ -38,6 +38,26 @@ function readyStoneEvolution(
   return null;
 }
 
+// The level-up evolution this Pokémon has already earned, or null.
+// Nothing evolves a Pokémon on its own — the level-threshold hook was
+// written but never mounted, so it tree-shook out of the bundle and the
+// reducer only ever evolves from USE_STONE / USE_LINK_CABLE / trade.
+// Every level evolution in the game is therefore a deliberate player
+// action, which is why this has to be reachable from the row's menu:
+// canEvolveNow already counts these, so the row glows for them.
+function readyLevelEvolution(p: Pokemon): { into: string } | null {
+  for (const t of evolutions[p.speciesKey] ?? []) {
+    if (!("level" in t) || "item" in t) continue;
+    if (p.level < t.level) continue;
+    // Same guard as the stone path: never offer an evolution into a
+    // species the dex doesn't have, or COMPLETE_EVOLUTION crashes on
+    // its missing base stats.
+    if (!pokemonTable[t.into]) continue;
+    return { into: t.into };
+  }
+  return null;
+}
+
 // Returns true when this party member can evolve right now — either
 // it has reached the level threshold, or it has a stone-evolution
 // trigger and the player owns the stone in inventory. Trade-only
@@ -127,6 +147,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
   const expPct = expRaw === 0 ? 0 : Math.max(2, Math.min(100, expRaw));
   const active = idx === state.activePlayerPokemonIndex;
   const stoneEvo = readyStoneEvolution(p, state.inventory);
+  const levelEvo = readyLevelEvolution(p);
   const evoReady = canEvolveNow(p, state.inventory);
 
   const ref = useDragAndDrop<HTMLLIElement>({
@@ -183,8 +204,31 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
         const isFront = idx === 0;
         const partySize = state.party.length;
         openContextMenu(e, [
-          // Level evolutions fire on their own inside the reducer, so the only
-          // one worth a menu entry is the stone the player has to spend.
+          // Level evolutions do NOT fire on their own — see
+          // readyLevelEvolution. This entry is the only way to act on one
+          // from here, and the row is already glowing to say it's ready.
+          ...(levelEvo
+            ? [{
+                label: t("Evolve"),
+                hint: pokemonTable[levelEvo.into]?.name,
+                icon: (
+                  <img
+                    src={pokemonSpriteUrl(levelEvo.into)}
+                    alt=""
+                    width={16}
+                    height={16}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                ),
+                onClick: () =>
+                  dispatch({
+                    type: "START_EVOLUTION",
+                    payload: { partyIndex: idx, toSpeciesKey: levelEvo.into },
+                  }),
+              }]
+            : []),
+          // A stone evolution costs an item, so it stays a separate entry
+          // rather than being folded into the one above.
           ...(stoneEvo
             ? [{
                 label: t("Evolve"),
