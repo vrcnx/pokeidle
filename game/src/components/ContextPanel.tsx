@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
@@ -373,15 +373,26 @@ function IdleRaidPanel() {
   const anyOnCooldown = raidTiersOrdered.some((t) => cooldownLeftFor(t.id) > 0);
   const canRaid = !onCooldown && !state.inRaid;
 
+  // When this session saw the current raid start. Deliberately NOT in the
+  // save: it is a display convenience, and putting it there would mean a
+  // schema change plus a migration for every existing save. A reload
+  // restarts the clock, which is honest — it only claims to time what this
+  // session has watched.
+  const raidStartRef = useRef<number | null>(null);
+  if (state.inRaid && raidStartRef.current == null) raidStartRef.current = Date.now();
+  if (!state.inRaid && raidStartRef.current != null) raidStartRef.current = null;
+  const raidElapsed = raidStartRef.current == null ? null : now - raidStartRef.current;
+
   // Live ticker so the cooldown timers count down in the UI. Driven by
   // *any* tier cooling down, not just the selected one, otherwise the
   // per-tier labels in the picker would sit frozen.
   const [, force] = useState(0);
+  // ...and while a raid is live, or the elapsed clock above sits frozen.
   useEffect(() => {
-    if (!anyOnCooldown) return;
+    if (!anyOnCooldown && !state.inRaid) return;
     const t = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [anyOnCooldown]);
+  }, [anyOnCooldown, state.inRaid]);
 
   // Tap-to-expand blurb for touch, where `title` never fires. Held in
   // React state rather than toggled onto the DOM node by hand so the
@@ -437,6 +448,27 @@ function IdleRaidPanel() {
             rail. The wrappers exist for that split alone. */}
         <div className="raid-layout">
           <div className="raid-controls">
+            {/* A raid in progress disabled BEGIN RAID and then said nothing —
+                canRaid is `!onCooldown && !inRaid`, so mid-raid the button
+                greys out while the cooldown banner (which only renders for
+                `onCooldown`) stays hidden. The card read as broken. Waves
+                escalate +5 levels and never stop on their own, so the run
+                only ends when the party wipes — the player needs to see how
+                deep they are and how long it has been going. */}
+            {state.inRaid && (
+              <div className="raid-active-banner" role="status">
+                <span className="raid-active-icon" aria-hidden>⚔</span>
+                <div className="raid-cooldown-text">
+                  <strong>{t("Raid in progress")}</strong>
+                  <span className="raid-cooldown-time">
+                    {t("Wave ")}{Math.max(1, (state.raidLevel ?? 0) + 1)}
+                    {raidElapsed != null && <> · {formatCooldown(raidElapsed)}</>}
+                    {" "}<span className="dim">{t("— ends when your party faints")}</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {onCooldown && (
               <div className="raid-cooldown-banner" role="status">
                 <span className="raid-cooldown-icon" aria-hidden>⏱</span>
