@@ -203,6 +203,19 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
   const sellerDerived = computeAccountLevel(sellerMerged);
   const winnerDerived = computeAccountLevel(winnerMerged);
 
+  // Both writes bump saveAdoptSeq, exactly like the escrow paths above and
+  // below. This is a SERVER-AUTHORITATIVE money movement into a save neither
+  // player's client knows about: without the bump, the buyer's client keeps
+  // playing on a blob that still has the money and no mon, and its next upload
+  // — which passes the version CAS as soon as it re-reads the version after a
+  // 409 — puts the money back and drops the Pokémon. That is +500,000 minted
+  // with no tampering at all, and it is the "bought a shiny Nidoran, never
+  // received it" report.
+  //
+  // It is safe to bump here for the same reason it is safe on the fold: the
+  // stored blob is each player's OWN latest bytes (re-read under a version CAS
+  // in this very attempt) with the settlement applied on top. Adopting it can
+  // cost a session only the play it has not uploaded yet.
   try {
     await prisma.$transaction(async (tx) => {
       const sellerClaim = await tx.user.updateMany({
@@ -210,6 +223,7 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
         data: {
           saveData: JSON.stringify(sellerMerged),
           saveVersion: { increment: 1 },
+          saveAdoptSeq: { increment: 1 },
           saveUpdatedAt: new Date(),
           accountLevel: sellerDerived.accountLevel,
           totalCaughtLevels: sellerDerived.totalCaughtLevels,
@@ -223,6 +237,7 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
         data: {
           saveData: JSON.stringify(winnerMerged),
           saveVersion: { increment: 1 },
+          saveAdoptSeq: { increment: 1 },
           saveUpdatedAt: new Date(),
           accountLevel: winnerDerived.accountLevel,
           totalCaughtLevels: winnerDerived.totalCaughtLevels,
@@ -251,6 +266,15 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
     // safe to retry from a fresh read; nothing was committed either way.
     return "retry";
   }
+
+  // Committed — tell both clients to adopt. The `auction:sold` / `auction:won`
+  // payloads below patch a LIVE client's state directly (and are what make the
+  // UI feel instant), but they are not a guarantee: a client that is offline,
+  // socket-less, or simply misses the event would otherwise never learn. The
+  // adopt is the guarantee, and it also covers the offline case via the boot
+  // saveAdoptSeq check with no socket involved at all.
+  emitSaveAdopt(auction.sellerId);
+  emitSaveAdopt(auction.currentBidderId);
 
   sendToUserGlobal(auction.sellerId, "auction:sold", {
     auctionId: auction.id,

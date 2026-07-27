@@ -136,10 +136,28 @@ export function GiveawaysPage() {
                 <span className="gv-winners-label">Winners</span>
                 <span>
                   {g.entries.filter((e) => e.isWinner).map((e) =>
-                    // A winner whose prize grant failed must be obvious at a
-                    // glance — they still need paying out by hand.
-                    <span key={e.id} className={e.claimedAt ? "gv-winner" : "gv-winner gv-winner--unpaid"}>
-                      @{e.username}{!e.claimedAt && " (UNPAID)"}
+                    // Three states, not two, because granting no longer means
+                    // "written to their save this instant" — it means a
+                    // durable PendingGrant row that their next upload absorbs.
+                    //
+                    //   no claimedAt      → the grant itself failed. Pay by hand.
+                    //   claimedAt, unsent → OWED. Guaranteed; do NOT re-grant,
+                    //                       that would pay them twice.
+                    //   delivered         → in their save.
+                    //
+                    // Printing "UNPAID" for the middle state is what steers an
+                    // operator into a double payout.
+                    <span
+                      key={e.id}
+                      className={e.claimedAt ? "gv-winner" : "gv-winner gv-winner--unpaid"}
+                      title={
+                        !e.claimedAt ? "Prize grant failed — pay this winner by hand."
+                        : e.prizeDelivered ? "Prize is in their save."
+                        : "Prize is queued and guaranteed — it lands on their next save upload. Do not re-grant."
+                      }
+                    >
+                      @{e.username}
+                      {!e.claimedAt ? " (UNPAID)" : !e.prizeDelivered ? " (OWED)" : ""}
                     </span>
                   )}
                 </span>

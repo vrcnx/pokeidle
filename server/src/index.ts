@@ -23,6 +23,7 @@ import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
 import { startAuctionSettlementLoop } from "./lib/auctionSettlement.js";
 import { startGiveawayDrawLoop } from "./lib/giveawayDraw.js";
+import { startTournamentRunner } from "./lib/tournamentRunner.js";
 
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173")
   .split(",")
@@ -261,6 +262,15 @@ startAuctionSettlementLoop();
 // dashboard for a deadline to mean anything. Idempotent: the draw's
 // compare-and-swap means a repeated tick can never draw twice.
 startGiveawayDrawLoop();
+
+// Live tournaments drive themselves: pairings start the moment both
+// players happen to be online, results feed straight back into the
+// bracket, and a round that expires is decided rather than left to
+// freeze. Without this a bracket needs every participant present at the
+// same moment AND an operator clicking "Start match" — which, at ~34
+// accounts online in a given hour, never happens.
+// See lib/tournamentRunner.ts.
+startTournamentRunner();
 
 // Catch truly fatal failures that would otherwise just exit the
 // process silently. Log + persist (best-effort) before letting the

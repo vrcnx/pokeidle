@@ -22,10 +22,18 @@ import {
   startBattle,
   type BattleRoom,
 } from "../pvp.js";
-import { generateBracket, advanceBracket, type Bracket } from "../lib/bracket.js";
+import {
+  generateBracket, advanceBracket, findMatch, participants,
+  type Bracket,
+} from "../lib/bracket.js";
+import {
+  startTournamentBattle, tickOneTournament, onTournamentComplete,
+  clampRoundMinutes, usernameOf,
+} from "../lib/tournamentRunner.js";
+import { endBattle } from "../pvp.js";
 import { parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
-import { grantPrizesToUser } from "../lib/prizeGrant.js";
+import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
@@ -819,6 +827,15 @@ function safeParseObject(s: string): Record<string, unknown> | null {
 
 // Reset a user's save (clears the JSON blob — they'll be back in the
 // starter-select state on next login).
+//
+// NOTE ON PRIZES: a reset does NOT hand back prizes this account already
+// received. Delivery is recorded in PendingGrant.deliveredAt, which a save
+// wipe cannot touch, so a delivered grant stays delivered. Grants still OWED
+// at reset time survive and land on the reset account's first upload, which
+// is the correct behaviour — they were never paid.
+//
+// If a reset was a mistake, the way back is the snapshot restore below, not a
+// re-grant: creating a second PendingGrant row pays a second time.
 app.post("/users/:id/reset-save", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
@@ -1789,13 +1806,94 @@ app.get("/giveaways", async (c) => {
     take: 100,
     include: { entries: { select: { id: true, userId: true, username: true, isWinner: true, claimedAt: true } } },
   });
+  // `claimedAt` no longer means "the prize is in their save" — it means the
+  // PendingGrant row is committed, i.e. durably OWED. Those are different
+  // states and the operator's decision differs between them: an owed prize
+  // must NOT be re-granted (it will land on the winner's next upload; a second
+  // grant pays twice), while a genuinely un-granted winner still needs paying
+  // by hand. Join the inbox so the dashboard can say which is which instead of
+  // printing "UNPAID" for a prize that is guaranteed.
+  const grants = rows.length === 0 ? [] : await prisma.pendingGrant.findMany({
+    where: { source: "giveaway", sourceId: { in: rows.map((g) => g.id) } },
+    select: { userId: true, sourceId: true, deliveredAt: true },
+  });
+  const deliveredKeys = new Set<string>();
+  for (const gr of grants) {
+    if (gr.deliveredAt !== null) deliveredKeys.add(`${gr.sourceId}:${gr.userId}`);
+  }
   return c.json({
     giveaways: rows.map((g) => ({
       ...g,
+      entries: g.entries.map((e) => ({
+        ...e,
+        // true = physically folded into their saveData. false with claimedAt
+        // set = owed and safe; do not re-grant.
+        prizeDelivered: deliveredKeys.has(`${g.id}:${e.userId}`),
+      })),
       prizes: parsePrizes(g.prizes),
       prizeSummary: describePrizes(parsePrizes(g.prizes)),
       entryCount: g.entries.length,
     })),
+  });
+});
+
+// ── Pending grants (the prize inbox) ─────────────────────────────────
+// Read-only ops window onto lib/prizeGrant.ts's PendingGrant queue: what the
+// server still owes, and what it has already handed over.
+//
+// This exists because "granted" no longer means "in their save this instant".
+// A grant is a durable row that the player's next save upload absorbs, so a
+// prize can legitimately sit here for as long as the player stays away. Ops
+// needs to be able to tell that apart from a prize that is STUCK — `attempts`
+// climbing with a `lastError` means the fold keeps being refused (a Pokémon
+// prize into a full box, say), and that one does need a human.
+//
+// Do not re-grant a row that shows deliveredAt, ever: a second grant is a
+// second row and pays twice. That column is the delivery gate itself — it is
+// set under a `deliveredAt IS NULL` compare-and-swap inside the transaction
+// that stores the folded save — so a row that shows it was paid exactly once.
+//
+// There is no re-delivery and there must not be one: the server cannot tell
+// "never received it" from "received it and spent it", so anything that
+// re-pays a fungible prize is an exploit. What protects the prize instead is
+// that the fold bumps saveAdoptSeq, so every session of that account adopts
+// the cloud copy holding it rather than overwriting it.
+//
+// How to read a row:
+//   * deliveredAt null, attempts climbing with a lastError → STUCK. The fold
+//     keeps refusing it (a Pokémon prize into a full box, say). Needs a human.
+//   * deliveredAt null, attempts 0 → simply unclaimed. The player has not
+//     loaded the game since — or is still on a pre-`grantAck` client, which is
+//     never delivered to. Nothing to do.
+//   * deliveredAt set → done.
+app.get("/pending-grants", async (c) => {
+  const url = new URL(c.req.url);
+  const userId = url.searchParams.get("userId");
+  const includeDelivered = url.searchParams.get("includeDelivered") === "1";
+  const rows = await prisma.pendingGrant.findMany({
+    where: {
+      ...(userId ? { userId } : {}),
+      ...(includeDelivered ? {} : { deliveredAt: null }),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+    include: { user: { select: { username: true } } },
+  });
+  return c.json({
+    grants: rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      username: r.user?.username ?? null,
+      source: r.source,
+      sourceId: r.sourceId,
+      summary: r.summary,
+      createdAt: r.createdAt,
+      deliveredAt: r.deliveredAt,
+      deliveredSaveVersion: r.deliveredSaveVersion,
+      attempts: r.attempts,
+      lastError: r.lastError,
+    })),
+    owed: rows.filter((r) => r.deliveredAt === null).length,
   });
 });
 
@@ -1804,6 +1902,12 @@ app.post("/giveaways", async (c) => {
   const parsed = GiveawayBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
   const d = parsed.data;
+  // Fail here, not at draw time. PrizeSchema leaves a Pokémon prize's `mon` an
+  // opaque record; an unfoldable one would otherwise be discovered only when
+  // the draw enqueues it for every winner, and then refused on every upload
+  // forever while the dashboard shows those winners as paid.
+  const badPrize = checkPrizesDeliverable(d.prizes);
+  if (badPrize) return c.json({ error: "prize rejected", reason: badPrize }, 400);
   const g = await prisma.giveaway.create({
     data: {
       title: d.title,
@@ -2005,11 +2109,12 @@ app.post("/giveaways/:id/draw", async (c) => {
 // ── Mass gift ────────────────────────────────────────────────────────
 // Direct grant (not an opt-in raffle) of any item / money / Pokémon to a
 // whole audience at once: everyone online right now, every account, or a
-// hand-picked set. Reuses grantPrizesToUser (validate-then-write), so it can
-// never produce a save the game rejects. Recipients who are offline pick the
-// gift up on their next load via the version-based cloud-adoption sync (see
-// game/src/state/saveReconcile.ts) — the server bumps saveVersion here, which
-// their client detects as an authoritative write it hasn't seen.
+// hand-picked set. Reuses enqueuePrizeGrant, so every recipient gets a durable
+// PendingGrant row rather than a racy direct save write; the prize is folded
+// into their save (and validated there) by POST /api/saves the next time their
+// client uploads — within ~2.5s for someone playing, on next load for someone
+// offline. Delivery is exactly-once whether they are online or not, which is
+// what the old direct-write path could not promise. See lib/prizeGrant.ts.
 const MassGiftBody = z.object({
   audience: z.enum(["all", "online", "selected"]),
   userIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/)).max(5000).optional(),
@@ -2023,6 +2128,16 @@ app.post("/mass-gift", async (c) => {
   const parsed = MassGiftBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
   const d = parsed.data;
+
+  // Reject an undeliverable prize NOW, while the operator is still looking at
+  // the form. PrizeSchema bounds a Pokémon prize as an opaque record, so a
+  // malformed mon (level 105, a broken moves array) parses fine here and is
+  // then refused by the fold on every single upload, forever, for every
+  // recipient — invisible to the operator, who was told it went out. The
+  // grants below are enqueued in the BACKGROUND, so this is the last point
+  // where a bad prize can still be reported synchronously.
+  const badPrize = checkPrizesDeliverable(d.prizes);
+  if (badPrize) return c.json({ error: "prize rejected", reason: badPrize }, 400);
 
   // Resolve the audience to a concrete, de-duplicated recipient list.
   let userIds: string[];
@@ -2076,13 +2191,15 @@ app.post("/mass-gift", async (c) => {
     let ok = 0, fail = 0;
     for (const uid of userIds) {
       try {
-        await grantPrizesToUser(uid, d.prizes);
+        // Durable inbox, not a save write — see lib/prizeGrant.ts. The prize
+        // is folded into the recipient's save by POST /api/saves on top of
+        // whatever their client uploads, so an ONLINE recipient's next
+        // autosave can no longer overwrite it (which is exactly how giveaway
+        // prizes were being destroyed). enqueuePrizeGrant emits the
+        // `gift:pending` nudge itself; there is no separate socket step here
+        // any more, and nothing depends on that emit arriving.
+        await enqueuePrizeGrant(uid, d.prizes, { source: "mass-gift", sourceId: null });
         ok++;
-        // Deliver to online recipients live: the client applies these prizes
-        // to its OWN state and its next autosave carries them up (idempotent
-        // with the server grant above — same prizes, so no doubling). Offline
-        // recipients instead pick up the server grant via boot reconciliation.
-        sendToUserGlobal(uid, "gift:received", { prizes: d.prizes, summary: describePrizes(d.prizes) });
       } catch {
         fail++;
       }
@@ -2603,20 +2720,30 @@ app.get("/errors", async (c) => {
 });
 
 // ── Tournaments ────────────────────────────────────────────────────────
-// Admin-managed brackets. v1 ships:
+// Admin-managed brackets:
 //   - Create + list + delete tournaments with optional level cap
-//   - Add / remove participants (manual seeding by the admin)
-//   - "Run match" — given two participant ids, spawn a server-side
-//     PvP battle room with format=tournament + the tournament's
-//     levelCap. Both participants must be online + provide teams.
+//   - Add / remove participants (players self-sign-up via
+//     POST /api/pvp/tournaments/:id/join; this is the operator override)
+//   - Generate the bracket — seeds by ELO, sizes itself from the actual
+//     sign-ups, folds byes to the top seeds
+//   - Everything after that is driven by lib/tournamentRunner.ts: it
+//     starts each pairing the moment both players are online, applies
+//     results, and decides a pairing whose round window expired. The
+//     buttons below are operator overrides on top of that, not the
+//     primary path.
 //
-// Player-facing tournament UI (browse, sign up, watch bracket) is a
-// follow-up. For v1 the admin DMs participants to coordinate.
+// See lib/tournamentRunner.ts for why the format is asynchronous.
 
 const TournamentCreateBody = z.object({
   name: z.string().min(1).max(80),
   levelCap: z.number().int().min(1).max(100).nullable().optional(),
   format: z.string().max(40).optional(),
+  /** Minutes each ROUND stays open. Default 24h — see the runner. */
+  roundWindowMinutes: z.number().int().min(5).max(60 * 24 * 14).optional(),
+  /** Let the runner drive it. Off = hand-run showmatch. */
+  autoRun: z.boolean().optional(),
+  /** Champion prize, as the same Prize[] JSON giveaways use. */
+  prizes: z.string().max(20_000).nullable().optional(),
 });
 
 app.get("/tournaments", async (c) => {
@@ -2638,6 +2765,13 @@ app.post("/tournaments", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
   }
+  // Refuse a prize we already know can never be delivered, at CREATE
+  // time, rather than discovering it when the final resolves and the
+  // champion is standing there empty-handed.
+  if (parsed.data.prizes) {
+    const bad = checkPrizesDeliverable(parsePrizes(parsed.data.prizes));
+    if (bad) return c.json({ error: "prize would corrupt save", reason: bad }, 400);
+  }
   const t = await prisma.tournament.create({
     data: {
       name: parsed.data.name,
@@ -2645,6 +2779,9 @@ app.post("/tournaments", async (c) => {
       format: parsed.data.format ?? "tournament",
       status: "open",
       ownerId: me.id,
+      roundWindowMinutes: parsed.data.roundWindowMinutes ?? 1440,
+      autoRun: parsed.data.autoRun ?? true,
+      prizes: parsed.data.prizes ?? null,
     },
   });
   void makeAudit(c)(me.id, "tournament.create", t.id, { name: t.name, levelCap: t.levelCap });
@@ -2668,13 +2805,28 @@ app.patch("/tournaments/:id", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   const body = (await c.req.json().catch(() => null)) as
-    | { name?: string; levelCap?: number | null; status?: string }
+    | {
+        name?: string; levelCap?: number | null; status?: string;
+        roundWindowMinutes?: number; autoRun?: boolean; prizes?: string | null;
+      }
     | null;
   if (!body) return c.json({ error: "invalid body" }, 400);
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.length <= 80) data.name = body.name;
   if (body.levelCap === null || (typeof body.levelCap === "number" && body.levelCap >= 1 && body.levelCap <= 100)) {
     data.levelCap = body.levelCap;
+  }
+  if (typeof body.roundWindowMinutes === "number") {
+    data.roundWindowMinutes = clampRoundMinutes(body.roundWindowMinutes);
+  }
+  if (typeof body.autoRun === "boolean") data.autoRun = body.autoRun;
+  if (body.prizes !== undefined) {
+    if (body.prizes === null) data.prizes = null;
+    else {
+      const bad = checkPrizesDeliverable(parsePrizes(body.prizes));
+      if (bad) return c.json({ error: "prize would corrupt save", reason: bad }, 400);
+      data.prizes = body.prizes;
+    }
   }
   // Status was `if (typeof body.status === "string")` — any string, no
   // enum, no state machine. The dashboard renders a plain "Open"
@@ -2792,26 +2944,179 @@ app.post("/tournaments/:id/generate-bracket", async (c) => {
   if (seedable.length < 2) {
     return c.json({ error: "need at least 2 participants" }, 400);
   }
-  const bracket = generateBracket(
-    seedable.map((e) => ({ userId: e.userId, username: e.username, seed: e.seed })),
+
+  // ── Seed by ELO ───────────────────────────────────────────────────
+  // TournamentEntry.seed was never populated by anything: neither the
+  // player join route nor the admin add-entry route set it, so
+  // generateBracket's tie-break fell through to `userId.localeCompare`
+  // — the draw was ordered by cuid. That makes byes and the no-show
+  // tie-break arbitrary, which matters a lot here because with this
+  // population a meaningful share of pairings WILL be decided by
+  // walkover rather than played.
+  //
+  // Any explicit seed an operator already set by hand wins; everyone
+  // else is ranked by PlayerRating (the same ELO the ranked ladder
+  // uses), then by matches played, then by username so the result is
+  // stable. Unrated players sort to the bottom on the starting 1000.
+  const ratings = await prisma.playerRating.findMany({
+    where: { userId: { in: seedable.map((e) => e.userId) } },
+    select: { userId: true, rating: true, matchesPlayed: true },
+  });
+  const ratingOf = new Map(ratings.map((r) => [r.userId, r]));
+  const manual = seedable.filter((e) => e.seed != null).sort((a, b) => (a.seed ?? 0) - (b.seed ?? 0));
+  const auto = seedable
+    .filter((e) => e.seed == null)
+    .sort((a, b) => {
+      const ra = ratingOf.get(a.userId);
+      const rb = ratingOf.get(b.userId);
+      const diff = (rb?.rating ?? 1000) - (ra?.rating ?? 1000);
+      if (diff !== 0) return diff;
+      const played = (rb?.matchesPlayed ?? 0) - (ra?.matchesPlayed ?? 0);
+      if (played !== 0) return played;
+      return a.username.localeCompare(b.username);
+    });
+  const ordered = [...manual, ...auto];
+  const seeds = ordered.map((e, i) => ({
+    entryId: e.id,
+    userId: e.userId,
+    username: e.username,
+    seed: i + 1,
+    ratingAtSeed: ratingOf.get(e.userId)?.rating ?? 1000,
+  }));
+  // Persist the seeds so the bracket, the admin table and the player's
+  // bracket view all agree on who was #1 and why.
+  await prisma.$transaction(
+    seeds.map((s) =>
+      prisma.tournamentEntry.update({
+        where: { id: s.entryId },
+        data: { seed: s.seed, ratingAtSeed: s.ratingAtSeed },
+      }),
+    ),
   );
+
+  const bracket = generateBracket(
+    seeds.map((s) => ({ userId: s.userId, username: s.username, seed: s.seed })),
+  );
+  // Arm the first round's clock immediately. Every later round's clock
+  // starts when that round OPENS — the runner stamps it — so a slow
+  // round 1 does not eat round 2's window.
+  const deadline = Date.now() + clampRoundMinutes(t.roundWindowMinutes) * 60_000;
+  for (const m of bracket.rounds[0].matches) {
+    if (!m.winnerId) m.deadlineAt = deadline;
+  }
   const updated = await prisma.tournament.update({
     where: { id },
     data: { bracket: JSON.stringify(bracket), status: "live", startsAt: new Date() },
   });
   void makeAudit(c)(me.id, "tournament.generate_bracket", id, {
     rounds: bracket.rounds.length,
-    entries: t.entries.length,
+    entries: seeds.length,
+    drawSize: bracket.rounds[0].matches.length * 2,
+    byes: bracket.rounds[0].matches.length * 2 - seeds.length,
+    roundWindowMinutes: t.roundWindowMinutes,
   });
-  return c.json({ tournament: updated });
+  return c.json({ tournament: updated, seeds });
+});
+
+// ── Force a runner tick ─────────────────────────────────────────────
+// The runner sweeps on its own timer; this is the "do it now" button so
+// an operator watching the dashboard doesn't have to wait 15s to see
+// their change take effect. Same code path, so it can't diverge.
+app.post("/tournaments/:id/run", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const t = await prisma.tournament.findUnique({ where: { id } });
+  if (!t) return c.json({ error: "tournament not found" }, 404);
+  if (t.status !== "live") return c.json({ error: "tournament not live" }, 409);
+  const actions = await tickOneTournament(id);
+  void makeAudit(c)(me.id, "tournament.run", id, { actions: actions.length });
+  const after = await prisma.tournament.findUnique({ where: { id } });
+  return c.json({ actions, tournament: after });
+});
+
+// ── Operator override: decide a match by hand ───────────────────────
+// The escape hatch for everything the runner cannot see — a player who
+// tells you in chat they're withdrawing, a disputed result, a match both
+// sides agree to concede. Writes through the same advanceBracket path as
+// everything else so the bracket can never end up in a shape the runner
+// doesn't understand.
+app.post("/tournaments/:id/matches/:matchId/resolve", async (c) => {
+  const me = c.get("user");
+  const id = c.req.param("id");
+  const matchId = c.req.param("matchId");
+  const body = (await c.req.json().catch(() => null)) as
+    | { winnerUserId?: string; note?: string }
+    | null;
+  const winnerUserId = String(body?.winnerUserId ?? "");
+  if (!winnerUserId) return c.json({ error: "winnerUserId required" }, 400);
+
+  const t = await prisma.tournament.findUnique({ where: { id } });
+  if (!t || !t.bracket) return c.json({ error: "tournament has no bracket" }, 400);
+  if (t.status !== "live") return c.json({ error: "tournament not live" }, 409);
+  let bracket: Bracket;
+  try { bracket = JSON.parse(t.bracket) as Bracket; }
+  catch { return c.json({ error: "bracket JSON is corrupt" }, 500); }
+
+  const match = findMatch(bracket, matchId);
+  if (!match) return c.json({ error: "match not in bracket" }, 404);
+  if (match.winnerId) return c.json({ error: "match already resolved" }, 409);
+  const p = participants(match);
+  if (!p) return c.json({ error: "match still has unresolved placeholders" }, 400);
+  if (winnerUserId !== p.a.userId && winnerUserId !== p.b.userId) {
+    return c.json({ error: "winner is not in this match" }, 400);
+  }
+  // Kill any battle still attached so the runner doesn't later reap it
+  // and reopen a match an operator has just settled.
+  if (match.battleId) {
+    const room = battleRooms.get(match.battleId);
+    if (room && (room.status === "active" || room.status === "invited")) {
+      room.winnerId = winnerUserId;
+      room.loserId = winnerUserId === p.a.userId ? p.b.userId : p.a.userId;
+      await endBattle(room, sendToUserGlobal, "forfeit");
+    }
+    match.battleId = null;
+    match.battleStartedAt = null;
+  }
+
+  const adv = advanceBracket(bracket, {
+    [matchId]: { winnerId: winnerUserId, by: "admin", note: body?.note || `resolved by ${me.username}` },
+  });
+  if (adv.eliminatedUserIds.length > 0) {
+    await prisma.tournamentEntry.updateMany({
+      where: { tournamentId: id, userId: { in: adv.eliminatedUserIds } },
+      data: { eliminated: true },
+    });
+  }
+  const data: Record<string, unknown> = { bracket: JSON.stringify(adv.bracket) };
+  if (adv.complete && adv.championId) {
+    data.status = "completed";
+    data.finishedAt = new Date();
+    data.championId = adv.championId;
+    data.championUsername = usernameOf(adv.bracket, adv.championId);
+  }
+  const updated = await prisma.tournament.update({ where: { id }, data });
+  if (adv.complete) await onTournamentComplete(id);
+  void makeAudit(c)(me.id, "tournament.resolve_match", id, { matchId, winnerUserId, note: body?.note });
+  return c.json({ tournament: updated, championId: adv.championId });
 });
 
 // ── Advance the bracket ────────────────────────────────────────────
-// Reads the bracket + every linked PvpMatch, copies in any newly-
-// resolved winners, marks losers as eliminated, propagates winnerOf
-// placeholders forward. Marks the tournament completed when the
-// final match has a winner. Idempotent: call as often as you want;
-// no-ops when nothing has resolved since the last call.
+// Kept for the dashboard button and for anything scripted against it,
+// but it is now a thin alias for one runner tick.
+//
+// It used to be its own implementation: join every match's battleId
+// against PvpMatch, copy in `status === "completed" && winnerId`,
+// propagate. That handled exactly one outcome — a clean win — and
+// silently ignored the other three a real battle can end in. A tie, a
+// double timeout and a cancellation all produce a bracket match that
+// holds a battleId (so start-bracket-match 409s "already started") and
+// has no winner (so advance can never resolve it). The tournament was
+// then frozen with no operator-visible cause and no way out short of
+// editing the bracket JSON in the database.
+//
+// tickOneTournament reaps those, retries them, decides them at the
+// round deadline, and records the champion. One code path, same
+// idempotency guarantees.
 app.post("/tournaments/:id/advance-bracket", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
@@ -2819,65 +3124,31 @@ app.post("/tournaments/:id/advance-bracket", async (c) => {
   if (!t || !t.bracket) return c.json({ error: "tournament has no bracket" }, 400);
   if (t.status !== "live") return c.json({ error: "tournament not live" }, 409);
 
-  let bracket: Bracket;
-  try { bracket = JSON.parse(t.bracket) as Bracket; }
-  catch { return c.json({ error: "bracket JSON is corrupt" }, 500); }
-
-  // Build the matchResults map by joining every match with a battleId
-  // against PvpMatch.winnerId. Matches without a battleId are skipped
-  // (haven't been started yet).
-  const battleIds = bracket.rounds
-    .flatMap((r) => r.matches)
-    .filter((m): m is typeof m & { battleId: string } => !!m.battleId && !m.winnerId)
-    .map((m) => m.battleId);
-  const pvpMatches = battleIds.length > 0
-    ? await prisma.pvpMatch.findMany({
-        where: { id: { in: battleIds } },
-        select: { id: true, winnerId: true, status: true },
-      })
-    : [];
-  const matchResults: Record<string, string | null> = {};
-  for (const r of bracket.rounds) {
-    for (const m of r.matches) {
-      if (!m.battleId || m.winnerId) continue;
-      const pm = pvpMatches.find((x) => x.id === m.battleId);
-      if (pm && pm.status === "completed" && pm.winnerId) {
-        matchResults[m.id] = pm.winnerId;
-      }
-    }
-  }
-
-  const advanced = advanceBracket(bracket, matchResults);
-  // Mark losers as eliminated in TournamentEntry. We use updateMany
-  // so it's a single round-trip for all losers.
-  if (advanced.eliminatedUserIds.length > 0) {
-    await prisma.tournamentEntry.updateMany({
-      where: { tournamentId: id, userId: { in: advanced.eliminatedUserIds } },
-      data: { eliminated: true },
-    });
-  }
-  const data: { bracket: string; status?: string; finishedAt?: Date } = {
-    bracket: JSON.stringify(advanced.bracket),
-  };
-  if (advanced.complete) {
-    data.status = "completed";
-    data.finishedAt = new Date();
-  }
-  const updated = await prisma.tournament.update({ where: { id }, data });
+  const actions = await tickOneTournament(id);
+  const after = await prisma.tournament.findUnique({ where: { id } });
   void makeAudit(c)(me.id, "tournament.advance_bracket", id, {
-    eliminated: advanced.eliminatedUserIds.length,
-    complete: advanced.complete,
-    championId: advanced.championId,
+    actions: actions.length,
+    complete: after?.status === "completed",
+    championId: after?.championId ?? null,
   });
-  return c.json({ tournament: updated, championId: advanced.championId });
+  return c.json({ tournament: after, championId: after?.championId ?? null, actions });
 });
 
-// ── Start a specific bracket-match ──────────────────────────────────
-// Like /tournaments/:id/match but works against a bracket-match-id
-// (e.g. "r1.m0") rather than two raw user ids — server resolves the
-// concrete users from the bracket, refuses if the match's slots are
-// still placeholders, and writes the resulting battleId back into
-// the bracket JSON so advance-bracket can find it later.
+// ── Start a specific bracket-match ──────────────────
+// Operator override for "start this pairing NOW". The runner already
+// does this automatically the moment both players are online, so this
+// is only needed when an operator wants to force the issue.
+//
+// The room-spawn body used to live here, inline and duplicated with
+// /tournaments/:id/match. It is now startTournamentBattle() in
+// lib/tournamentRunner.ts, which is also what the runner calls — one
+// place that knows the preconditions, so the manual button and the
+// automatic path cannot enforce different ones. In particular the old
+// inline version documented "both participants must be online" and then
+// never checked: it hardcoded `connected: true` and never consulted
+// presence. Starting a pairing against an offline player burned it —
+// the match got a battleId (so it could not be restarted) and then
+// timed out with no winner (so it could not be advanced).
 app.post("/tournaments/:id/start-bracket-match", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
@@ -2891,111 +3162,31 @@ app.post("/tournaments/:id/start-bracket-match", async (c) => {
   try { bracket = JSON.parse(t.bracket) as Bracket; }
   catch { return c.json({ error: "bracket JSON is corrupt" }, 500); }
 
-  // Locate the match.
-  let target: { match: Bracket["rounds"][number]["matches"][number] } | null = null;
-  for (const r of bracket.rounds) {
-    for (const m of r.matches) {
-      if (m.id === matchId) { target = { match: m }; break; }
-    }
-    if (target) break;
+  const match = findMatch(bracket, matchId);
+  if (!match) return c.json({ error: "match not in bracket" }, 404);
+  if (match.battleId) {
+    return c.json({ error: "match already started", battleId: match.battleId }, 409);
   }
-  if (!target) return c.json({ error: "match not in bracket" }, 404);
-  if (target.match.battleId) {
-    return c.json({ error: "match already started", battleId: target.match.battleId }, 409);
-  }
-  if (target.match.winnerId) {
-    return c.json({ error: "match already resolved" }, 409);
-  }
-  if (target.match.a.kind !== "player" || target.match.b.kind !== "player") {
+  if (match.winnerId) return c.json({ error: "match already resolved" }, 409);
+  if (!participants(match)) {
     return c.json({ error: "match has unresolved placeholders — advance the bracket first" }, 400);
   }
-  const aUserId = target.match.a.userId;
-  const bUserId = target.match.b.userId;
 
-  // Pull both players' parties + verify they're online.
-  const [aUser, bUser] = await Promise.all([
-    prisma.user.findUnique({ where: { id: aUserId }, select: { id: true, username: true, saveData: true } }),
-    prisma.user.findUnique({ where: { id: bUserId }, select: { id: true, username: true, saveData: true } }),
-  ]);
-  if (!aUser || !bUser) return c.json({ error: "user not found" }, 404);
-  const partyOf = (saveJson: string | null): unknown[] => {
-    if (!saveJson) return [];
-    try {
-      const s = JSON.parse(saveJson);
-      return Array.isArray(s?.party) ? s.party : [];
-    } catch { return []; }
-  };
-  const teamA = partyOf(aUser.saveData);
-  const teamB = partyOf(bUser.saveData);
-  if (teamA.length < 1 || teamB.length < 1) {
-    return c.json({ error: "one or both participants have no party" }, 400);
-  }
-  // Refuse if either user is already in another in-flight battle —
-  // see /tournaments/:id/match for rationale.
-  for (const room of battleRooms.values()) {
-    if (room.status !== "active" && room.status !== "invited") continue;
-    if (
-      room.a.userId === aUser.id || room.b.userId === aUser.id
-      || room.a.userId === bUser.id || room.b.userId === bUser.id
-    ) {
-      return c.json({ error: "one or both participants are already in a battle" }, 409);
-    }
-  }
-  if (!getIo()) return c.json({ error: "socket server not ready" }, 500);
+  const started = await startTournamentBattle(t, match);
+  if (!started.ok) return c.json({ error: started.reason }, 409);
 
-  const battleId = newBattleId();
-  const room: BattleRoom = {
-    id: battleId,
-    status: "invited",
-    format: "tournament",
-    createdAt: Date.now(),
-    lastChoiceAt: Date.now(),
-    a: { userId: aUser.id, username: aUser.username, team: teamA as never, stream: null, request: null, connected: true },
-    b: { userId: bUser.id, username: bUser.username, team: teamB as never, stream: null, request: null, connected: true },
-    log: [],
-    stream: null,
-    expiryTimer: null,
-    spectators: new Set(),
-    tournamentId: t.id,
-    levelCap: t.levelCap ?? undefined,
-  };
-  battleRooms.set(battleId, room);
-
-  // Save the battleId into the bracket BEFORE starting the simulator
-  // — that way if the simulator throws or the server crashes, the
-  // next advance-bracket call will see the half-state and flag it.
-  target.match.battleId = battleId;
+  // Persist the battleId so the runner (and advance-bracket) can find
+  // the result later. If this write fails the battle is still live in
+  // memory; the runner's orphan reaper hands the pairing back rather
+  // than leaving it wedged.
+  match.battleId = started.battleId;
+  match.battleStartedAt = Date.now();
   await prisma.tournament.update({
     where: { id },
     data: { bracket: JSON.stringify(bracket) },
   });
-
-  sendToUserGlobal(aUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
-    levelCap: t.levelCap ?? null,
-  });
-  sendToUserGlobal(bUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
-    levelCap: t.levelCap ?? null,
-  });
-  try {
-    await startBattle(getIo()!, room, sendToUserGlobal);
-    void makeAudit(c)(me.id, "tournament.start_bracket_match", t.id, { battleId, matchId, aUserId, bUserId });
-    return c.json({ ok: true, battleId });
-  } catch (e) {
-    room.status = "cancelled";
-    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-    battleRooms.delete(battleId);
-    // Roll back the bracket battleId so the admin can retry without
-    // the bracket thinking the match has already started.
-    target.match.battleId = null;
-    await prisma.tournament.update({
-      where: { id },
-      data: { bracket: JSON.stringify(bracket) },
-    });
-    return c.json({ error: "engine refused", detail: String(e) }, 500);
-  }
+  void makeAudit(c)(me.id, "tournament.start_bracket_match", t.id, { battleId: started.battleId, matchId });
+  return c.json({ ok: true, battleId: started.battleId });
 });
 
 // Spawn a tournament match between two registered participants. Both
@@ -3021,6 +3212,13 @@ app.post("/tournaments/:id/match", async (c) => {
   });
   if (!t) return c.json({ error: "tournament not found" }, 404);
   if (t.entries.length !== 2) return c.json({ error: "both users must be registered participants" }, 400);
+
+  // Both sides must actually be connected. The comment above this route
+  // has always claimed this; nothing enforced it, and the room below
+  // hardcodes `connected: true`. A battle against an absent player just
+  // burns five minutes of turn timer and produces a match nobody won.
+  if (!isOnline(aUserId)) return c.json({ error: "player A is offline" }, 409);
+  if (!isOnline(bUserId)) return c.json({ error: "player B is offline" }, 409);
 
   const [aUser, bUser] = await Promise.all([
     prisma.user.findUnique({ where: { id: aUserId }, select: { id: true, username: true, saveData: true } }),

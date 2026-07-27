@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type PublicGiveaway } from "../net/api";
+import { api, type GiveawayPrize, type PublicGiveaway } from "../net/api";
 import { useModalEnter } from "../utils/animate";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
@@ -155,7 +155,12 @@ function GiveawayCard({
       id={`giveaway-${g.id}`}
       className={`giveaway-card ${isLive ? "is-live" : ""} ${g.youWon ? "is-won" : ""} ${highlighted ? "is-highlighted" : ""}`}
     >
-      {g.youWon && <div className="giveaway-won-banner">{t("🏆 You won this one!")}</div>}
+      {g.youWon && (
+        <div className="giveaway-won-banner">
+          <span>{t("🏆 You won this one!")}</span>
+          <PrizeDeliveredNote prizes={g.prizes} />
+        </div>
+      )}
 
       <header className="giveaway-card-head">
         <div className="giveaway-card-title">
@@ -218,6 +223,39 @@ function GiveawayCard({
         <p className="giveaway-gate dim small">{t("Account level ")}{g.minAccountLevel}{t("+ only")}</p>
       )}
     </article>
+  );
+}
+
+// "Where is my prize?"
+//
+// There has never been a Receive button — prizes are granted server-side and
+// land in the save by themselves — but the won banner only ever said "You won
+// this one!", so players concluded there must be a claim step somewhere and
+// started telling each other to look for it under settings → view giveaways →
+// "Receive". This says plainly that it is automatic, and names the place the
+// prize actually shows up.
+//
+// Split by prize kind because "check your Bag" is actively wrong for money and
+// for a Pokémon, and being wrong here is what started the hunt in the first
+// place. Whole sentences per case rather than assembled fragments, so
+// translators get real sentences to work with.
+function PrizeDeliveredNote({ prizes }: { prizes: GiveawayPrize[] }) {
+  const t = useT();
+  const kinds = new Set((prizes ?? []).map((p) => p.kind));
+  const only = kinds.size === 1 ? [...kinds][0] : null;
+  const where =
+    only === "money"
+      ? t("Your prize was added to your money automatically — there is nothing to claim.")
+      : only === "pokemon"
+      ? t("Your prize was sent to your Box automatically — there is nothing to claim.")
+      : only === "item"
+      ? t("Your prize was added to your Bag automatically — there is nothing to claim.")
+      : t("Your prizes were added to your account automatically — there is nothing to claim.");
+  return (
+    <span className="giveaway-won-note">
+      {where}{" "}
+      {t("If you can't see it yet, it arrives the next time your game saves.")}
+    </span>
   );
 }
 

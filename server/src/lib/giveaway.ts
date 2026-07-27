@@ -80,6 +80,30 @@ export type Prize =
   // not require parsing the mon.
   | { kind: "pokemon"; label: string; mon: Record<string, unknown> };
 
+/**
+ * A prize as ACTUALLY APPLIED to a save, echoed back to the client so its
+ * live state can match the bytes the server just stored.
+ *
+ * Two things differ from the stored descriptor, and both exist because the
+ * client must be able to reproduce the server's write EXACTLY rather than
+ * approximate it:
+ *
+ *   * `assignedId` — the id the fold stamped on a `pokemon` prize. Without it
+ *     the client mints its own (`gift<n>`) and the same physical mon then
+ *     exists under two ids: the box union in saveReconcile keys on id, so any
+ *     merge sees two mons and the one-off prize is duplicated.
+ *   * `quantity` / `amount` are the DELTA that landed, not the nominal prize.
+ *     A recipient at the inventory/money ceiling absorbs less than the grant
+ *     promised; echoing the nominal figure would tell them (and the toast) a
+ *     number the save never moved by.
+ *
+ * `assignedId` is a separate field rather than an overwrite of `mon.id` on
+ * purpose: the legacy `gift:received` socket path carries the admin client's
+ * template id in `mon.id`, which is identical for every recipient, so the
+ * client must keep re-iding on that path.
+ */
+export type AppliedPrize = Prize & { assignedId?: string };
+
 export function parsePrizes(json: string): Prize[] {
   try {
     const v = JSON.parse(json);

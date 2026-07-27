@@ -471,11 +471,26 @@ function ReadyUpSlab({
   );
 }
 
+// ─── Tournaments ───────────────────────────────────
+// Sign-up existed; the bracket did not. A player could join an event and
+// then had no way to learn who they were drawn against, when they had to
+// play by, or whether they were still in — the bracket JSON was already
+// in the list payload and simply never rendered.
+//
+// That matters more here than it would in a same-evening bracket. The
+// event is asynchronous (see server/src/lib/tournamentRunner.ts): your
+// match starts by itself the moment you and your opponent are both
+// online inside the round window, and if the window closes without a
+// battle it is awarded to whoever turned up. "Who am I playing and by
+// when" is therefore the single thing a participant needs, and it is
+// what the card leads with.
+
 function TournamentList({ list, onChange }: { list: PublicTournament[]; onChange: (l: PublicTournament[]) => void }) {
   const { me } = useAuth();
   const t = useT();
   const [acting, setActing] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const reload = () => {
     api.listTournaments()
@@ -501,8 +516,12 @@ function TournamentList({ list, onChange }: { list: PublicTournament[]; onChange
   return (
     <ul className="pvp-tour-list">
       {list.map((row) => {
-        const joined = !!me && row.entries.some((e: any) => e.userId === me.id);
+        const joined = !!me && row.entries.some((e) => e.userId === me.id);
         const isOpen = row.status === "open";
+        const bracket = row.bracket ? safeParseBracket(row.bracket) : null;
+        const mySeed = me ? row.entries.find((e) => e.userId === me.id)?.seed ?? null : null;
+        const standing = bracket && me ? myStanding(bracket, me.id) : null;
+        const showBracket = expanded === row.id;
         return (
           <li key={row.id} className="pvp-tour-row">
             <div className="pvp-tour-row-info">
@@ -510,9 +529,19 @@ function TournamentList({ list, onChange }: { list: PublicTournament[]; onChange
               <span className="dim small">
                 {row.status.toUpperCase()} · {row.entries.length} {t("entries")}
                 {row.levelCap != null && ` · Lv ${row.levelCap}`}
+                {mySeed != null && ` · ${t("your seed")} #${mySeed}`}
               </span>
+              {standing && <TourStanding standing={standing} />}
             </div>
             <div className="pvp-tour-row-actions">
+              {bracket && (
+                <button
+                  className="g-btn-ghost g-btn-small"
+                  onClick={() => setExpanded(showBracket ? null : row.id)}
+                >
+                  {showBracket ? t("Hide bracket") : t("Bracket")}
+                </button>
+              )}
               {joined ? (
                 <button className="g-btn-ghost g-btn-small" disabled={acting === row.id || !isOpen} onClick={() => leave(row.id)}>
                   {acting === row.id ? "…" : t("Withdraw")}
@@ -523,12 +552,179 @@ function TournamentList({ list, onChange }: { list: PublicTournament[]; onChange
                 </button>
               )}
             </div>
+            {showBracket && bracket && (
+              <BracketView bracket={bracket} meId={me?.id ?? null} />
+            )}
           </li>
         );
       })}
       {msg && <li className="dim small pvp-tour-msg">{msg}</li>}
     </ul>
   );
+}
+
+/** The one line a participant actually needs: who, by when, or why not. */
+function TourStanding({ standing }: { standing: Standing }) {
+  const t = useT();
+  if (standing.kind === "champion") {
+    return <span className="pvp-tour-standing win">{t("You won the whole thing.")}</span>;
+  }
+  if (standing.kind === "out") {
+    return (
+      <span className="pvp-tour-standing out">
+        {t("Knocked out")}{standing.by ? ` · ${standing.by}` : ""}
+      </span>
+    );
+  }
+  if (standing.kind === "waiting") {
+    return <span className="pvp-tour-standing">{t("Through to the next round — waiting on your opponent.")}</span>;
+  }
+  return (
+    <span className="pvp-tour-standing next">
+      {standing.live
+        ? `${t("Battle in progress vs")} ${standing.opponent}`
+        : `${t("Next up: vs")} ${standing.opponent}`}
+      {standing.deadlineAt != null && ` · ${deadlineLabel(standing.deadlineAt, t)}`}
+      {!standing.live && ` · ${t("starts automatically when you are both online")}`}
+    </span>
+  );
+}
+
+function BracketView({ bracket, meId }: { bracket: PubBracket; meId: string | null }) {
+  const t = useT();
+  return (
+    <div className="pvp-bracket">
+      {bracket.rounds.map((round) => (
+        <div className="pvp-bracket-round" key={round.index}>
+          <header>{roundName(round.index, bracket.rounds.length, t)}</header>
+          {round.matches.map((m) => {
+            const mine = meId != null && (slotId(m.a) === meId || slotId(m.b) === meId);
+            return (
+              <div key={m.id} className={`pvp-bracket-match ${mine ? "mine" : ""} ${m.winnerId ? "done" : ""}`}>
+                <span className={`pvp-bracket-slot ${m.winnerId && slotId(m.a) === m.winnerId ? "won" : ""}`}>
+                  {slotLabel(m.a, t)}
+                </span>
+                <span className={`pvp-bracket-slot ${m.winnerId && slotId(m.b) === m.winnerId ? "won" : ""}`}>
+                  {slotLabel(m.b, t)}
+                </span>
+                {m.winBy && m.winBy !== "battle" && (
+                  <span className="pvp-bracket-by dim small">{t(winByLabel(m.winBy))}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Bracket shape (mirror of server/src/lib/bracket.ts) ──────
+type PubSlot =
+  | { kind: "player"; userId: string; username: string; seed?: number | null }
+  | { kind: "bye" }
+  | { kind: "winnerOf"; matchId: string }
+  | { kind: "tbd" };
+interface PubMatch {
+  id: string;
+  a: PubSlot;
+  b: PubSlot;
+  battleId?: string | null;
+  winnerId?: string | null;
+  winBy?: string | null;
+  deadlineAt?: number | null;
+}
+interface PubBracket { rounds: { index: number; matches: PubMatch[] }[] }
+
+type Standing =
+  | { kind: "next"; opponent: string; deadlineAt: number | null; live: boolean }
+  | { kind: "waiting" }
+  | { kind: "out"; by: string | null }
+  | { kind: "champion" };
+
+function safeParseBracket(raw: string): PubBracket | null {
+  try {
+    const v = JSON.parse(raw);
+    if (v && typeof v === "object" && Array.isArray(v.rounds)) return v as PubBracket;
+  } catch { /* bracket is operator-written JSON; never trust it */ }
+  return null;
+}
+
+function slotId(s: PubSlot): string | null {
+  return s.kind === "player" ? s.userId : null;
+}
+
+function slotLabel(s: PubSlot, t: (v: string) => string): string {
+  if (s.kind === "player") return s.seed ? `#${s.seed} ${s.username || "?"}` : (s.username || "?");
+  if (s.kind === "bye") return t("(bye)");
+  return t("TBD");
+}
+
+function winByLabel(by: string): string {
+  if (by === "bye") return "bye";
+  if (by === "walkover") return "walkover — opponent no-show";
+  if (by === "forfeit") return "forfeit";
+  if (by === "admin") return "awarded by an organiser";
+  return by;
+}
+
+function roundName(index: number, total: number, t: (v: string) => string): string {
+  const fromEnd = total - 1 - index;
+  if (fromEnd === 0) return t("Final");
+  if (fromEnd === 1) return t("Semi-finals");
+  if (fromEnd === 2) return t("Quarter-finals");
+  return `${t("Round")} ${index + 1}`;
+}
+
+/** Where this player stands. Walks the bracket forward: the first
+ *  unresolved match they are in is their next one; a resolved match they
+ *  lost is where they went out; surviving with no next match yet means
+ *  the other half of their next pairing hasn't been decided. */
+function myStanding(bracket: PubBracket, meId: string): Standing | null {
+  let seen = false;
+  for (const round of bracket.rounds) {
+    for (const m of round.matches) {
+      const aId = slotId(m.a);
+      const bId = slotId(m.b);
+      if (aId !== meId && bId !== meId) continue;
+      seen = true;
+      if (!m.winnerId) {
+        const oppSlot = aId === meId ? m.b : m.a;
+        return {
+          kind: "next",
+          opponent: oppSlot.kind === "player" ? (oppSlot.username || "?") : t0(oppSlot),
+          deadlineAt: m.deadlineAt ?? null,
+          live: !!m.battleId,
+        };
+      }
+      if (m.winnerId !== meId) {
+        return { kind: "out", by: m.winBy && m.winBy !== "battle" ? winByLabel(m.winBy) : null };
+      }
+      // Won it — keep walking; a later round may hold the next match.
+    }
+  }
+  if (!seen) return null;
+  const final = bracket.rounds[bracket.rounds.length - 1]?.matches[0];
+  if (final?.winnerId === meId) return { kind: "champion" };
+  return { kind: "waiting" };
+}
+
+function t0(s: PubSlot): string {
+  return s.kind === "bye" ? "(bye)" : "TBD";
+}
+
+/** "play within 3h" / "today" / "overdue". Deliberately relative — an
+ *  absolute timestamp in the player's locale is one more thing to get
+ *  wrong across timezones, and what they need to know is how long they
+ *  have got. */
+function deadlineLabel(deadlineAt: number, t: (v: string) => string): string {
+  const ms = deadlineAt - Date.now();
+  if (ms <= 0) return t("deadline passed");
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${t("play within")} ${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${t("play within")} ${hours}h`;
+  return `${t("play within")} ${Math.round(hours / 24)}d`;
 }
 
 function computeStreak(history: PvpHistoryRow[]): number {

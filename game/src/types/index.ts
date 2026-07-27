@@ -371,6 +371,14 @@ export interface GameState {
   // IDs of trainers (non-gym) that have been defeated. Re-fightable if the
   // player resets, but otherwise greyed out in the LocationPanel.
   defeatedTrainers: string[];
+  // NOTE: there is deliberately NO field here recording which prize grants
+  // this save has received. There was one (`grantReceipts`) and it was an
+  // exploit: the server folded a grant whenever the uploaded blob lacked its
+  // id, which made the delivery decision a field the CLIENT supplies — clear
+  // it in localStorage and every recent grant is paid again on every upload.
+  // Delivery state lives in PendingGrant.deliveredAt, in the database, and
+  // nowhere else. Do not add anything like it back.
+  //
   // "manual" → player picks each move; "auto" → smart AI picks. Default
   // "manual"; persisted across sessions.
   battleMode: "manual" | "auto";
@@ -481,7 +489,18 @@ export type Action =
         | { role: "seller"; removedPokemonId: string; money: number; logMessage: string }
         | { role: "buyer"; pokemon: Pokemon; money: number; logMessage: string };
     }
-  | { type: "RECEIVE_GIFT"; payload: { prizes: Array<{ kind: "item"; itemId: string; quantity: number } | { kind: "money"; amount: number } | { kind: "pokemon"; label?: string; mon: Record<string, unknown> }> } }
+  // `assignedId` is the id POST /api/saves stamped on a prize mon when it
+  // folded the grant into cloud saveData. Present only on the grant-echo path
+  // (absorbGrants); the legacy `gift:received` socket path omits it and the
+  // reducer mints a local id instead. Client and server MUST agree on this id
+  // — the box reconcile dedupes by id, so two ids for one mon is a duplicated
+  // prize.
+  //
+  // Applying this is an OPTIMISATION, not the delivery mechanism: the prize is
+  // already in the cloud copy and the same response's bumped saveAdoptSeq
+  // would make this client adopt that copy anyway. Applying it here just saves
+  // the winner's own tab a round trip and the play it would lose to one.
+  | { type: "RECEIVE_GIFT"; payload: { prizes: Array<{ kind: "item"; itemId: string; quantity: number } | { kind: "money"; amount: number } | { kind: "pokemon"; label?: string; mon: Record<string, unknown>; assignedId?: string }> } }
   | { type: "SET_NICKNAME"; payload: { pokemonId: string; nickname: string } }
   | { type: "TOGGLE_EFFECT_PAUSED"; payload: { itemId: string } }
   | { type: "SET_ALWAYS_CATCH_SHINIES"; payload: { value: boolean } }

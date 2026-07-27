@@ -13,9 +13,17 @@
 //      grant nothing. It is also exactly what makes the auto-draw loop
 //      idempotent — a double tick cannot double-draw.
 //   2. The `grantDelivered` flag, which keeps a failure that happens
-//      AFTER a successful grantPrizesToUser from ever being reported as
+//      AFTER a successful enqueuePrizeGrant from ever being reported as
 //      ok:false — a false "UNPAID" leads an operator to re-grant a
 //      prize that already landed.
+//
+// Note on what "granting" means here: prizes are NOT written into the
+// winner's saveData by this module. They are enqueued as PendingGrant
+// rows and folded into the winner's save by POST /api/saves, on top of
+// whatever the client uploads. See lib/prizeGrant.ts for the incident
+// that forced that design — writing the save directly here raced the
+// winner's own autosave and silently destroyed prizes for anyone who
+// was online at draw time.
 //
 // Mirrors lib/auctionSettlement.ts: the sweep is a plain interval that
 // runs regardless of whether anybody is connected, because endsAt fires
@@ -25,7 +33,7 @@ import { audit as auditRaw } from "./audit.js";
 import { getIo, sendToUserGlobal } from "../socket.js";
 import { recordError } from "./errorReporting.js";
 import { newDrawSeed, pickWinners, parsePrizes, describePrizes } from "./giveaway.js";
-import { grantPrizesToUser } from "./prizeGrant.js";
+import { enqueuePrizeGrant } from "./prizeGrant.js";
 import type { Giveaway, GiveawayEntry } from "@prisma/client";
 
 type GiveawayWithEntries = Giveaway & { entries: GiveawayEntry[] };
@@ -130,8 +138,8 @@ export async function drawGiveaway(
   // the operator can see exactly who still needs paying out rather than
   // guessing.
   //
-  // The two writes below (grant the prize, then record the claim) are
-  // NOT atomic — grantPrizesToUser can succeed and the much smaller,
+  // The two writes below (owe the prize, then record the claim) are
+  // NOT atomic — enqueuePrizeGrant can succeed and the much smaller,
   // much less likely to fail claimedAt update can still throw right
   // after (a transient DB blip). Getting that ordering wrong here once
   // meant a real prize grant got reported as ok:false / claimedAt:null
@@ -145,7 +153,13 @@ export async function drawGiveaway(
   for (const w of winners) {
     let grantDelivered = false;
     try {
-      await grantPrizesToUser(w.userId, prizes);
+      // Durable: the row is committed before this resolves. From here the
+      // prize is guaranteed — it is folded into the winner's save by the save
+      // endpoint, on top of their own upload, and cannot be raced away.
+      // enqueuePrizeGrant also emits `gift:pending`, which nudges an online
+      // winner to sync immediately instead of waiting for the next autosave
+      // tick; that emit is an optimisation and nothing depends on it.
+      await enqueuePrizeGrant(w.userId, prizes, { source: "giveaway", sourceId: g.id });
       grantDelivered = true;
       await prisma.giveawayEntry.update({
         where: { id: w.id },
@@ -155,13 +169,6 @@ export async function drawGiveaway(
       // Tell them right now if they are online — a prize you only find
       // out about days later is a much smaller moment.
       try {
-        // gift:received is the channel that actually APPLIES the (additive)
-        // prizes to the winner's live state — the client's RECEIVE_GIFT
-        // handler. Without it an online winner's next autosave clobbered the
-        // freshly-granted prizes (giveaway:won carries no prizes and has no
-        // client handler). Same path mass-gift uses. Additive → gift channel,
-        // NOT the wholesale save:adopt path (which would reset unsynced play).
-        sendToUserGlobal(w.userId, "gift:received", { prizes, summary: describePrizes(prizes) });
         sendToUserGlobal(w.userId, "giveaway:won", {
           giveawayId: g.id,
           title: g.title,

@@ -153,7 +153,10 @@ export const api = {
   cancelAuction: (id: string) => request<{ ok: true }>("POST", `/api/auctions/${id}/cancel`),
 
   // Saves
-  getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string; saveAdoptSeq?: number }>(
+  // `pendingGrants` is how many server-owed prizes (giveaway win, admin gift)
+  // this account has not received yet. Informational — reading never delivers
+  // them; see the comment on putSave below.
+  getSave: () => request<{ saveData: any | null; saveVersion: number; saveUpdatedAt: string; saveAdoptSeq?: number; pendingGrants?: number }>(
     "GET",
     "/api/saves"
   ),
@@ -164,11 +167,55 @@ export const api = {
   // trying to push state older than the cloud. Caller should handle
   // 409 by re-pulling and either re-applying its diff or surfacing a
   // conflict prompt — never silently overwrite.
+  //
+  // `grantAck: 1` is a CONTRACT, not a feature flag. It tells the server
+  // "fold anything I am owed into this upload; I apply `grantsApplied` to my
+  // own state, and I honour `saveAdoptSeq`". The server delivers only to a
+  // client that sends it, because delivering to a client that does neither
+  // means that client's next autosave overwrites the prize — precisely how
+  // giveaway Master Balls were destroyed — and delivery happens exactly once,
+  // so there is no second chance to lose.
+  //
+  // The `saveAdoptSeq` half is the load-bearing one. A fold bumps it, which
+  // means "the server authoritatively rewrote this save; adopt the cloud copy
+  // wholesale" — so any OTHER session of this account takes the copy holding
+  // the prize instead of pushing its own stale bytes over it. `grantsApplied`
+  // only spares the uploading tab that round trip. See absorbGrants and the
+  // adopt paths in state/GameContext.tsx.
+  //
+  // It is sent ONLY alongside `expectedSaveVersion`, and the server refuses
+  // the other combination outright: without a version the compare-and-swap
+  // degrades to an unconditional write, so an upload built before this client
+  // knew what the cloud held could overwrite a save it has never seen while
+  // collecting a prize into it. An upload made before the boot reconcile knows
+  // a real version (a bid placed on first paint, say) therefore collects
+  // nothing; the grants stay owed and land on the next upload.
   putSave: (saveData: any, expectedSaveVersion?: number) =>
-    request<{ ok: true; saveVersion: number; saveUpdatedAt: string; accountLevel: number; totalCaughtLevels: number; pokedexCaughtCount: number }>(
+    request<{
+      ok: true; saveVersion: number; saveUpdatedAt: string; accountLevel: number;
+      totalCaughtLevels: number; pokedexCaughtCount: number;
+      /** The account's adopt counter AFTER this write. If it is higher than
+       *  the value this client last adopted, the cloud copy holds a
+       *  server-authoritative rewrite and must be adopted WHOLESALE. When the
+       *  bump is this request's own fold it arrives together with
+       *  `grantsApplied`, which the client has already applied — see
+       *  commitUploadResult for how it tells the two apart. */
+      saveAdoptSeq?: number;
+      /** Prizes the server folded into THIS upload, AS STORED: `quantity` /
+       *  `amount` are the delta that actually landed (a recipient at the
+       *  ceiling absorbs less than the grant promised) and `assignedId` is the
+       *  id it gave a prize mon. Apply exactly these — reproducing the
+       *  server's bytes is the point, and a mon under a different id is a
+       *  duplicated prize. */
+      grantsApplied?: GrantPrize[];
+      /** Human summary of `grantsApplied`, e.g. "1x masterball". */
+      grantsSummary?: string;
+    }>(
       "POST",
       "/api/saves",
-      expectedSaveVersion !== undefined ? { saveData, expectedSaveVersion } : { saveData }
+      expectedSaveVersion !== undefined
+        ? { saveData, expectedSaveVersion, grantAck: 1 }
+        : { saveData }
     ),
 
   // Last-gasp save for pagehide / visibilitychange:hidden. A normal fetch
@@ -180,6 +227,11 @@ export const api = {
   // response, so this cannot participate in the compare-and-swap retry
   // logic. It is strictly a best-effort bonus on top of the localStorage
   // write, which is synchronous and always runs.
+  //
+  // For the same reason it deliberately does NOT send `grantAck`: there is
+  // nobody left to read `grantsApplied` off the response, so asking the server
+  // to deliver owed prizes here would mark them delivered into a page that can
+  // never absorb them. Owed prizes wait for the next real upload instead.
   //
   // keepalive caps the request body at 64KB across all in-flight keepalive
   // requests. Our p99 save is ~70KB and the largest real one is 129KB, so
@@ -348,6 +400,21 @@ export interface GiveawayPrize {
   quantity?: number;
   amount?: number;
   label?: string;
+}
+
+/**
+ * A prize as the server ACTUALLY APPLIED it, echoed by POST /api/saves.
+ *
+ * Distinct from GiveawayPrize (which describes an advertised prize) because
+ * these fields are a record of a write that already happened: `mon` is the
+ * full serialised Pokémon and `assignedId` is the id it was stored under. The
+ * client must adopt that id rather than mint its own — the box reconcile
+ * dedupes by id, so two ids for one mon means the merge sees two Pokémon and
+ * a one-off prize is duplicated.
+ */
+export interface GrantPrize extends GiveawayPrize {
+  mon?: Record<string, unknown>;
+  assignedId?: string;
 }
 
 export interface PublicGiveaway {

@@ -115,6 +115,11 @@ export interface BattleSide {
   request: unknown | null;
   /** Connection state — disconnect → forfeit. */
   connected: boolean;
+  /** Epoch ms of this side's last accepted choice. Undefined until they
+   *  move for the first time. This is what lets the AFK watchdog name a
+   *  winner instead of writing a winnerless "completed" match — see the
+   *  timeout branch in startBattle(). */
+  movedAt?: number;
 }
 
 export interface BattleRoom {
@@ -260,9 +265,28 @@ export async function startBattle(
   room.lastChoiceAt = Date.now();
   room.expiryTimer = setInterval(() => {
     if (Date.now() - room.lastChoiceAt > TURN_TIMEOUT_MS) {
-      // Whoever hasn't chosen forfeits. We don't know which side it
-      // is from here, so flag a generic timeout — endBattle figures
-      // out the surviving side from the simulator's last `request`s.
+      // Whoever hasn't chosen forfeits. endBattle does NOT work this
+      // out for us — it only persists room.winnerId — so name the
+      // survivor here. A timeout that resolves to `winnerId: null`
+      // writes a "completed" PvpMatch with no winner, which the
+      // bracket runner can never advance past: the match keeps its
+      // battleId (so it can't be restarted) and has no result (so it
+      // can't be advanced). One AFK player used to freeze an entire
+      // tournament permanently.
+      //
+      // The side that moved most recently wins. `movedAt` is stamped by
+      // applyChoice, so "never moved" (undefined → 0) loses to anyone
+      // who moved at all. If NEITHER side ever moved we deliberately
+      // leave winnerId unset: that is a genuine double no-show, and the
+      // tournament runner decides it by seed rather than the simulator
+      // inventing a winner.
+      const aMoved = room.a.movedAt ?? 0;
+      const bMoved = room.b.movedAt ?? 0;
+      if (aMoved !== bMoved) {
+        const aWins = aMoved > bMoved;
+        room.winnerId = aWins ? room.a.userId : room.b.userId;
+        room.loserId = aWins ? room.b.userId : room.a.userId;
+      }
       void endBattle(room, sendToUser, "timeout");
     }
   }, 30_000);
@@ -396,7 +420,9 @@ export function applyChoice(
   const safe = /^(move\s|switch\s|team\s|default$|undo$|pass$)/.test(choice);
   if (!safe) return { ok: false, error: "invalid choice format" };
   room.stream.write(`>${which} ${choice}`);
-  room.lastChoiceAt = Date.now();
+  const now = Date.now();
+  room.lastChoiceAt = now;
+  (which === "p1" ? room.a : room.b).movedAt = now;
   return { ok: true };
 }
 

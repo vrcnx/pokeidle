@@ -244,8 +244,20 @@ export function sanitizeSave(save: unknown): boolean {
       else if (m.currentHp < 0) { m.currentHp = 0; changed = true; }
     }
   };
-  const s = save as { party?: unknown; box?: unknown };
+  const s = save as { party?: unknown; box?: unknown; grantReceipts?: unknown };
   if (Array.isArray(s.party)) s.party.forEach(clampMon);
   if (Array.isArray(s.box)) s.box.forEach(clampMon);
+  // Purge a dead field from a removed design. `grantReceipts` was a list of
+  // delivered grant ids that the fold consulted before paying — i.e. a
+  // DELIVERY GATE THE CLIENT SUPPLIED. Stripping it in localStorage re-paid
+  // every recent grant on every upload ($1.5M in 30 uploads, measured), so the
+  // whole mechanism was removed and delivery moved into PendingGrant.deliveredAt.
+  //
+  // Nothing reads this any more, so this is not load-bearing — it is here so
+  // the field cannot even round-trip through the server, which keeps the
+  // property "no client-supplied field reaches the delivery decision" true by
+  // construction rather than by grep. It also cleans the key out of any blob
+  // written by a dev build that ran the removed code.
+  if (s.grantReceipts !== undefined) { delete s.grantReceipts; changed = true; }
   return changed;
 }

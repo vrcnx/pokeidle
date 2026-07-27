@@ -1498,11 +1498,29 @@ export function reducer(state: GameState, action: Action): GameState {
     }
 
     case "RECEIVE_GIFT": {
-      // Admin mass-gift delivered live over the socket. Apply the same prizes
-      // the server already wrote to this account's cloud save; the next
-      // autosave carries our copy up (idempotent — identical prizes). Money
-      // is ADDED (the server likewise added it); mons go to the box with a
-      // fresh local id.
+      // Prizes the server has ALREADY folded into cloud saveData, echoed back
+      // so live state matches the bytes it stored. Money is ADDED (the server
+      // likewise added it) and items are ADDED, with the same ceilings the
+      // server clamps to — the echoed amounts are the delta that actually
+      // landed, so applying them here reproduces the stored save exactly.
+      //
+      // A prize mon uses the id the SERVER assigned (`assignedId`), never a
+      // fresh local one. The box reconcile keys on id, so minting our own here
+      // would leave the same physical mon under two ids — cloud's and ours —
+      // and any later merge would see two mons and duplicate a one-off prize.
+      //
+      // The legacy `gift:received` socket path carries no assignedId (the
+      // older server wrote the save itself and never reported an id), so it
+      // keeps minting `gift<n>`. That re-id is REQUIRED there: `mon.id` on
+      // that path is the admin client's template id, identical for every
+      // recipient, and would collide with a mon the player already owns.
+      //
+      // This action carries NO delivery bookkeeping, and must never grow any.
+      // Whether a grant gets paid is decided by PendingGrant.deliveredAt in
+      // the database; a copy of that decision living in the save blob is a
+      // gate the client supplies, which is exactly the exploit that was
+      // removed. Applying the prize here is only so the winner's own tab does
+      // not have to wait for the adopt to show it.
       let next: GameState = state;
       let nextPokemonId = next.nextPokemonId;
       let box = next.box;
@@ -1517,13 +1535,26 @@ export function reducer(state: GameState, action: Action): GameState {
           inventory = { ...inventory, [p.itemId]: Math.min(999_999, (inventory[p.itemId] ?? 0) + p.quantity) };
           labels.push(`${p.quantity}× ${p.itemId}`);
         } else if (p.kind === "pokemon" && p.mon && typeof p.mon === "object") {
-          const mon = { ...(p.mon as unknown as Pokemon), id: `gift${nextPokemonId}` };
-          box = [...box, mon];
-          nextPokemonId += 1;
+          const assigned = typeof p.assignedId === "string" && p.assignedId ? p.assignedId : null;
+          const mon = { ...(p.mon as unknown as Pokemon), id: assigned ?? `gift${nextPokemonId}` };
+          // Already holding this exact prize (a re-delivered echo, or a copy
+          // that arrived through the cloud first): applying it again would
+          // hand out a one-off prize twice.
+          const dupe = assigned !== null
+            && (box.some((m) => m.id === assigned) || next.party.some((m) => m.id === assigned));
+          if (!dupe) box = [...box, mon];
+          // Only the locally-minted branch consumes a number from the local
+          // sequence. A server-assigned id is derived from the grant, not from
+          // nextPokemonId, so bumping it here would drift us off the server's
+          // copy for no gain.
+          if (assigned === null) nextPokemonId += 1;
           labels.push(p.label ?? mon.name ?? "a Pokémon");
         }
       }
       next = { ...next, money, inventory, box, nextPokemonId };
+      // Nothing to announce (an empty or fully-deduped prize list). Say
+      // nothing rather than logging "You received a gift: !".
+      if (labels.length === 0) return next;
       return pushLog(next, `🎁 You received a gift: ${labels.join(", ")}!`);
     }
 

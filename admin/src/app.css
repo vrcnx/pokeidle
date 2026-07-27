@@ -1795,6 +1795,26 @@ input[type="checkbox"], input[type="radio"] {
   color: var(--text-muted);
 }
 .bracket-start { align-self: flex-end; margin-top: 4px; }
+/* Per-match controls: "Start match" plus the two award-without-playing
+   overrides. Wraps rather than overflowing the 220px round column. */
+.bracket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.bracket-actions .bracket-start { align-self: auto; margin-top: 0; }
+.bracket-status.overdue { color: #fca5a5; }
+/* Runner/operator explanation for how a match was decided. Long enough
+   to wrap; must not force the column wider. */
+.bracket-note {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
 
 /* =================================================================
    Analytics — "Cadence" dashboard layout

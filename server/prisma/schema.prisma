@@ -119,6 +119,7 @@ model User {
   dailyActive       DailyActive[]
   giveawayEntries   GiveawayEntry[]
   saveSnapshots     SaveSnapshot[]
+  pendingGrants     PendingGrant[]
   funnelEvents      FunnelEvent[]
   auctionsSelling   Auction[]     @relation("AuctionSeller")
   bids              Bid[]         @relation("Bidder")
@@ -193,6 +194,96 @@ model SaveSnapshot {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+/// A DURABLE INBOX of prizes the server owes a player.
+///
+/// Why this table exists (real incident): a giveaway draw used to write the
+/// prize straight into User.saveData. That write raced the winner's own
+/// autosave — the client holds the save in memory and re-pushes the whole
+/// blob every ~2.5s — so for anyone who happened to be PLAYING when the draw
+/// fired, the next push overwrote the freshly-granted item and it was gone
+/// forever. The draw reported success (GiveawayEntry.claimedAt was set), the
+/// player never got the item, and because the client persists the resulting
+/// saveVersion there was no later reconcile that could bring it back.
+/// Offline winners were fine — which is why it looked random.
+///
+/// The fix is to stop racing the save blob at all. A grant now writes ONE row
+/// here and nothing else. The prize is folded into the player's save by the
+/// save endpoint itself (server/src/routes/saves.ts), on top of whatever blob
+/// the client just uploaded, inside the same transaction that accepts the
+/// upload. A stale client push therefore cannot erase a grant: the grant is
+/// applied AFTER the client's bytes, every time, until it is delivered.
+///
+/// A SECOND session of the same account could still erase it — it 409s, keeps
+/// its stale blob, learns the new saveVersion and pushes past the CAS — so the
+/// fold also bumps User.saveAdoptSeq in the same UPDATE. A client can only
+/// learn the new saveVersion from a response that carries the new adopt seq
+/// with it, and that seq means "adopt the cloud copy wholesale". The stale
+/// bytes are never pushed.
+///
+/// `deliveredAt` is the durable idempotency marker. It is set by a
+/// compare-and-swap (`WHERE deliveredAt IS NULL`) in that same transaction,
+/// so replaying delivery — a retry, two devices uploading at once, a server
+/// restart mid-write — can never double-grant: whoever loses the CAS rolls
+/// the whole save write back and retries.
+model PendingGrant {
+  id        String   @id @default(cuid())
+  userId    String
+  /// JSON array of Prize (see lib/giveaway.ts) — the exact same descriptors
+  /// the giveaway/mass-gift UI produced. Stored verbatim so a grant can be
+  /// re-read, audited, or hand-inspected long after the fact.
+  prizes    String
+  /// Where it came from: "giveaway" | "mass-gift" | "backfill" | …
+  /// Free-form on purpose; it is an audit label, never a control-flow key.
+  source    String
+  /// The giveaway id / auction id / whatever the source keys on. Nullable
+  /// because not every source has one.
+  sourceId  String?
+  /// describePrizes() output, denormalised so ops can read the queue without
+  /// parsing JSON, and so the client can toast a human summary.
+  summary   String
+  createdAt DateTime @default(now())
+
+  /// NULL = still owed. Non-null = paid, once and for all.
+  ///
+  /// THIS IS THE DELIVERY GATE, and it is the only one. It is set by a
+  /// compare-and-swap (`WHERE deliveredAt IS NULL`) inside the same
+  /// transaction that stores the folded save, so a rolled-back save pays
+  /// nothing and two concurrent uploads cannot both pay.
+  ///
+  /// Nothing the client sends participates. The obvious alternative — a
+  /// receipt inside the save blob, so a save that LOST the prize could be
+  /// paid again — was built and removed: it makes the gate a field the client
+  /// supplies, and stripping it in localStorage re-paid every recent grant on
+  /// every upload. There is no safe version of that, because the server
+  /// cannot distinguish "never received it" from "received it and spent it".
+  ///
+  /// So the prize is not healed after the fact; the overwrite that would lose
+  /// it is PREVENTED. The fold bumps User.saveAdoptSeq in the same UPDATE, so
+  /// every session of that account adopts the cloud copy — the one holding the
+  /// prize — instead of racing it with a stale blob. See lib/saveAdopt.ts.
+  deliveredAt          DateTime?
+  /// The saveVersion the fold produced. Forensics only.
+  deliveredSaveVersion Int?
+
+  /// Bumped when a fold was attempted and REFUSED (e.g. the combined save
+  /// would fail validateSave because the box is full). The grant stays owed;
+  /// this is how ops find one that is stuck rather than merely unclaimed.
+  attempts  Int     @default(0)
+  lastError String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The hot path: "what does this user still owe?" on every save upload.
+  @@index([userId, deliveredAt])
+  /// Ops sweep: "what is owed across all accounts, oldest first?"
+  @@index([deliveredAt, createdAt])
+  /// "Did this giveaway's prizes actually land?" — GET /admin/giveaways joins
+  /// on it so a winner can be shown as OWED instead of mislabelled UNPAID.
+  /// The table is append-only and a mass gift adds a row per account, so this
+  /// lookup must not be a sequential scan.
+  @@index([source, sourceId])
 }
 
 model Session {
@@ -476,8 +567,17 @@ model GiveawayEntry {
   username   String   // denormalised so a deleted account still shows in results
   createdAt  DateTime @default(now())
   isWinner   Boolean  @default(false)
-  /// Set once the prize has actually been written to the winner's
-  /// save, so a retry cannot double-grant.
+  /// Set once the prize has been durably OWED to the winner — i.e. the
+  /// PendingGrant row is committed — so a retry cannot double-grant.
+  ///
+  /// It no longer means "the item is in their saveData this instant", and it
+  /// deliberately does not: writing the save directly at draw time is what
+  /// raced the winner's own autosave and destroyed prizes (see
+  /// lib/prizeGrant.ts). Delivery now happens on the winner's next save
+  /// upload. A non-null claimedAt is still the operator's "do not re-grant"
+  /// signal — the prize cannot be lost from here. To see whether it has
+  /// physically landed, read PendingGrant.deliveredAt
+  /// (GET /admin/pending-grants).
   claimedAt  DateTime?
 
   giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
@@ -582,6 +682,36 @@ model Tournament {
   bracket     String?  // JSON tree of rounds → match slots
   ownerId     String   // admin who created it
 
+  /// How long each ROUND stays open, in minutes. This is the single knob
+  /// that makes a bracket survive this game's actual population: ~34
+  /// accounts online in a given hour, ~74 across a day. A synchronous
+  /// 16-player draw needs 16 people in the same 20 minutes and will never
+  /// happen. With a window measured in hours the round is asynchronous —
+  /// the runner starts each pairing the moment BOTH players happen to be
+  /// online at the same time, and awards a walkover at the deadline to
+  /// whoever did show. Default 1440 = a 24h round.
+  roundWindowMinutes Int @default(1440)
+
+  /// When true, lib/tournamentRunner.ts drives this event: auto-starting
+  /// pairings, applying results, enforcing round deadlines and declaring
+  /// the champion. False leaves it entirely to the admin buttons (the old
+  /// v1 behaviour) — useful for a hand-run showmatch.
+  autoRun Boolean @default(true)
+
+  /// Champion, denormalised at completion. `championId` is a User.id;
+  /// `championUsername` is captured alongside so a later rename or a
+  /// deleted account still renders a readable winner in history.
+  championId       String?
+  championUsername String?
+
+  /// Optional JSON array of Prize (see lib/giveaway.ts) awarded to the
+  /// champion when the final resolves. Delivered through the same durable
+  /// PendingGrant inbox giveaways use, never by writing saveData.
+  /// `prizeGrantedAt` is the idempotency marker — a second completion
+  /// sweep must never pay twice.
+  prizes         String?
+  prizeGrantedAt DateTime?
+
   entries TournamentEntry[]
 
   @@index([status, createdAt])
@@ -592,7 +722,11 @@ model TournamentEntry {
   tournamentId  String
   userId        String
   username      String   // captured at signup so renames don't break the bracket
-  seed          Int?     // optional seeding number, lower = better
+  seed          Int?     // seeding number, lower = better. Assigned from ELO at generate-bracket time.
+  /// PlayerRating.rating snapshotted when the seed was assigned. Kept so
+  /// the bracket can be explained after the fact ("why was I seed 9?")
+  /// without re-reading a rating that has since moved.
+  ratingAtSeed  Int?
   eliminated    Boolean  @default(false)
   joinedAt      DateTime @default(now())
 

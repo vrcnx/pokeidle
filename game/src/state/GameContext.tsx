@@ -24,7 +24,7 @@ import { getSocket } from "../net/socket";
 import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
-import { cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
+import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
 import { isStreamMode } from "./streamMode";
 import { executeStreamCommand } from "../utils/streamCommands";
 
@@ -102,6 +102,14 @@ function loadSaved(): GameState {
     if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<GameState>;
     if (!parsed.playerPokemon) return initialState;
+    // Drop the blob's envelope fields (owner, timestamp, sync bookkeeping)
+    // before they get spread into GameState. pickPersistent would filter them
+    // out of any upload anyway, but they have no business travelling through
+    // the reducer or through mergeCloudAdvance's `{...base}`.
+    delete (parsed as Record<string, unknown>)[OWNER_KEY];
+    delete (parsed as Record<string, unknown>)[SNAPSHOT_TS_KEY];
+    delete (parsed as Record<string, unknown>)[CLOUD_VERSION_FIELD];
+    delete (parsed as Record<string, unknown>)[ADOPT_SEQ_FIELD];
     // Normalize totalExp on every Pokemon — guards against legacy / hacked saves.
     const normalizedParty = (parsed.party ?? []).map(normalizePokemon);
     const normalizedBox = (parsed.box ?? []).map(normalizePokemon);
@@ -246,45 +254,128 @@ function loadSaved(): GameState {
 // version signal) lives in ./saveReconcile so it can be unit-tested in
 // isolation — see saveReconcile.ts and its standalone edge-case tests.
 
-// localStorage key holding the cloud saveVersion this browser last synced
-// with. Compared against the live cloud version on boot: if the server has
-// advanced past it, the server made authoritative writes (auction
-// settlement, admin gift, another device) this browser never saw, so cloud
-// must win. Absent = never synced under this build → falls back to the
-// heuristic, i.e. no behaviour change for legacy boots.
+// ── THE SYNC BOOKKEEPING, AND WHY IT LIVES INSIDE THE BLOB ──────────────
+//
+// Two numbers describe this browser's relationship to the cloud copy:
+//
+//   * the cloud `saveVersion` it last synced with. If the live cloud version
+//     is higher, the server made writes (auction settlement, admin gift,
+//     another device) this browser never saw, so cloud must win.
+//   * the server-owned `saveAdoptSeq` it last ADOPTED. When the server reports
+//     a higher value it AUTHORITATIVELY rewrote this save — an admin edit /
+//     restore / item-set, an auction escrow or settlement, or a prize fold —
+//     and the client must adopt the cloud copy WHOLESALE, bypassing the
+//     protective merge. Otherwise the merge or a plain re-upload would undo
+//     the server's write: that is how an auctioned Pokémon never reached its
+//     buyer, and how a giveaway prize was destroyed by the winner's second
+//     tab. See server/src/lib/saveAdopt.ts.
+//
+// Both used to be their own standalone localStorage key, and that is a
+// SESSION-BOUNDARY PRIZE KILLER, because localStorage is shared by every tab:
+//
+//   tab A uploads; the server folds a Master Ball into that upload and bumps
+//   the version and the seq. A writes the prize-bearing blob to SAVE_KEY, and
+//   :cloudv=11 and :adoptseq=4.
+//   tab B knows nothing about any of it. Its next state change (or its
+//   pagehide) overwrites SAVE_KEY with its own prize-less blob and touches
+//   NEITHER counter.
+//
+// The persisted seq now describes a blob that no longer exists. The next
+// session seeds `adoptedSeqRef` from it, concludes it has already adopted seq
+// 4, SKIPS the adopt, takes the "local extends cloud" branch and uploads B's
+// blob straight over the prize. Delivery happens exactly once; the Master Ball
+// is gone permanently, and no later boot can recover it.
+//
+// So the bookkeeping is STAMPED INTO THE BLOB, in the same `setItem` as the
+// bytes it describes. localStorage has no multi-key transaction — one key IS
+// the only atomic unit available — so the record has to be one key. Whichever
+// tab writes SAVE_KEY last necessarily writes ITS OWN view of the version and
+// seq with it, and the persisted seq can therefore never over-claim relative
+// to the persisted bytes. In the scenario above B stamps {v:10, seq:3}, the
+// next boot sees the server at seq 4, adopts wholesale, and finds the prize.
+//
+// Rejected alternatives:
+//   * per-tab keys (`:adoptseq:<tabId>`) — a tab that never reopens leaks its
+//     key forever, and boot would still have to guess which tab's bookkeeping
+//     belongs to the one shared blob. Same ambiguity, more state.
+//   * a BroadcastChannel lock — requires every tab alive and cooperating; a
+//     tab killed by the OS mid-write leaves exactly the split state again.
+//   * writing the three keys "together" — not atomic, so the crash window it
+//     is meant to close simply moves.
+//
+// The standalone keys are still read as a FALLBACK (a blob written before this
+// change carries no stamp) and still written, so an old tab left open across a
+// rolling deploy keeps behaving exactly as it does today. A stamped blob
+// always wins over them, and `__adoptseq`'s PRESENCE — not its value — is what
+// marks a blob as stamped, so a stamped "never synced" blob is not mistaken
+// for a legacy one and quietly handed a sibling's counter.
 const SYNC_VERSION_KEY = SAVE_KEY + ":cloudv";
-function readSyncVersion(): number | null {
+const ADOPT_SEQ_KEY = SAVE_KEY + ":adoptseq";
+/** In-blob field names. Prefixed like __savedAt / __owner so they can never
+ *  collide with a GameState key. */
+const CLOUD_VERSION_FIELD = "__cloudv";
+const ADOPT_SEQ_FIELD = "__adoptseq";
+
+function readBlobRaw(): Record<string, unknown> | null {
   try {
-    const raw = localStorage.getItem(SYNC_VERSION_KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch { return null; }
+}
+function numOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function legacyNum(key: string): number | null {
+  try {
+    const raw = localStorage.getItem(key);
     if (raw == null) return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
-}
-function writeSyncVersion(v: number): void {
-  try { localStorage.setItem(SYNC_VERSION_KEY, String(v)); } catch { /* */ }
-}
-function clearSyncVersion(): void {
-  try { localStorage.removeItem(SYNC_VERSION_KEY); } catch { /* */ }
+  } catch { return null; }
 }
 
-// The server-owned `saveAdoptSeq` this client last adopted. When getSave
-// reports a higher value, the server AUTHORITATIVELY rewrote this save (admin
-// edit / reset / restore / item-set) and the client must adopt it WHOLESALE,
-// bypassing the protective merge — otherwise the merge / re-upload would undo
-// the admin's change. See server/src/lib/saveAdopt.ts.
-const ADOPT_SEQ_KEY = SAVE_KEY + ":adoptseq";
-function readAdoptSeq(): number {
-  try {
-    const raw = localStorage.getItem(ADOPT_SEQ_KEY);
-    const n = raw == null ? 0 : Number(raw);
-    return Number.isFinite(n) ? n : 0;
-  } catch { return 0; }
+export interface SyncBookkeeping {
+  /** Cloud saveVersion this blob is synced to; null = never synced. */
+  version: number | null;
+  /** saveAdoptSeq the writer of this blob had adopted. */
+  adoptSeq: number;
 }
-function writeAdoptSeq(v: number): void {
+
+/** Read the bookkeeping that belongs to the blob currently on disk. */
+function readSyncBookkeeping(): SyncBookkeeping {
+  const blob = readBlobRaw();
+  if (blob !== null && ADOPT_SEQ_FIELD in blob) {
+    return {
+      version: numOrNull(blob[CLOUD_VERSION_FIELD]),
+      adoptSeq: numOrNull(blob[ADOPT_SEQ_FIELD]) ?? 0,
+    };
+  }
+  return { version: legacyNum(SYNC_VERSION_KEY), adoptSeq: legacyNum(ADOPT_SEQ_KEY) ?? 0 };
+}
+
+// Legacy mirrors. Written so a pre-deploy tab sharing this browser keeps
+// seeing accurate values; never read when the blob carries its own stamp.
+function writeLegacySyncVersion(v: number): void {
+  try { localStorage.setItem(SYNC_VERSION_KEY, String(v)); } catch { /* */ }
+}
+function writeLegacyAdoptSeq(v: number): void {
   try { localStorage.setItem(ADOPT_SEQ_KEY, String(v)); } catch { /* */ }
+}
+function clearSyncVersion(): void {
+  try {
+    localStorage.removeItem(SYNC_VERSION_KEY);
+    localStorage.removeItem(ADOPT_SEQ_KEY);
+  } catch { /* */ }
+}
+
+// The state to LOAD when adopting a cloud copy wholesale. Lives in
+// ./saveReconcile (pure, dependency-free, unit-testable) — see
+// adoptCloudWholesale there for why the spendable set must be materialised in
+// full and why the active mon has to be re-anchored.
+function stateFromCloud(cloudData: any): GameState {
+  return adoptCloudWholesale(cloudData, normalizePokemon) as GameState;
 }
 
 // Which account's progress the local blob holds.
@@ -362,23 +453,84 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // returns (cloud wins if it has data; otherwise local migrates up).
   const [state, dispatch] = useReducer(reducer, undefined, loadSaved);
   const cloudReadyRef = useRef(false);
-  // Tracks the server-side `saveVersion` we have observed. Sent on every
-  // putSave so the server can compare-and-swap reject stale writes that
-  // would clobber a newer cloud copy from a different device. -1 means
-  // "we have never successfully talked to the cloud this session" —
-  // crucial for the autosave gate: if we never got cloud, we MUST NOT
-  // push local state up (it might be stale and would destroy progress).
+  // The bookkeeping that came off disk with the blob we booted from. Read
+  // ONCE — `readSyncBookkeeping` parses the whole save blob, and a ref's
+  // initialiser argument is evaluated on every render.
+  const bootSyncRef = useRef<SyncBookkeeping | null>(null);
+  if (bootSyncRef.current === null) bootSyncRef.current = readSyncBookkeeping();
+  // The cloud `saveVersion` that LIVE STATE is known to incorporate — i.e. the
+  // version an upload composed from the current state may legitimately claim.
+  // -1 means "we have never successfully talked to the cloud this session";
+  // in that state we MUST NOT push local state up at all (it might be stale,
+  // and with no version the server's compare-and-swap degrades to an
+  // unconditional write that cannot miss).
+  //
+  // It is deliberately NOT "the newest version the server has told us about".
+  // When the server rewrites a save — a prize fold, a wholesale adopt, an
+  // auction settlement — the new version describes bytes that are still
+  // travelling to live state through a dispatch. Advancing this ref at that
+  // moment would let a snapshot taken microseconds later, before React
+  // committed the change, claim a version whose bytes it does not contain:
+  // stale bytes, fresh version, CAS passes, prize erased. Those sites set
+  // `deferredCloudVersionRef` instead, and the local-save effect promotes it
+  // AT THE COMMIT that carries the bytes.
   const cloudVersionRef = useRef<number>(-1);
+  // A cloud version whose bytes have been DISPATCHED but have not yet reached
+  // live state. Promoted into cloudVersionRef (and the persisted stamp) by the
+  // local-save effect. Until then every upload keeps claiming the OLD version,
+  // so it 409s and adopts — the fail-safe direction, and the one that cannot
+  // destroy a prize.
+  const deferredCloudVersionRef = useRef<number | null>(null);
   const lastUploadedRef = useRef<string>("");
   // True while flushCloud's request is awaiting a response. The
   // pagehide/visibilitychange beacon below checks this to avoid racing an
   // already-in-flight upload that's using the same cloudVersionRef — see
   // that effect's comment for the failure mode this prevents.
   const uploadInFlightRef = useRef(false);
-  // The newest snapshot that has not reached the cloud yet, and the timer
-  // that will send it. See the uploader below for why this is a throttle
-  // and not a debounce.
-  const pendingRef = useRef<{ snapshot: Partial<GameState>; serialized: string } | null>(null);
+  // A `gift:pending` nudge that arrived while an upload was already on the
+  // wire. That upload is NOT guaranteed to collect the grant: the server reads
+  // what is owed outside the save transaction, so a row that commits after
+  // that read is invisible to it. Re-fire once the wire is clear instead of
+  // assuming it was collected — see onGiftPending.
+  const grantNudgeRef = useRef(false);
+  // The `saveAdoptSeq` THIS TAB has adopted, in memory.
+  //
+  // Deliberately not read back out of localStorage on each check: two tabs of
+  // the same account share that key, so the tab that uploaded and skipped its
+  // own adopt would otherwise disarm the sibling tab that still has to take
+  // one — and the sibling is precisely the tab whose stale blob would destroy
+  // the prize. Seeded from storage once, for the offline/boot case.
+  const adoptedSeqRef = useRef<number>(bootSyncRef.current.adoptSeq);
+  // What is currently STAMPED (or about to be stamped) into the local blob.
+  // Distinct from the two refs above: those describe LIVE STATE, these
+  // describe the bytes on disk, and the local-save effect is the only thing
+  // that makes them agree.
+  const persistedCloudVersionRef = useRef<number | null>(bootSyncRef.current.version);
+  const persistedAdoptSeqRef = useRef<number>(bootSyncRef.current.adoptSeq);
+  // The newest snapshot that has not reached the cloud yet, THE CLOUD VERSION
+  // IT WAS COMPOSED AGAINST, and the timer that will send it. See the uploader
+  // below for why this is a throttle and not a debounce.
+  //
+  // ── WHY THE VERSION IS PART OF THIS RECORD ──────────────────────────
+  // flushCloud used to pair `pending.snapshot` with `cloudVersionRef.current`
+  // AT FLUSH TIME. Those are two independently updated values, so a snapshot
+  // composed BEFORE a server-authoritative rewrite could be uploaded with a
+  // version learned AFTER it. The compare-and-swap passed because the version
+  // was fresh while the bytes were stale, and the prize the rewrite had just
+  // added was erased. Every hole found in four review rounds — the mid-session
+  // adopt that left the throttle timer armed on a pre-adopt snapshot, the
+  // sibling tab across a session boundary, the 409 body that taught a version
+  // with no adopt seq attached — was one instance of that one pairing.
+  //
+  // Capturing the version WITH the bytes makes the pairing structural instead
+  // of a rule every future edit has to remember: stale bytes ALWAYS carry a
+  // stale version, so the CAS always rejects them and the client 409s and
+  // adopts. No code path can hand fresh bytes' version to stale bytes, because
+  // exactly one function composes the pair and it reads both at the same
+  // instant. `capturePending` is that function.
+  const pendingRef = useRef<{
+    snapshot: Partial<GameState>; serialized: string; baseVersion: number;
+  } | null>(null);
   const uploadTimerRef = useRef<number | undefined>(undefined);
   // Set once a permanent rejection (400/413/403) is seen. The save we are
   // producing is one the server will never accept, so retrying it forever
@@ -392,13 +544,258 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const myIdRef = useRef<string | null>(me?.id ?? null);
   myIdRef.current = me?.id ?? null;
 
-  // Record the cloud saveVersion we are now synced to, AND persist it so the
-  // next boot can detect a server-side authoritative write (auction
-  // settlement, gift, another device) that advanced our save while this tab
-  // was away. Call this everywhere a fresh authoritative version is learned.
-  const commitCloudVersion = (v: number) => {
+  // The ONE place a snapshot and the cloud version it is valid against are
+  // paired. Both are read here, at the same instant, and travel together from
+  // here on. See pendingRef for what pairing them later cost.
+  const capturePending = (snapshot: Partial<GameState>, serialized: string) => {
+    pendingRef.current = { snapshot, serialized, baseVersion: cloudVersionRef.current };
+  };
+
+  // ── THE ONLY WAY A BOUND VERSION MAY EVER BE RAISED ──────────────────────
+  //
+  // Advance the version live state — and anything captured from it — may
+  // claim. There is exactly one precondition, and every caller must have
+  // established it:
+  //
+  //   THE CLOUD AT `v` CONTAINS NO SERVER-AUTHORITATIVE BYTES THIS SESSION HAS
+  //   NOT ALREADY INCORPORATED.
+  //
+  // Two situations satisfy it, and they are the only two:
+  //   * an accepted upload whose response certifies the server added nothing
+  //     (no `grantsApplied`, no `saveAdoptSeq` past what we adopted) — the
+  //     cloud at `v` is literally the bytes we just sent;
+  //   * a 409 whose re-read found no adopt to take — everything between the
+  //     old version and `v` was a plain client upload, ours or a sibling's,
+  //     and overwriting a sibling is the documented last-writer-wins
+  //     behaviour. A sibling upload that COLLECTED A PRIZE bumps the adopt
+  //     seq, so it can never reach this branch.
+  //
+  // Raising `pendingRef.baseVersion` here is not a loophole in the binding, it
+  // is the binding staying live: without it, a snapshot captured while a
+  // request was in flight would be refused by this client's own write and the
+  // client would 409 forever whenever state stopped changing.
+  //
+  // The deferred guard is load-bearing. While `deferredCloudVersionRef` is
+  // set, a server-authoritative rewrite is still travelling to live state
+  // through a dispatch — so live state does NOT yet contain the bytes at that
+  // version, and neither does anything captured from it. Advancing then would
+  // recreate the exact pairing this file exists to prevent.
+  const advanceUploadBase = (v: number) => {
+    if (deferredCloudVersionRef.current !== null) return;
+    if (v <= cloudVersionRef.current) return;
     cloudVersionRef.current = v;
-    writeSyncVersion(v);
+    const p = pendingRef.current;
+    if (p && p.baseVersion < v) p.baseVersion = v;
+  };
+
+  // Record the sync point we are now at, WITHOUT writing the blob. Safe
+  // whenever the blob is about to be (re)written by the local-save effect: a
+  // stamp that lags the truth only ever makes the next boot conclude "the
+  // server advanced past us" and take the cloud copy, which is the
+  // conservative direction. A stamp that RUNS AHEAD of the bytes it describes
+  // is what destroys prizes, and nothing here can produce one.
+  //
+  // Both values are MONOTONIC here. A response that was already in flight when
+  // an adopt landed can arrive carrying an older version, and letting it walk
+  // the stamp backwards would describe the blob as less synced than it is. It
+  // would still be the safe direction (an under-claim only makes the next boot
+  // prefer the cloud), but there is no reason to allow it. A deliberate reset
+  // clears the refs directly rather than going through here.
+  const recordSyncPoint = (version: number | null, seq: number | null) => {
+    if (typeof version === "number" && version > (persistedCloudVersionRef.current ?? -1)) {
+      persistedCloudVersionRef.current = version;
+      writeLegacySyncVersion(version);
+    }
+    if (typeof seq === "number" && seq > persistedAdoptSeqRef.current) {
+      persistedAdoptSeqRef.current = seq;
+      writeLegacyAdoptSeq(seq);
+    }
+  };
+
+  // Record the sync point AND the exact bytes it describes, in one setItem.
+  // Used by every path that replaces live state from the cloud, where the
+  // local-save effect cannot be relied on to run before the tab dies.
+  const commitSyncPoint = (
+    snapshot: Partial<GameState>,
+    version: number | null,
+    seq: number | null,
+  ) => {
+    recordSyncPoint(version, seq);
+    writeLocalSave(
+      snapshot, myIdRef.current,
+      persistedCloudVersionRef.current, persistedAdoptSeqRef.current,
+    );
+  };
+
+  // Adopt the cloud copy WHOLESALE if the server has authoritatively rewritten
+  // this save since this tab last adopted (admin edit / restore / item-set,
+  // auction escrow or settlement, prize fold).
+  //
+  // Takes an ALREADY-FETCHED getSave result on purpose: the seq and the
+  // saveVersion must come from the same response. Learning the version without
+  // the seq is exactly what let a losing tab push its stale blob past the
+  // server's compare-and-swap and destroy a prize that had just been folded in.
+  //
+  // Returns true if it adopted. A no-op when the seq has not moved, so every
+  // caller can hand it any getSave result unconditionally.
+  const adoptIfServerRewrote = (fresh: {
+    saveData: unknown; saveVersion: number; saveAdoptSeq?: number;
+  }): boolean => {
+    const seq = typeof fresh.saveAdoptSeq === "number" ? fresh.saveAdoptSeq : 0;
+    if (seq <= adoptedSeqRef.current) return false;
+    const fd = fresh.saveData as Partial<GameState> | null;
+    // Nothing usable to adopt (a wiped account). Leave the seq UNRECORDED so a
+    // later fetch that does carry data still adopts; a reset has its own paths
+    // (`save:reset`, and the cloud-version-went-backwards check at boot).
+    if (!fd || !(fd as any).playerPokemon) return false;
+    const nextState = stateFromCloud(fd);
+    const snapshot = pickPersistent(nextState);
+    dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+    // Mark it already-uploaded so the autosave diff does not immediately push
+    // it straight back.
+    lastUploadedRef.current = JSON.stringify(snapshot);
+    // The in-memory gate moves NOW: a socket `save:adopt`, a 409 re-read and
+    // the boot check can all fire within one tick, and re-adopting the same
+    // copy would throw away the play in between for nothing.
+    adoptedSeqRef.current = seq;
+    // ── BLOB FIRST, THEN THE BOOKKEEPING — here, literally one write. ──
+    // The old order was INVERTED: it persisted the seq and the sync version
+    // immediately and left the ADOPTED BYTES to be written later by the
+    // local-save effect. A tab that died in that window came back claiming to
+    // have adopted seq N while still holding the PRE-adopt blob, so boot
+    // skipped the adopt, took the "local extends cloud" branch, and uploaded
+    // the pre-adopt bytes straight over the prize. commitUploadResult has
+    // always been careful about exactly this hazard; the adopt path was not.
+    commitSyncPoint(snapshot, fresh.saveVersion ?? 0, seq);
+    // The UPLOAD base, by contrast, must wait for the dispatch to reach live
+    // state — otherwise a snapshot taken before React commits would claim the
+    // adopted version while holding pre-adopt bytes. See cloudVersionRef.
+    deferredCloudVersionRef.current = fresh.saveVersion ?? 0;
+    return true;
+  };
+
+  // ── Server-owed prizes (PendingGrant) ──
+  // The server no longer writes giveaway / gift prizes straight into cloud
+  // saveData. It owes them, and folds them into whatever blob we upload, in
+  // the transaction that accepts that upload — so a stale push from us can no
+  // longer overwrite a prize (it used to, and Master Balls were silently
+  // destroyed for every winner who was mid-session at draw time).
+  //
+  // Our half of that contract: every putSave response that reports
+  // `grantsApplied` describes bytes the server has ALREADY stored on top of
+  // ours. Apply exactly those to live state, or our next autosave — which is
+  // built from live state and knows nothing about them — clobbers the prize
+  // 2.5s later. This must therefore run at EVERY putSave call site, which is
+  // why it lives here rather than inside flushCloud.
+  //
+  // Applying it is an OPTIMISATION, not the safety net. The same response
+  // carries a bumped `saveAdoptSeq`, so if this dispatch never happened — a
+  // dropped response, a tab that died mid-request — this client would adopt
+  // the cloud copy (which holds the prize) on its next 409, its next
+  // `save:adopt`, or its next boot. What applying it here buys is that the
+  // WINNER'S OWN tab does not have to take that round trip and lose the play
+  // it has not uploaded yet.
+  //
+  // There is deliberately nothing here that records the delivery. Delivery
+  // lives in PendingGrant.deliveredAt on the server; a copy of it in the save
+  // blob would be a payment gate the client supplies, which is exactly the
+  // exploit that was removed.
+  const absorbGrants = (res: { grantsApplied?: unknown; grantsSummary?: string }) => {
+    const prizes = Array.isArray(res?.grantsApplied) ? res.grantsApplied : [];
+    if (prizes.length === 0) return;
+    dispatch({ type: "RECEIVE_GIFT", payload: { prizes: prizes as any } });
+    pushToast({
+      kind: "success",
+      icon: "🎁",
+      text: res.grantsSummary ? `You received ${res.grantsSummary}!` : "You received a gift!",
+    });
+  };
+
+  // A saveAdoptSeq accepted in memory but NOT yet safe to persist. See
+  // commitUploadResult.
+  const deferredAdoptSeqRef = useRef<number | null>(null);
+
+  // What to do with an ACCEPTED putSave response. Every upload site goes
+  // through this. `uploadedBaseVersion` is the version the accepted request
+  // CAS'd against — it has to be passed in rather than re-read, because the
+  // whole point of this file is that a version and the bytes it belongs to are
+  // one value.
+  //
+  // Everything below turns on one question: DID THE SERVER STORE BYTES WE DID
+  // NOT SEND? If it did not, the cloud at `res.saveVersion` is exactly our own
+  // upload and live state trivially incorporates it. If it did — a folded
+  // prize, or an adopt seq past what this tab has adopted — the cloud holds
+  // something we do not, and every version-advancing side effect has to wait
+  // for those bytes to reach live state.
+  const commitUploadResult = (
+    res: {
+      saveVersion: number; saveAdoptSeq?: number;
+      grantsApplied?: unknown; grantsSummary?: string;
+    },
+    uploadedBaseVersion: number,
+  ) => {
+    const seqBefore = adoptedSeqRef.current;
+    const echoed = Array.isArray(res?.grantsApplied) && res.grantsApplied.length > 0;
+    // Two independent signals, either of which is enough: an echoed prize
+    // list, or an adopt seq past what this tab has adopted (which also catches
+    // a bump this tab never accounted for — an admin edit, an auction escrow).
+    // A response with no `saveAdoptSeq` at all is a pre-inbox server, which
+    // has no fold and therefore never adds bytes on POST.
+    const serverWroteBytes =
+      echoed || (typeof res.saveAdoptSeq === "number" && res.saveAdoptSeq > seqBefore);
+
+    if (!serverWroteBytes) {
+      // The server certified it added nothing: the cloud at `res.saveVersion`
+      // is exactly the bytes we sent, which live state (and any snapshot
+      // captured while this request was in flight) descends from. That is
+      // advanceUploadBase's precondition — see it for why this is the only
+      // shape of promotion that is sound, and why it must NOT be relaxed to
+      // "promote whenever the CAS succeeded".
+      void uploadedBaseVersion;
+      advanceUploadBase(res.saveVersion);
+      // Stamp the new sync point onto the blob NOW rather than waiting for the
+      // next state change. This response only arrives after an await, so React
+      // has committed and `stateRef.current` is a superset of the bytes the
+      // cloud now holds at `res.saveVersion` — which is exactly the claim the
+      // stamp makes. Leaving it to drift is safe (an under-claim only makes
+      // the next boot prefer the cloud) but pointless.
+      if (stateRef.current.playerPokemon) {
+        commitSyncPoint(pickPersistent(stateRef.current), res.saveVersion, null);
+      } else {
+        recordSyncPoint(res.saveVersion, null);
+      }
+      return;
+    }
+
+    // The server added bytes on top of ours. `cloudVersionRef` stays where it
+    // is until the dispatch below reaches live state — see the ref's comment
+    // and deferredCloudVersionRef. Note this deliberately does NOT promote
+    // `pendingRef`: a snapshot composed before the fold does not contain the
+    // prize, so it must keep its stale base version, 409, and adopt.
+    deferredCloudVersionRef.current = res.saveVersion;
+    // The fold bumped `saveAdoptSeq` in the same write, which is what makes
+    // every OTHER session of this account adopt the cloud copy instead of
+    // pushing its stale blob over the prize. This session does not need to:
+    // it already has the bytes (its own upload) plus the prize (absorbed just
+    // below), so re-fetching would only cost it the play since this request.
+    //
+    // Recorded ONLY when the seq moved by exactly one from what we last
+    // adopted, i.e. the bump is provably OUR OWN fold. If anything else bumped
+    // it in the same window — an admin edit, an auction settlement — the value
+    // jumps by more and we deliberately do NOT record it, so the adopt paths
+    // still fire and this client takes the server's copy of that other change.
+    // Skipping is the optimisation; adopting is the correct fallback.
+    //
+    // The in-memory ref moves now (it only suppresses a redundant re-fetch),
+    // but the PERSISTED value waits for the blob: until the local save holding
+    // the prize is written, claiming "already adopted seq N" would disarm the
+    // boot adopt that is the recovery path if this tab dies right here.
+    if (echoed && typeof res.saveAdoptSeq === "number"
+        && res.saveAdoptSeq === seqBefore + 1) {
+      adoptedSeqRef.current = res.saveAdoptSeq;
+      deferredAdoptSeqRef.current = res.saveAdoptSeq;
+    }
+    absorbGrants(res);
   };
 
   // ── Initial cloud sync ──
@@ -447,18 +844,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
           && typeof cloudData === "object"
           && cloudData.playerPokemon
           && typeof cloudData.playerPokemon.speciesKey === "string";
-        // Lock in the cloud version BEFORE any potential upload. This
-        // is what gets sent on every putSave as expectedSaveVersion.
-        // NOTE: this is provisional (in-memory only) — it is NOT persisted
-        // here, so the persisted "last synced" version below still reflects
-        // the PREVIOUS session and can detect a server write made while away.
-        cloudVersionRef.current = cloud.saveVersion ?? 0;
+        // The version the cloud is at RIGHT NOW. Deliberately a local const
+        // and NOT assigned to `cloudVersionRef` here.
+        //
+        // It used to be locked into the ref at this point, "before any
+        // potential upload". That made the ref mean "the newest version the
+        // server mentioned" while live state was still the LOCAL blob — so any
+        // upload composed from live state in the next few milliseconds (a
+        // `syncNow` fired by an auction bid placed on first paint, the gift
+        // nudge) would carry local bytes stamped with a cloud version they
+        // have never seen. Each branch below now pairs the version with the
+        // state it actually settled on, which is the same discipline
+        // pendingRef enforces for the throttled uploader.
+        const cloudVersion = cloud.saveVersion ?? 0;
 
         // The cloud version this browser was synced to at the end of its last
         // session. If the live cloud version is higher, the server made an
         // authoritative write (auction settlement, gift, another device) that
-        // local never saw — see cloudShouldWin / saveReconcile.ts.
-        const persistedSyncVersion = readSyncVersion();
+        // local never saw — see cloudShouldWin / saveReconcile.ts. Read off
+        // the blob we booted from, so it describes THOSE bytes and not a
+        // sibling tab's.
+        const persistedSyncVersion = bootSyncRef.current!.version;
 
         const local = loadSaved();
 
@@ -485,31 +891,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // Server-authoritative adopt (admin edit / restore / item-set). The
-        // server bumped saveAdoptSeq past what we last adopted, so this cloud
-        // copy is an intentional authoritative rewrite — adopt it WHOLESALE,
-        // bypassing the protective merge, so the admin's change sticks instead
-        // of being undone by our local copy. Additive gifts do NOT bump the
-        // seq (they use the additive gift path), so this never fires on a gift.
-        const cloudAdoptSeq = typeof (cloud as any).saveAdoptSeq === "number" ? (cloud as any).saveAdoptSeq : 0;
-        const forcedAdopt = cloudOk && cloudAdoptSeq > readAdoptSeq();
+        // Server-authoritative adopt. The server bumped saveAdoptSeq past what
+        // we last adopted, so this cloud copy holds a deliberate rewrite —
+        // an admin edit / restore / item-set, an auction escrow or settlement,
+        // or a prize the fold added on top of some session's upload. Adopt it
+        // WHOLESALE, bypassing the protective merge, so the server's write
+        // sticks instead of being undone by this browser's copy.
+        //
+        // It is unconditional by design: no milestone veto, no spendable-side
+        // heuristic. A prize that reached the cloud must not be able to lose a
+        // popularity contest against a stale local blob, because delivery
+        // happens exactly once and there is nothing to re-deliver it.
+        const forcedAdopt = cloudOk && adoptIfServerRewrote(cloud as any);
 
         if (forcedAdopt) {
-          const sd = cloudData as Partial<GameState>;
-          const normParty = ((sd.party ?? []) as any[])
-            .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
-          const normBox = ((sd.box ?? []) as any[])
-            .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
-          const nextState = {
-            ...sd, party: normParty, box: normBox,
-            phase: "idle", enemyPokemon: null, pendingEvents: [],
-            trainerBattle: null, bossBattle: null, healingState: null,
-            playerVolatile: null, evolutionState: null,
-          } as GameState;
-          dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
-          lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
-          writeAdoptSeq(cloudAdoptSeq);
-          commitCloudVersion(cloud.saveVersion ?? 0);
+          /* adoptIfServerRewrote did the load, the version and the seq. */
         } else if (!cloudOk) {
           // Empty/garbage cloud row: either a brand-new account, or a
           // returning player whose cloud was somehow wiped. We may ONLY seed
@@ -532,17 +928,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
           const cloudWasReset =
             localOwnedByMe &&
             typeof persistedSyncVersion === "number" &&
-            (cloud.saveVersion ?? 0) < persistedSyncVersion;
+            cloudVersion < persistedSyncVersion;
           if (cloudWasReset) {
             dispatch({ type: "LOAD_SAVE", payload: { state: pickPersistent(initialState) } });
             try { localStorage.removeItem(SAVE_KEY); } catch { /* */ }
             clearSyncVersion();
+            persistedCloudVersionRef.current = null;
+            persistedAdoptSeqRef.current = 0;
+            adoptedSeqRef.current = 0;
+            // A fresh game against a wiped cloud row: live state and the cloud
+            // agree, so this version is safe to claim immediately.
+            cloudVersionRef.current = cloudVersion;
           } else if (localOwnedByMe) {
             const snapshot = pickPersistent(local);
             try {
-              const res = await api.putSave(snapshot, cloudVersionRef.current);
-              commitCloudVersion(res.saveVersion);
-            } catch { /* offline: try again on next change */ }
+              const res = await api.putSave(snapshot, cloudVersion);
+              commitUploadResult(res, cloudVersion);
+            } catch {
+              // Offline. The GET succeeded, so we know what the cloud holds
+              // (nothing) and live state is a strict superset of it — safe to
+              // claim, and without it this session could never upload at all,
+              // because an upload with no version is refused outright.
+              cloudVersionRef.current = cloudVersion;
+            }
           } else {
             // Not provably ours (foreign OR unstamped OR unknown-me). The
             // reducer was seeded from localStorage at init, so it may be
@@ -551,6 +959,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
             dispatch({ type: "LOAD_SAVE", payload: { state: pickPersistent(initialState) } });
             try { localStorage.removeItem(SAVE_KEY); } catch { /* */ }
             clearSyncVersion();
+            persistedCloudVersionRef.current = null;
+            persistedAdoptSeqRef.current = 0;
+            adoptedSeqRef.current = 0;
+            cloudVersionRef.current = cloudVersion;
           }
         } else if (cloudShouldWin({
           localUsable: localOk,
@@ -564,52 +976,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
           //
           //  * No usable local (fresh tab / cleared storage / foreign blob):
           //    adopt cloud wholesale — there's nothing local to lose.
-          //  * Usable local: the server advanced our save (auction / gift /
-          //    giveaway / mass-gift) but we may also hold local progress it
-          //    never saw. MERGE — fold the server's additions into local
-          //    without ever dropping locally-earned money / items / Pokémon.
-          //    Wholesale-replacing here is what reset players' cash after a
-          //    broad saveVersion bump. See mergeCloudAdvance in saveReconcile.
+          //  * Usable local: the server advanced our save (auction / another
+          //    device) but we may also hold progress it never saw. MERGE —
+          //    which now means "keep the whole spendable set from whichever
+          //    lineage holds more play, and union the monotonic milestones
+          //    from both", NOT the old per-field max. Resolving money by max
+          //    while keeping the goods the other side bought refunded the
+          //    purchase; see mergeCloudAdvance in saveReconcile.
+          //
+          // Both branches go through stateFromCloud, which materialises the
+          // WHOLE spendable set from the blob it is given and re-anchors the
+          // active mon. That matters just as much on the no-local branch: the
+          // reducer merges LOAD_SAVE into live state, so handing it a raw
+          // cloud blob that omits `inventory` would keep the items this
+          // session already had next to the cloud's money — the same mix the
+          // merge exists to prevent.
           const base: any = localOk ? mergeCloudAdvance(local, cloudData) : cloudData;
-          const normParty = ((base.party ?? []) as any[])
-            .filter((p: any) => p && typeof p.speciesKey === "string")
-            .map(normalizePokemon);
-          const normBox = ((base.box ?? []) as any[])
-            .filter((p: any) => p && typeof p.speciesKey === "string")
-            .map(normalizePokemon);
-          const nextState = {
-            ...base,
-            party: normParty,
-            box: normBox,
-            phase: "idle",
-            enemyPokemon: null,
-            pendingEvents: [],
-            trainerBattle: null,
-            bossBattle: null,
-            healingState: null,
-            playerVolatile: null,
-            evolutionState: null,
-          } as GameState;
+          const nextState = stateFromCloud(base);
+          const snapshot = pickPersistent(nextState);
           dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+          // The bytes we are switching to, written WITH the sync point that
+          // describes them, in one setItem — before the upload, and without
+          // waiting for React to commit. If the tab dies anywhere after this
+          // line, the next boot reads a blob and a sync point that agree.
+          lastUploadedRef.current = JSON.stringify(snapshot);
+          commitSyncPoint(snapshot, cloudVersion, null);
           if (localOk) {
             // The merged result differs from cloud (it carries our local
             // progress), so push it back up so cloud reflects the merge.
             // CAS on the version we just read; a concurrent write 409s and
             // the next boot reconciles again.
-            const snapshot = pickPersistent(nextState);
-            lastUploadedRef.current = JSON.stringify(snapshot);
             try {
-              const res = await api.putSave(snapshot, cloud.saveVersion ?? cloudVersionRef.current);
-              commitCloudVersion(res.saveVersion);
+              const res = await api.putSave(snapshot, cloudVersion);
+              // The uploaded bytes ARE the state we just dispatched, so the
+              // version this returns is one live state incorporates.
+              commitUploadResult(res, cloudVersion);
             } catch {
-              commitCloudVersion(cloud.saveVersion ?? 0);
+              deferredCloudVersionRef.current = cloudVersion;
             }
           } else {
-            // Wholesale cloud adoption — mark it already-uploaded so the
-            // autosave diff doesn't immediately re-push, and record the
-            // version we're now synced to.
-            lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
-            commitCloudVersion(cloud.saveVersion ?? 0);
+            // Wholesale cloud adoption. The version waits for the dispatch to
+            // land — live state is still the pre-adopt blob until it does.
+            deferredCloudVersionRef.current = cloudVersion;
           }
         } else {
           // Local strictly extends cloud (more milestones / equal +
@@ -618,39 +1026,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // device can still 409 us and prevent a clobber.
           const snapshot = pickPersistent(local);
           try {
-            const res = await api.putSave(snapshot, cloudVersionRef.current);
-            commitCloudVersion(res.saveVersion);
+            const res = await api.putSave(snapshot, cloudVersion);
+            commitUploadResult(res, cloudVersion);
           } catch (err: any) {
-            // 409 means another device wrote in between — re-pull
-            // cloud and load it rather than retrying our stale view.
+            // 409 means another device wrote in between — re-pull cloud and
+            // load it rather than retrying our stale view. Wholesale, through
+            // stateFromCloud: the reducer merges LOAD_SAVE into live state, so
+            // a raw spread would leave this session's own money or items
+            // sitting next to the cloud's, which is how a lineage mix (and a
+            // refund) gets created.
             if (err?.status === 409) {
               try {
                 const fresh = await api.getSave();
-                commitCloudVersion(fresh.saveVersion ?? cloudVersionRef.current);
+                // Record the seq if the server had also authoritatively
+                // rewritten this save: we are taking that exact copy, so the
+                // adopt is genuinely done.
+                const seq = typeof fresh.saveAdoptSeq === "number" ? fresh.saveAdoptSeq : 0;
+                const freshVersion = fresh.saveVersion ?? cloudVersion;
                 const fd = fresh.saveData as Partial<GameState> | null;
                 if (fd && (fd as any).playerPokemon) {
-                  dispatch({
-                    type: "LOAD_SAVE",
-                    payload: {
-                      state: {
-                        ...fd,
-                        party: ((fd.party ?? []) as any[])
-                          .filter((p) => p && typeof p.speciesKey === "string")
-                          .map(normalizePokemon),
-                        box: ((fd.box ?? []) as any[])
-                          .filter((p) => p && typeof p.speciesKey === "string")
-                          .map(normalizePokemon),
-                        phase: "idle",
-                        enemyPokemon: null,
-                        pendingEvents: [],
-                        trainerBattle: null,
-                        bossBattle: null,
-                        healingState: null,
-                        playerVolatile: null,
-                        evolutionState: null,
-                      },
-                    },
-                  });
+                  const adopted = stateFromCloud(fd);
+                  const adoptedSnapshot = pickPersistent(adopted);
+                  dispatch({ type: "LOAD_SAVE", payload: { state: adopted } });
+                  lastUploadedRef.current = JSON.stringify(adoptedSnapshot);
+                  if (seq > adoptedSeqRef.current) adoptedSeqRef.current = seq;
+                  // Blob and bookkeeping in one write, same as every other
+                  // adopt path. The seq used to be persisted here while the
+                  // ADOPTED BYTES waited on the local-save effect.
+                  commitSyncPoint(adoptedSnapshot, freshVersion, seq > 0 ? seq : null);
+                  deferredCloudVersionRef.current = freshVersion;
+                } else {
+                  // Nothing to adopt — the cloud row is empty. Live state is
+                  // unchanged, so this version is safe to claim now.
+                  cloudVersionRef.current = freshVersion;
                 }
               } catch { /* */ }
             }
@@ -699,6 +1107,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const pending = pendingRef.current;
     if (!pending) return;
     if (permanentlyRejectedRef.current) return;
+    // Never synced this session, so we have no idea what the cloud holds.
+    // Uploading anyway would mean sending no `expectedSaveVersion`, and the
+    // server's compare-and-swap then degrades to `where: { id }` — an
+    // unconditional write that cannot miss and would happily overwrite a save
+    // this client has never read. LEAVE it pending: the boot reconcile learns
+    // a real version within a round trip and the next capture supersedes this
+    // one. (`syncNow` is best-effort by contract, and the server re-validates
+    // auctions and bids authoritatively anyway, so nothing depends on this
+    // upload happening.)
+    if (pending.baseVersion < 0) return;
     pendingRef.current = null;
 
     // Optimistic: blocks a duplicate in-flight write of the same bytes.
@@ -707,11 +1125,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     uploadInFlightRef.current = true;
     setSaveStatus("saving");
     try {
-      const res = await api.putSave(
-        pending.snapshot,
-        cloudVersionRef.current >= 0 ? cloudVersionRef.current : undefined,
-      );
-      commitCloudVersion(res.saveVersion);
+      // THE BOUND VERSION — the one captured with these exact bytes, never
+      // `cloudVersionRef.current` as it stands at this instant. That
+      // substitution is what let a snapshot composed before an adopt / a fold
+      // / a sibling's write be uploaded with a version learned after it, pass
+      // the CAS, and erase a prize.
+      const res = await api.putSave(pending.snapshot, pending.baseVersion);
+      // Advances the version, and — if the server folded prizes it owed us
+      // into this very upload — takes them into live state and holds the
+      // persisted sync point back until they are durable. See
+      // commitUploadResult.
+      commitUploadResult(res, pending.baseVersion);
       setSaveStatus("saved");
       setLastSavedAt(Date.now());
       void refreshProfile();
@@ -729,21 +1153,101 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // overwrite". Report it and stop; the player keeps playing on local
         // state, which is written unconditionally and loses nothing.
         setSaveStatus("conflict");
-        // Keep `message` a fixed type-string — it's the (kind, message) group
-        // key server-side. localVersion differs on nearly every occurrence,
-        // so embedding it here used to fragment one conflict type into a
-        // separate dashboard group per version number.
-        reportClientError({
-          source: "save-conflict",
-          message: "putSave 409 — another device wrote",
-          meta: { localVersion: cloudVersionRef.current },
-        });
+        // BOTH 409 bodies now carry `serverSaveAdoptSeq` alongside
+        // `serverSaveVersion` — the invariant "a client cannot learn the new
+        // version without seeing the adopt seq that came with it" is finally
+        // true in the wire format and not only in the design doc. We use it
+        // for exactly one thing here, and it must never grow into a second:
+        // TELLING THE TWO KINDS OF 409 APART. A seq past what this tab adopted
+        // means the SERVER rewrote the save (a folded prize, an admin edit, an
+        // auction escrow) — routine, self-healing, and not worth an error row.
+        // Anything else is a genuine second device, which is worth one.
+        //
+        // The version in that body is deliberately NOT used. Learning a
+        // version from a rejection is precisely how stale bytes acquire a
+        // fresh version, and `pendingRef` is bound to its own base anyway.
+        const bodySeq = typeof err?.details?.serverSaveAdoptSeq === "number"
+          ? (err.details.serverSaveAdoptSeq as number)
+          : null;
+        const authoritative = bodySeq !== null && bodySeq > adoptedSeqRef.current;
+        if (!authoritative) {
+          // Keep `message` a fixed type-string — it's the (kind, message) group
+          // key server-side. localVersion differs on nearly every occurrence,
+          // so embedding it here used to fragment one conflict type into a
+          // separate dashboard group per version number.
+          reportClientError({
+            source: "save-conflict",
+            message: "putSave 409 — another device wrote",
+            meta: { localVersion: cloudVersionRef.current },
+          });
+        }
         // Re-read the cloud's VERSION only — not its data. A plain version
         // mismatch then resolves on the next attempt, while the player's
         // actual progress stays untouched by a device they are not using.
+        //
+        // DO NOT merge cloud data into live state here. A per-field max — the
+        // shape this used to have, and the shape anyone "fixing" a 409 reaches
+        // for — is a duplication exploit on this path: a 409 means a SECOND
+        // SESSION wrote, so "cloud" is a sibling tab's branch that simply
+        // lacks whatever this session has spent. Spend 900k in tab A, let a
+        // minute-old tab B upload, and A's next 409 restores the 900k by max()
+        // while a box union keeps everything the money bought. It repeats on
+        // every conflict — and conflicts recur every couple of seconds for as
+        // long as two sessions are live. The same mechanism refunds every
+        // consumed Poké Ball and potion. A three-way diff against the last
+        // snapshot the server accepted does not rescue it either: it cannot
+        // tell a server credit from a stale sibling's write, so the same two
+        // tabs produce the same refund.
+        //
+        // Nor should mergeCloudAdvance be reused here now that it picks one
+        // lineage's spendable set wholesale. It is the right call ONCE at boot,
+        // where the two sides forked from a known common ancestor; mid-session
+        // it would swap the live session's wallet and team out from under the
+        // player every couple of seconds.
+        //
+        // ── BUT A WHOLESALE ADOPT IS NOT A MERGE, AND THIS IS WHERE IT
+        //    HAS TO HAPPEN ──
+        // This is the exact moment a prize gets destroyed. A sibling session
+        // won the version CAS and the server folded a grant into ITS upload;
+        // we 409'd. If all we did here was learn the new version, our very
+        // next upload would carry these stale bytes, pass the CAS, and erase
+        // the prize from the cloud — and delivery happens once, so nothing
+        // would ever bring it back. That is the original incident.
+        //
+        // So the version is not learned in isolation. The same response
+        // carries `saveAdoptSeq`, which the server bumped in the same database
+        // update as the version. If it has moved past what this tab adopted,
+        // the cloud copy is authoritative and we take it WHOLESALE — no
+        // per-field max, no union, nothing from local survives. That can only
+        // ever discard this session's unsynced play; it cannot mint or
+        // duplicate anything, because the result is exactly the server's copy.
+        //
+        // Ordering is load-bearing: `adoptIfServerRewrote` sets the version
+        // itself, and on a failed fetch we set NOTHING. A tab that cannot read
+        // therefore keeps 409ing instead of pushing stale bytes — it is
+        // structurally unable to advance its expected version without seeing
+        // the adopt seq that goes with it.
         try {
           const fresh = await api.getSave();
-          if (typeof fresh.saveVersion === "number") cloudVersionRef.current = fresh.saveVersion;
+          if (adoptIfServerRewrote(fresh)) {
+            // Not a conflict the player has to resolve — the server rewrote
+            // the save and we took its copy. An upload of the adopted bytes
+            // follows on the next state change.
+            setSaveStatus("pending");
+          } else {
+            // Ordinary conflict — another device simply uploaded. Learn the
+            // version and keep playing on local state, which is written
+            // unconditionally and loses nothing.
+            //
+            // `adoptIfServerRewrote` returning false IS advanceUploadBase's
+            // precondition: the cloud holds no authoritative rewrite this
+            // session has not incorporated, so everything between our version
+            // and this one was a plain client upload. Without promoting the
+            // snapshot captured during this round trip, a client whose state
+            // then stops changing would 409 forever against a version it has
+            // already learned.
+            if (typeof fresh.saveVersion === "number") advanceUploadBase(fresh.saveVersion);
+          }
         } catch { /* transient; the next change retries */ }
         return;
       }
@@ -785,6 +1289,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setSaveStatus("error");
     } finally {
       uploadInFlightRef.current = false;
+      // A nudge landed while this request was in flight. It may have arrived
+      // after the server took its snapshot of what we are owed, so that grant
+      // could still be sitting in the inbox. Collect it now rather than
+      // waiting for the next state change — which, on a paused or idle tab,
+      // may never come.
+      if (grantNudgeRef.current) {
+        grantNudgeRef.current = false;
+        // setTimeout, not a direct call: syncNow re-enters flushCloud, and
+        // doing that from inside this finally would run it while the current
+        // invocation is still unwinding.
+        window.setTimeout(() => { void syncNowRef.current(true); }, 0);
+      }
     }
   }, [refreshProfile]);
 
@@ -796,16 +1312,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // player who actually has the money / the mon (the "no funds despite 67M"
   // report). Best-effort: on 409/offline it still resolves and the caller
   // proceeds; the server re-validates authoritatively anyway.
-  const syncNow = useCallback(async (): Promise<void> => {
+  //
+  // `force` skips the "nothing changed since the last upload" short-circuit.
+  // Needed by the `gift:pending` nudge: the server is holding a prize for us
+  // and the only way to collect it is to upload something for it to be folded
+  // into, even if our state is byte-identical to the last push.
+  const syncNow = useCallback(async (force = false): Promise<void> => {
     try {
       const snapshot = pickPersistent(stateRef.current);
       const serialized = JSON.stringify(snapshot);
-      if (serialized !== lastUploadedRef.current) {
-        pendingRef.current = { snapshot, serialized };
+      if (force || serialized !== lastUploadedRef.current) {
+        capturePending(snapshot, serialized);
       }
       await flushCloud();
     } catch { /* best effort — never block the caller on a sync failure */ }
   }, [flushCloud]);
+  // Lets the socket effect (which mounts once, with [] deps) reach the CURRENT
+  // syncNow rather than the one captured on first render.
+  const syncNowRef = useRef(syncNow);
+  syncNowRef.current = syncNow;
 
   // ── Local save (ALWAYS, unconditionally) ──
   // Writing localStorage is local-only. It cannot clobber the cloud, it
@@ -830,7 +1355,36 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // performance reason to skip a single save.
   useEffect(() => {
     if (!state.playerPokemon) return;
-    writeLocalSave(pickPersistent(state), myIdRef.current);
+    // PROMOTE FIRST, THEN WRITE — and the write is a single setItem carrying
+    // both the bytes and the bookkeeping.
+    //
+    // This used to be the other way round (write the blob, then write the
+    // version key) because they were two separate localStorage keys and the
+    // blob had to land first: recording "synced to version N" before the state
+    // holding N's prize was durable would disarm the boot adopt that is the
+    // only recovery left if this tab then dies. That ordering rule is gone,
+    // not weakened — there is nothing left to order. One key, one write, and
+    // the crash window it guarded closes with it.
+    //
+    // The dispatches that set these deferred values (RECEIVE_GIFT, LOAD_SAVE,
+    // AUCTION_SETTLED) all return a fresh state object, so this effect is
+    // guaranteed to run on the commit that carries their bytes.
+    const deferredVersion = deferredCloudVersionRef.current;
+    if (deferredVersion !== null) {
+      deferredCloudVersionRef.current = null;
+      // Live state now holds the bytes, so the UPLOAD base may finally move.
+      cloudVersionRef.current = deferredVersion;
+      recordSyncPoint(deferredVersion, null);
+    }
+    const deferredSeq = deferredAdoptSeqRef.current;
+    if (deferredSeq !== null) {
+      deferredAdoptSeqRef.current = null;
+      recordSyncPoint(null, deferredSeq);
+    }
+    writeLocalSave(
+      pickPersistent(state), myIdRef.current,
+      persistedCloudVersionRef.current, persistedAdoptSeqRef.current,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -868,7 +1422,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // player "Offline" while their wifi is demonstrably fine.
     if (permanentlyRejectedRef.current) return;
 
-    pendingRef.current = { snapshot, serialized };
+    // Bytes AND the version they were composed against, captured together.
+    // The local-save effect above runs first (it is declared first, and React
+    // runs passive effects in declaration order), so if this commit carried a
+    // deferred version it has already been promoted and this capture is bound
+    // to it rather than to the one it superseded.
+    capturePending(snapshot, serialized);
     if (uploadTimerRef.current !== undefined) return;   // already armed — never re-arm, never clear
     setSaveStatus("pending");
     uploadTimerRef.current = window.setTimeout(() => {
@@ -895,10 +1454,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const st = stateRef.current;
       if (!st.playerPokemon) return;
       const snapshot = pickPersistent(st);
-      writeLocalSave(snapshot, myIdRef.current);
+      // Stamped with the PERSISTED (already-safe) bookkeeping, never with a
+      // deferred value. `stateRef.current` may predate a dispatch that has not
+      // committed yet — a prize absorbed microseconds ago, an adopt in flight
+      // — and stamping the version that describes THOSE bytes onto a blob that
+      // does not contain them is exactly how the recovery path gets disarmed.
+      // Under-claiming here is free: the next boot simply sees the server
+      // ahead and takes the cloud copy.
+      writeLocalSave(
+        snapshot, myIdRef.current,
+        persistedCloudVersionRef.current, persistedAdoptSeqRef.current,
+      );
       if (!cloudReadyRef.current) return;
       if (permanentlyRejectedRef.current) return;
       if (JSON.stringify(snapshot) === lastUploadedRef.current) return;
+      // Same rule as flushCloud: with no version the server's CAS degrades to
+      // an unconditional write. localStorage above already holds these bytes.
+      if (cloudVersionRef.current < 0) return;
       // flushCloud is already mid-request against the same cloudVersionRef.
       // Firing a second write now would race it for that version — the
       // loser gets a spurious 409 "another device wrote" even though it's
@@ -906,7 +1478,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // group). localStorage above already has the newest data either way;
       // let the in-flight request finish and update cloudVersionRef itself.
       if (uploadInFlightRef.current) return;
-      api.putSaveBeacon(snapshot, cloudVersionRef.current >= 0 ? cloudVersionRef.current : undefined);
+      // `cloudVersionRef` is the version LIVE STATE incorporates, and
+      // `snapshot` is live state, so these two are a matched pair by
+      // construction — the same binding the throttled uploader gets from
+      // pendingRef, obtained here without a capture because there is no delay
+      // between composing and sending.
+      api.putSaveBeacon(snapshot, cloudVersionRef.current);
     };
     const onHide = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush);
@@ -931,7 +1508,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       auctionId: string; pokemon: any; amount: number; buyerUsername: string;
       newSaveVersion: number; newMoney: number;
     }) => {
-      commitCloudVersion(payload.newSaveVersion);
+      // Deferred, like every other server-authoritative rewrite: the bytes
+      // reach live state through the AUCTION_SETTLED dispatch below, and until
+      // that commits an upload composed from live state does not contain them.
+      deferredCloudVersionRef.current = payload.newSaveVersion;
       const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "Pokémon";
       dispatch({
         type: "AUCTION_SETTLED",
@@ -948,7 +1528,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       auctionId: string; pokemon: Pokemon; amount: number; sellerUsername: string;
       newSaveVersion: number; newMoney: number;
     }) => {
-      commitCloudVersion(payload.newSaveVersion);
+      // Deferred — see onSold.
+      deferredCloudVersionRef.current = payload.newSaveVersion;
       const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "a Pokémon";
       dispatch({
         type: "AUCTION_SETTLED",
@@ -961,15 +1542,82 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       pushAuctionNotification("won", payload.auctionId, `You won ${label} for $${payload.amount}!`);
     };
-    // Admin mass-gift delivered while this client is open. The server has
-    // already written these prizes to the cloud save; apply them to local
-    // state so they show instantly and the next autosave carries our copy up
-    // (idempotent with the server grant). Offline recipients get them via the
-    // boot cloud-adoption sync instead.
-    const onGift = (payload: { prizes?: unknown; summary?: string }) => {
+    // The server is holding a prize for us (giveaway win / admin gift). It is
+    // already durable in the PendingGrant inbox and will be folded into our
+    // next upload whether or not this event ever arrives — so this handler is
+    // purely a latency optimisation: push now, collect now, instead of waiting
+    // out the autosave throttle.
+    //
+    // It deliberately does NOT apply anything itself. Applying prizes locally
+    // AND leaving them owed server-side would double them the moment the fold
+    // lands. Exactly one component applies a prize: the server, on the upload
+    // it folded it into, echoed back through absorbGrants.
+    const onGiftPending = (payload: { grantId?: string; summary?: string }) => {
+      if (!cloudReadyRef.current) return;   // boot reconcile will upload anyway
+      // Do not race an upload that is already on the wire: it carries the same
+      // cloudVersionRef, so a second POST would earn a self-inflicted 409 and
+      // churn live state for nothing.
+      //
+      // But do not assume it collects this grant either. The server reads what
+      // an account is owed OUTSIDE the save transaction, so a row that commits
+      // after that read — which is exactly what just happened, since the nudge
+      // is emitted right after the INSERT while the POST is still running — is
+      // invisible to the request in flight. Dropping the nudge here left the
+      // prize waiting on the next PERSISTENT state change, and a paused or
+      // idle tab produces none: `paused` is not a persisted field, so a paused
+      // game uploads nothing, indefinitely.
+      //
+      // So defer it. One boolean, cleared before it re-fires, bounds this to a
+      // single extra upload per burst however many grants arrive at once.
+      if (uploadInFlightRef.current) { grantNudgeRef.current = true; return; }
+      void payload;
+      void syncNowRef.current(true);
+    };
+    // LEGACY, and kept ONLY for the minutes a rolling deploy takes.
+    //
+    // An OLD server instance still runs the pre-inbox grant path: it writes
+    // the prize straight into cloud saveData and bumps saveVersion, with no
+    // PendingGrant row, no receipt and no coordination with this client. It
+    // then emits this event. The current build emits `gift:pending` instead
+    // and writes no save at all, so the two can never both fire for one grant.
+    //
+    // Removing this handler was the tempting option and it is the wrong one.
+    // Ignoring the event does not make the prize safe — it makes it die: the
+    // old server's write is invisible to us, our next upload 409s, we re-read
+    // the version only, and the upload after that overwrites the prize with a
+    // blob that never had it. That is the original bug, and the inbox cannot
+    // heal it because there is no row and no receipt to heal from. Applying it
+    // here is what puts the prize into the blob we are about to upload.
+    //
+    // It carries no `assignedId` — there is no grant id on this path — so the
+    // reducer mints a local `gift<n>` id for a prize mon (mandatory: `mon.id`
+    // here is the admin client's template id, identical for every recipient).
+    // That means our copy and the cloud's copy of the same mon sit under
+    // different ids. What used to turn that into a DUPLICATE was the boot
+    // merge unioning the two boxes; the merge no longer unions spendable state
+    // at all — party, box, money and inventory come from one side or the
+    // other, whole — so whichever side wins, the player ends up with exactly
+    // one.
+    //
+    // Ignored if the payload looks like the new protocol (a grantId), so this
+    // path can never double-apply something the fold is also going to deliver.
+    const onGift = (payload: { prizes?: unknown; summary?: string; grantId?: unknown }) => {
+      if (typeof payload?.grantId === "string") return;
       const prizes = Array.isArray(payload?.prizes) ? payload.prizes : null;
       if (!prizes || prizes.length === 0) return;
       dispatch({ type: "RECEIVE_GIFT", payload: { prizes: prizes as any } });
+      // Tell us an old instance is still serving. This should stop appearing
+      // within minutes of a deploy; if it does not, a stale process is still
+      // handing out prizes through a path with no delivery guarantee.
+      reportClientError({
+        source: "gift-legacy-socket",
+        message: "gift:received from a pre-inbox server instance",
+      });
+      // Get it into the cloud before the throttle window would: the old server
+      // already bumped saveVersion, so our first attempt 409s, re-reads the
+      // version, and the retry carries the prize. Until that lands the prize
+      // exists only in this tab.
+      window.setTimeout(() => { void syncNowRef.current(true); }, 0);
     };
     // Admin wiped this account's save. The whole reason a reset "doesn't
     // stick" is that this client would otherwise re-upload its intact local
@@ -983,30 +1631,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
       } catch { /* private mode */ }
       if (typeof window !== "undefined") window.location.reload();
     };
-    // Admin authoritatively rewrote our save (edit / restore / item-set).
-    // Fetch it and adopt WHOLESALE so the change sticks instead of being undone
-    // by our local copy on the next autosave.
+    // The server authoritatively rewrote our save: an admin edit / restore /
+    // item-set, an auction escrow or settlement, or a prize fold. Fetch it and
+    // adopt WHOLESALE so the change sticks instead of being undone by our own
+    // copy on the next autosave.
+    //
+    // Gated on the seq inside adoptIfServerRewrote, which is what lets the
+    // session that CAUSED the bump skip its own adopt: it already applied the
+    // echo and recorded the seq, so re-loading the cloud copy would cost it
+    // nothing but the play since its upload. Every other session sees a seq it
+    // cannot account for and adopts — and that is the one that matters, since
+    // it is the one holding the stale blob.
+    //
+    // The gate is an in-memory ref, NOT localStorage, precisely because two
+    // tabs of one account share localStorage: reading it back here would let
+    // the uploading tab's write disarm the sibling that still has to adopt.
     const onSaveAdopt = async () => {
       try {
         const fresh = await api.getSave();
-        const fd = fresh.saveData as Partial<GameState> | null;
-        if (!fd || !(fd as any).playerPokemon) return;
-        const normParty = ((fd.party ?? []) as any[])
-          .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
-        const normBox = ((fd.box ?? []) as any[])
-          .filter((p: any) => p && typeof p.speciesKey === "string").map(normalizePokemon);
-        const nextState = {
-          ...fd, party: normParty, box: normBox,
-          phase: "idle", enemyPokemon: null, pendingEvents: [],
-          trainerBattle: null, bossBattle: null, healingState: null,
-          playerVolatile: null, evolutionState: null,
-        } as GameState;
-        dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
-        lastUploadedRef.current = JSON.stringify(pickPersistent(nextState));
-        if (typeof fresh.saveAdoptSeq === "number") writeAdoptSeq(fresh.saveAdoptSeq);
-        commitCloudVersion(fresh.saveVersion);
-        pushToast({ kind: "info", icon: "🛠️", text: "Your save was updated by an admin." });
-      } catch { /* transient; boot reconcile will adopt via saveAdoptSeq */ }
+        if (!adoptIfServerRewrote(fresh)) return;
+        pushToast({ kind: "info", icon: "🛠️", text: "Your save was updated." });
+      } catch { /* transient; the boot check and the next 409 both re-try */ }
     };
     // Remote control from the admin dashboard (stream/OBS accounts only).
     // Drives the same game flows the UI uses — travel, fight the Elite Four,
@@ -1028,6 +1673,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
     sock.on("auction:sold", onSold);
     sock.on("auction:won", onWon);
+    sock.on("gift:pending", onGiftPending);
     sock.on("gift:received", onGift);
     sock.on("save:reset", onSaveReset);
     sock.on("save:adopt", onSaveAdopt);
@@ -1035,6 +1681,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       sock.off("auction:sold", onSold);
       sock.off("auction:won", onWon);
+      sock.off("gift:pending", onGiftPending);
       sock.off("gift:received", onGift);
       sock.off("save:reset", onSaveReset);
       sock.off("save:adopt", onSaveAdopt);
@@ -1122,14 +1769,33 @@ function pickPersistent(state: GameState): Partial<GameState> {
 }
 
 // The one place that writes the local save. Stamps the timestamp here so
-// pickPersistent stays diffable, and the owner so the blob can never be
-// mistaken for a different account's.
-function writeLocalSave(snapshot: Partial<GameState>, ownerId: string | null): void {
+// pickPersistent stays diffable, the owner so the blob can never be mistaken
+// for a different account's, and THE SYNC BOOKKEEPING so it can never be
+// mistaken for a sibling tab's — see SYNC_VERSION_KEY above for the prize this
+// last one costs when the two live in separate keys.
+//
+// One `setItem`. That is the whole mechanism: localStorage offers no
+// multi-key transaction, so the only way to make "these bytes" and "the
+// version and adopt seq that describe these bytes" inseparable is for them to
+// be the same value. A tab that overwrites the blob necessarily overwrites the
+// bookkeeping with its own, and a tab that dies mid-update leaves neither.
+function writeLocalSave(
+  snapshot: Partial<GameState>,
+  ownerId: string | null,
+  cloudVersion: number | null,
+  adoptSeq: number,
+): void {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       ...snapshot,
       [SNAPSHOT_TS_KEY]: Date.now(),
       [OWNER_KEY]: ownerId,
+      // `null` = never synced. Written explicitly rather than omitted: the
+      // PRESENCE of __adoptseq is what marks a blob as stamped, so a stamped
+      // "never synced" blob must not fall back to a legacy key that some other
+      // tab wrote.
+      [CLOUD_VERSION_FIELD]: cloudVersion,
+      [ADOPT_SEQ_FIELD]: adoptSeq,
     }));
   } catch { /* private mode / quota — the cloud is the durable copy */ }
 }

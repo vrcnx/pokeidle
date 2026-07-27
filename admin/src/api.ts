@@ -206,8 +206,13 @@ export interface AdminGiveawayEntry {
   userId: string;
   username: string;
   isWinner: boolean;
-  /** null on a winner = prize grant failed; they still need paying. */
+  /** null on a winner = the grant itself failed; they still need paying by
+   *  hand. Non-null means the prize is durably OWED (a committed PendingGrant
+   *  row) — NOT that it is in their save yet. Never re-grant on this alone. */
   claimedAt: string | null;
+  /** The owed prize has actually been folded into their saveData. Only true
+   *  once their client has uploaded at least once since the grant. */
+  prizeDelivered?: boolean;
 }
 
 export interface AdminPollVote {
@@ -520,16 +525,38 @@ export const api = {
       `/api/admin/errors/groups?kind=${encodeURIComponent(kind)}&days=${days}`,
     ),
 
-  // Tournaments — bracket-style PvP events. v1 admin tools only:
-  // create / list / delete / register / schedule a one-off match.
-  // Player-facing browse UI is a follow-up.
+  // Tournaments — bracket-style PvP events.
+  //
+  // Players sign themselves up (POST /api/pvp/tournaments/:id/join); the
+  // endpoints here are the operator's tools. Once the bracket is
+  // generated, server/src/lib/tournamentRunner.ts drives the event on a
+  // timer — starting each pairing when both players happen to be online,
+  // applying results, and deciding a pairing whose round window expired.
+  // runTournament / resolveTournamentMatch are overrides on top of that.
   listTournaments: () =>
     req<{ tournaments: AdminTournament[] }>("GET", "/api/admin/tournaments"),
-  createTournament: (input: { name: string; levelCap: number | null; format?: string }) =>
+  createTournament: (input: {
+    name: string;
+    levelCap: number | null;
+    format?: string;
+    roundWindowMinutes?: number;
+    autoRun?: boolean;
+    prizes?: string | null;
+  }) =>
     req<{ tournament: AdminTournament }>("POST", "/api/admin/tournaments", input),
   deleteTournament: (id: string) =>
     req<{ ok: true }>("DELETE", `/api/admin/tournaments/${id}`),
-  patchTournament: (id: string, body: { name?: string; levelCap?: number | null; status?: string }) =>
+  patchTournament: (
+    id: string,
+    body: {
+      name?: string;
+      levelCap?: number | null;
+      status?: string;
+      roundWindowMinutes?: number;
+      autoRun?: boolean;
+      prizes?: string | null;
+    },
+  ) =>
     req<{ tournament: AdminTournament }>("PATCH", `/api/admin/tournaments/${id}`, body),
   addTournamentEntry: (id: string, username: string) =>
     req<{ entry: AdminTournamentEntry }>("POST", `/api/admin/tournaments/${id}/entries`, { username }),
@@ -557,7 +584,30 @@ export const api = {
       `/api/admin/tournaments/${id}/start-bracket-match`,
       { matchId },
     ),
+  /** Force a runner tick now instead of waiting for the 15s sweep. */
+  runTournament: (id: string) =>
+    req<{ actions: RunnerAction[]; tournament: AdminTournament }>(
+      "POST",
+      `/api/admin/tournaments/${id}/run`,
+    ),
+  /** Operator override: decide a pairing by hand (withdrawal, dispute,
+   *  agreed concession). Goes through the same advance path as a real
+   *  result, so the bracket can't end up in a shape the runner doesn't
+   *  understand. */
+  resolveTournamentMatch: (id: string, matchId: string, winnerUserId: string, note?: string) =>
+    req<{ tournament: AdminTournament; championId: string | null }>(
+      "POST",
+      `/api/admin/tournaments/${id}/matches/${matchId}/resolve`,
+      { winnerUserId, note },
+    ),
 };
+
+export interface RunnerAction {
+  kind: "started" | "advanced" | "walkover" | "reaped" | "completed" | "deadline-armed";
+  tournamentId: string;
+  matchId?: string;
+  detail?: string;
+}
 
 export interface BugReport {
   id: string;
@@ -708,7 +758,10 @@ export interface AdminTournamentEntry {
   userId: string;
   username: string;
   eliminated: boolean;
+  /** 1 = top seed. Assigned from ELO when the bracket is generated. */
   seed: number | null;
+  /** The rating that seed was computed from. */
+  ratingAtSeed?: number | null;
 }
 
 export interface AdminTournament {
@@ -722,6 +775,14 @@ export interface AdminTournament {
   status: string;
   bracket: string | null;
   ownerId: string;
+  /** Minutes each ROUND stays open. Default 1440 (24h). */
+  roundWindowMinutes: number;
+  /** Whether the server-side runner drives this event. */
+  autoRun: boolean;
+  championId: string | null;
+  championUsername: string | null;
+  prizes: string | null;
+  prizeGrantedAt: string | null;
   entries: AdminTournamentEntry[];
 }
 

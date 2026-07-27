@@ -2,18 +2,21 @@ import { useEffect, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminTournament } from "../api";
 
-// Tournament admin page — v1 capabilities:
-//   - Create a tournament (name + optional level cap + format)
-//   - List existing tournaments + delete
-//   - Add / remove participants by username
-//   - Start a one-off match between two registered participants
-//     (server spawns a server-authoritative @pkmn/sim battle room
-//     with format=tournament + the tournament's level cap)
+// Tournament admin page.
 //
-// Bracket auto-pairing / seeding / round advancement is a follow-up.
-// For v1 the admin manually triggers each match — the server's
-// PvpMatch table records winners so a future bracket runner can
-// read history to advance.
+// The event runs itself: once you generate the bracket,
+// server/src/lib/tournamentRunner.ts starts each pairing the moment both
+// players are online, feeds results back into the bracket, and decides
+// any pairing whose round window expired. Everything on this page is
+// either setup (create, participants, generate) or an override on top of
+// the runner (Run now, Start match, Resolve by hand).
+//
+// The one number that matters for a real event is the ROUND WINDOW.
+// ~34 accounts are online in a given hour and ~74 across a day, so a
+// synchronous 16-player draw — which needs 16 specific people in the
+// same 20 minutes — cannot happen. A window measured in hours makes the
+// round asynchronous instead: play whenever you and your opponent are
+// both on. See the runner's header for the full rationale.
 export function TournamentsPage() {
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
   const [busy, setBusy] = useState(false);
@@ -57,7 +60,9 @@ export function TournamentsPage() {
               <th>Format</th>
               <th>Lv cap</th>
               <th>Status</th>
+              <th>Round</th>
               <th>Entries</th>
+              <th>Champion</th>
               <th>Created</th>
             </tr>
           </thead>
@@ -75,12 +80,14 @@ export function TournamentsPage() {
                 <td>
                   <span className={`tag tournament-status-${t.status}`}>{t.status}</span>
                 </td>
+                <td className="dim small">{formatWindow(t.roundWindowMinutes)}{t.autoRun ? "" : " (manual)"}</td>
                 <td>{t.entries.length}</td>
+                <td className="dim small">{t.championUsername ?? <span className="dim">—</span>}</td>
                 <td className="dim small">{new Date(t.createdAt).toLocaleDateString()}</td>
               </tr>
             ))}
             {tournaments.length === 0 && !busy && (
-              <tr><td colSpan={6} className="dim center">No tournaments yet.</td></tr>
+              <tr><td colSpan={8} className="dim center">No tournaments yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -96,6 +103,7 @@ function CreateTournament({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [levelCap, setLevelCap] = useState<number | "">(50);
+  const [roundHours, setRoundHours] = useState<number | "">(24);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -107,9 +115,11 @@ function CreateTournament({ onCreated }: { onCreated: () => void }) {
       await api.createTournament({
         name: name.trim(),
         levelCap: typeof levelCap === "number" ? levelCap : null,
+        roundWindowMinutes: (typeof roundHours === "number" ? roundHours : 24) * 60,
       });
       setName("");
       setLevelCap(50);
+      setRoundHours(24);
       setOpen(false);
       onCreated();
     } catch (e: any) {
@@ -141,6 +151,22 @@ function CreateTournament({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => {
             const v = e.target.value;
             setLevelCap(v === "" ? "" : Math.max(1, Math.min(100, parseInt(v, 10) || 1)));
+          }}
+        />
+      </label>
+      <label
+        className="tournament-cap-input"
+        title="How long each ROUND stays open. Players only need to be online at the same time as their own opponent, once, inside this window."
+      >
+        Round window (h)
+        <input
+          type="number"
+          min={1}
+          max={336}
+          value={roundHours}
+          onChange={(e) => {
+            const v = e.target.value;
+            setRoundHours(v === "" ? "" : Math.max(1, Math.min(336, parseInt(v, 10) || 1)));
           }}
         />
       </label>
@@ -249,12 +275,27 @@ function TournamentDetail({
       </header>
 
       <section className="profile-section">
-        <h3>Status & lifecycle</h3>
+        <h3>Status &amp; lifecycle</h3>
+        <p className="dim small" style={{ marginTop: 0 }}>
+          Round window <strong>{formatWindow(tournament.roundWindowMinutes)}</strong>
+          {" \u00b7 "}
+          {tournament.autoRun
+            ? "the server runner starts pairings automatically and decides no-shows at the deadline."
+            : "manual \u2014 the runner will not touch this event."}
+          {tournament.championUsername && <> {"\u00b7"} champion <strong>{tournament.championUsername}</strong></>}
+        </p>
         <div className="profile-actions">
-          <button className="btn-secondary btn-small" onClick={() => setStatus("open")} disabled={busy}>Open</button>
-          <button className="btn-secondary btn-small" onClick={() => setStatus("live")} disabled={busy}>Live</button>
-          <button className="btn-secondary btn-small" onClick={() => setStatus("completed")} disabled={busy}>Completed</button>
-          <button className="btn-secondary btn-small" onClick={() => setStatus("cancelled")} disabled={busy}>Cancelled</button>
+          {/* Only legal forward transitions. The server rejects the rest
+              with a 409; offering all four is how a live event got walked
+              back to "open" and had its bracket regenerated. */}
+          {(LEGAL_NEXT[tournament.status] ?? []).map((next) => (
+            <button key={next} className="btn-secondary btn-small" onClick={() => setStatus(next)} disabled={busy}>
+              {next === "cancelled" ? "Cancel event" : `to ${next}`}
+            </button>
+          ))}
+          {(LEGAL_NEXT[tournament.status] ?? []).length === 0 && (
+            <span className="dim small">{tournament.status} is terminal.</span>
+          )}
           <span style={{ flex: 1 }} />
           <button className="btn-danger btn-small" onClick={remove} disabled={busy}>Delete tournament</button>
         </div>
@@ -269,12 +310,13 @@ function TournamentDetail({
           <p className="dim small">No participants yet.</p>
         ) : (
           <table className="users-table">
-            <thead><tr><th>Username</th><th>Seed</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Username</th><th>Seed</th><th>ELO at seed</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {tournament.entries.map((e) => (
                 <tr key={e.id}>
                   <td><strong>{e.username}</strong></td>
                   <td>{e.seed ?? <span className="dim">—</span>}</td>
+                  <td className="dim small">{e.ratingAtSeed ?? <span className="dim">—</span>}</td>
                   <td>
                     {e.eliminated
                       ? <span className="tag banned">eliminated</span>
@@ -326,11 +368,15 @@ function TournamentDetail({
   );
 }
 
-// ─── Bracket section ────────────────────────────────────────────────
+// ─── Bracket section ──────────────────────────────────
 // Three states:
-//   1. open + ≥2 entries → "Generate bracket" button
-//   2. live + bracket → render rounds + per-match controls
-//   3. completed → render final-state bracket read-only with champion
+//   1. open + >=2 entries -> "Generate bracket" button
+//   2. live + bracket -> render rounds + per-match controls
+//   3. completed -> render final-state bracket read-only with champion
+//
+// Under a running event most of these controls do nothing you have to
+// do: the runner starts pairings on co-presence and settles the round at
+// its deadline. They exist for when you want to force the issue.
 function BracketSection({
   tournament, onChange,
 }: {
@@ -340,12 +386,18 @@ function BracketSection({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const bracket = tournament.bracket
-    ? safeParseBracket(tournament.bracket)
-    : null;
+  const bracket = tournament.bracket ? safeParseBracket(tournament.bracket) : null;
 
   const generate = async () => {
-    if (!await confirm(`Generate bracket from ${tournament.entries.length} participants? Status flips to 'live'.`)) return;
+    const n = tournament.entries.length;
+    const draw = nextPow2(n);
+    if (!await confirm(
+      `Generate bracket from ${n} participant${n === 1 ? "" : "s"}?\n\n`
+      + `Draw size ${draw} (${draw - n} bye${draw - n === 1 ? "" : "s"}), `
+      + `${Math.log2(draw)} round${Math.log2(draw) === 1 ? "" : "s"}, `
+      + `${formatWindow(tournament.roundWindowMinutes)} per round.\n`
+      + `Seeds are assigned from ELO. Status flips to 'live' and no further entries can be added.`,
+    )) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -357,12 +409,27 @@ function BracketSection({
       setBusy(false);
     }
   };
+  const runNow = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.runTournament(tournament.id);
+      setMsg(res.actions.length === 0
+        ? "Nothing to do \u2014 waiting on players or on the round deadline."
+        : res.actions.map((a) => `${a.kind}${a.matchId ? ` ${a.matchId}` : ""}${a.detail ? `: ${a.detail}` : ""}`).join(" | "));
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not run.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const advance = async () => {
     setBusy(true);
     setMsg(null);
     try {
       const res = await api.advanceBracket(tournament.id);
-      if (res.championId) setMsg(`🏆 Tournament complete — champion: ${res.championId}`);
+      if (res.championId) setMsg(`Tournament complete \u2014 champion: ${res.tournament?.championUsername ?? res.championId}`);
       else setMsg("Bracket advanced.");
       onChange();
     } catch (e: any) {
@@ -384,20 +451,38 @@ function BracketSection({
       setBusy(false);
     }
   };
+  const resolve = async (matchId: string, winnerUserId: string, winnerLabel: string) => {
+    if (!await confirm(`Award ${matchId} to ${winnerLabel} without playing it?`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.resolveTournamentMatch(tournament.id, matchId, winnerUserId, "operator override");
+      onChange();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Could not resolve.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (tournament.status === "open") {
+    const n = tournament.entries.length;
+    const draw = nextPow2(n);
     return (
       <section className="profile-section">
         <h3>Bracket</h3>
         <p className="dim small" style={{ marginTop: 0 }}>
-          {tournament.entries.length < 2
+          {n < 2
             ? "Need at least 2 participants to generate a bracket."
-            : "Once you generate the bracket, no further entries can be added (without delete + re-create)."}
+            : `Draw sizes itself from sign-ups: ${n} entries \u2192 a ${draw}-slot bracket with `
+              + `${draw - n} bye${draw - n === 1 ? "" : "s"} folded to the top seeds, `
+              + `${Math.log2(draw)} round${Math.log2(draw) === 1 ? "" : "s"} of ${formatWindow(tournament.roundWindowMinutes)}. `
+              + "Seeds come from ELO. Once generated, no further entries can be added (without delete + re-create)."}
         </p>
         <button
           className="btn-primary btn-small"
           onClick={generate}
-          disabled={busy || tournament.entries.length < 2}
+          disabled={busy || n < 2}
         >
           Generate bracket
         </button>
@@ -421,16 +506,27 @@ function BracketSection({
         <h3>Bracket</h3>
         {tournament.status === "live" && (
           <div className="profile-actions">
+            <button className="btn-primary btn-small" onClick={runNow} disabled={busy}>
+              Run now
+            </button>
             <button className="btn-secondary btn-small" onClick={advance} disabled={busy}>
               Advance bracket
             </button>
           </div>
         )}
       </header>
+      {tournament.status === "live" && (
+        <p className="dim small" style={{ marginTop: 0 }}>
+          The runner sweeps every 15s: it starts a pairing as soon as both players are
+          online, applies the result, and at the round deadline awards a walkover to
+          whoever turned up (higher seed if neither did). "Run now" just does that
+          immediately instead of on the next sweep.
+        </p>
+      )}
       <div className="bracket-grid">
         {bracket.rounds.map((round) => (
           <div className="bracket-round" key={round.index}>
-            <header>Round {round.index + 1}</header>
+            <header>{roundName(round.index, bracket.rounds.length)}</header>
             {round.matches.map((m) => (
               <BracketMatchCard
                 key={m.id}
@@ -438,6 +534,7 @@ function BracketSection({
                 tournamentStatus={tournament.status}
                 busy={busy}
                 onStart={() => startMatch(m.id)}
+                onResolve={resolve}
               />
             ))}
           </div>
@@ -448,21 +545,20 @@ function BracketSection({
   );
 }
 
-// ─── Bracket match card ─────────────────────────────────────────────
+// ─── Bracket match card ──────────────────────────────
 function BracketMatchCard({
-  match, tournamentStatus, busy, onStart,
+  match, tournamentStatus, busy, onStart, onResolve,
 }: {
   match: BracketMatch;
   tournamentStatus: string;
   busy: boolean;
   onStart: () => void;
+  onResolve: (matchId: string, winnerUserId: string, winnerLabel: string) => void;
 }) {
   const aLabel = slotLabel(match.a);
   const bLabel = slotLabel(match.b);
-  const ready =
-    match.a.kind === "player" && match.b.kind === "player"
-    && !match.battleId && !match.winnerId
-    && tournamentStatus === "live";
+  const bothPlayers = match.a.kind === "player" && match.b.kind === "player";
+  const ready = bothPlayers && !match.battleId && !match.winnerId && tournamentStatus === "live";
   const inProgress = !!match.battleId && !match.winnerId;
   const winnerLabel =
     match.winnerId
@@ -470,27 +566,59 @@ function BracketMatchCard({
        : match.b.kind === "player" && match.b.userId === match.winnerId ? bLabel
        : "(winner)")
       : null;
+  const overdue = !match.winnerId && match.deadlineAt != null && Date.now() > match.deadlineAt;
 
   return (
     <div className={`bracket-match ${match.winnerId ? "resolved" : ""} ${inProgress ? "in-progress" : ""}`}>
       <div className={`bracket-slot ${winnerLabel === aLabel ? "winner" : ""}`}>{aLabel}</div>
       <div className={`bracket-slot ${winnerLabel === bLabel ? "winner" : ""}`}>{bLabel}</div>
       {ready && (
-        <button className="btn-primary btn-tiny bracket-start" onClick={onStart} disabled={busy}>
-          Start match
-        </button>
+        <div className="bracket-actions">
+          <button className="btn-primary btn-tiny bracket-start" onClick={onStart} disabled={busy}>
+            Start match
+          </button>
+          {match.a.kind === "player" && (
+            <button
+              className="btn-ghost btn-tiny"
+              title="Award without playing"
+              onClick={() => onResolve(match.id, (match.a as any).userId, aLabel)}
+              disabled={busy}
+            >
+              {"\u2190"} award
+            </button>
+          )}
+          {match.b.kind === "player" && (
+            <button
+              className="btn-ghost btn-tiny"
+              title="Award without playing"
+              onClick={() => onResolve(match.id, (match.b as any).userId, bLabel)}
+              disabled={busy}
+            >
+              award {"\u2192"}
+            </button>
+          )}
+        </div>
       )}
       {inProgress && <div className="bracket-status dim small">In progress</div>}
-      {match.winnerId && winnerLabel && (
-        <div className="bracket-status">→ {winnerLabel}</div>
+      {!match.winnerId && match.deadlineAt != null && (
+        <div className={`bracket-status dim small ${overdue ? "overdue" : ""}`}>
+          {overdue ? "deadline passed \u2014 next sweep decides it" : `due ${new Date(match.deadlineAt).toLocaleString()}`}
+        </div>
       )}
+      {match.winnerId && winnerLabel && (
+        <div className="bracket-status">
+          {"\u2192"} {winnerLabel}
+          {match.winBy && match.winBy !== "battle" && <span className="dim small"> ({match.winBy})</span>}
+        </div>
+      )}
+      {match.note && <div className="bracket-note dim small">{match.note}</div>}
     </div>
   );
 }
 
-// ─── Bracket types (mirror of server/src/lib/bracket.ts) ───────────
+// ─── Bracket types (mirror of server/src/lib/bracket.ts) ───────
 type BracketSlot =
-  | { kind: "player"; userId: string; username: string }
+  | { kind: "player"; userId: string; username: string; seed?: number | null }
   | { kind: "bye" }
   | { kind: "winnerOf"; matchId: string }
   | { kind: "tbd" };
@@ -500,10 +628,23 @@ interface BracketMatch {
   b: BracketSlot;
   battleId?: string | null;
   winnerId?: string | null;
+  winBy?: "battle" | "bye" | "walkover" | "forfeit" | "admin" | null;
+  deadlineAt?: number | null;
+  attempts?: number;
+  note?: string | null;
 }
 interface Bracket {
   rounds: { index: number; matches: BracketMatch[] }[];
 }
+
+/** Mirror of the server's status state machine (routes/admin.ts). Kept
+ *  in sync by hand; the server is the authority and 409s anything else. */
+const LEGAL_NEXT: Record<string, string[]> = {
+  open: ["live", "cancelled"],
+  live: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
 
 function safeParseBracket(s: string): Bracket | null {
   try {
@@ -514,8 +655,30 @@ function safeParseBracket(s: string): Bracket | null {
 }
 
 function slotLabel(s: BracketSlot): string {
-  if (s.kind === "player") return s.username || s.userId;
+  if (s.kind === "player") return s.seed ? `#${s.seed} ${s.username || s.userId}` : (s.username || s.userId);
   if (s.kind === "bye") return "(bye)";
   if (s.kind === "winnerOf") return "TBD";
-  return "—";
+  return "\u2014";
+}
+
+function roundName(index: number, total: number): string {
+  const fromEnd = total - 1 - index;
+  if (fromEnd === 0) return "Final";
+  if (fromEnd === 1) return "Semi-finals";
+  if (fromEnd === 2) return "Quarter-finals";
+  return `Round ${index + 1}`;
+}
+
+function nextPow2(n: number): number {
+  let p = 1;
+  while (p < n) p *= 2;
+  return p;
+}
+
+/** "24h", "90m", "3d" \u2014 short enough for a table cell. */
+function formatWindow(minutes: number): string {
+  if (!Number.isFinite(minutes)) return "\u2014";
+  if (minutes % (60 * 24) === 0) return `${minutes / (60 * 24)}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
 }

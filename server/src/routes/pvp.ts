@@ -173,7 +173,7 @@ app.get("/tournaments", requireUser, async (c) => {
     take: 50,
     include: {
       entries: {
-        select: { userId: true, username: true, eliminated: true, seed: true },
+        select: { userId: true, username: true, eliminated: true, seed: true, ratingAtSeed: true },
       },
     },
   });
@@ -187,7 +187,7 @@ app.get("/tournaments/:id", requireUser, async (c) => {
     where: { id },
     include: {
       entries: {
-        select: { userId: true, username: true, eliminated: true, seed: true },
+        select: { userId: true, username: true, eliminated: true, seed: true, ratingAtSeed: true },
       },
     },
   });
