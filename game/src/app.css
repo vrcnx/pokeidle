@@ -17468,6 +17468,17 @@ html, body {
    this is a second grid template, not a different UI. */
 .dashboard-wide {
   max-width: none;
+  /* `.dashboard` sets `justify-content: center`, which is right for the
+     classic fixed-width grid — centring 1160px of tracks in a wider viewport
+     is the point there. Wide inherits it, so any time the tracks did not
+     consume the full width the ENTIRE grid centred itself and left symmetric
+     dead space at both edges. How much depended on the right rail's CONTENT,
+     so switching that rail from Mart (wide item rows) to Map (narrow rows)
+     visibly shrank the whole layout and pulled it off the screen edges.
+     Stretch instead, and pin the width, so the shell is identical on every
+     tab regardless of what the rail is showing. */
+  width: 100%;
+  justify-content: stretch;
   /* The right rail now carries the Map/Mart/Bag/PC/Dex tabs, so it needs a
      real content width rather than the narrow 300px status rail it was. */
   grid-template-columns: minmax(280px, 0.8fr) minmax(0, 2.1fr) minmax(360px, 1.1fr);
