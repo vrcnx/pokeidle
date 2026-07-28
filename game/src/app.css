@@ -5,6 +5,8 @@
    - Consistent radii (4 / 8 / 12), spacing rhythm (4px base), motion (120/180/240ms) */
 
 :root {
+  /* Battle sprite scale. See .enemy-sprite/.player-sprite. */
+  --sprite-boost: 1.3;
   /* ── Palette ── unified TRUE-BLACK neutrals. One elevation ladder shared
      by the whole UI (game panels AND popups), stepping up from pure black.
      No hue anywhere; the Pokémon sprites are the only colour. ── */
@@ -4284,9 +4286,19 @@ body.dnd-active {
   }
   .enemy-sprite, .player-sprite {
     /* Reference canvas = the largest sprite in the Gen-V animated set,
-       110 × 100 px (Rayquaza front 110×98, back 101×107). */
-    width:  calc(var(--sw, 110) * min(100cqw / 110, 100cqh / 100));
-    height: calc(var(--sh, 100) * min(100cqw / 110, 100cqh / 100));
+       110 × 100 px (Rayquaza front 110×98, back 101×107).
+
+       --sprite-boost scales the whole system up. Sizing honestly against
+       the LARGEST sprite is what keeps a Ditto small next to an Onix, but
+       it also means the typical species (60-80px wide) only ever fills
+       ~55-70% of its slot, so the arena read as mostly empty. The boost
+       keeps every sprite's size relative to every other — it multiplies
+       the shared factor, not the per-species one — and only the genuine
+       giants run into max-width/max-height, which is fine because those
+       are the ones already meant to fill the frame. Tune this one number
+       to taste; nothing else needs to move. */
+    width:  calc(var(--sw, 110) * var(--sprite-boost, 1) * min(100cqw / 110, 100cqh / 100));
+    height: calc(var(--sh, 100) * var(--sprite-boost, 1) * min(100cqw / 110, 100cqh / 100));
   }
 }
 @media (max-width: 480px) {
