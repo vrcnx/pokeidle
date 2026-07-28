@@ -29,6 +29,7 @@ import {
   shopEntry,
   usableBallCount,
 } from "../utils/streamShop";
+import { pickRematch, regionCleared, allRegionsCleared } from "../utils/streamRematch";
 import {
   loadStreamMemory,
   persistStreamMemory,
@@ -210,6 +211,43 @@ const FRONTIER_SKIP_TTL_MS = 60 * 60_000;
 const GRIND_VARIETY = 3;
 const GRIND_ROTATE_MS = 4 * 60_000;
 
+/** Floor between two endgame rematches (rung 16c).
+ *
+ *  This is the rung's PRIMARY anti-spin guard, not a taste setting — see the
+ *  rung for the full argument. Every other rung on this ladder is falsified
+ *  by its own dispatch (a heal fills the HP it was chosen for, a release
+ *  shortens the box, a badge lands in `defeatedGyms`); a rematch changes
+ *  nothing the selector reads, so this gap is what stops it.
+ *
+ *  Four minutes, and the number is bounded from both sides:
+ *   - Below, by the raid. RAID_MIN_GAP_MS is 30 min and RAID_MAX_MS is 12,
+ *     so a raid-free stretch is ~18 min of ladder; at 4 min that stretch
+ *     carries ~4 rematches instead of 18 min of Rattatas.
+ *   - Above, by the lap. Kanto and Johto both have 8 gyms, so a lap is 9
+ *     events ≈ 36 min: a viewer sees every leader in the region, and one
+ *     full gauntlet, inside about half an hour. Doubling this to 8 min would
+ *     put a lap at over an hour, which is longer than most of the audience
+ *     stays — the rotation would read as "the same two leaders" to anyone
+ *     watching a single sitting, which is the exact complaint this rung
+ *     exists to answer.
+ *   - And against the rest of the ladder: a rematch is one dispatch, so the
+ *     rung takes at most 1 tick in 40 (TICK_MS 6 s into 240 s). Rung 17 and
+ *     the stuck detector below it keep 97.5% of ticks. */
+const REMATCH_GAP_MS = 4 * 60_000;
+/** Floor between two League gauntlets, on top of the once-per-lap rotation.
+ *
+ *  The rotation alone already makes the gauntlet 8x rarer than gym rematches
+ *  in general — one capstone per eight leaders. But the rotation SKIPS
+ *  ineligible slots, and in the degenerate case where every gym slot is
+ *  skipped (a run of losses widening each leader's margin past our level, a
+ *  region whose gym towns re-lock) the cursor would land back on the League
+ *  every single time — turning the hardest content in the game into the
+ *  default at one gauntlet per REMATCH_GAP_MS, precisely when the party is
+ *  demonstrably struggling. Twenty minutes never binds in normal operation
+ *  (a healthy lap already spaces gauntlets ~36 min apart) and caps the
+ *  degenerate case at 3/hour instead of 15. */
+const REMATCH_LEAGUE_MIN_GAP_MS = 20 * 60_000;
+
 /** Floor between two lead changes. The lead rung is already self-limiting
  *  (see rung 10), but a rung that physically cannot fire twice inside this
  *  window can never become a tick sink again however the reducer changes. */
@@ -258,7 +296,11 @@ const BOX_TRIM_RETRY_MS = 60_000;
 
 type Intent =
   | { kind: "gym"; gymId: string; locationId: string; until: number }
-  | { kind: "league"; locationId: string; until: number };
+  | { kind: "league"; locationId: string; until: number }
+  // Endgame rematches carry their own kinds because the `gym` / `eliteFour`
+  // commands refuse an already-beaten opponent outright.
+  | { kind: "rematch"; gymId: string; locationId: string; until: number }
+  | { kind: "leagueRematch"; regionId: string; locationId: string; until: number };
 
 /** An item action whose effect we intend to confirm on the next tick. Every
  *  item path in the reducer fails SILENTLY — an unsellable price, a missing
@@ -443,10 +485,42 @@ export function useStreamAutoPlay(): void {
   const trimStalled = useRef(false);
   const holdWatch = useRef<{ locationId: string; have: number; since: number } | null>(null);
   const grindPick = useRef<{ locationId: string; at: number } | null>(null);
+  /** Where the rematch rotation is up to. Pinned to a region for the whole
+   *  lap so the account cannot ping-pong between Kanto and Johto bosses; the
+   *  region is only re-chosen at a lap boundary (see rung 16c). */
+  const rematchLap = useRef<{ regionId: string; index: number } | null>(null);
+  const lastRematchAt = useRef(0);
+  const lastLeagueAt = useRef(0);
   const lastStuckLog = useRef(0);
   const strandedNoted = useRef(false);
 
   if (state.bossBattle) lastBossId.current = state.bossBattle.bossId;
+
+  // Rematch cadence is measured from the END of the last boss fight, not from
+  // when we asked for one. Stamping only at dispatch time would measure the
+  // gap from the START, and a League gauntlet is five fights back to back —
+  // so by the time it finished its own cooldown would already be satisfied
+  // and a gym rematch would begin on the next tick, which is not a rotation,
+  // it is wall-to-wall boss fights. Re-stamping on every render that still
+  // shows a live boss keeps the gap meaning what the constant says.
+  //
+  // Reading the BATTLE rather than our own intent also means an operator's
+  // manual gym run, and rung 12/13's genuine first-time progression fights,
+  // cool the loop down exactly as a rematch does — the director will not
+  // chase the champion's own coronation with a Falkner rematch four minutes
+  // later. `pendingBossBattle` is included because START_BOSS_BATTLE parks
+  // the boss there through the heal cinematic, when `bossBattle` is still
+  // null.
+  //
+  // This is a REFINEMENT of the cooldown, never the whole of it: the rung
+  // stamps `lastRematchAt` itself before dispatching, because a dispatch that
+  // silently no-ops produces no boss battle at all and so would never reach
+  // this line.
+  if (state.bossBattle || state.pendingBossBattle) {
+    lastRematchAt.current = Date.now();
+    const type = state.bossBattle?.bossType ?? state.pendingBossBattle?.battle.bossType;
+    if (type === "e4" || type === "champion") lastLeagueAt.current = Date.now();
+  }
 
   // Blame for a whiteout has to be decided HERE, before the trackers below
   // adopt this render's state — otherwise a raid loss is recorded against an
@@ -773,10 +847,19 @@ export function useStreamAutoPlay(): void {
       if (s.currentLocation !== go.locationId) return;
 
       intent.current = null;
-      if (go.kind === "gym") {
-        executeStreamCommand({ kind: "gym", gymId: go.gymId }, s, dispatch, "director");
-      } else {
-        executeStreamCommand({ kind: "eliteFour" }, s, dispatch, "director");
+      switch (go.kind) {
+        case "gym":
+          executeStreamCommand({ kind: "gym", gymId: go.gymId }, s, dispatch, "director");
+          break;
+        case "league":
+          executeStreamCommand({ kind: "eliteFour" }, s, dispatch, "director");
+          break;
+        case "rematch":
+          executeStreamCommand({ kind: "rematch", bossId: go.gymId }, s, dispatch, "director");
+          break;
+        case "leagueRematch":
+          executeStreamCommand({ kind: "leagueRematch", regionId: go.regionId }, s, dispatch, "director");
+          break;
       }
     }, INTENT_POLL_MS);
     return () => clearInterval(id);
@@ -1423,6 +1506,144 @@ export function useStreamAutoPlay(): void {
           return;
         }
         if (town) return; // already earning — hold here, don't fall through to grind
+      }
+
+      // 16c. ENDGAME REMATCH LOOP. Once a region is finished this ladder has
+      //      nothing left below the raid but the wild-route rotation, and that
+      //      is a dead broadcast: wild battles pay NOTHING (reducer.ts:2301 —
+      //      money enters the save only via endTrainerBattle and
+      //      endBossBattle, which is also why `wildMoneyReward` is dead code),
+      //      the dex stops moving once the reachable species are caught, and a
+      //      level-100 party punching Rattatas is what the account does for
+      //      the other 29 minutes of every raid cycle. Refighting bosses fixes
+      //      all three at once: endBossBattle pays its full prize on EVERY win
+      //      (32 x the roster's ace — the money is computed before any
+      //      first-time check), the champion hands over a Victory Token every
+      //      single time, and a gym leader with a real roster and sprites is
+      //      the most watchable thing the game owns.
+      //
+      //      POSITION IS LOAD-BEARING, in both directions:
+      //       - BELOW the raid (15), the box trim's stand-down (Tier 2), the
+      //         release drip (16) and the EARN rung (16b), so a rematch can
+      //         never take a tick any of those wanted. It also sits under the
+      //         `operatorHoldMsLeft` return at the top of the discretionary
+      //         section, so the operator always outranks it. Inside a raid
+      //         `blocked()` is true and this is unreachable anyway; `!inRaid`
+      //         is belt and braces for the same reason rung 0.2 stamps twice.
+      //       - ABOVE the grind (17), which is not a preference but a
+      //         requirement: rung 17 `return`s on every path once it has a
+      //         target — travelling, or standing where it wants to be — so
+      //         anything below it is unreachable code. This rung has to
+      //         out-rank the thing it was written to replace.
+      //
+      //      WHAT STOPS IT — the whole design problem, stated plainly. Every
+      //      other rung here is falsified by its own dispatch: a heal fills
+      //      the HP that selected it, a release shortens the box, a badge
+      //      lands in `defeatedGyms` and rung 12 moves on. A rematch changes
+      //      NOTHING the selector reads — `defeatedGyms` and
+      //      `defeatedEliteFour` already contain these ids and endBossBattle
+      //      re-adds neither — so "region is finished" is still true one
+      //      millisecond after the win, and will be true for the rest of the
+      //      broadcast. That is the shape that has produced six defects in
+      //      this file, so the guard is explicit and layered:
+      //
+      //       1. THE COOLDOWN, and it alone is sufficient. `lastRematchAt` is
+      //          stamped HERE, before dispatching, exactly as rung 15 stamps
+      //          `lastRaidAt`. It is therefore stamped even if the command
+      //          refuses, even if the dispatch no-ops, even if the fight is
+      //          lost, and even if a future reducer stops changing state at
+      //          all. The rung physically cannot fire twice inside
+      //          REMATCH_GAP_MS — one tick in 40 — regardless of what the
+      //          rest of the app does. That is the starvation proof for rung
+      //          17 and the stuck detector below, and it depends on this ref
+      //          and nothing else.
+      //       2. THE CURSOR. `pickRematch` advances the lap on every fire, so
+      //          even in the impossible case that the cooldown were bypassed
+      //          the rung would walk the roster rather than hammer one
+      //          leader, and would reach the League within one lap. It is
+      //          also what makes the rotation watchable rather than correct.
+      //       3. THE IDLE GATE, which does most of the work in practice but
+      //          is deliberately NOT relied upon. START_BOSS_BATTLE sets
+      //          `phase: "healing"` (reducer.ts:1932-1935), so `blocked()` is
+      //          true on the very next tick and stays true through the
+      //          cinematic, the fight, and all five fights of a gauntlet. The
+      //          reason it is not trusted alone is concrete: the same action
+      //          returns the state UNCHANGED when `trainerTeam[0]` is missing
+      //          (reducer.ts:1920), and a no-op dispatch leaves the phase at
+      //          idle — which is how rungs 10 and 12 came to fire forever. So
+      //          `pickRematch` skips any roster entry with an empty team, and
+      //          the command re-checks the BUILT team before dispatching.
+      //
+      //      And when nothing qualifies it does not fire at all: no dispatch,
+      //      no cooldown stamp, no `return` — it falls through to the grind.
+      //      The scan is bounded at one lap, so that costs nine comparisons.
+      //
+      //      It cannot pre-empt progression, either. `regionCleared` is false
+      //      while ANY gym, Elite Four member or champion in the region is
+      //      still undefeated, and rungs 12 and 13 sit far above this one, so
+      //      a region with anything left to win still pushes forward. On the
+      //      live account — Johto, seven gyms to go — this rung is dormant by
+      //      construction and stays dormant until Clair and the League fall.
+      if (
+        !holding &&
+        !s.inRaid &&
+        now - lastRematchAt.current > REMATCH_GAP_MS &&
+        // Global, not per-region: standing in a finished Kanto must not make
+        // this rung agree with rungs 12/13 that there is nothing left while
+        // Johto still has gyms. Rematching is the last resort.
+        allRegionsCleared(s)
+      ) {
+        // Prefer the region we are standing in, but only re-choose it at a
+        // LAP BOUNDARY. Re-deriving it every tick would hand the choice to
+        // rung 17, which ranks routes across both regions at once — so a
+        // grind pick in the other region between two rematches would strand
+        // the rotation halfway through one roster and restart it in the
+        // other, which is the ping-pong this pin exists to prevent. Pinning
+        // also means a lap is a coherent piece of television: eight leaders
+        // and a gauntlet from one region, in badge order.
+        const lap = rematchLap.current;
+        const pinned = lap ? regions[lap.regionId] : undefined;
+        const repin = !lap || !pinned || lap.index === 0 || !regionCleared(s, pinned);
+        const where = repin ? region : pinned!;
+        const cursor = lap && lap.regionId === where.id ? lap.index : 0;
+
+        const target = pickRematch(s, where, cursor, {
+          best,
+          // Reuses the ladder's existing level-margin idea and the bossLosses
+          // strike map rather than inventing a parallel one: a leader who has
+          // beaten us recently demands LOSS_MARGIN_STEP more headroom each
+          // time, and is simply skipped while we cannot clear the bar. Losing
+          // a rematch on camera is worse than not having one.
+          gymMargin: GYM_LEVEL_MARGIN,
+          leagueMargin: E4_LEVEL_MARGIN,
+          lossStep: LOSS_MARGIN_STEP,
+          losses: (id) => strikeCount(mem.bossLosses, id, DANGER_TTL_MS),
+          now,
+          leagueReadyAt: lastLeagueAt.current + REMATCH_LEAGUE_MIN_GAP_MS,
+        });
+
+        if (target) {
+          const lapLength = where.gymLeaders.length + 1;
+          rematchLap.current = { regionId: where.id, index: (target.slot + 1) % lapLength };
+          // Guard 1. Before the dispatch, unconditionally — see above.
+          lastRematchAt.current = now;
+          if (target.kind === "league") lastLeagueAt.current = now;
+          // Travel and challenge are separate steps for the same reason as
+          // rung 12: the challenge is only legal once we have landed, and a
+          // 6 s tick loses the race for an idle gap in a town full of
+          // trainers, so the arrival is handed to the fast intent poll.
+          if (s.currentLocation !== target.locationId) {
+            intent.current = target.kind === "gym"
+              ? { kind: "rematch", gymId: target.bossId, locationId: target.locationId, until: now + INTENT_TTL_MS }
+              : { kind: "leagueRematch", regionId: where.id, locationId: target.locationId, until: now + INTENT_TTL_MS };
+            executeStreamCommand({ kind: "travel", locationId: target.locationId }, s, dispatch, "director");
+          } else if (target.kind === "gym") {
+            executeStreamCommand({ kind: "rematch", bossId: target.bossId }, s, dispatch, "director");
+          } else {
+            executeStreamCommand({ kind: "leagueRematch", regionId: where.id }, s, dispatch, "director");
+          }
+          return;
+        }
       }
 
       // 17. Otherwise grind somewhere useful. Normally that's near the top of
