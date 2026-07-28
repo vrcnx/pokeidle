@@ -15,7 +15,7 @@ import {
 import { openTeamBuilder } from "./TeamBuilderModal";
 import { openReplay } from "./PvpReplayModal";
 import { IconSwords, IconCrown, IconClose } from "./Icon";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { PVP_TIERS, tierFor, tierProgress, ratingToNextTier } from "../state/pvpTiers";
 
 // ──────────────────────────────────────────────────────────────────
@@ -177,8 +177,9 @@ export function PvpHubModal() {
             <div className="pvp2-portrait-wrap">
               <div className="pvp2-portrait" style={{ boxShadow: `0 0 18px ${tier.glow}` }}>
                 {teamForStrip[0] ? (
-                  <img
-                    src={pokemonSpriteUrl(teamForStrip[0].speciesKey, false, teamForStrip[0].isShiny)}
+                  <PokemonSprite
+                    speciesKey={teamForStrip[0].speciesKey}
+                    isShiny={teamForStrip[0].isShiny}
                     alt=""
                     width={72}
                     height={72}
@@ -241,8 +242,9 @@ export function PvpHubModal() {
                     <div key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
                       {mon
                         ? (
-                          <img
-                            src={pokemonSpriteUrl(mon.speciesKey, false, mon.isShiny)}
+                          <PokemonSprite
+                            speciesKey={mon.speciesKey}
+                            isShiny={mon.isShiny}
                             alt=""
                             width={28}
                             height={28}

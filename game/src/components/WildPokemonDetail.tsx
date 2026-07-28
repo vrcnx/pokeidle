@@ -1,11 +1,14 @@
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { encounters as encounterTable } from "../data/encounters";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { calcAllStats, perfectIVs } from "../utils/stats";
 import { catchProbability } from "../utils/catching";
 import { rarityFromRate, RARITY_LABEL, rateForSpecies } from "../utils/rarity";
+import { REPEL_TIERS } from "../utils/encounters";
+import { consumables } from "../data/consumables";
 import { useT } from "../i18n/useT";
+import type { ActiveEffect } from "../types";
 
 // Inline detail panel that renders below the Wild Pokemon grid when a tile
 // is clicked. Mirrors the original: rarity tier, encounter % rate, types,
@@ -47,15 +50,37 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
   // gives the player an idea of what they'd be catching.
   const stats = calcAllStats(species, encounter.maxLevel, perfectIVs());
   const maxStat = Math.max(...Object.values(stats));
-  const repelOwned = state.inventory.repel ?? 0;
   const honeyOwned = state.inventory.honey ?? 0;
 
-  const repelActive = state.activeEffects.find(
-    (e) => e.itemId === "repel" && e.routeKey === routeKey && e.speciesKey === speciesKey
-  );
-  const honeyActive = state.activeEffects.find(
-    (e) => e.itemId === "honey" && e.routeKey === routeKey && e.speciesKey === speciesKey
-  );
+  const effectOn = (itemId: string): ActiveEffect | undefined =>
+    state.activeEffects.find(
+      (e) => e.itemId === itemId && e.routeKey === routeKey && e.speciesKey === speciesKey
+    );
+
+  // One row per repel tier. This panel is the only place in the game that
+  // can start a repel, and it used to be hardcoded to the base "repel" id —
+  // so Super Repel and Max Repel were purchasable in five marts and could
+  // never be used. Build the buttons off REPEL_TIERS so a new tier is
+  // playable the moment it exists in consumables.ts.
+  const repelTiers = REPEL_TIERS.map((id) => ({
+    id,
+    def: consumables[id],
+    owned: state.inventory[id] ?? 0,
+    active: effectOn(id),
+  }));
+  // Only ONE repel effect can exist per species+route (the tiers share a
+  // slot — see USE_EFFECT_ITEM), so this is "the repel running here".
+  const repelRunning = repelTiers.find((r) => r.active)?.active;
+  const repelCap = repelRunning
+    ? (consumables[repelRunning.itemId]?.duration ?? 0) * 3
+    : 0;
+  // Hide tiers the player neither owns nor has running, but always keep at
+  // least one row so the affordance stays discoverable when the bag is empty.
+  const shownRepels = repelTiers.filter((r) => r.owned > 0 || r.active);
+  if (shownRepels.length === 0 && repelTiers[0]) shownRepels.push(repelTiers[0]);
+
+  const honeyActive = effectOn("honey");
+  const honeyDef = consumables.honey;
 
   // Catch chance with a Poké Ball (the cheapest reference point).
   const catchPct = Math.round(catchProbability(speciesKey, "pokeball") * 100);
@@ -64,8 +89,8 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
     <div className="wild-detail">
       <button className="wild-detail-close" onClick={onClose}>×</button>
       <div className="wild-detail-head">
-        <img
-          src={pokemonSpriteUrl(speciesKey, false, false)}
+        <PokemonSprite
+          speciesKey={speciesKey}
           alt={species.name}
           width={56}
           height={56}
@@ -96,29 +121,74 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
       </div>
 
       <div className="wild-detail-actions">
-        <button
-          disabled={!repelOwned}
-          className={repelActive ? "active" : ""}
-          title={t("Halves this species' encounter weight on this route for 500 battles")}
-          onClick={() => dispatch({
-            type: "USE_EFFECT_ITEM",
-            payload: { itemId: "repel", speciesKey, routeKey },
-          })}
-        >
-          {t("Repel")} ({repelOwned}){repelActive && ` · ${repelActive.battlesRemaining} left`}
-        </button>
+        {shownRepels.map(({ id, def, owned, active }) => {
+          const atCap = !!repelRunning && repelRunning.battlesRemaining >= repelCap;
+          const extending = !!repelRunning && !active;
+          return (
+            <button
+              key={id}
+              disabled={owned <= 0 || atCap}
+              className={active ? "active" : ""}
+              title={
+                owned <= 0 && !active
+                  ? `${t("None in your bag — buy")} ${def.name} ${t("at a Poké Mart")}`
+                  : atCap
+                  ? `${t("Already at the stacking cap of")} ${repelCap.toLocaleString()} ${t("battles")}`
+                  : `${t("Halves this species' encounter weight on this route for")} ${def.duration.toLocaleString()} ${t("battles")}.` +
+                    (extending
+                      ? ` ${t("Adds to the repel already running here — the tiers share one timer and are equally strong.")}`
+                      : "")
+              }
+              onClick={() => dispatch({
+                type: "USE_EFFECT_ITEM",
+                payload: { itemId: id, speciesKey, routeKey },
+              })}
+            >
+              {t(def.name)} ({owned})
+              {active && ` · ${active.battlesRemaining.toLocaleString()} ${t("left")}`}
+            </button>
+          );
+        })}
         <button
           disabled={!honeyOwned}
           className={honeyActive ? "active" : ""}
-          title={t("Doubles this species' encounter weight on this route for 500 battles")}
+          title={`${t("Doubles this species' encounter weight on this route for")} ${honeyDef.duration.toLocaleString()} ${t("battles")}.`}
           onClick={() => dispatch({
             type: "USE_EFFECT_ITEM",
             payload: { itemId: "honey", speciesKey, routeKey },
           })}
         >
-          {t("Honey")} ({honeyOwned}){honeyActive && ` · ${honeyActive.battlesRemaining} left`}
+          {t("Honey")} ({honeyOwned})
+          {honeyActive && ` · ${honeyActive.battlesRemaining.toLocaleString()} ${t("left")}`}
         </button>
       </div>
+
+      {/* What is actually running on THIS species right now. The buttons
+          alone couldn't say this before: a Super/Max Repel left the base
+          Repel button unlit, so a running repel looked like no repel. */}
+      {(repelRunning || honeyActive) && (
+        <div className="wild-detail-effects">
+          {repelRunning && (
+            <small className={repelRunning.paused ? "dim" : ""}>
+              {t(consumables[repelRunning.itemId]?.name ?? "Repel")} ·{" "}
+              {repelRunning.battlesRemaining.toLocaleString()} / {repelCap.toLocaleString()}{" "}
+              {t("battles left")} —{" "}
+              {repelRunning.paused
+                ? t("paused, not applying")
+                : t("encounter weight halved")}
+            </small>
+          )}
+          {honeyActive && (
+            <small className={honeyActive.paused ? "dim" : ""}>
+              {t("Honey")} · {honeyActive.battlesRemaining.toLocaleString()} /{" "}
+              {(honeyDef.duration * 3).toLocaleString()} {t("battles left")} —{" "}
+              {honeyActive.paused
+                ? t("paused, not applying")
+                : t("encounter weight doubled")}
+            </small>
+          )}
+        </div>
+      )}
 
       <div className="wild-detail-stats">
         <small className="dim">{t("Stats at L")}{encounter.maxLevel}{t(" (perfect IVs):")}</small>

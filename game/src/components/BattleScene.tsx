@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useT } from "../i18n/useT";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { routes } from "../data/routes";
 import { useDamageFlash } from "../hooks/useDamageFlash";
 import { TrainerIntro } from "./TrainerIntro";
@@ -128,12 +129,15 @@ export function BattleScene() {
             ].join(" ")}
             data-status={enemy.status ?? undefined}
           >
-            <img
+            {/* Sizing note: PokemonSprite publishes each sprite's intrinsic
+                pixel size as --sw / --sh, and .enemy-sprite scales off those
+                rather than stretching to fill the slot. See app.css. */}
+            <PokemonSprite
               className="enemy-sprite"
-              src={pokemonSpriteUrl(enemy.speciesKey, false, enemy.isShiny)}
+              speciesKey={enemy.speciesKey}
+              isShiny={enemy.isShiny}
               alt={enemy.name}
               style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
             {enemy.status && <SpriteStatusBadge status={enemy.status} />}
           </div>
@@ -147,12 +151,13 @@ export function BattleScene() {
             className={`sprite-slot player-slot ${playerBump > 0 ? `bump-${playerBump % 2}` : ""} ${player.currentHp <= 0 ? "fainted" : ""}`}
             data-status={player.status ?? undefined}
           >
-            <img
+            <PokemonSprite
               className="player-sprite"
-              src={pokemonSpriteUrl(player.speciesKey, true, player.isShiny)}
+              speciesKey={player.speciesKey}
+              isBack
+              isShiny={player.isShiny}
               alt={player.name}
               style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
             {player.status && <SpriteStatusBadge status={player.status} />}
           </div>

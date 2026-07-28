@@ -38,6 +38,22 @@ export function HealOverlay() {
     let stepT1: number | undefined;
     let stepT2: number | undefined;
     let safety: number | undefined;
+
+    // Hard backstop, armed unconditionally.
+    //
+    // The `safety` timer below is created INSIDE start(), and start() only
+    // runs on `loadedmetadata` (or on a play() rejection). If the video
+    // element resolves play() but never reports metadata — plausible on a
+    // headless Chromium with a codec it half-supports — start() never runs,
+    // no timer exists, and `ended` never fires. Nothing else can leave the
+    // "healing" phase, and START_BOSS_BATTLE parks every gym and Elite Four
+    // challenge here first, so that is a permanent freeze on the first boss
+    // attempt. This timer cannot fire late into a battle: COMPLETE_HEALING
+    // clears healingState, `active` flips false, and the cleanup below runs.
+    const hardStop = window.setTimeout(
+      () => dispatch({ type: "COMPLETE_HEALING" }),
+      (FALLBACK_DURATION_MS / (state.speed || 1)) + 3000,
+    );
     // Apply the game's speed multiplier on top of the base heal rate so
     // a 5× game has a 5× heal too. Capped so super-fast doesn't choke
     // the decoder.
@@ -87,6 +103,7 @@ export function HealOverlay() {
     }
 
     return () => {
+      clearTimeout(hardStop);
       if (stepT1) clearTimeout(stepT1);
       if (stepT2) clearTimeout(stepT2);
       if (safety) clearTimeout(safety);

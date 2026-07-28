@@ -3,7 +3,7 @@ import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
 import { regions, regionForLocation } from "../data/regions";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
 import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
@@ -173,8 +173,8 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
                 return (
                   <span key={e.speciesKey} className="route-card-mon" title={label}>
                     {seen ? (
-                      <img
-                        src={pokemonSpriteUrl(e.speciesKey)}
+                      <PokemonSprite
+                        speciesKey={e.speciesKey}
                         alt={sp?.name ?? e.speciesKey}
                         width={26}
                         height={26}

@@ -1,5 +1,5 @@
 import { useGame } from "../state/GameContext";
-import { trainerSpriteUrl } from "../utils/sprites";
+import { TrainerSprite } from "./Sprite";
 
 // Slides a trainer sprite in BEHIND the opponent Pokemon at the start of a
 // trainer / boss battle (and on every trainer-send-next). The slide-in /
@@ -16,14 +16,20 @@ export function TrainerIntro() {
   const enemy = state.enemyPokemon;
   if (!battle || !enemy) return null;
 
+  // `missing="hidden"`: this sprite is purely decorative — the same trainer
+  // is already named and pictured on the context panel, and this copy slides
+  // across half the arena. A placeholder box here would be louder than the
+  // thing it stands in for, so this is the ONE sprite allowed to end up
+  // hidden, and only after Sprite's retry chain has been exhausted. A
+  // transient failure still self-heals.
   return (
-    <img
+    <TrainerSprite
       key={`trainer-${enemy.id}`}
       className="trainer-behind"
-      src={trainerSpriteUrl(battle.spriteKey)}
+      spriteKey={battle.spriteKey}
       alt={battle.trainerName}
       title={battle.trainerName}
-      onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+      missing="hidden"
     />
   );
 }

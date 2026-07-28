@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 
@@ -77,9 +78,10 @@ function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number;
           <div className="evo-flash" aria-hidden />
 
           <div className="evo-sprite-wrap">
-            <img
+            <PokemonSprite
               key={sprite + ev.step}
-              src={pokemonSpriteUrl(sprite, false, p.isShiny)}
+              speciesKey={sprite}
+              isShiny={p.isShiny}
               alt={sprite}
               width={160}
               height={160}

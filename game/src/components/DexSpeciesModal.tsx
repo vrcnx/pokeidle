@@ -1,6 +1,6 @@
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { encounters } from "../data/encounters";
 import { routes } from "../data/routes";
 import { evolutions } from "../data/evolutions";
@@ -108,9 +108,10 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
 
         <div className="g-modal-body">
           <section className="g-profile-hero">
-            <img
+            <PokemonSprite
               className="g-pokemon-sprite-hero"
-              src={pokemonSpriteUrl(speciesKey, false, shiny && caught)}
+              speciesKey={speciesKey}
+              isShiny={shiny && caught}
               alt={sp.name}
               width={64}
               height={64}

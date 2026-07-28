@@ -25,6 +25,15 @@ export const consumables: Record<string, ConsumableDef> = {
     //
     // Priced/scaled as the ladder the shop already implied: longer
     // duration for more money, same halving effect.
+    //
+    // Round three of the same bug: the data and the reducer were both
+    // correct, but WildPokemonDetail — the only screen that can start a
+    // repel — hardcoded the literal "repel", so these two remained
+    // unusable. The picker is now built from utils/encounters#REPEL_TIERS,
+    // which is derived from THIS table: add a fourth tier below and it
+    // becomes playable without touching any component. The three tiers
+    // also share one active-effect slot per species+route, so a second
+    // tier extends the timer instead of compounding the halving.
     superrepel: {
       id: "superrepel",
       name: "Super Repel",

@@ -56,20 +56,13 @@ export function displayName(p: { nickname?: string; name: string }): string {
   return p.nickname ?? p.name;
 }
 
-// Base shiny rate is 1/8192 (Gen V). With the Shiny Charm — earned by
-// catching all 151 Pokémon — the rate doubles to 1/4096.
+// Base shiny rate is 1/8192 (Gen V). With the Shiny Charm — granted for
+// completing the Pokédex — the rate doubles to 1/4096.
+//
+// `hasShinyCharm` used to live here as a hardcoded `pokedexCaught.length >= 245`
+// check. It now reads whether the player HOLDS the charm item; see
+// utils/shinyCharm.ts for why that moved and how the threshold is derived.
 export function rollShiny(hasShinyCharm: boolean): boolean {
   const denom = hasShinyCharm ? 4096 : 8192;
   return Math.random() * denom < 1;
-}
-
-export function hasShinyCharm(pokedexCaught: string[]): boolean {
-  // Original: "Complete the Pokedex (catch all 151 Pokemon) to unlock the
-  // Shiny Charm". 151 was the Gen-1-only count; now 151 Kanto + 94 Johto
-  // = 245 with Johto registered. Deliberately excludes the raid-only
-  // legendaries already in pokemonTable beyond the 151/94 regional dex
-  // counts (Raikou/Entei/Suicune/Lugia/Ho-Oh/Celebi plus later-gen raid
-  // bosses) — those have always been optional bonus content outside the
-  // "complete the dex" goalpost, not part of a region's own roster.
-  return pokedexCaught.length >= 245;
 }

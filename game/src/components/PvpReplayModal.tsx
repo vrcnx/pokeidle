@@ -3,6 +3,7 @@ import { api, type PvpReplayMatch } from "../net/api";
 import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
 
 // Module-scoped open() so any component (the history list) can launch
@@ -271,7 +272,7 @@ function Fighter({ name, speciesKey, hpPct, status, faint }: {
   return (
     <div className={`pvp-fighter ${faint ? "fainted" : ""}`}>
       {url ? (
-        <img className="pvp-fighter-sprite" src={url} alt="" style={{ imageRendering: "pixelated" }} />
+        <PokemonSprite className="pvp-fighter-sprite" speciesKey={speciesKey} alt="" style={{ imageRendering: "pixelated" }} />
       ) : (
         <div className="pvp-fighter-sprite missing">?</div>
       )}

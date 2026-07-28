@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type PublicAuction, type AuctionBid } from "../net/api";
 import { useGame } from "../state/GameContext";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { watchAuction, unwatchAuction, onAuctionBid } from "../state/auctions";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
@@ -191,8 +191,9 @@ function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onB
     <div className="auction-card">
       <div className="auction-card-mon">
         {mon && (
-          <img
-            src={pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny)}
+          <PokemonSprite
+            speciesKey={mon.speciesKey}
+            isShiny={!!mon.isShiny}
             alt=""
             className="auction-card-sprite"
             loading="lazy"
@@ -286,7 +287,7 @@ function ListPokemonForm({
               title={from === "party" && party.length <= 1 ? t("Can't list your only Pokemon") : undefined}
               onClick={() => setPicked(mon)}
             >
-              <img src={pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny)} alt="" loading="lazy" />
+              <PokemonSprite speciesKey={mon.speciesKey} isShiny={!!mon.isShiny} alt="" loading="lazy" />
               <span>{mon.isShiny ? "✨ " : ""}{mon.nickname ?? mon.name} <span className="dim">Lv{mon.level}</span></span>
             </button>
           ))}
@@ -299,7 +300,7 @@ function ListPokemonForm({
   return (
     <div className="auction-list-form">
       <div className="auction-card-mon">
-        <img src={pokemonSpriteUrl(picked.speciesKey, false, !!picked.isShiny)} alt="" className="auction-card-sprite" />
+        <PokemonSprite speciesKey={picked.speciesKey} isShiny={!!picked.isShiny} alt="" className="auction-card-sprite" />
         <div>
           <strong>{picked.isShiny ? "✨ " : ""}{picked.nickname ?? picked.name}</strong>
           <div className="dim small">Lv{picked.level}</div>

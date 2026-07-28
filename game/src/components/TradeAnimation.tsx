@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
 
 // Trade cinematic — plays the classic Pokemon trade sequence whenever
@@ -131,12 +132,12 @@ export function TradeAnimation() {
         <div className="trade-slot left">
           <div className="trade-trainer-tag">{req.from.name}</div>
           <div className="trade-sprite-wrap" key={`${leftSpecies}-${leftShiny}-${step}`}>
-            <img
+            <PokemonSprite
               className={`trade-sprite ${step >= 1 && step <= 3 ? "absorbed" : ""}`}
-              src={pokemonSpriteUrl(leftSpecies, false, leftShiny)}
+              speciesKey={leftSpecies}
+              isShiny={leftShiny}
               alt={leftLabel ?? leftSpecies}
               style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
             {/* Pokéball replaces the sprite mid-trade */}
             <img
@@ -156,12 +157,12 @@ export function TradeAnimation() {
         <div className="trade-slot right">
           <div className="trade-trainer-tag">{req.to.name}</div>
           <div className="trade-sprite-wrap" key={`${rightSpecies}-${rightShiny}-${step}`}>
-            <img
+            <PokemonSprite
               className={`trade-sprite ${step >= 1 && step <= 3 ? "absorbed" : ""}`}
-              src={pokemonSpriteUrl(rightSpecies, false, rightShiny)}
+              speciesKey={rightSpecies}
+              isShiny={rightShiny}
               alt={rightLabel ?? rightSpecies}
               style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
             />
             <img
               className={`trade-ball right-ball stage-${step}`}

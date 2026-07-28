@@ -3,10 +3,11 @@ import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
 import { REPEL_IDS } from "../utils/encounters";
-import { BALL_ORDER } from "../utils/items";
+import { BALL_ORDER, getItemInfo } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl, trainerSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite, TrainerSprite } from "./Sprite";
 import { rarityFromRate } from "../utils/rarity";
 import { getGymLeaderForLocation, buildTeam } from "../utils/trainerFactory";
 import { getUIPhase } from "../utils/uiPhase";
@@ -23,7 +24,7 @@ import { IconHome, IconMountain, IconLeaf, IconIsland, IconInfo } from "./Icon";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { openRewardShop } from "./RewardShopPanel";
-import type { BossBattle } from "../types";
+import type { ActiveEffect, BossBattle } from "../types";
 import type { ReactNode } from "react";
 import { useT } from "../i18n/useT";
 
@@ -104,13 +105,12 @@ function GymLeaderCard() {
     <section className="ctx-section">
       <h4>{t("Gym Leader")}</h4>
       <div className="ctx-trainer-card">
-        <img
-          src={trainerSpriteUrl(leader.spriteKey)}
+        <TrainerSprite
+          spriteKey={leader.spriteKey}
           alt={leader.name}
           width={48}
           height={48}
           style={{ imageRendering: "pixelated" }}
-          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
         <div>
           <strong>{leader.name}</strong>
@@ -179,13 +179,12 @@ function BattleTrainerPanel() {
           changes — that's what replays the fade-in. Without a key React
           reuses the node and the new trainer just pops in. */}
       <div className="ctx-trainer-card ctx-trainer-card--enter" key={`${t.trainerName}:${t.spriteKey}`}>
-        <img
-          src={trainerSpriteUrl(t.spriteKey)}
+        <TrainerSprite
+          spriteKey={t.spriteKey}
           alt={t.trainerName}
           width={48}
           height={48}
           style={{ imageRendering: "pixelated" }}
-          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
         <div>
           <strong>{t.trainerName}</strong>
@@ -211,13 +210,12 @@ function BattleBossPanel() {
     <section className="ctx-section">
       <h4>{b.bossType === "champion" ? t("Champion") : b.bossType === "e4" ? t("Elite Four") : t("Gym Leader")}</h4>
       <div className="ctx-trainer-card">
-        <img
-          src={trainerSpriteUrl(b.spriteKey)}
+        <TrainerSprite
+          spriteKey={b.spriteKey}
           alt={b.trainerName}
           width={56}
           height={56}
           style={{ imageRendering: "pixelated" }}
-          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
         <div>
           <strong>{b.trainerName}</strong>
@@ -593,8 +591,8 @@ function IdleRaidPanel() {
                       (caught ? " · already caught" : "")
                     }
                   >
-                    <img
-                      src={pokemonSpriteUrl(speciesKey)}
+                    <PokemonSprite
+                      speciesKey={speciesKey}
                       alt={speciesKey}
                       width={28}
                       height={28}
@@ -725,14 +723,18 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const totalWeight = enc.reduce((s, e) => s + e.weight, 0);
 
-  // Active repel/honey effects keyed by species
-  const effects: Record<string, { repel?: boolean; honey?: boolean }> = {};
+  // Active repel/honey effects keyed by species. Keep the effect itself, not
+  // just a flag, so the badge can name the tier that's running and how many
+  // battles are left instead of a bare "R".
+  const effects: Record<string, { repel?: ActiveEffect; honey?: ActiveEffect }> = {};
   for (const e of state.activeEffects) {
     if (e.routeKey !== routeKey) continue;
     if (!effects[e.speciesKey]) effects[e.speciesKey] = {};
-    if (REPEL_IDS.has(e.itemId)) effects[e.speciesKey].repel = true;
-    if (e.itemId === "honey") effects[e.speciesKey].honey = true;
+    if (REPEL_IDS.has(e.itemId)) effects[e.speciesKey].repel = e;
+    if (e.itemId === "honey") effects[e.speciesKey].honey = e;
   }
+  const effectLabel = (e: ActiveEffect): string =>
+    `${getItemInfo(e.itemId).name} · ${e.battlesRemaining.toLocaleString()} ${t("battles left")}${e.paused ? ` (${t("paused")})` : ""}`;
 
   return (
     <section className="ctx-section">
@@ -763,8 +765,8 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
               }
               title={seen ? `${sp.name} · ${ratePct.toFixed(1)}%` : "???"}
             >
-              <img
-                src={pokemonSpriteUrl(e.speciesKey)}
+              <PokemonSprite
+                speciesKey={e.speciesKey}
                 alt={seen ? sp.name : "???"}
                 width={40}
                 height={40}
@@ -779,7 +781,15 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
               />
               <small>{seen ? sp.name : "???"}</small>
               {(eff.repel || eff.honey) && (
-                <span className={`wild-effect-badge ${eff.repel ? "repel" : "honey"}`}>
+                <span
+                  className={`wild-effect-badge ${eff.repel ? "repel" : "honey"}${
+                    (eff.repel ?? eff.honey)!.paused ? " paused" : ""
+                  }`}
+                  title={[eff.repel, eff.honey]
+                    .filter((e): e is ActiveEffect => !!e)
+                    .map(effectLabel)
+                    .join(" · ")}
+                >
                   {eff.repel ? "R" : "H"}
                 </span>
               )}
@@ -840,7 +850,11 @@ export function UnlockHint() {
             <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
               <li>{t("Battle legendaries at ")}<strong>{t("Raid Island")}</strong>{t(" (top-right of the map).")}</li>
               <li>{t("Spend Victory Tokens at the ")}<strong>{t("Reward Shop")}</strong>.</li>
-              <li>{t("Finish the Pokédex — every species still counts toward the Shiny Charm.")}</li>
+              {/* This is the prompt players follow to the end of the game, so
+                  it names the actual reward and where it lands. It used to
+                  promise "the Shiny Charm" for a charm that was never granted
+                  and never appeared anywhere the player could see. */}
+              <li>{t("Finish the Pokédex — catch every obtainable species and the ")}<strong>{t("Shiny Charm")}</strong>{t(" goes straight into your Bag (double shiny rate).")}</li>
             </ul>
             {/* Direct affordance — the Reward Shop was previously
                 reachable only via the LeagueCard at Indigo Plateau.
@@ -1032,8 +1046,8 @@ function LeagueCard() {
               const beaten = state.defeatedEliteFour.includes(m.id);
               return (
                 <li key={m.id} className={beaten ? "beaten" : ""}>
-                  <img
-                    src={trainerSpriteUrl(m.spriteKey)}
+                  <TrainerSprite
+                    spriteKey={m.spriteKey}
                     alt={m.name}
                     width={28}
                     height={28}
@@ -1047,8 +1061,8 @@ function LeagueCard() {
               );
             })}
             <li className={championBeaten ? "beaten champion" : "champion"}>
-              <img
-                src={trainerSpriteUrl(champion.spriteKey)}
+              <TrainerSprite
+                spriteKey={champion.spriteKey}
                 alt={champion.name}
                 width={28}
                 height={28}

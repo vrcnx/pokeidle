@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { rollEncounter, routeHasEncounters } from "../utils/encounters";
 import { createPokemon } from "../utils/pokemon";
-import { rollShiny, hasShinyCharm } from "../utils/pokemon";
+import { rollShiny } from "../utils/pokemon";
+import { hasShinyCharm } from "../utils/shinyCharm";
 import { pushToast } from "../components/Toast";
 import { ballForAutoCatch, shouldAutoCatch } from "../utils/catching";
 import { resolveCatchSettings } from "../utils/catchSettings";
@@ -185,7 +186,7 @@ export function useBattleLoop(): void {
               roll.speciesKey,
               roll.level,
               cur.nextPokemonId,
-              rollShiny(hasShinyCharm(cur.pokedexCaught))
+              rollShiny(hasShinyCharm(cur))
             );
             dispatch({ type: "START_ENCOUNTER", payload: { pokemon: enemy } });
           }

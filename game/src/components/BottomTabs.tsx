@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { RouteCardList } from "./RouteCardList";
-import { pokemonSpriteUrl, pokemonStaticSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite, Sprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { obtainableCount, obtainableSpecies } from "../utils/obtainable";
 import { routes } from "../data/routes";
@@ -329,8 +330,19 @@ export function BagTab() {
           <ul className="bag-list-v2">
             {state.activeEffects.map((eff) => {
               const info = getItemInfo(eff.itemId);
+              // Repel/Honey are per-species and per-route, so name the target.
+              // Without it the list showed a bare "Max Repel" and the player
+              // had no way to tell which Pokémon on which route it was on.
+              const target = eff.speciesKey
+                ? `${pokemonTable[eff.speciesKey]?.name ?? eff.speciesKey}${
+                    eff.routeKey ? ` · ${routes[eff.routeKey]?.name ?? eff.routeKey}` : ""
+                  }`
+                : "";
               return (
-                <li key={eff.itemId} className={`bag-row-v2 ${eff.paused ? "paused" : ""}`}>
+                <li
+                  key={`${eff.itemId}|${eff.speciesKey}|${eff.routeKey ?? ""}`}
+                  className={`bag-row-v2 ${eff.paused ? "paused" : ""}`}
+                >
                   <img
                     src={itemSpriteUrl(eff.itemId, itemSpriteSlug(eff.itemId))}
                     alt=""
@@ -340,13 +352,25 @@ export function BagTab() {
                   />
                   <span className="bag-row-name">
                     {info.name}
+                    {target && <small className="dim" style={{ marginLeft: 8 }}>{target}</small>}
                     {eff.paused && <small className="dim" style={{ marginLeft: 8 }}>{t("paused")}</small>}
                   </span>
-                  <span className="bag-row-count">{eff.battlesRemaining} {t("battles")}</span>
+                  <span className="bag-row-count">{eff.battlesRemaining.toLocaleString()} {t("battles")}</span>
                   <button
                     type="button"
                     className="effect-toggle-btn"
-                    onClick={() => dispatch({ type: "TOGGLE_EFFECT_PAUSED", payload: { itemId: eff.itemId } })}
+                    onClick={() =>
+                      dispatch({
+                        type: "TOGGLE_EFFECT_PAUSED",
+                        // Target this exact effect — an id-only toggle paused
+                        // every repel on every species at once.
+                        payload: {
+                          itemId: eff.itemId,
+                          speciesKey: eff.speciesKey,
+                          routeKey: eff.routeKey ?? "",
+                        },
+                      })
+                    }
                     title={eff.paused ? t("Resume — start ticking down again") : t("Pause — keep battles remaining without consuming")}
                   >
                     {eff.paused ? t("Resume") : t("Pause")}
@@ -373,6 +397,11 @@ export function BagTab() {
                     const info = getItemInfo(id);
                     const cat = itemsCatalog[id];
                     const notReady = cat && cat.implemented === false;
+                    // Repel tiers and Honey are activated from the Wild
+                    // Pokémon panel, not from here. The Bag offers only
+                    // "Sell", which is why players reported buying a Max
+                    // Repel and finding no way to use it.
+                    const usedFromWildPanel = id in consumables && id !== "expShare";
                     const sellPrice = cat?.sellPrice ?? 0;
                     const canSell = sellPrice > 0;
                     const isPending = sellPending?.itemId === id;
@@ -382,15 +411,18 @@ export function BagTab() {
                       <li
                         key={id}
                         className={`bag-row-v2 ${notReady ? "not-ready" : ""}`}
-                        title={`${info.name} — ${info.description}${notReady ? " (catalog only — mechanic not implemented yet)" : ""}`}
+                        title={`${info.name} — ${info.description}${
+                          usedFromWildPanel
+                            ? "\nTo use it: open the Wild Pokémon panel and click the species you want it applied to."
+                            : ""
+                        }${notReady ? " (catalog only — mechanic not implemented yet)" : ""}`}
                       >
-                        <img
+                        <Sprite
                           src={itemSpriteUrl(id, itemSpriteSlug(id))}
                           alt=""
                           width={28}
                           height={28}
                           style={{ imageRendering: "pixelated" }}
-                          onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0.2")}
                         />
                         <span className="bag-row-name">{info.name}</span>
                         <span className="bag-row-count">×{count}</span>
@@ -468,27 +500,127 @@ export function BagTab() {
 }
 
 // ---------------------------------------------------------------------------
-// PC — just the storage box. Party stays in the left column; drag a party
-// row into the box (or a box cell into a party row) to move/swap.
+// PC — the storage box. Party stays in the left column; drag a party row
+// into the box (or a box cell into a party row) to move/swap.
 // Uses the custom dragController (touch-friendly) — see useDrag.ts.
+//
+// Box contents can run to thousands of entries, at which point "which of
+// these nine Rattata is the good one" is unanswerable from sprites alone.
+// So each cell carries its level, and the box can be narrowed by name,
+// shininess, and IV quality. The three combine with each other and sit on
+// top of the existing SORT_BOX ordering (sorting mutates the box itself;
+// filtering is purely a view).
 // ---------------------------------------------------------------------------
+
+/** IVs are six stats capped at 31 each. */
+const IV_MAX_TOTAL = 186;
+
+const IV_TIERS = ["any", "60", "80", "90", "perfect"] as const;
+type IvTier = (typeof IV_TIERS)[number];
+
+const IV_TIER_LABEL: Record<IvTier, string> = {
+  any: "Any IV",
+  "60": "IV 60%+",
+  "80": "IV 80%+",
+  "90": "IV 90%+",
+  perfect: "IV perfect",
+};
+
+/** Minimum IV total for a tier. "perfect" demands all six maxed. */
+const IV_TIER_MIN: Record<IvTier, number> = {
+  any: 0,
+  "60": Math.ceil(IV_MAX_TOTAL * 0.6),
+  "80": Math.ceil(IV_MAX_TOTAL * 0.8),
+  "90": Math.ceil(IV_MAX_TOTAL * 0.9),
+  perfect: IV_MAX_TOTAL,
+};
+
+function ivTotal(p: Pokemon): number {
+  const iv = p.ivs;
+  if (!iv) return 0;
+  return iv.hp + iv.attack + iv.defense + iv.spAttack + iv.spDefense + iv.speed;
+}
+
+/** One filtered box entry: the Pokémon plus its REAL index in state.box. */
+interface BoxView {
+  p: Pokemon;
+  index: number;
+}
+
 export function PCTab() {
   const { state, dispatch } = useGame();
   const t = useT();
   const PER_PAGE = 30;
   const [page, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(state.box.length / PER_PAGE));
+  const [query, setQuery] = useState("");
+  const [shinyOnly, setShinyOnly] = useState(false);
+  const [ivTier, setIvTier] = useState<IvTier>("any");
+
+  const box = state.box;
+  const filtering = query.trim() !== "" || shinyOnly || ivTier !== "any";
+
+  // `null` means "no filter active" — deliberately NOT a copy of the box.
+  // Materialising a 9,999-entry array of wrappers on every render (the box
+  // identity changes whenever the reducer touches it) is the one thing here
+  // that would actually cost something, and in the common case we don't
+  // need it: the raw box is already indexable by page offset.
+  const view = useMemo<BoxView[] | null>(() => {
+    if (!filtering) return null;
+    const q = query.trim().toLowerCase();
+    const minIv = IV_TIER_MIN[ivTier];
+    const out: BoxView[] = [];
+    for (let i = 0; i < box.length; i++) {
+      const p = box[i];
+      if (!p) continue;
+      if (shinyOnly && !p.isShiny) continue;
+      if (minIv > 0 && ivTotal(p) < minIv) continue;
+      if (q) {
+        const nick = p.nickname?.toLowerCase();
+        if (
+          !p.name.toLowerCase().includes(q) &&
+          !(nick && nick.includes(q)) &&
+          !p.speciesKey.toLowerCase().includes(q)
+        ) {
+          continue;
+        }
+      }
+      out.push({ p, index: i });
+    }
+    return out;
+  }, [box, filtering, query, shinyOnly, ivTier]);
+
+  const shown = view ? view.length : box.length;
+  const pageCount = Math.max(1, Math.ceil(shown / PER_PAGE));
   useEffect(() => {
     if (page > pageCount - 1) setPage(pageCount - 1);
   }, [page, pageCount]);
+  // ...and clamp for THIS render too. The effect above runs after commit, so
+  // narrowing a filter while parked past the new end painted one frame of
+  // empty grid ("Box 61/2") before correcting itself.
+  const safePage = Math.min(page, Math.max(0, pageCount - 1));
+  // Narrowing the box while parked on page 12 would otherwise land the
+  // player on an empty page until the clamp above catches up.
+  useEffect(() => { setPage(0); }, [query, shinyOnly, ivTier]);
 
-  const slice = state.box.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  // Always exactly PER_PAGE cells so the grid keeps its 6×5 shape. Cells
+  // past the end of the (filtered) list are empty, and carry an index past
+  // the end of the box so drag targets treat them as trailing slots.
+  const cells: { p: Pokemon | undefined; index: number }[] = [];
+  for (let i = 0; i < PER_PAGE; i++) {
+    const at = safePage * PER_PAGE + i;
+    if (view) {
+      const entry = view[at];
+      cells.push(entry ? { p: entry.p, index: entry.index } : { p: undefined, index: box.length + i });
+    } else {
+      cells.push({ p: box[at], index: at });
+    }
+  }
 
   return (
     <div className="tab-pane pc-tab">
       <TabPaneHead
         title={t("Pokémon Storage")}
-        meta={`${state.box.length} stored`}
+        meta={filtering ? `${shown} / ${box.length} shown` : `${box.length} stored`}
         tools={
           <>
             <span className="dim small" style={{ marginRight: 4 }}>{t("Sort")}</span>
@@ -503,23 +635,76 @@ export function PCTab() {
             </button>
             {pageCount > 1 && (
               <span className="pc-pager" style={{ marginLeft: "auto" }}>
-                <button onClick={() => setPage((i) => Math.max(0, i - 1))} disabled={page === 0}>‹</button>
-                <span className="dim small">{t("Box")} {page + 1}/{pageCount}</span>
-                <button onClick={() => setPage((i) => Math.min(pageCount - 1, i + 1))} disabled={page >= pageCount - 1}>›</button>
+                <button onClick={() => setPage(Math.max(0, safePage - 1))} disabled={safePage === 0}>‹</button>
+                <span className="dim small">{t("Box")} {safePage + 1}/{pageCount}</span>
+                <button onClick={() => setPage(Math.min(pageCount - 1, safePage + 1))} disabled={safePage >= pageCount - 1}>›</button>
               </span>
             )}
           </>
         }
       />
+      <div className="pc-filters">
+        <div className="pc-search-wrap">
+          <input
+            type="search"
+            className="pc-search"
+            placeholder={t("Search your box")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={t("Search your box")}
+          />
+          {query && (
+            <button
+              type="button"
+              className="pc-search-clear"
+              onClick={() => setQuery("")}
+              aria-label={t("Clear search")}
+            >×</button>
+          )}
+        </div>
+        <button
+          type="button"
+          className={`pc-filter ${shinyOnly ? "active" : ""}`}
+          aria-pressed={shinyOnly}
+          onClick={() => setShinyOnly((v) => !v)}
+          title={t("Show only shiny Pokémon")}
+        >
+          ✨ {t("Shiny")}
+        </button>
+        <select
+          className="pc-filter-select"
+          value={ivTier}
+          onChange={(e) => setIvTier(e.target.value as IvTier)}
+          title={t("Filter by IV quality")}
+          aria-label={t("Filter by IV quality")}
+        >
+          {IV_TIERS.map((tier) => (
+            <option key={tier} value={tier}>{t(IV_TIER_LABEL[tier])}</option>
+          ))}
+        </select>
+        {filtering && (
+          <button
+            type="button"
+            className="pc-filter"
+            onClick={() => { setQuery(""); setShinyOnly(false); setIvTier("any"); }}
+            title={t("Clear all filters")}
+          >
+            {t("Reset")}
+          </button>
+        )}
+      </div>
       <div className="pc-box-grid box-mode tab-box-grid">
-        {Array.from({ length: PER_PAGE }, (_, i) => {
-          const real = page * PER_PAGE + i;
-          const p = slice[i];
-          return <BoxSlot key={real} pokemon={p} index={real} />;
-        })}
+        {cells.map((cell, i) => (
+          // Keyed on the real box index (not the Pokémon id) so a cell keeps
+          // its identity across renders even if a save ever carried duplicate
+          // ids, and so drag state survives an in-place REORDER_BOX.
+          <BoxSlot key={cell.p ? `p${cell.index}` : `e${i}`} pokemon={cell.p} index={cell.index} />
+        ))}
       </div>
       <p className="dim small" style={{ margin: "6px 0 0", textAlign: "center" }}>
-        {t("Drag from your party (left column) to deposit, or drag from here to your party.")}
+        {filtering && shown === 0
+          ? t("No stored Pokémon match these filters.")
+          : t("Drag from your party (left column) to deposit, or drag from here to your party.")}
       </p>
     </div>
   );
@@ -619,28 +804,27 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
               },
             ]);
           }}
-          title={`${p.name} · Lv.${p.level} · tap for details · hold-and-drag to move · right-click for actions`}
+          title={`${p.nickname ?? p.name} · Lv.${p.level} · IV ${Math.round(
+            (ivTotal(p) / IV_MAX_TOTAL) * 100
+          )}% · tap for details · hold-and-drag to move · right-click for actions`}
         >
-          <img
-            src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+          {/* The GIF→static-PNG fallback that used to live here inline is
+              now PokemonSprite's job, along with the retry that makes a
+              transient CDN failure recoverable. */}
+          <PokemonSprite
+            speciesKey={p.speciesKey}
+            isShiny={p.isShiny}
             alt={p.name}
             width={40}
             height={40}
             style={{ imageRendering: "pixelated" }}
             draggable={false}
-            onError={(e) => {
-              // Animated GIF subtree on jsDelivr is sometimes blocked
-              // by ad-blockers (the `/animated/` path matches a few
-              // common filter lists). Fall back to the static PNG at
-              // a different subtree so occupied PC cells still show
-              // something rather than collapsing to an empty button.
-              const sp = pokemonTable[p.speciesKey];
-              if (!sp) return;
-              const fallback = pokemonStaticSpriteUrl(sp.id, p.isShiny);
-              const img = e.currentTarget as HTMLImageElement;
-              if (img.src !== fallback) img.src = fallback;
-            }}
           />
+          {/* Level, corner-mounted rather than inline, so it costs the cell
+              no layout and the 6×5 grid keeps its shape. Four separate
+              players asked for this: a box full of the same species is
+              otherwise indistinguishable. */}
+          <span className="pc-cell-lv">L{p.level}</span>
           {p.heldItem && itemsCatalog[p.heldItem] && (
             <img
               className="held-item-badge"
@@ -669,15 +853,15 @@ const DEX_TYPES = [
   "Rock","Ghost","Dragon","Dark","Steel","Fairy",
 ] as const;
 
+// Fixed rungs only. "Master" is appended at render time AT the obtainable
+// count — it used to be a hardcoded 245 sitting 43 species below the ring's
+// own 100%, so the trophy lit up while the ring still read 85%.
 const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
   { count: 10,  label: "Squad Builder", icon: "🧩" },
   { count: 25,  label: "Roster",        icon: "📘" },
   { count: 50,  label: "Half-way",      icon: "📚" },
   { count: 100, label: "Centurion",     icon: "💯" },
   { count: 151, label: "Kanto Master",  icon: "🥇" },
-  // Top tier is derived from the obtainable count at render time so it can
-  // never sit above the reachable ceiling (see dexTotal below).
-  { count: 245, label: "Master",        icon: "🏆" },
 ];
 
 export function DexTab() {
@@ -744,7 +928,12 @@ export function DexTab() {
   const dexTotal = obtainableCount();
   const caughtObtainable = state.pokedexCaught.filter((k) => obtainable.has(k)).length;
   const completion = Math.min(100, (caughtObtainable / Math.max(1, dexTotal)) * 100);
-  const milestones = DEX_MILESTONES.filter((m) => m.count <= dexTotal);
+  // Master lands exactly on 100% — the same moment the Shiny Charm is granted
+  // and the full-dex trophy unlocks, so all three now agree.
+  const milestones = [
+    ...DEX_MILESTONES.filter((m) => m.count < dexTotal),
+    { count: dexTotal, label: "Master", icon: "🏆" },
+  ];
   const nextMilestone = milestones.find((m) => caughtObtainable < m.count);
 
   return (
@@ -883,8 +1072,9 @@ export function DexTab() {
                  from the counts above, but still occupy their dex number. */
               title={clickable ? sp.name : !obtainable.has(key) ? "Not yet available" : "???"}
             >
-              <img
-                src={pokemonSpriteUrl(key, false, shiny && caught)}
+              <PokemonSprite
+                speciesKey={key}
+                isShiny={shiny && caught}
                 alt={clickable ? sp.name : "???"}
                 width={36}
                 height={36}

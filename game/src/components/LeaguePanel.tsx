@@ -1,7 +1,7 @@
 import { useGame } from "../state/GameContext";
 import { eliteFour, champion } from "../data/eliteFour";
 import { gymLeaders } from "../data/gymLeaders";
-import { trainerSpriteUrl } from "../utils/sprites";
+import { TrainerSprite } from "./Sprite";
 import { buildTeam } from "../utils/trainerFactory";
 import type { BossBattle } from "../types";
 import { useT } from "../i18n/useT";
@@ -90,13 +90,12 @@ export function LeaguePanel() {
           const beaten = state.defeatedEliteFour.includes(m.id);
           return (
             <div key={m.id} className={`trainer-card ${beaten ? "defeated" : ""}`}>
-              <img
-                src={trainerSpriteUrl(m.spriteKey)}
+              <TrainerSprite
+                spriteKey={m.spriteKey}
                 alt={m.name}
                 width={56}
                 height={56}
                 style={{ imageRendering: "pixelated" }}
-                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
               />
               <div className="trainer-info">
                 <strong>
@@ -113,13 +112,12 @@ export function LeaguePanel() {
 
       <h3>{t("Champion")}</h3>
       <div className={`trainer-card boss ${championBeaten ? "defeated" : ""}`}>
-        <img
-          src={trainerSpriteUrl(champion.spriteKey)}
+        <TrainerSprite
+          spriteKey={champion.spriteKey}
           alt={champion.name}
           width={64}
           height={64}
           style={{ imageRendering: "pixelated" }}
-          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
         <div>
           <strong>

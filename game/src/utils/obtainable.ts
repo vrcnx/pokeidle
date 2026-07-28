@@ -74,3 +74,38 @@ export function isObtainable(speciesKey: string): boolean {
 export function obtainableCount(): number {
   return obtainableSpecies().size;
 }
+
+/**
+ * The dex numerator: how many of the player's registrations count toward
+ * completion. Filters to the obtainable set and de-duplicates, so neither a
+ * legacy duplicate entry nor a species that has since become unobtainable can
+ * push a player "past" 100%.
+ */
+export function caughtObtainableCount(pokedexCaught: string[] | null | undefined): number {
+  // Tolerates a missing/!Array value on purpose: this runs on the save-load
+  // path, where a legacy or truncated cloud blob may not carry the field at
+  // all, and throwing here would fail the boot rather than the feature.
+  if (!Array.isArray(pokedexCaught)) return 0;
+  const reachable = obtainableSpecies();
+  const counted = new Set<string>();
+  for (const key of pokedexCaught) {
+    if (reachable.has(key)) counted.add(key);
+  }
+  return counted.size;
+}
+
+/**
+ * THE definition of "completed the Pokédex": every species the game can
+ * actually hand you is registered.
+ *
+ * Everything that gates on dex completion (the Shiny Charm, the full-dex
+ * trophy, the Dex tab's top milestone) resolves through this instead of
+ * carrying its own literal. Four different numbers used to be live at once —
+ * 245 in the charm and the achievement, 288 in the ring and in Settings — so
+ * the Settings panel could tell a player "44 left" for a charm that was about
+ * to unlock on their next catch, and the "Master" milestone fired 43 species
+ * before the completion ring reached 100%.
+ */
+export function isDexComplete(pokedexCaught: string[] | null | undefined): boolean {
+  return caughtObtainableCount(pokedexCaught) >= obtainableCount();
+}

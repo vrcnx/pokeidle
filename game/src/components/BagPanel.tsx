@@ -5,7 +5,7 @@ import { consumables } from "../data/consumables";
 import { stoneTargets, evolutions } from "../data/evolutions";
 import { pokemonTable } from "../data/pokemon";
 import { encounters } from "../data/encounters";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { getItemInfo } from "../utils/items";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
@@ -82,8 +82,8 @@ export function BagPanel() {
                   onClick={() => applyStone(i)}
                   style={{ opacity: eligible ? 1 : 0.4 }}
                 >
-                  <img
-                    src={pokemonSpriteUrl(mon.speciesKey)}
+                  <PokemonSprite
+                    speciesKey={mon.speciesKey}
                     alt={mon.speciesKey}
                     width={48}
                     height={48}
@@ -139,8 +139,8 @@ export function BagPanel() {
                       onClick={() => applyCable(i)}
                       style={{ opacity: eligible ? 1 : 0.4 }}
                     >
-                      <img
-                        src={pokemonSpriteUrl(mon.speciesKey)}
+                      <PokemonSprite
+                        speciesKey={mon.speciesKey}
                         alt={mon.speciesKey}
                         width={48}
                         height={48}
@@ -246,8 +246,8 @@ export function BagPanel() {
           <div className="bag-target-grid">
             {routeEncounters.map((e) => (
               <button key={e.speciesKey} onClick={() => applyEffect(e.speciesKey)}>
-                <img
-                  src={pokemonSpriteUrl(e.speciesKey)}
+                <PokemonSprite
+                  speciesKey={e.speciesKey}
                   alt={e.speciesKey}
                   width={48}
                   height={48}

@@ -1,7 +1,7 @@
 import { useGame } from "../state/GameContext";
 import { encounters } from "../data/encounters";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
@@ -63,8 +63,8 @@ export function CatchSettingsPanel() {
               const rule = resolveCatchSettings(state, route, e.speciesKey);
               return (
                 <li key={e.speciesKey}>
-                  <img
-                    src={pokemonSpriteUrl(e.speciesKey)}
+                  <PokemonSprite
+                    speciesKey={e.speciesKey}
                     alt={e.speciesKey}
                     width={48}
                     height={48}

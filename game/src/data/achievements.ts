@@ -1,4 +1,6 @@
 import type { GameState } from "../types";
+import { caughtObtainableCount, isDexComplete, obtainableCount } from "../utils/obtainable";
+import { hasShinyCharm } from "../utils/shinyCharm";
 
 // Achievement definitions. Each one is a pure predicate over GameState
 // (and optionally PvP rating) so we can compute "unlocked yet?" on every
@@ -33,9 +35,10 @@ export interface AchievementExtras {
   tradeCount?: number;
 }
 
-// Constants used by several achievements — kept here so balancing is
-// one diff instead of scattered magic numbers.
-const TOTAL_DEX = 245; // 151 Kanto + 94 Johto (see hasShinyCharm's comment for what's deliberately excluded)
+// "Complete the Pokédex" is derived from the data (utils/obtainable), not a
+// hardcoded total. The old TOTAL_DEX = 245 sat 43 species below the Dex tab's
+// own denominator, so this trophy fired well before the completion ring
+// reached 100% — and disagreed with the Shiny Charm it was supposed to mirror.
 
 export const ACHIEVEMENTS: Achievement[] = [
   // ── Catches ─────────────────────────────────────────────────────
@@ -44,7 +47,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "twentyfive-cap", name: "Roster Roller",        description: "Catch 25 unique species.",             category: "catches", tier: "silver",   icon: "📘", isUnlocked: (s) => s.pokedexCaught.length >= 25, progress: (s) => [s.pokedexCaught.length, 25] },
   { id: "fifty-caught",   name: "Halfway to Half",      description: "Catch 50 unique species.",             category: "catches", tier: "silver",   icon: "📚", isUnlocked: (s) => s.pokedexCaught.length >= 50, progress: (s) => [s.pokedexCaught.length, 50] },
   { id: "hundred-caught", name: "Centurion",            description: "Catch 100 unique species.",            category: "catches", tier: "gold",     icon: "💯", isUnlocked: (s) => s.pokedexCaught.length >= 100, progress: (s) => [s.pokedexCaught.length, 100] },
-  { id: "full-dex",       name: "Gotta Catch 'Em All",  description: `Complete the Pokédex (${TOTAL_DEX} caught).`, category: "catches", tier: "diamond", icon: "🏆", isUnlocked: (s) => s.pokedexCaught.length >= TOTAL_DEX, progress: (s) => [s.pokedexCaught.length, TOTAL_DEX] },
+  // `hasShinyCharm` is an OR here, not decoration: raising the bar from 245 to
+  // full completion must not confiscate a trophy someone already displays.
+  // Holding the charm is proof they met the rule that was live when they
+  // earned it (saves at or above the old threshold are granted it on load).
+  { id: "full-dex",       name: "Gotta Catch 'Em All",  description: "Complete the Pokédex — catch every obtainable species.", category: "catches", tier: "diamond", icon: "🏆", isUnlocked: (s) => hasShinyCharm(s) || isDexComplete(s.pokedexCaught), progress: (s) => [caughtObtainableCount(s.pokedexCaught), obtainableCount()] },
   { id: "first-shiny",    name: "Shiny Hunter",         description: "Catch your first shiny.",               category: "catches", tier: "silver",   icon: "✨", isUnlocked: (s) => s.shinyCaught.length >= 1 },
   { id: "five-shinies",   name: "Shimmer Squad",        description: "Catch 5 shinies.",                      category: "catches", tier: "gold",     icon: "🌟", isUnlocked: (s) => s.shinyCaught.length >= 5, progress: (s) => [s.shinyCaught.length, 5] },
   { id: "twenty-shinies", name: "Sparkleologist",       description: "Catch 20 shinies.",                     category: "catches", tier: "platinum", icon: "💎", isUnlocked: (s) => s.shinyCaught.length >= 20, progress: (s) => [s.shinyCaught.length, 20] },

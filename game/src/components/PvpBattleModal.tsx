@@ -8,6 +8,7 @@ import {
   type BattleLogEntry,
 } from "../state/pvp";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { moves as movesTable } from "../data/moves";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import { useT } from "../i18n/useT";
@@ -265,8 +266,8 @@ function SwitchPicker({
             onClick={() => onChoose(idx)}
             title={cleanName(p.ident)}
           >
-            <img
-              src={pokemonSpriteUrl(speciesKey, false, false)}
+            <PokemonSprite
+              speciesKey={speciesKey}
               alt=""
               width={48}
               height={48}
@@ -292,7 +293,7 @@ function PvpFighter({
   return (
     <div className={`pvp-fighter ${faint ? "fainted" : ""}`}>
       {url ? (
-        <img className="pvp-fighter-sprite" src={url} alt="" style={{ imageRendering: "pixelated" }} />
+        <PokemonSprite className="pvp-fighter-sprite" speciesKey={speciesKey} alt="" style={{ imageRendering: "pixelated" }} />
       ) : (
         <div className="pvp-fighter-sprite missing">?</div>
       )}

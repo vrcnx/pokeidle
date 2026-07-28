@@ -147,7 +147,24 @@ export const evolutions: Record<string, EvolutionTrigger[]> = {
     remoraid: [{ into: "octillery", level: 25 }],
     houndour: [{ into: "houndoom", level: 24 }],
     phanpy: [{ into: "donphan", level: 25 }],
-    tyrogue: [{ into: "hitmontop", level: 20 }],
+    // Tyrogue's canonical three-way split, decided at Lv 20 by the Pokémon's
+    // OWN Attack vs Defense. This used to be flattened to `hitmontop` alone,
+    // which silently deleted two thirds of the line: no Tyrogue could ever
+    // become a Hitmonlee or a Hitmonchan. gt/lt/eq partition every possible
+    // stat pair, so exactly one branch always fires — an individual can never
+    // end up with no evolution, and all three targets stay reachable.
+    //
+    // Tyrogue's base Attack and Defense are both 35, so ties (the Hitmontop
+    // branch) are common rather than a lottery — and Hitmontop needs that,
+    // because unlike Hitmonlee/Hitmonchan (wild in Rock Tunnel) this line is
+    // its only source in the game. The detail modal prints the live comparison
+    // next to each branch so the outcome is visible before evolving, and EV
+    // training / EV berries move the numbers if a player wants a different one.
+    tyrogue: [
+      { into: "hitmonlee",  level: 20, when: { compare: ["attack", "defense"], op: "gt" } },
+      { into: "hitmonchan", level: 20, when: { compare: ["attack", "defense"], op: "lt" } },
+      { into: "hitmontop",  level: 20, when: { compare: ["attack", "defense"], op: "eq" } },
+    ],
     smoochum: [{ into: "jynx", level: 30 }],
     elekid: [{ into: "electabuzz", level: 30 }],
     magby: [{ into: "magmar", level: 30 }],

@@ -41,9 +41,26 @@ export function pokemonSpriteUrl(
     : `${PKMN_BASE}/${id}.gif`;
 }
 
-// Static fallback: same source repo, base sprites/pokemon/{id}.png
-export function pokemonStaticSpriteUrl(speciesId: number, isShiny = false): string {
-  const folder = isShiny ? "shiny/" : "";
+// Static fallback: same source repo, base sprites/pokemon/{id}.png.
+//
+// Deliberately a DIFFERENT subtree from the animated set above. Two things
+// kill the animated GIF that this path survives:
+//   - ad-blockers: the `/animated/` path segment matches a few common
+//     filter lists, so the GIF never leaves the browser;
+//   - the browser's per-document negative cache: once one request for a
+//     given URL fails, every later <img> pointing at that exact URL fails
+//     instantly, with no network request, until a full page reload.
+// Falling back to a different URL sidesteps both.
+export function pokemonStaticSpriteUrl(
+  speciesId: number,
+  isShiny = false,
+  isBack = false
+): string {
+  const folder =
+    isBack && isShiny ? "back/shiny/" :
+    isShiny           ? "shiny/" :
+    isBack            ? "back/" :
+                        "";
   return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${folder}${speciesId}.png`;
 }
 

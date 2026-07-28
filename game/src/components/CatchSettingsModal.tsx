@@ -3,7 +3,8 @@ import { useGame } from "../state/GameContext";
 import { encounters } from "../data/encounters";
 import { routes } from "../data/routes";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
@@ -236,8 +237,8 @@ function CatchSettingsDialog({
                 return (
                   <li key={e.speciesKey}>
                     {seen ? (
-                      <img
-                        src={pokemonSpriteUrl(e.speciesKey)}
+                      <PokemonSprite
+                        speciesKey={e.speciesKey}
                         alt={sp.name}
                         width={32}
                         height={32}

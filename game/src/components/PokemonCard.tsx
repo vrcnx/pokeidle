@@ -1,5 +1,5 @@
 import type { Pokemon } from "../types";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
 
@@ -24,8 +24,10 @@ export function PokemonCard({ pokemon, isBack = false, small = false }: Props) {
         <span>{t("Lv. ")}{pokemon.level}</span>
       </div>
       <div className="pokemon-card-types">{sp?.types.join(" / ")}</div>
-      <img
-        src={pokemonSpriteUrl(pokemon.speciesKey, isBack, pokemon.isShiny)}
+      <PokemonSprite
+        speciesKey={pokemon.speciesKey}
+        isBack={isBack}
+        isShiny={pokemon.isShiny}
         alt={pokemon.name}
         width={small ? 64 : 96}
         height={small ? 64 : 96}

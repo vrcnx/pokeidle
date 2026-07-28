@@ -17,12 +17,15 @@ import { consumables } from "../data/consumables";
 import { evolutionStones } from "../data/evolutionStones";
 import { evolutions } from "../data/evolutions";
 import { calcAllStats, capTotalExp, expYield } from "../utils/stats";
-import { createPokemon, toMove, ZERO_EVS, rollShiny, hasShinyCharm } from "../utils/pokemon";
+import { createPokemon, toMove, ZERO_EVS, rollShiny } from "../utils/pokemon";
+import { grantShinyCharmIfEarned, hasShinyCharm, SHINY_CHARM_ITEM } from "../utils/shinyCharm";
+import { resolveEvolutionTarget } from "../utils/evolution";
 import { evYieldFor, applyEvYield } from "../data/evYields";
 import { levelUpsForExp } from "../utils/moves";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
 import { rollCatch } from "../utils/catching";
+import { REPEL_IDS } from "../utils/encounters";
 import { unlockedFromProgress, pendingRegionStarter } from "../utils/unlocks";
 import {
   pickRandomLegendary,
@@ -266,9 +269,29 @@ function markCaught(state: GameState, key: string): GameState {
   const next = state.pokedexCaught.includes(key)
     ? state
     : { ...state, pokedexCaught: [...state.pokedexCaught, key] };
-  return next.pokedexSeen.includes(key)
+  const seen = next.pokedexSeen.includes(key)
     ? next
     : { ...next, pokedexSeen: [...next.pokedexSeen, key] };
+  return grantShinyCharmOnCompletion(seen);
+}
+
+// Completing the Pokédex hands over the Shiny Charm — as an item, with a line
+// in the log. Every dex registration in the game funnels through markCaught,
+// so this is the one place the grant has to live.
+//
+// Before this the charm was an invisible multiplier with no grant and no
+// notification: `hasShinyCharm` doubled rollShiny's odds and nothing else
+// acknowledged it existed, so finishing the dex produced no observable result
+// at all. The item itself was a phantom — in the catalog, described as "earned
+// automatically by completing the Pokédex", added to no inventory anywhere.
+function grantShinyCharmOnCompletion(state: GameState): GameState {
+  const granted = grantShinyCharmIfEarned(state);
+  if (granted === state) return state;
+  const name = itemsCatalog[SHINY_CHARM_ITEM]?.name ?? "Shiny Charm";
+  return pushLog(
+    granted,
+    `✨ Pokédex complete! The ${name} was added to your Bag — shiny rate doubled.`,
+  );
 }
 
 // Rare Bottle Cap drop on completing a raid (catching the legendary). Bottle
@@ -328,7 +351,7 @@ function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | 
   const nextSpeciesKey = tierId
     ? pickRandomLegendaryForTier(tierId, newLevel)
     : pickRandomLegendary(newLevel);
-  const isShiny = rollShiny(hasShinyCharm(state.pokedexCaught));
+  const isShiny = rollShiny(hasShinyCharm(state));
   const incoming = createPokemon(nextSpeciesKey, newLevel, state.nextPokemonId, isShiny);
   const leadIdx = firstHealthyIndex(state.party);
   const lead = state.party[leadIdx] ?? state.playerPokemon;
@@ -872,13 +895,25 @@ export function reducer(state: GameState, action: Action): GameState {
       // Evolve can be triggered mid-battle from the detail modal — bail
       // out of the encounter so the evolution animation has the scene
       // to itself and the player drops to idle when it finishes.
+      const { partyIndex } = action.payload;
+      const evolving = state.party[partyIndex];
+      // A branching line's target belongs to the POKÉMON, not the caller.
+      // START_EVOLUTION is dispatched from four places, one of which (the
+      // stream auto-player) scans for the first satisfied level trigger and
+      // has no notion of branch predicates — so it would happily ask for a
+      // Hitmonlee from a Tyrogue whose Defense is higher. Re-resolving here
+      // means every entry point lands on the same branch without any of them
+      // having to agree on how the split works.
+      const toSpeciesKey = evolving
+        ? resolveEvolutionTarget(evolving, action.payload.toSpeciesKey)
+        : action.payload.toSpeciesKey;
       const cleared = bailFromBattle(state);
       return {
         ...cleared,
         phase: "evolution",
         evolutionState: {
-          partyIndex: action.payload.partyIndex,
-          toSpeciesKey: action.payload.toSpeciesKey,
+          partyIndex,
+          toSpeciesKey,
           step: 0,
         },
       };
@@ -1575,11 +1610,19 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, alwaysCatchShinies: action.payload.value };
 
     case "TOGGLE_EFFECT_PAUSED": {
-      const { itemId } = action.payload;
+      const { itemId, speciesKey, routeKey } = action.payload;
+      // speciesKey/routeKey are optional so the id-only callers (Exp. Share,
+      // which targets nothing) keep working unchanged. When they ARE given,
+      // only that one effect toggles — otherwise pausing the Repel on one
+      // species would pause every repel on every route at once.
       return {
         ...state,
         activeEffects: state.activeEffects.map((e) =>
-          e.itemId === itemId ? { ...e, paused: !e.paused } : e
+          e.itemId === itemId &&
+          (speciesKey === undefined || e.speciesKey === speciesKey) &&
+          (routeKey === undefined || (e.routeKey ?? "") === routeKey)
+            ? { ...e, paused: !e.paused }
+            : e
         ),
       };
     }
@@ -1655,15 +1698,42 @@ export function reducer(state: GameState, action: Action): GameState {
       if ((inv[itemId] ?? 0) <= 0) return state;
       const def = consumables[itemId];
       if (!def) return state;
-      inv[itemId] = inv[itemId] - 1;
+      // Repel/Super Repel/Max Repel share ONE slot per species+route. They
+      // are the same halving at different lengths, so a second tier has to
+      // extend the timer rather than sit beside the first as a second
+      // effect (which would silently compound to a quarter weight and make
+      // the cheap Repel a strength multiplier for the expensive one).
+      const isRepel = REPEL_IDS.has(itemId);
       const existing = state.activeEffects.find(
-        (e) => e.itemId === itemId && e.speciesKey === speciesKey && e.routeKey === routeKey
+        (e) =>
+          e.speciesKey === speciesKey &&
+          e.routeKey === routeKey &&
+          (isRepel ? REPEL_IDS.has(e.itemId) : e.itemId === itemId)
       );
       let activeEffects: ActiveEffect[];
       if (existing) {
+        // The slot keeps whichever tier lasts longest, so the badge names
+        // the best repel the player has put into it and the 3x stacking cap
+        // is measured against that tier (Repel 1,500 → Max Repel 6,000).
+        const prevDef = consumables[existing.itemId];
+        const bestDef = prevDef && prevDef.duration > def.duration ? prevDef : def;
+        const cap = bestDef.duration * 3;
+        // Refuse rather than eat the item. Previously a use at the cap
+        // consumed the consumable and added nothing, which reads to the
+        // player as "the button doesn't work".
+        if (existing.battlesRemaining >= cap) {
+          return pushLog(
+            state,
+            `${def.name} not used — ${pokemonTable[speciesKey]?.name ?? speciesKey} is already at the ${cap.toLocaleString()}-battle cap.`
+          );
+        }
         activeEffects = state.activeEffects.map((e) =>
           e === existing
-            ? { ...e, battlesRemaining: Math.min(e.battlesRemaining + def.duration, def.duration * 3) }
+            ? {
+                ...e,
+                itemId: bestDef.id,
+                battlesRemaining: Math.min(e.battlesRemaining + def.duration, cap),
+              }
             : e
         );
       } else {
@@ -1672,6 +1742,7 @@ export function reducer(state: GameState, action: Action): GameState {
           { itemId, speciesKey, routeKey, battlesRemaining: def.duration },
         ];
       }
+      inv[itemId] = inv[itemId] - 1;
       return pushLog(
         { ...state, inventory: inv, activeEffects },
         `Used ${def.name} on ${pokemonTable[speciesKey]?.name ?? speciesKey}.`
@@ -1682,6 +1753,15 @@ export function reducer(state: GameState, action: Action): GameState {
       const { pokemonId, itemId } = action.payload;
       const inv = { ...state.inventory };
       if ((inv[itemId] ?? 0) <= 0) return state;
+      // Only genuinely equippable items. Equipping MOVES the item out of the
+      // inventory, so without this any id at all — a Poké Ball, a TM, or the
+      // Shiny Charm — could be parked on a Pokémon. That matters most for the
+      // charm: it is the Pokédex-completion reward and `hasShinyCharm` reads
+      // inventory ownership, so letting it be equipped would quietly halve the
+      // shiny rate of the player who just finished the dex. The picker in
+      // PokemonDetailModal already offers held-category items only; this makes
+      // the reducer agree instead of trusting its caller.
+      if (itemsCatalog[itemId]?.category !== "held") return state;
       // Find the target Pokemon in party or box.
       const idxParty = state.party.findIndex((p) => p.id === pokemonId);
       const idxBox = idxParty < 0 ? state.box.findIndex((p) => p.id === pokemonId) : -1;
@@ -1959,7 +2039,7 @@ export function reducer(state: GameState, action: Action): GameState {
       const speciesKey =
         action.payload?.speciesKey ??
         (tier ? pickRandomLegendaryForTier(tier.id, level) : pickRandomLegendary(level));
-      const isShiny = rollShiny(hasShinyCharm(state.pokedexCaught));
+      const isShiny = rollShiny(hasShinyCharm(state));
       const enemy = createPokemon(speciesKey, level, state.nextPokemonId, isShiny);
       // Heal party on raid entry (matches the original)
       const party = state.party.map((p) => ({

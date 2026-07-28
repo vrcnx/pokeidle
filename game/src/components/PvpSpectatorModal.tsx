@@ -7,6 +7,7 @@ import {
   type BattleLogEntry,
 } from "../state/pvp";
 import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
 
 // Read-only viewer of an in-progress battle as a spectator. Mounts
@@ -116,7 +117,7 @@ function Fighter({ mon }: { mon: FighterMon }) {
   return (
     <div className={`pvp-fighter ${mon.faint ? "fainted" : ""}`}>
       {url ? (
-        <img className="pvp-fighter-sprite" src={url} alt="" style={{ imageRendering: "pixelated" }} />
+        <PokemonSprite className="pvp-fighter-sprite" speciesKey={mon.speciesKey} alt="" style={{ imageRendering: "pixelated" }} />
       ) : (
         <div className="pvp-fighter-sprite missing">?</div>
       )}

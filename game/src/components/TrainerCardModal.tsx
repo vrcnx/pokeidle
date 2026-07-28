@@ -3,9 +3,9 @@ import { useGame } from "../state/GameContext";
 import { useAuth } from "../auth/AuthContext";
 import { gymLeaders } from "../data/gymLeaders";
 import { eliteFour } from "../data/eliteFour";
-import { pokemonTable } from "../data/pokemon";
+import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
 import { api, type PublicProfile, type TradeHistoryRow } from "../net/api";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useBattleHistory } from "../utils/battleHistory";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { sendTradeInvite, useTradeState } from "../state/trade";
@@ -67,7 +67,11 @@ function SelfCard({ onClose }: { onClose: () => void }) {
   const { me } = useAuth();
   const totalGyms = gymLeaders.length;
   const totalE4 = eliteFour.length;
-  const totalDex = Object.keys(pokemonTable).length;
+  // Same derived pair the Dex tab and Settings use — the raw pokemonTable size
+  // is the wrong denominator the moment a species exists for dex numbering
+  // without an obtainable source.
+  const totalDex = obtainableCount();
+  const caughtDex = caughtObtainableCount(state.pokedexCaught);
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const t = useT();
@@ -138,7 +142,7 @@ function SelfCard({ onClose }: { onClose: () => void }) {
 
             <section className="g-card">
               <h3>{t("Collection")}</h3>
-              <div className="g-row"><span>{t("Caught")}</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
+              <div className="g-row"><span>{t("Caught")}</span><strong>{caughtDex}<span className="dim"> / {totalDex}</span></strong></div>
               <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
               <div className="g-row"><span>{t("Shiny")}</span><strong>{state.shinyCaught.length}</strong></div>
               <div className="g-row"><span>{t("Badges")}</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
@@ -221,8 +225,8 @@ function BattleHistorySection() {
       <ul className="battle-history-list">
         {entries.slice(0, 12).map((e) => (
           <li key={e.at} className={`battle-history-row battle-history-${e.type}`}>
-            <img
-              src={pokemonSpriteUrl(e.enemySpeciesKey)}
+            <PokemonSprite
+              speciesKey={e.enemySpeciesKey}
               alt={e.enemyName}
               width={28}
               height={28}
@@ -286,8 +290,8 @@ function TradeHistorySection() {
             <li key={t.id} className="trade-history-row">
               <div className="trade-history-pair">
                 <span className="trade-history-mon" title={`Gave ${t.sent.nickname} · Lv ${t.sent.level}`}>
-                  <img
-                    src={pokemonSpriteUrl(t.sent.speciesKey)}
+                  <PokemonSprite
+                    speciesKey={t.sent.speciesKey}
                     alt={t.sent.nickname}
                     width={28}
                     height={28}
@@ -298,8 +302,8 @@ function TradeHistorySection() {
                 </span>
                 <span className="trade-history-arrow" aria-hidden>⇄</span>
                 <span className="trade-history-mon" title={`Got ${t.received.nickname} · Lv ${t.received.level}`}>
-                  <img
-                    src={pokemonSpriteUrl(t.received.speciesKey)}
+                  <PokemonSprite
+                    speciesKey={t.received.speciesKey}
                     alt={t.received.nickname}
                     width={28}
                     height={28}

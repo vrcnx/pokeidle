@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
-import { pokemonTable } from "../data/pokemon";
-import { hasShinyCharm } from "../utils/pokemon";
+import { hasShinyCharm } from "../utils/shinyCharm";
+import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { useAuth } from "../auth/AuthContext";
@@ -350,9 +350,16 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const dailyStatus = useDailyStatus();
   const t = useT();
   const [tab, setTab] = useState<SettingsTab>("stats");
-  const totalDex = Object.keys(pokemonTable).length;
-  const charm = hasShinyCharm(state.pokedexCaught);
-  const dexPct = ((state.pokedexCaught.length / totalDex) * 100).toFixed(1);
+  // Count against what can actually be caught, not the raw pokemonTable size,
+  // and count the player's registrations the same way. This panel used to
+  // divide an unfiltered caught-count by 288 while the charm unlocked at 245,
+  // so it told players "Catch all 288 Pokémon to unlock. 44 left." for a charm
+  // that was one catch away. Both sides now come from the same derived set the
+  // Dex tab's completion ring uses.
+  const totalDex = obtainableCount();
+  const caughtDex = caughtObtainableCount(state.pokedexCaught);
+  const charm = hasShinyCharm(state);
+  const dexPct = ((caughtDex / Math.max(1, totalDex)) * 100).toFixed(1);
   // Badges/Elite Four are shown per the player's CURRENT region — a flat
   // count across every region's roster would read "0/16" (or worse once
   // a 3rd region exists) for a player standing in Kanto with 0 Johto
@@ -413,7 +420,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               <>
                 <section className="g-card">
                   <h3>{t("Pokédex")}</h3>
-                  <div className="g-row"><span>{t("Caught")}</span><strong>{state.pokedexCaught.length}<span className="dim"> / {totalDex}</span></strong></div>
+                  <div className="g-row"><span>{t("Caught")}</span><strong>{caughtDex}<span className="dim"> / {totalDex}</span></strong></div>
                   <div className="g-row"><span>{t("Completion")}</span><strong>{dexPct}%</strong></div>
                   <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
                   <div className="g-row"><span>{t("Shiny seen")}</span><strong>{state.shinySeen.length}</strong></div>
@@ -506,8 +513,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   </div>
                   <p className="g-help">
                     {charm
-                      ? t("Shiny encounter rate is doubled (1/4096).")
-                      : `${t("Catch all")} ${totalDex} ${t("Pokémon to unlock.")} ${totalDex - state.pokedexCaught.length} ${t("left.")}`}
+                      ? t("In your Bag — shiny encounter rate is doubled (1/4096).")
+                      : `${t("Catch all")} ${totalDex} ${t("Pokémon to unlock.")} ${Math.max(0, totalDex - caughtDex)} ${t("left.")}`}
                   </p>
                 </section>
               </>

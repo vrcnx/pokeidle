@@ -2,7 +2,7 @@ import { useGame } from "../state/GameContext";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { routes } from "../data/routes";
-import { trainerSpriteUrl } from "../utils/sprites";
+import { TrainerSprite } from "./Sprite";
 import { buildTeam } from "../utils/trainerFactory";
 import type { BossBattle } from "../types";
 import { useT } from "../i18n/useT";
@@ -163,13 +163,12 @@ export function GymsList() {
           return (
             <li key={g.id} className={`${beaten ? "beaten" : unlocked ? "" : "locked"}`}>
               {unlocked ? (
-                <img
-                  src={trainerSpriteUrl(g.spriteKey)}
+                <TrainerSprite
+                  spriteKey={g.spriteKey}
                   alt={g.name}
                   width={28}
                   height={28}
                   style={{ imageRendering: "pixelated" }}
-                  onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
                 />
               ) : (
                 <span className="gym-mystery">???</span>
@@ -212,13 +211,12 @@ export function GymsList() {
           return (
             <li key={m.id} className={`${beaten ? "beaten" : allBadges ? "" : "locked"}`}>
               {allBadges ? (
-                <img
-                  src={trainerSpriteUrl(m.spriteKey)}
+                <TrainerSprite
+                  spriteKey={m.spriteKey}
                   alt={m.name}
                   width={28}
                   height={28}
                   style={{ imageRendering: "pixelated" }}
-                  onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
                 />
               ) : (
                 <span className="gym-mystery">???</span>
@@ -245,13 +243,12 @@ export function GymsList() {
         })}
         <li className={championBeaten ? "beaten" : (allE4 ? "" : "locked")}>
           {allE4 ? (
-            <img
-              src={trainerSpriteUrl(champion.spriteKey)}
+            <TrainerSprite
+              spriteKey={champion.spriteKey}
               alt={champion.name}
               width={28}
               height={28}
               style={{ imageRendering: "pixelated" }}
-              onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
             />
           ) : (
             <span className="gym-mystery">???</span>

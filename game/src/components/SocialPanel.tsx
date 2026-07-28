@@ -9,7 +9,14 @@ import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 import { PollCard } from "./PollCard";
+import { obtainableCount } from "../utils/obtainable";
 import { useT } from "../i18n/useT";
+
+// Denominator for another trainer's public dex count. The server clamps the
+// figure it serves (server/src/lib/level.ts MAX_TOTAL_DEX); this must be the
+// same ceiling or the directory renders things like "288/245". It was a
+// literal 245 in two places, which is exactly how it drifted the first time.
+const DEX_TOTAL = obtainableCount();
 
 // Social drawer rebuilt on the shared `.g-modal` shell. Two tabs:
 //   Chat    — channels list (Global + DMs) + thread + composer
@@ -534,7 +541,7 @@ function FriendRow({ entry, presence, actions }: {
           <span className={`g-presence ${online ? "on" : "off"}`}>{online ? t("online") : t("offline")}</span>
         </div>
         <div className="g-friend-meta">
-          @{entry.username} {t("· Lv")} {entry.accountLevel} · {entry.pokedexCaughtCount}{t("/245 dex")}
+          @{entry.username} {t("· Lv")} {entry.accountLevel} · {entry.pokedexCaughtCount}/{DEX_TOTAL} {t("dex")}
         </div>
       </button>
       <div className="g-friend-actions">
@@ -604,7 +611,7 @@ function DirectoryTab() {
                 {t("Lv ")}<strong>{trainer.accountLevel}</strong>
               </span>
               <span className="trainer-directory-stat" title={t("Pokédex caught")}>
-                <strong>{trainer.pokedexCaughtCount}</strong>/245
+                <strong>{trainer.pokedexCaughtCount}</strong>/{DEX_TOTAL}
               </span>
               <span className="trainer-directory-stat" title={t("Total Pokémon levels")}>
                 Σ <strong>{(trainer.totalCaughtLevels ?? 0).toLocaleString()}</strong>

@@ -25,6 +25,7 @@ import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
+import { grandfatherShinyCharm } from "../utils/shinyCharm";
 import { isStreamMode } from "./streamMode";
 import { executeStreamCommand } from "../utils/streamCommands";
 
@@ -214,7 +215,7 @@ function loadSaved(): GameState {
     const mergedClaimedRegionStarters = parsed.claimedRegionStarters ?? initialState.claimedRegionStarters;
     const hasPendingRegionStarter = !!pendingRegionStarter(mergedClaimedRegionStarters, mergedLocation);
 
-    return {
+    return grandfatherShinyCharm({
       ...initialState,
       ...parsed,
       playerPokemon: activeFromParty,
@@ -244,7 +245,13 @@ function loadSaved(): GameState {
       paused: false,
       awaitingSwitch: false,
       defeatedTrainers: parsed.defeatedTrainers ?? [],
-    };
+      // grandfatherShinyCharm (above): the charm is now a held item gated on
+      // full completion of the obtainable dex, where it used to be an
+      // invisible multiplier gated on `pokedexCaught.length >= 245`. Saves
+      // written under the old rule have no item to read, so anyone who was
+      // already getting the doubled rate is handed the real charm here rather
+      // than silently losing it. Idempotent — a no-op once the item is held.
+    });
   } catch {
     return initialState;
   }
@@ -375,7 +382,12 @@ function clearSyncVersion(): void {
 // adoptCloudWholesale there for why the spendable set must be materialised in
 // full and why the active mon has to be re-anchored.
 function stateFromCloud(cloudData: any): GameState {
-  return adoptCloudWholesale(cloudData, normalizePokemon) as GameState;
+  // Same Shiny Charm migration loadSaved applies to the local blob. Cloud
+  // adoption is the path a veteran on a fresh device takes, and it is the
+  // path the players who reported the missing charm are on — skipping it here
+  // would hand them the new (higher) threshold without the item they earned
+  // under the old one. saveReconcile stays dependency-free, so it goes here.
+  return grandfatherShinyCharm(adoptCloudWholesale(cloudData, normalizePokemon)) as GameState;
 }
 
 // Which account's progress the local blob holds.

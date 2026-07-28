@@ -1641,6 +1641,99 @@ header.tab-pane-head.v2 .mart-wallet {
   max-width: 100%;
 }
 .pc-cell-level { font-size: 8px; color: var(--text-dim); }
+/* Level badge on box cells. Corner-mounted rather than a row under the
+   sprite (that's .pc-cell-level, which box mode hides) so it costs the
+   6×5 grid no height — a box full of the same species is otherwise
+   impossible to tell apart. */
+.pc-cell-lv {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  z-index: 2;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.62);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none;
+  pointer-events: none;
+}
+
+/* PC filter row — search + shiny toggle + IV tier. Sits between the head
+   (title / sort / pager) and the grid, and narrows the view only; sorting
+   still mutates the box itself. */
+.pc-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+  margin: 0 0 6px;
+}
+.pc-search-wrap {
+  position: relative;
+  flex: 1 1 140px;
+  min-width: 110px;
+}
+.pc-search {
+  width: 100%;
+  padding: 6px 26px 6px 10px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: var(--text);
+}
+.pc-search::-webkit-search-cancel-button { display: none; }
+.pc-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pc-search-clear:hover { color: #fff; }
+.pc-filter,
+.pc-filter-select {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.pc-filter:hover,
+.pc-filter-select:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.30);
+  color: #fff;
+}
+.pc-filter.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #0a0a0a;
+  font-weight: 700;
+}
+.pc-filter-select option { background: var(--panel-2); color: var(--text); }
 .pc-help {
   text-align: center;
   padding: 8px 12px;
@@ -3382,6 +3475,12 @@ body.dnd-active {
   font-size: 11px !important;
 }
 .mobile-shell .pc-tab .tab-pane-head-tools .pc-pager { margin-left: auto; }
+/* Filter row on phones: same wrap-and-shrink treatment as the tools row so
+   search + shiny + IV all stay reachable instead of overflowing. */
+.mobile-shell .pc-tab .pc-filters { gap: 4px; margin-bottom: 4px; }
+.mobile-shell .pc-tab .pc-filter,
+.mobile-shell .pc-tab .pc-filter-select { padding: 5px 8px; font-size: 11px; }
+.mobile-shell .pc-tab .pc-search-wrap { min-width: 96px; }
 
 /* Audio settings — volume slider in the Settings modal. */
 .audio-volume-row {
@@ -4112,6 +4211,12 @@ body.dnd-active {
   position: absolute;
   z-index: 2;
   pointer-events: none;
+  /* The sprite no longer fills the slot (see .enemy-sprite below), so the
+     slot has to place it: horizontally centred, standing on the slot's
+     bottom edge — which is where ::after draws the floor shadow. */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 /* Slot sizes per spec:
    - player (back sprite) fills 90% of the BOTTOM-LEFT quadrant.
@@ -4138,17 +4243,80 @@ body.dnd-active {
   right: 8%;
   bottom: 50%;
 }
+/* ── Battle sprite scale ───────────────────────────────────────────────
+   The Gen-V sprites already encode relative size: Ditto ships as 47×32,
+   Onix as 74×74, Rayquaza as 110×98. `width/height: 100%` + object-fit:
+   contain threw all of that away — contain upscales whatever it is given
+   until it touches the slot, so a 32px-tall Ditto was blown up ~2.3×
+   more than a 74px Onix and the two rendered identically. Hence "Ditto
+   looks huge in battle".
+
+   Instead: treat the slot as a reference canvas holding the biggest
+   sprite in the set, and size every sprite as its own intrinsic pixels
+   times the one scale factor that canvas implies. --sw / --sh are the
+   sprite's naturalWidth / naturalHeight, published by <PokemonSprite>
+   on load (see components/Sprite.tsx); the defaults below make an
+   unmeasured sprite fill the slot exactly as before.
+
+   min(…) picks the single uniform factor, so aspect ratio is preserved
+   without object-fit having to do it. max-width/max-height then clamp
+   the handful of outliers that exceed the reference canvas (Lugia is
+   153px wide) and object-fit: contain keeps THOSE undistorted. */
 .enemy-sprite, .player-sprite {
+  /* Fallback for engines without container-query units: previous
+     behaviour, i.e. stretch to the slot. */
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center bottom;
   image-rendering: pixelated;
   position: relative;
   z-index: 2;       /* sits ABOVE the floor shadow */
+  flex: 0 0 auto;
+}
+@supports (width: 1cqw) {
+  .sprite-slot {
+    /* Both axes are definite (percentages of the arena), so `size` is safe
+       and 100cqw/100cqh resolve to the slot's own box. */
+    container-type: size;
+  }
+  .enemy-sprite, .player-sprite {
+    /* Reference canvas = the largest sprite in the Gen-V animated set,
+       110 × 100 px (Rayquaza front 110×98, back 101×107). */
+    width:  calc(var(--sw, 110) * min(100cqw / 110, 100cqh / 100));
+    height: calc(var(--sh, 100) * min(100cqw / 110, 100cqh / 100));
+  }
 }
 @media (max-width: 480px) {
   .enemy-card, .player-card { font-size: 8px; width: 168px; padding: 3px 6px; }
+}
+
+/* ── Missing-sprite placeholder ────────────────────────────────────────
+   Rendered by <Sprite> (components/Sprite.tsx) once a URL, its cache-
+   busting retry, and its static fallback have ALL failed. Deliberately
+   visible: the handlers this replaced hid a failed sprite with
+   `display: none` / `opacity: 0`, so one CDN blip looked like an
+   intentional blank and left the player with nothing to report. Inherits
+   whatever width/height the call site asked for, so it holds the same
+   space the sprite would have. */
+.sprite-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  min-height: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  user-select: none;
 }
 
 /* ---------- Trainer "behind" sprite ----------
@@ -4732,6 +4900,8 @@ body.dnd-active {
 }
 .wild-effect-badge.repel { background: #4f9af0; }
 .wild-effect-badge.honey { background: #f0c84f; color: #2a1808; text-shadow: none; }
+/* Paused effects don't apply — the badge shouldn't read as "in force". */
+.wild-effect-badge.paused { opacity: 0.4; filter: grayscale(1); }
 
 /* ---------- Wild Pokemon detail (inline panel) ---------- */
 .wild-detail {
@@ -4761,9 +4931,15 @@ body.dnd-active {
 .rarity-very_rare  { color: #c876e8; }
 .rarity-ultra_rare { color: #f6c84a; text-shadow: 0 0 6px rgba(246,200,74,0.4); }
 
-.wild-detail-actions { display: flex; gap: 6px; }
-.wild-detail-actions button { font-size: 9px; padding: 4px 8px; flex: 1; }
+/* Up to three repel tiers + honey, in a narrow column — wrap instead of
+   squeezing each button down to an unreadable sliver. */
+.wild-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wild-detail-actions button { font-size: 9px; padding: 4px 8px; flex: 1 1 84px; min-width: 84px; }
 .wild-detail-actions button.active { box-shadow: 0 0 0 2px var(--gold); }
+
+.wild-detail-effects { display: flex; flex-direction: column; gap: 2px; font-size: 9px; }
+.wild-detail-effects small { color: var(--gold); }
+.wild-detail-effects small.dim { color: var(--text-dim); }
 
 .wild-detail-stats { display: flex; flex-direction: column; gap: 2px; }
 .wild-stat-row {
@@ -11593,6 +11769,31 @@ input:focus, textarea:focus, select:focus {
   background: rgba(255, 255, 255, 0.85) !important;
   border-color: rgba(0, 0, 0, 0.45) !important;
 }
+/* Same treatment for the filter row — the PC pane sits on an illustrated
+   backdrop, so translucent-on-dark chrome is unreadable here. */
+.pc-tab .pc-search,
+.pc-tab .pc-filter,
+.pc-tab .pc-filter-select {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  color: #0a0a0a;
+  font-weight: 600;
+}
+.pc-tab .pc-search::placeholder { color: rgba(0, 0, 0, 0.5); }
+.pc-tab .pc-search:focus,
+.pc-tab .pc-filter:hover,
+.pc-tab .pc-filter-select:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.45);
+  color: #0a0a0a;
+}
+.pc-tab .pc-filter.active {
+  background: var(--gold);
+  border-color: rgba(0, 0, 0, 0.45);
+  color: #0a0a0a;
+}
+.pc-tab .pc-search-clear { color: rgba(0, 0, 0, 0.55); }
+.pc-tab .pc-search-clear:hover { color: #000; }
 .bag-tab {
   flex: 1;
   min-height: 0;

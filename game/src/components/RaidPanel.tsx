@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { raidLegendaries, RAID_COOLDOWN_MS } from "../data/raidLegendaries";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
 
 export function RaidPanel() {
@@ -58,8 +58,8 @@ export function RaidPanel() {
               disabled={cooldownRemaining > 0 || state.inRaid}
               onClick={() => startRaid(l.speciesKey, l.level)}
             >
-              <img
-                src={pokemonSpriteUrl(l.speciesKey)}
+              <PokemonSprite
+                speciesKey={l.speciesKey}
                 alt={sp?.name}
                 width={96}
                 height={96}

@@ -59,12 +59,26 @@ const TIERS_LIST: RaidTier[] = [
     // the grass. Everything they evolve into comes free through levelling.
     id: "johtoNursery",
     name: "Johto Nursery",
-    blurb: "Rare young Pokémon found nowhere in the wild — and the Larvitar line, if you're lucky.",
+    // The blurb names what the babies become. Without it the pool reads as a
+    // curiosity rather than the only route to Hitmontop, Togetic, Ampharos'
+    // cousins and the rest — a player filed "Hitmontop is impossible to get"
+    // while Tyrogue was sitting in this pool at weight 12 from badge zero.
+    blurb: "Rare young Pokémon found nowhere in the wild — Tyrogue (→ Hitmonlee / Hitmonchan / Hitmontop), Togepi, Pichu, Cleffa, Igglybuff, Smoochum, Elekid, Magby — and the Larvitar line, if you're lucky.",
     startLevel: 15,
     unlockBadges: 0,
     pool: {
       pichu: 14, cleffa: 14, igglybuff: 14,
       togepi: 12, tyrogue: 12, smoochum: 11, elekid: 11, magby: 11,
+      // Hitmontop is otherwise reachable ONLY through Tyrogue's
+      // attack == defense branch, and that tie decays hard with level —
+      // 11.5% at Lv20 down to 2.6% at Lv100, and a nature that splits
+      // Atk/Def locks an individual out for good. That made one species
+      // the single point of failure for the whole Pokedex (and the Shiny
+      // Charm behind it), at roughly 1.3% per raid spawn with nothing
+      // in-game telling you to evolve at exactly 20. It stays the
+      // canonical way to get one; this is the floor so the dex is never
+      // gated on a coin flip a player cannot see.
+      hitmontop: 4,
       larvitar: 5,
     },
   },

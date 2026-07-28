@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
-import { pokemonSpriteUrl } from "../utils/sprites";
-import { rollShiny, hasShinyCharm } from "../utils/pokemon";
+import { PokemonSprite } from "./Sprite";
+import { rollShiny } from "../utils/pokemon";
+import { hasShinyCharm } from "../utils/shinyCharm";
 import { regions, regionForLocation } from "../data/regions";
 import { useModalEnter } from "../utils/animate";
 import { useStreamMode } from "../state/streamMode";
@@ -23,7 +24,7 @@ export function RegionStarterSelect() {
   const inPhase = state.phase === "regionStarterSelect";
   const regionId = inPhase ? regionForLocation(state.currentLocation) : null;
   const region = regionId ? regions[regionId] : undefined;
-  const charm = hasShinyCharm(state.pokedexCaught);
+  const charm = hasShinyCharm(state);
 
   // Stream accounts can't click — auto-pick the region starter so the
   // broadcast keeps advancing when it reaches a new region's town.
@@ -63,8 +64,8 @@ export function RegionStarterSelect() {
                   })
                 }
               >
-                <img
-                  src={pokemonSpriteUrl(key, false, false)}
+                <PokemonSprite
+                  speciesKey={key}
                   alt={sp.name}
                   width={96}
                   height={96}

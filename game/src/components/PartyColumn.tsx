@@ -1,5 +1,6 @@
 import { useGame } from "../state/GameContext";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteSlug, getItemInfo } from "../utils/items";
@@ -9,6 +10,7 @@ import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
+import { levelEvolutionFor } from "../utils/evolution";
 import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
 import { BottomTabs } from "./BottomTabs";
@@ -45,17 +47,14 @@ function readyStoneEvolution(
 // Every level evolution in the game is therefore a deliberate player
 // action, which is why this has to be reachable from the row's menu:
 // canEvolveNow already counts these, so the row glows for them.
+//
+// levelEvolutionFor does the branch selection (and the "target exists in
+// pokemonTable" guard this used to do inline), so a species with a stat
+// split offers the one branch this individual actually qualifies for
+// rather than whichever trigger happens to be listed first.
 function readyLevelEvolution(p: Pokemon): { into: string } | null {
-  for (const t of evolutions[p.speciesKey] ?? []) {
-    if (!("level" in t) || "item" in t) continue;
-    if (p.level < t.level) continue;
-    // Same guard as the stone path: never offer an evolution into a
-    // species the dex doesn't have, or COMPLETE_EVOLUTION crashes on
-    // its missing base stats.
-    if (!pokemonTable[t.into]) continue;
-    return { into: t.into };
-  }
-  return null;
+  const t = levelEvolutionFor(p);
+  return t ? { into: t.into } : null;
 }
 
 // Returns true when this party member can evolve right now — either
@@ -63,9 +62,12 @@ function readyLevelEvolution(p: Pokemon): { into: string } | null {
 // trigger and the player owns the stone in inventory. Trade-only
 // evolutions are excluded (those fire from the trade flow). Used to
 // paint a glow on ready party rows so the player knows to act.
+//
+// Shares readyLevelEvolution's predicate rather than re-testing the raw
+// level, so the glow and the context-menu entry can never disagree — the
+// old inline test lit the row for targets the menu then refused to offer.
 function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
-  const triggers = evolutions[p.speciesKey] ?? [];
-  if (triggers.some((t) => "level" in t && p.level >= t.level)) return true;
+  if (readyLevelEvolution(p) !== null) return true;
   return readyStoneEvolution(p, inventory) !== null;
 }
 
@@ -212,8 +214,8 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
                 label: t("Evolve"),
                 hint: pokemonTable[levelEvo.into]?.name,
                 icon: (
-                  <img
-                    src={pokemonSpriteUrl(levelEvo.into)}
+                  <PokemonSprite
+                    speciesKey={levelEvo.into}
                     alt=""
                     width={16}
                     height={16}
@@ -283,8 +285,9 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
       title={t("Tap for details · hold-and-drag to reorder · right-click for actions")}
     >
       <div className="party-row-sprite">
-        <img
-          src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+        <PokemonSprite
+          speciesKey={p.speciesKey}
+          isShiny={p.isShiny}
           alt={p.name}
           width={48}
           height={48}

@@ -129,8 +129,33 @@ export interface Pokemon {
   heldItem?: string;         // held item id (see data/itemsCatalog.ts heldItem entries)
 }
 
+/** The stats a branching evolution is allowed to read off the evolving mon. */
+export type EvolutionStatKey =
+  | "hp" | "attack" | "defense" | "spAttack" | "spDefense" | "speed";
+
+/**
+ * A branch predicate on the evolving Pokémon's OWN stats, compared against
+ * each other at the moment the evolution fires.
+ *
+ * This exists because canon has level evolutions that split several ways off
+ * one threshold, and the trigger union previously had no way to express a
+ * predicate at all — so Tyrogue's three-way split was flattened to a single
+ * hardcoded target and two thirds of the line simply did not exist.
+ *
+ * `gt`/`lt`/`eq` over one stat pair PARTITION every possible pair of values,
+ * so a well-formed branch set always has exactly one match: no Pokémon can
+ * get stuck un-evolved, and no branch target is unreachable.
+ */
+export interface EvolutionStatCondition {
+  /** [left, right] — read off the live Pokémon, not the species base stats. */
+  compare: [EvolutionStatKey, EvolutionStatKey];
+  op: "gt" | "lt" | "eq";
+}
+
 export type EvolutionTrigger =
-  | { into: string; level: number }
+  // `when` is optional so every pre-existing single-target level evolution
+  // keeps its exact shape and meaning — an absent predicate is "always true".
+  | { into: string; level: number; when?: EvolutionStatCondition }
   | { into: string; item: string }
   | { into: string; trade: true }
   // Gen 4+ trade-with-item evolutions: the Pokémon must be holding the
@@ -502,7 +527,7 @@ export type Action =
   // the winner's own tab a round trip and the play it would lose to one.
   | { type: "RECEIVE_GIFT"; payload: { prizes: Array<{ kind: "item"; itemId: string; quantity: number } | { kind: "money"; amount: number } | { kind: "pokemon"; label?: string; mon: Record<string, unknown>; assignedId?: string }> } }
   | { type: "SET_NICKNAME"; payload: { pokemonId: string; nickname: string } }
-  | { type: "TOGGLE_EFFECT_PAUSED"; payload: { itemId: string } }
+  | { type: "TOGGLE_EFFECT_PAUSED"; payload: { itemId: string; speciesKey?: string; routeKey?: string } }
   | { type: "SET_ALWAYS_CATCH_SHINIES"; payload: { value: boolean } }
   | { type: "RESET_ELITE_FOUR" }
   | { type: "TOGGLE_AUTO_PROCEED" }

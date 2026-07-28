@@ -3,7 +3,8 @@ import { useGame } from "../state/GameContext";
 import {
   useTradeState, setOffer, setLock, cancelTrade, clearRoom, type RoomState, type TradeOffer,
 } from "../state/trade";
-import { pokemonSpriteUrl, itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { itemsCatalog } from "../data/itemsCatalog";
 import { useModalEnter } from "../utils/animate";
 import { playTradeAnimation } from "./TradeAnimation";
@@ -196,9 +197,10 @@ function TradeRoomDialog({ room }: { room: RoomState }) {
                       key={p.id}
                       className={`trade-room-party-row ${selected ? "selected" : ""}`}
                     >
-                      <img
+                      <PokemonSprite
                         className="trade-room-sprite"
-                        src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+                        speciesKey={p.speciesKey}
+                        isShiny={p.isShiny}
                         alt={p.name}
                         width={32}
                         height={32}
@@ -284,9 +286,10 @@ function SidePanel({
       </header>
       {offer ? (
         <div className="trade-side-body">
-          <img
+          <PokemonSprite
             className="trade-side-sprite"
-            src={pokemonSpriteUrl(offer.speciesKey, false, !!offer.isShiny)}
+            speciesKey={offer.speciesKey}
+            isShiny={!!offer.isShiny}
             alt={offer.name}
             width={64}
             height={64}

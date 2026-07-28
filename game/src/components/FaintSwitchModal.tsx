@@ -1,5 +1,5 @@
 import { useGame } from "../state/GameContext";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
 
 // No ESC handler / close button on this modal — the player MUST pick a
@@ -42,8 +42,9 @@ export function FaintSwitchModal() {
                   })
                 }
               >
-                <img
-                  src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+                <PokemonSprite
+                  speciesKey={p.speciesKey}
+                  isShiny={p.isShiny}
                   alt={p.name}
                   width={48}
                   height={48}

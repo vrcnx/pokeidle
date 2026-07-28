@@ -47,7 +47,14 @@ const items: CatalogItem[] = [
 
   // ── Held items (only the ones with real mechanics) ───────────────────────
   { id: "expShare",   name: "Exp. Share",  description: "Use from the Bag to share 25% EXP with every non-fainted party member for 300 battles. Consumed on use.", category: "utility", buyPrice: 20000, sellPrice: 0, spriteOverride: "exp-share", implemented: true },
-  { id: "shinycharm", name: "Shiny Charm", description: "Doubles shiny encounter rate. Earned automatically by completing the Pokédex.", category: "held", buyPrice: 12000, sellPrice: 0, spriteOverride: "shiny-charm", implemented: true },
+  // Granted by the reducer the moment every obtainable species is registered
+  // (see utils/shinyCharm.ts). A key item, not a held one: it is account-wide,
+  // is equipped to nothing, and must never be lost — buyPrice null keeps a
+  // shop from ever stocking the reward, sellPrice 0 keeps SELL_ITEM from
+  // taking it back. It sat in "held" with a 12,000 price tag while no code
+  // path anywhere added it to an inventory, which is why the description was
+  // a promise the game never kept.
+  { id: "shinycharm", name: "Shiny Charm", description: "Doubles the shiny encounter rate (1/8192 → 1/4096). Granted for completing the Pokédex.", category: "key", buyPrice: null, sellPrice: 0, spriteOverride: "shiny-charm", implemented: true },
 
   // Battle held items — equippable on individual Pokémon via the Pokémon Detail modal.
   { id: "leftovers",      name: "Leftovers",       description: "Restores 1/16 max HP each turn while held.", category: "held", buyPrice: 4000, sellPrice: 2000, spriteOverride: "leftovers", implemented: true },
@@ -133,9 +140,15 @@ const items: CatalogItem[] = [
   { id: "starpiece",  name: "Star Piece",  description: "A piece of a beautiful gem. Sells for a high price.", category: "treasure", buyPrice: null, sellPrice: 4900, spriteOverride: "star-piece" },
 
   // ── Utility (existing repel/honey live here) ─────────────────────────────
+  // The repel line is one effect at three lengths — the halving is identical,
+  // only the duration scales. The Super/Max copy used to read "Halves wild
+  // encounters", promising a blanket route-wide effect the item has never had;
+  // it is per-species, picked from the Wild Pokémon panel, like the base Repel.
+  // Both were also missing `implemented: true`, which is the flag the Bag uses
+  // to mark an item "catalog only".
   { id: "repel",      name: "Repel",       description: "Halves a wild Pokémon's encounter weight on the current route for 500 battles.", category: "utility", buyPrice: 350, sellPrice: 175, implemented: true },
-  { id: "superrepel", name: "Super Repel", description: "Halves wild encounters for 1000 battles.", category: "utility", buyPrice: 500, sellPrice: 250, spriteOverride: "super-repel" },
-  { id: "maxrepel",   name: "Max Repel",   description: "Halves wild encounters for 2000 battles.", category: "utility", buyPrice: 700, sellPrice: 350, spriteOverride: "max-repel" },
+  { id: "superrepel", name: "Super Repel", description: "Halves a wild Pokémon's encounter weight on the current route for 1,000 battles.", category: "utility", buyPrice: 500, sellPrice: 250, spriteOverride: "super-repel", implemented: true },
+  { id: "maxrepel",   name: "Max Repel",   description: "Halves a wild Pokémon's encounter weight on the current route for 2,000 battles.", category: "utility", buyPrice: 700, sellPrice: 350, spriteOverride: "max-repel", implemented: true },
   { id: "honey",      name: "Honey",       description: "Doubles a wild Pokémon's encounter weight on the current route for 500 battles.", category: "utility", buyPrice: 100, sellPrice: 50, implemented: true },
 
   // ── HMs (display-only) ───────────────────────────────────────────────────

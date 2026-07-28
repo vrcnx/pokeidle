@@ -34,17 +34,43 @@
 
 import { pokemonSpriteUrl } from "./sprites";
 
+// URLs we have SEEN LOAD. Only a fired `load` event proves a cache entry
+// exists, so nothing lands here until then.
 const warmed = new Set<string>();
+// Requests currently in the air. Keeps repeat warmup passes (this module is
+// re-driven on every party/pokedex change, i.e. every HP tick) from spawning
+// a second Image() for a URL whose first fetch hasn't settled yet.
+const inflight = new Set<string>();
+// Consecutive failures per URL. A blip should be retried on the next pass;
+// a genuinely absent sprite should not be re-requested forever.
+const failures = new Map<string, number>();
+const MAX_WARM_ATTEMPTS = 3;
 
 function warm(url: string) {
-  if (!url || warmed.has(url)) return;
-  warmed.add(url);
+  if (!url) return;
+  if (warmed.has(url) || inflight.has(url)) return;
+  if ((failures.get(url) ?? 0) >= MAX_WARM_ATTEMPTS) return;
+  inflight.add(url);
   // Image() in JS triggers a normal browser fetch + caches the result
   // under the same Cache-Control rules a real <img> would use. No DOM
   // mount needed; once the load fires the cache entry exists.
   const img = new Image();
   img.decoding = "async";
   img.fetchPriority = "low";
+  // Bookkeeping used to be "mark done, then fire" — which meant a preload
+  // that FAILED (CDN edge hiccup, wifi handoff, ad-blocker) was recorded as
+  // warmed forever and the sprite was never fetched again for the rest of
+  // the session. That turned a one-off blip into a permanently missing
+  // sprite everywhere the species appeared. Record on the actual outcome.
+  img.onload = () => {
+    inflight.delete(url);
+    failures.delete(url);
+    warmed.add(url);
+  };
+  img.onerror = () => {
+    inflight.delete(url);
+    failures.set(url, (failures.get(url) ?? 0) + 1);
+  };
   img.src = url;
 }
 
@@ -74,8 +100,10 @@ export function warmupParty(party: readonly { speciesKey: string; isShiny: boole
   }
 }
 
-// Wipes the warmed set. Only used in tests + when the user signs out
-// (so a different player's preload bookkeeping doesn't carry over).
+// Wipes the warmup bookkeeping. Only used in tests + when the user signs
+// out (so a different player's preload bookkeeping doesn't carry over).
 export function resetWarmup(): void {
   warmed.clear();
+  inflight.clear();
+  failures.clear();
 }

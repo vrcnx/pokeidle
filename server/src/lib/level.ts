@@ -5,7 +5,7 @@
 //
 // Caps applied here are leaderboard-defence: even if a save passed
 // validation, we don't let derived public metrics exceed reasonable
-// bounds. The dex is 151 Kanto + 94 Johto = 245 species, party+box has
+// bounds. The dex is every species the client can hand out, party+box has
 // hard size limits, and account level is capped well above what any
 // honest player will hit through normal play.
 
@@ -18,7 +18,13 @@ const MAX_PARTY = 6;
 // this).
 const MAX_BOX = 9999;
 const MAX_LEVEL = 100;
-const MAX_TOTAL_DEX = 245; // 151 Kanto + 94 Johto (extend further with later regions)
+// Must be >= the client's obtainable-species count (game/src/utils/obtainable.ts,
+// currently 288: 151 Kanto + 100 Johto + 37 raid-only later-gen bosses). At 245
+// this clamp was BELOW the reachable ceiling, so every completionist reported an
+// identical 245 and the dex leaderboard could not tell them apart — two players
+// on 288 and 279 both surfaced as 245. Raising it only ever reveals real counts;
+// it can never lower a number a player already sees.
+const MAX_TOTAL_DEX = 288;
 const MAX_TOTAL_CAUGHT_LEVELS = (MAX_PARTY + MAX_BOX) * MAX_LEVEL;
 const MAX_ACCOUNT_LEVEL = Math.floor(MAX_TOTAL_CAUGHT_LEVELS / 10);
 

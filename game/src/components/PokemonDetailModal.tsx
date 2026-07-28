@@ -5,11 +5,12 @@ import { pokemonTable } from "../data/pokemon";
 import { moves as movesTable } from "../data/moves";
 import { evolutions } from "../data/evolutions";
 import { evolutionStones } from "../data/evolutionStones";
+import { describeStatCondition, statConditionMet } from "../utils/evolution";
 import { findNature } from "../data/natures";
 import { abilityInfo } from "../data/abilities";
 import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteUrl } from "../utils/sprites";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { expForLevel } from "../utils/stats";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
@@ -234,12 +235,23 @@ export function PokemonDetailModal() {
   const allEvolutions: EvoOption[] = [];
   for (const t of evolutions[p.speciesKey] ?? []) {
     if ("level" in t) {
-      const eligible = p.level >= t.level;
-      allEvolutions.push({
-        trigger: t,
-        reason: eligible ? `Level ${t.level} reached` : `Reach Lv ${t.level}`,
-        eligible,
-      });
+      // A branching line (Tyrogue) lists every sibling here. Show the live
+      // stat comparison on each one — that is the whole difference between
+      // "this Pokémon becomes a Hitmonchan" and an unexplained grey button —
+      // and only mark the branch this individual qualifies for as eligible.
+      const levelOk = p.level >= t.level;
+      const statOk = statConditionMet(p, t.when);
+      const eligible = levelOk && statOk;
+      const condition = t.when ? describeStatCondition(p, t.when) : null;
+      let reason: string;
+      if (!levelOk) {
+        reason = condition ? `Reach Lv ${t.level} · ${condition}` : `Reach Lv ${t.level}`;
+      } else if (condition) {
+        reason = eligible ? `Level ${t.level} · ${condition}` : `Needs ${condition}`;
+      } else {
+        reason = `Level ${t.level} reached`;
+      }
+      allEvolutions.push({ trigger: t, reason, eligible });
     } else if ("trade" in t) {
       // Trade evolutions: eligible automatically after a peer-to-peer
       // trade OR by using a Link Cable bought at Celadon Dept. Store.
@@ -414,9 +426,10 @@ function PokemonDetailDialog({
 
       <div className="g-modal-body">
         <section className="g-profile-hero">
-          <img
+          <PokemonSprite
             className="g-pokemon-sprite-hero"
-            src={pokemonSpriteUrl(p.speciesKey, false, p.isShiny)}
+            speciesKey={p.speciesKey}
+            isShiny={p.isShiny}
             alt={p.name}
             width={64}
             height={64}
@@ -484,8 +497,9 @@ function PokemonDetailDialog({
                 const target = pokemonTable[e.trigger.into];
                 return (
                   <li key={e.trigger.into} className={e.eligible ? "" : "evo-locked"}>
-                    <img
-                      src={pokemonSpriteUrl(e.trigger.into, false, p.isShiny)}
+                    <PokemonSprite
+                      speciesKey={e.trigger.into}
+                      isShiny={p.isShiny}
                       alt={target?.name ?? e.trigger.into}
                       width={40}
                       height={40}
@@ -659,8 +673,9 @@ function PokemonDetailDialog({
                     className="swap-picker-row"
                     onClick={() => { setSwapPicking(false); onSwapWithParty(i); }}
                   >
-                    <img
-                      src={pokemonSpriteUrl(m.speciesKey, false, m.isShiny)}
+                    <PokemonSprite
+                      speciesKey={m.speciesKey}
+                      isShiny={m.isShiny}
                       alt=""
                       width={32}
                       height={32}

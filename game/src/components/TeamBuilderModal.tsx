@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGame } from "../state/GameContext";
-import { pokemonSpriteUrl } from "../utils/sprites";
+import { PokemonSprite } from "./Sprite";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import type { Pokemon } from "../types";
@@ -162,8 +162,9 @@ export function TeamBuilderModal() {
                   return (
                     <li key={id} className="team-builder-strip-item">
                       <span className="team-builder-slot">{i + 1}</span>
-                      <img
-                        src={pokemonSpriteUrl(p.speciesKey, false, !!p.isShiny)}
+                      <PokemonSprite
+                        speciesKey={p.speciesKey}
+                        isShiny={!!p.isShiny}
                         alt=""
                         width={40}
                         height={40}
@@ -215,8 +216,9 @@ export function TeamBuilderModal() {
                     onClick={() => toggle(mon.id)}
                     title={`${mon.nickname ?? mon.name} · Lv ${mon.level} · ${source}`}
                   >
-                    <img
-                      src={pokemonSpriteUrl(mon.speciesKey, false, !!mon.isShiny)}
+                    <PokemonSprite
+                      speciesKey={mon.speciesKey}
+                      isShiny={!!mon.isShiny}
                       alt=""
                       width={48}
                       height={48}
