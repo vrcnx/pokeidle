@@ -270,6 +270,7 @@ const PREFERENCE_KEYS = [
   "speed",
   "autoCatch",
   "autoProceed",
+  "autoEvolve",
   "battleMode",
   "alwaysCatchShinies",
   "catchSettings",

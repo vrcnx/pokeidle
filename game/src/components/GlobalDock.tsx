@@ -255,6 +255,52 @@ function SfxVolume() {
   );
 }
 
+// Auto-evolve toggle — the global default for LEVEL evolutions.
+//
+// Worded for the player who liked the old behaviour and is hunting for the
+// switch: the heading says "Auto-evolve", the help text says out loud that
+// level-ups used to need a click and that turning this off restores exactly
+// that, and it names the per-Pokémon lock for the far more common case ("I
+// want ONE Pikachu left alone", not "I want to click six times an hour").
+//
+// Deliberately does not touch stones or the Link Cable: those consume an item,
+// so they are a real decision and stay manual whatever this says.
+function AutoEvolvePrefsCard() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  const on = state.autoEvolve;
+  return (
+    <section className="g-card">
+      <h3>{t("Auto-evolve")}</h3>
+      <div className="g-row">
+        <span>{t("Level-up evolutions")}</span>
+        <strong className={on ? "g-tag on" : "g-tag off"}>
+          {on ? t("Automatic") : t("Manual")}
+        </strong>
+      </div>
+      <p className="g-help" style={{ marginTop: 4 }}>
+        {on
+          ? t("Pokémon that reach an evolution level evolve on their own, so an idle run doesn't stall waiting for a click. Turn this off to go back to evolving each one yourself.")
+          : t("Pokémon wait for you to evolve them by hand — right-click a party member, or use the Evolve button on its detail screen.")}
+      </p>
+      <p className="g-help">
+        {t("Evolution stones and the Link Cable are never automatic — they cost an item, so they stay your call.")}
+      </p>
+      <p className="g-help">
+        {t("Want to keep just one Pokémon unevolved? Right-click it in your party and choose “Never evolve” instead of turning this off for everything.")}
+      </p>
+      <div className="settings-legal-links">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() => dispatch({ type: "SET_AUTO_EVOLVE", payload: { value: !on } })}
+        >
+          {on ? t("Evolve manually instead") : t("Evolve automatically")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 // Profanity-filter toggle. Lives inside the Settings modal as its own
 // card so future chat preferences (mute lists, font size, etc.) have a
 // home next to it.
@@ -337,12 +383,13 @@ function DockButton({ icon, label, active, disabled, title, badge, onClick }: Do
 // kitchen-sink layout (the trainer record, audio, chat, account, legal,
 // help and report-bug were all stacked in one ~400-line scroll). Tabs:
 //   - Stats:    Pokédex / Battles / Shiny Charm record
+//   - Game:     automation defaults (auto-evolve)
 //   - Audio:    music + sfx prefs
 //   - Chat:     profanity filter + future chat prefs
 //   - Account:  email / join date / sign out / report bug / legal
 // Default tab is Stats since most opens are "check my progress".
 // ---------------------------------------------------------------------------
-type SettingsTab = "stats" | "display" | "audio" | "chat" | "account";
+type SettingsTab = "stats" | "game" | "display" | "audio" | "chat" | "account";
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
@@ -408,6 +455,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <nav className="settings-tabs" role="tablist" aria-label={t("Settings sections")}>
           <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
+          <SettingsTabBtn label={t("Game")}    tab="game"    active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Display")} tab="display" active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Audio")}   tab="audio"   active={tab} onPick={setTab} />
           <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
@@ -520,6 +568,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               </>
             )}
 
+            {tab === "game" && <AutoEvolvePrefsCard />}
             {tab === "display" && <LayoutPrefsCard />}
             {tab === "audio" && <AudioPrefsCard />}
             {tab === "chat" && <ChatPrefsCard />}

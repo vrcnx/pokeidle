@@ -4,10 +4,15 @@ import { IconSliders } from "./Icon";
 import { useT } from "../i18n/useT";
 
 // Lightweight controls dropdown — replaces the old "More" popover.
-// Holds battle mode (manual/auto) + auto-proceed only. Catch settings
-// are now a top-level toolbar button; manual ball-throw + party-swap
+// Holds battle mode (manual/auto), auto-proceed and auto-evolve. Catch
+// settings are now a top-level toolbar button; manual ball-throw + party-swap
 // are accessed via right-click on a Pokémon and drag-and-drop on the
 // party list, so they no longer need their own tabs.
+//
+// Auto-evolve is duplicated in Settings → Game (GlobalDock) on purpose. This
+// is where the other two automation toggles live, so it is where a player
+// mid-session looks; Settings is where a player who wants to turn something
+// OFF looks. Both dispatch the same SET_AUTO_EVOLVE — one field, two doors.
 
 export function ControlsPopover() {
   const { state, dispatch } = useGame();
@@ -72,6 +77,20 @@ export function ControlsPopover() {
                   onClick={() => dispatch({ type: "TOGGLE_AUTO_PROCEED" })}
                 >
                   {state.autoProceed ? t("Auto-Proceed: ON") : t("Auto-Proceed: OFF")}
+                </button>
+              </div>
+            </div>
+            <div className="hud-section">
+              <span className="hud-label">{t("Evolution")}</span>
+              <div className="hud-row">
+                <button
+                  className={state.autoEvolve ? "active" : ""}
+                  title={t("Level-up evolutions happen on their own. Evolution stones and the Link Cable always stay manual.")}
+                  onClick={() =>
+                    dispatch({ type: "SET_AUTO_EVOLVE", payload: { value: !state.autoEvolve } })
+                  }
+                >
+                  {state.autoEvolve ? t("Auto-Evolve: ON") : t("Auto-Evolve: OFF")}
                 </button>
               </div>
             </div>

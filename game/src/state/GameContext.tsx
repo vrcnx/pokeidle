@@ -448,6 +448,7 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "claimedRegionStarters",
   "victoryTokens",
   "autoProceed",
+  "autoEvolve",
   "raidCooldownEnd",
   "raidCooldowns",
   "raidLegendary",

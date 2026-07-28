@@ -5,7 +5,13 @@ import { pokemonTable } from "../data/pokemon";
 import { moves as movesTable } from "../data/moves";
 import { evolutions } from "../data/evolutions";
 import { evolutionStones } from "../data/evolutionStones";
-import { describeStatCondition, statConditionMet } from "../utils/evolution";
+import {
+  describeStatCondition,
+  evolutionLocked,
+  levelEvolutionBranches,
+  levelEvolutionTargets,
+  statConditionMet,
+} from "../utils/evolution";
 import { findNature } from "../data/natures";
 import { abilityInfo } from "../data/abilities";
 import { itemsCatalog } from "../data/itemsCatalog";
@@ -292,6 +298,15 @@ export function PokemonDetailModal() {
   }
   const isPartySelection = selected.type === "party";
 
+  // The evolve lock is only meaningful for a species that has a LEVEL
+  // evolution — it gates automatic evolving, and nothing is ever automated for
+  // a stone or a Link Cable. Offering it on a Pidgeot would be a switch that
+  // does nothing.
+  const hasLevelEvolution = levelEvolutionTargets(p.speciesKey).length > 0;
+  const evolveLocked = evolutionLocked(p);
+  // Empty except for a species whose level evolution genuinely splits.
+  const branches = levelEvolutionBranches(p);
+
   function evolveTo(trigger: EvolutionTrigger) {
     if (!selected || !isPartySelection) return;
     // Trade evolutions go through USE_LINK_CABLE — the reducer handles
@@ -328,6 +343,16 @@ export function PokemonDetailModal() {
         isPartySelection={isPartySelection}
         allEvolutions={allEvolutions}
         evolveTo={evolveTo}
+        hasLevelEvolution={hasLevelEvolution}
+        evolveLocked={evolveLocked}
+        autoEvolve={state.autoEvolve}
+        branches={branches}
+        onToggleEvolveLock={() =>
+          dispatch({
+            type: "SET_EVOLVE_LOCK",
+            payload: { pokemonId: p.id, locked: !evolveLocked },
+          })
+        }
         selected={selected}
         evBerries={EV_BERRIES.map((b) => ({ ...b, owned: state.inventory[b.id] ?? 0, ev: (monEvs as unknown as Record<string, number>)[b.stat] ?? 0 }))}
         useEvBerry={useEvBerry}
@@ -386,6 +411,11 @@ function PokemonDetailDialog({
   isPartySelection,
   allEvolutions,
   evolveTo,
+  hasLevelEvolution,
+  evolveLocked,
+  autoEvolve,
+  branches,
+  onToggleEvolveLock,
   selected,
   evBerries,
   useEvBerry,
@@ -529,6 +559,44 @@ function PokemonDetailDialog({
             </ul>
             {!isPartySelection && allEvolutions.some((e: any) => e.eligible) && (
               <p className="g-help">{t("Move this Pokémon to your party to evolve it.")}</p>
+            )}
+
+            {/* A split line decides itself from the live stats at the instant
+                it evolves — and with auto-evolve on, that instant is the
+                moment the level threshold is crossed. Say so here, next to the
+                comparison, so the outcome never reads as a coin flip. EV
+                berries and EV training are the levers that move it. */}
+            {branches.length > 0 && (
+              <p className="g-help">
+                {autoEvolve && !evolveLocked
+                  ? t("This line splits. The branch is decided by this Pokémon's own stats at the moment it evolves — which, with auto-evolve on, is as soon as it reaches the level. Train or lower the stats above to change which one it takes, or set “Never evolve” below to hold it here.")
+                  : t("This line splits. The branch is decided by this Pokémon's own stats at the moment it evolves. Train or lower the stats above to change which one it takes.")}
+              </p>
+            )}
+
+            {/* Per-Pokémon opt-out — this game's Everstone. Only shown for a
+                species that can actually evolve by level, since that is the
+                only path anything is automated on. */}
+            {hasLevelEvolution && (
+              <div className="detail-evolock">
+                <div className="detail-evolock-text">
+                  <strong>{t("Never evolve")}</strong>
+                  <small className="dim">
+                    {evolveLocked
+                      ? t("Auto-evolve skips this Pokémon. You can still evolve it yourself with the button above.")
+                      : autoEvolve
+                        ? t("Off — this Pokémon evolves on its own when it reaches the level.")
+                        : t("Off — but auto-evolve is turned off in Settings, so nothing evolves on its own.")}
+                  </small>
+                </div>
+                <button
+                  className={evolveLocked ? "g-btn-primary g-btn-small" : "g-btn-ghost g-btn-small"}
+                  aria-pressed={evolveLocked}
+                  onClick={onToggleEvolveLock}
+                >
+                  {evolveLocked ? t("Allow evolving") : t("Never evolve")}
+                </button>
+              </div>
             )}
           </section>
         )}

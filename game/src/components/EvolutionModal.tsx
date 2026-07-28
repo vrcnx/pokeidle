@@ -4,6 +4,7 @@ import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { useModalEnter } from "../utils/animate";
+import { levelEvolutionBranches } from "../utils/evolution";
 import { useT } from "../i18n/useT";
 
 // Evolution flow:
@@ -46,6 +47,17 @@ function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number;
   const t = useT();
   const fromSp = pokemonTable[p.speciesKey];
   const toSp = pokemonTable[ev.toSpeciesKey];
+  // Non-empty only for a species whose level evolution splits (Tyrogue). The
+  // Pokémon is still the PRE-evolution form for every step this renders on —
+  // COMPLETE_EVOLUTION is what swaps the species, and it fires after step 4 —
+  // so the comparison shown is the one that actually decided the branch.
+  //
+  // This surface matters most of the three: with auto-evolve on, a Tyrogue
+  // evolves the instant it hits Lv 20, so for most players this cinematic is
+  // the ONLY place the decision is ever visible. Without it a three-way split
+  // reads as the game picking at random.
+  const branches = levelEvolutionBranches(p);
+  const onBranch = branches.find((b) => b.met);
 
   // Pre-load the new sprite so step 4 doesn't flash a broken image.
   useEffect(() => {
@@ -101,6 +113,22 @@ function EvolutionDialog({ pokemon: p, ev }: { pokemon: any; ev: { step: number;
               <>{t("Congratulations! ")}<strong>{fromSp?.name}</strong>{t(" evolved into ")}<strong>{toSp?.name}</strong>{t("!")}</>
             )}
           </div>
+
+          {onBranch && (
+            <div className="evo-branch-note">
+              <div className="evo-branch-live">
+                {t("This line splits — decided by its own stats right now:")}
+              </div>
+              <ul className="evo-branch-list">
+                {branches.map((b) => (
+                  <li key={b.into} className={b.met ? "met" : ""}>
+                    <span>{pokemonTable[b.into]?.name ?? b.into}</span>
+                    <span className="dim">{b.requirement}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

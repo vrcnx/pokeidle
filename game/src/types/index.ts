@@ -127,6 +127,20 @@ export interface Pokemon {
   confusedTurns?: number;    // volatile status (stacks with major); 1-4 turns; ticks down each attack
   statStages?: Partial<StatStages>; // -6..+6 per stat; mutated during battle, cleared on switch
   heldItem?: string;         // held item id (see data/itemsCatalog.ts heldItem entries)
+  /**
+   * Per-Pokémon evolve lock — this game's Everstone.
+   *
+   * ABSENT (the shape every existing save has) means "not locked", which is
+   * why this is optional and why `true` is the only value ever written: a save
+   * from before the field existed needs no migration to mean the right thing.
+   *
+   * It gates the AUTOMATIC level-evolution path only (see hooks/useAutoEvolve).
+   * A deliberate click — the party row's Evolve entry, the detail modal's
+   * Evolve button, a stone, a Link Cable — is the player asking directly and
+   * is never blocked by a standing preference. Read it through
+   * `evolutionLocked()` in utils/evolution so that meaning lives in one place.
+   */
+  noEvolve?: boolean;
 }
 
 /** The stats a branching evolution is allowed to read off the evolving mon. */
@@ -319,6 +333,9 @@ export type GamePhase =
   | "raid";
 
 export interface GameState {
+  /** Bumped on every LOAD_SAVE. Session-scoped, never persisted — see the
+   *  reducer's LOAD_SAVE case for why id-keyed caches need it. */
+  saveGen?: number;
   phase: GamePhase;
   playerPokemon: Pokemon | null;
   enemyPokemon: Pokemon | null;
@@ -378,6 +395,17 @@ export interface GameState {
   claimedRegionStarters: string[];
   victoryTokens: number;
   autoProceed: boolean;
+  /**
+   * Global default for automatic LEVEL evolutions. `true` for everyone,
+   * including every save written before this field existed: absent keys are
+   * dropped by JSON.stringify, so `{...initialState, ...parsed}` (loadSaved)
+   * and `{...state, ...payload}` (LOAD_SAVE) both fall through to
+   * initialState's `true` with no migration step.
+   *
+   * Level-only, deliberately. Stones and the Link Cable consume an item, so
+   * they stay a real choice and are never automated by this.
+   */
+  autoEvolve: boolean;
   raidCooldownEnd: number | null;
   /** Per-tier raid cooldowns (epoch ms when each tier becomes
    *  available again). Replaces the single global raidCooldownEnd
@@ -480,7 +508,13 @@ export type Action =
   | { type: "BOX_TO_PARTY"; payload: { boxIndex: number } }
   | { type: "SWAP_PARTY_BOX"; payload: { partyIndex: number; boxIndex: number } }
   | { type: "TRAVEL"; payload: { locationId: string } }
-  | { type: "START_EVOLUTION"; payload: { partyIndex: number; toSpeciesKey: string } }
+  // `pokemonId`, when given, is the id the caller BELIEVES sits at
+  // `partyIndex`. The reducer re-finds the slot by id and ignores the action
+  // if that Pokémon is no longer in the party. Automatic callers must pass it:
+  // an effect computes its index from a committed render that can already be
+  // a party reorder behind, and evolving the wrong slot is unrecoverable.
+  // Click handlers omit it — a click and its dispatch share a frame.
+  | { type: "START_EVOLUTION"; payload: { partyIndex: number; toSpeciesKey: string; pokemonId?: string } }
   | { type: "EVOLUTION_STEP" }
   | { type: "COMPLETE_EVOLUTION" }
   | { type: "SET_CATCH_RULE"; payload: { routeKey: string; speciesKey: string; settings: CatchSettings } }
@@ -531,6 +565,10 @@ export type Action =
   | { type: "SET_ALWAYS_CATCH_SHINIES"; payload: { value: boolean } }
   | { type: "RESET_ELITE_FOUR" }
   | { type: "TOGGLE_AUTO_PROCEED" }
+  | { type: "SET_AUTO_EVOLVE"; payload: { value: boolean } }
+  // Per-Pokémon evolve lock. Keyed by id, not by index, because it is settable
+  // from the party row AND from the detail modal opened on a box Pokémon.
+  | { type: "SET_EVOLVE_LOCK"; payload: { pokemonId: string; locked: boolean } }
   | { type: "BUY_REWARD_ITEM"; payload: { itemId: string; cost: number } }
   | { type: "START_RAID"; payload?: { speciesKey?: string; level?: number; tier?: import("../data/raidLegendaries").RaidTierId } }
   | { type: "END_RAID" }

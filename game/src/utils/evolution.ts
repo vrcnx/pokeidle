@@ -10,7 +10,7 @@ import type {
 // ONE place that knows how a branching evolution is decided.
 //
 // Level evolutions are dispatched from five separate entry points (the party
-// row context menu, the detail modal, the level-threshold hook, the stream
+// row context menu, the detail modal, the auto-evolve hook, the stream
 // auto-player, and the reducer itself). Before branch predicates existed each
 // of those just took the FIRST level trigger it found, which is why adding a
 // second trigger to a species would have been dead code. Everything now goes
@@ -90,6 +90,54 @@ export function levelEvolutionFor(p: Pokemon): LevelEvolutionTrigger | null {
 /** Every level target of this species, regardless of eligibility (for UI hints). */
 export function levelEvolutionTargets(speciesKey: string): LevelEvolutionTrigger[] {
   return (evolutions[speciesKey] ?? []).filter(isLevelTrigger);
+}
+
+/**
+ * Is this Pokémon's evolve lock set?
+ *
+ * The lock stops the AUTOMATIC path (hooks/useAutoEvolve) and nothing else. A
+ * click on Evolve, a stone, a Link Cable and a trade all still work: those are
+ * the player asking for this Pokémon, right now, and a standing "leave it
+ * alone" preference has no business overruling a direct instruction.
+ *
+ * Written as a predicate rather than read inline so that distinction is stated
+ * once, and so `undefined` (every save that predates the field) is definitively
+ * "not locked" everywhere.
+ */
+export function evolutionLocked(p: Pokemon): boolean {
+  return p.noEvolve === true;
+}
+
+/** One branch of a split level evolution, described against a live Pokémon. */
+export interface LevelBranch {
+  into: string;
+  /** `describeStatCondition` output — the rule AND this individual's numbers. */
+  requirement: string;
+  /** True for the single branch this individual is on right now. */
+  met: boolean;
+}
+
+/**
+ * Every branch of this Pokémon's level evolution, with what each one needs and
+ * which one it is currently on. Empty for anything that does not actually
+ * split, so a caller can render it unconditionally and get nothing for the
+ * ~90 single-target level evolutions that have nothing to explain.
+ *
+ * This exists because auto-evolve fires the instant the threshold is reached,
+ * which for Tyrogue is the moment the outcome stops being changeable. The
+ * player should be able to see the comparison that decided it — before, during
+ * and after — so a three-way split never reads as a coin flip. It is pure
+ * composition over `levelEvolutionTargets` / `describeStatCondition` /
+ * `statConditionMet`; nothing here re-implements the branch rules.
+ */
+export function levelEvolutionBranches(p: Pokemon): LevelBranch[] {
+  const branching = levelEvolutionTargets(p.speciesKey).filter((t) => t.when);
+  if (branching.length < 2) return [];
+  return branching.map((t) => ({
+    into: t.into,
+    requirement: describeStatCondition(p, t.when!),
+    met: statConditionMet(p, t.when),
+  }));
 }
 
 /**

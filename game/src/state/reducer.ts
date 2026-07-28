@@ -895,7 +895,21 @@ export function reducer(state: GameState, action: Action): GameState {
       // Evolve can be triggered mid-battle from the detail modal — bail
       // out of the encounter so the evolution animation has the scene
       // to itself and the player drops to idle when it finishes.
-      const { partyIndex } = action.payload;
+      //
+      // `pokemonId` re-anchors the slot for callers that did not compute the
+      // index in the same frame they dispatched it. useAutoEvolve reads the
+      // party out of a committed render, and a reorder, a box swap or a
+      // release landing in between would leave the index pointing at a
+      // DIFFERENT Pokémon — which evolves, irreversibly, and is not the one
+      // that qualified. Re-finding by id makes the index advisory; an id that
+      // is no longer in the party means the mon left and there is nothing to
+      // do, so the action is dropped rather than applied to a stranger.
+      const requestedIndex = action.payload.partyIndex;
+      const { pokemonId } = action.payload;
+      const partyIndex = pokemonId
+        ? state.party.findIndex((p) => p.id === pokemonId)
+        : requestedIndex;
+      if (pokemonId && partyIndex < 0) return state;
       const evolving = state.party[partyIndex];
       // A branching line's target belongs to the POKÉMON, not the caller.
       // START_EVOLUTION is dispatched from four places, one of which (the
@@ -1652,6 +1666,32 @@ export function reducer(state: GameState, action: Action): GameState {
     case "TOGGLE_AUTO_PROCEED":
       return { ...state, autoProceed: !state.autoProceed };
 
+    case "SET_AUTO_EVOLVE":
+      return { ...state, autoEvolve: action.payload.value };
+
+    case "SET_EVOLVE_LOCK": {
+      const { pokemonId, locked } = action.payload;
+      // Store `true` or nothing at all — never `false`. An absent field is
+      // already the unlocked state (that is how every pre-existing save reads),
+      // so clearing the lock should restore the exact original shape rather
+      // than leave a `noEvolve: false` behind for the next reader to wonder at.
+      const apply = (p: Pokemon): Pokemon => {
+        if (p.id !== pokemonId) return p;
+        if (locked) return { ...p, noEvolve: true };
+        if (p.noEvolve === undefined) return p;
+        const { noEvolve: _dropped, ...rest } = p;
+        return rest;
+      };
+      // Same three-surface update as SET_NICKNAME: the mon may be the active
+      // one, in the party, or in the box, and all three copies must agree.
+      return syncPlayerToParty({
+        ...state,
+        playerPokemon: state.playerPokemon ? apply(state.playerPokemon) : state.playerPokemon,
+        party: state.party.map(apply),
+        box: state.box.map(apply),
+      });
+    }
+
     case "RESET_ELITE_FOUR":
       return { ...state, defeatedEliteFour: [] };
 
@@ -2144,7 +2184,17 @@ export function reducer(state: GameState, action: Action): GameState {
     }
 
     case "LOAD_SAVE": {
-      const merged = { ...state, ...(action.payload.state as object) } as GameState;
+      // saveGen is the ONLY in-state signal that the entire save was
+      // replaced rather than mutated. Pokemon ids are `String(nextPokemonId)`
+      // from a per-save counter that RESTARTS at 1, so after an admin reset
+      // or a cloud-lineage adopt a brand-new Pokemon can inherit an id a
+      // listener still holds an opinion about. Deliberately NOT persisted —
+      // it describes this tab's session, not the save.
+      const merged = {
+        ...state,
+        ...(action.payload.state as object),
+        saveGen: (state.saveGen ?? 0) + 1,
+      } as GameState;
       // Only promote out of "idle" — LOAD_SAVE fires mid-session for cloud
       // reconciliation too, and we don't want to steal a phase (battle,
       // evolution, etc.) that's genuinely in flight when it does.

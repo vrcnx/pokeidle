@@ -10,7 +10,12 @@ import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
-import { levelEvolutionFor } from "../utils/evolution";
+import {
+  evolutionLocked,
+  levelEvolutionBranches,
+  levelEvolutionFor,
+  levelEvolutionTargets,
+} from "../utils/evolution";
 import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
 import { BottomTabs } from "./BottomTabs";
@@ -41,12 +46,11 @@ function readyStoneEvolution(
 }
 
 // The level-up evolution this Pokémon has already earned, or null.
-// Nothing evolves a Pokémon on its own — the level-threshold hook was
-// written but never mounted, so it tree-shook out of the bundle and the
-// reducer only ever evolves from USE_STONE / USE_LINK_CABLE / trade.
-// Every level evolution in the game is therefore a deliberate player
-// action, which is why this has to be reachable from the row's menu:
-// canEvolveNow already counts these, so the row glows for them.
+// Level evolutions now fire on their own (hooks/useAutoEvolve, gated on
+// state.autoEvolve and on the mon's own `noEvolve` lock), so in the default
+// configuration this is normally true for less than a tick. The menu entry
+// still matters, and is the only way to act on one, when the global toggle is
+// off or this particular Pokémon is locked.
 //
 // levelEvolutionFor does the branch selection (and the "target exists in
 // pokemonTable" guard this used to do inline), so a species with a stat
@@ -57,17 +61,22 @@ function readyLevelEvolution(p: Pokemon): { into: string } | null {
   return t ? { into: t.into } : null;
 }
 
-// Returns true when this party member can evolve right now — either
-// it has reached the level threshold, or it has a stone-evolution
-// trigger and the player owns the stone in inventory. Trade-only
-// evolutions are excluded (those fire from the trade flow). Used to
-// paint a glow on ready party rows so the player knows to act.
+// Returns true when this party member can evolve right now AND is waiting on
+// the player to do something about it — either a stone it owns, or a level
+// evolution that automation will not take (locked mon, or the global toggle
+// off). Trade-only evolutions are excluded (those fire from the trade flow).
+// Used to paint a glow on ready party rows so the player knows to act.
+//
+// A locked mon deliberately does NOT glow: the lock means "leave this one
+// alone", and a row pulsing forever at a player who already answered the
+// question is nagging, not information. The lock badge says what is going on
+// instead, and the menu still offers the manual Evolve.
 //
 // Shares readyLevelEvolution's predicate rather than re-testing the raw
 // level, so the glow and the context-menu entry can never disagree — the
 // old inline test lit the row for targets the menu then refused to offer.
-function canEvolveNow(p: Pokemon, inventory: GameState["inventory"]): boolean {
-  if (readyLevelEvolution(p) !== null) return true;
+function canEvolveNow(p: Pokemon, inventory: GameState["inventory"], autoEvolve: boolean): boolean {
+  if (readyLevelEvolution(p) !== null && !autoEvolve && !evolutionLocked(p)) return true;
   return readyStoneEvolution(p, inventory) !== null;
 }
 
@@ -150,7 +159,12 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
   const active = idx === state.activePlayerPokemonIndex;
   const stoneEvo = readyStoneEvolution(p, state.inventory);
   const levelEvo = readyLevelEvolution(p);
-  const evoReady = canEvolveNow(p, state.inventory);
+  const evoReady = canEvolveNow(p, state.inventory, state.autoEvolve);
+  const locked = evolutionLocked(p);
+  // Non-empty only for a species whose level evolution actually splits
+  // (Tyrogue). Drives the "which branch, and why" hints below.
+  const branches = levelEvolutionBranches(p);
+  const onBranch = branches.find((b) => b.met);
 
   const ref = useDragAndDrop<HTMLLIElement>({
     source: {
@@ -206,13 +220,17 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
         const isFront = idx === 0;
         const partySize = state.party.length;
         openContextMenu(e, [
-          // Level evolutions do NOT fire on their own — see
-          // readyLevelEvolution. This entry is the only way to act on one
-          // from here, and the row is already glowing to say it's ready.
+          // Manual level evolution. Offered even when this mon is locked —
+          // the lock stops AUTO-evolving, and a click here is the player
+          // asking for this Pokémon by name, which outranks a standing
+          // preference. The hint carries the branch comparison so a split
+          // line (Tyrogue) says what it is about to become and why.
           ...(levelEvo
             ? [{
                 label: t("Evolve"),
-                hint: pokemonTable[levelEvo.into]?.name,
+                hint: onBranch
+                  ? `${pokemonTable[levelEvo.into]?.name ?? levelEvo.into} · ${onBranch.requirement}`
+                  : pokemonTable[levelEvo.into]?.name,
                 icon: (
                   <PokemonSprite
                     speciesKey={levelEvo.into}
@@ -228,6 +246,23 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
                     payload: { partyIndex: idx, toSpeciesKey: levelEvo.into },
                   }),
               }]
+            : []),
+          // The branches this individual is NOT on, with what each would need.
+          // Inert rows sitting directly under the Evolve entry they qualify —
+          // they exist so a three-way split is legible at the surface where
+          // the evolution is actually triggered, not only inside the detail
+          // modal. Gated on `levelEvo` so they only ever annotate a pending
+          // evolution, and empty for every non-branching line (all but one
+          // species), so this adds no rows to anybody else's menu.
+          ...(levelEvo
+            ? branches
+                .filter((b) => !b.met)
+                .map((b) => ({
+                  label: `→ ${pokemonTable[b.into]?.name ?? b.into}`,
+                  hint: `${t("Needs")} ${b.requirement}`,
+                  disabled: true,
+                  onClick: () => {},
+                }))
             : []),
           // A stone evolution costs an item, so it stays a separate entry
           // rather than being folded into the one above.
@@ -248,6 +283,22 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
                   dispatch({
                     type: "USE_STONE",
                     payload: { itemId: stoneEvo.item, partyIndex: idx },
+                  }),
+              }]
+            : []),
+          // The Everstone, directly under the evolution actions it governs.
+          // Offered for every Pokémon that can evolve by level — including one
+          // nowhere near the threshold, since deciding "not this one" BEFORE
+          // it gets there is the whole point. Wording flips to the action the
+          // entry performs so it can never be misread as a state label.
+          ...(levelEvolutionTargets(p.speciesKey).length > 0
+            ? [{
+                label: locked ? t("Allow evolving") : t("Never evolve"),
+                hint: locked ? t("Auto-evolve resumes") : t("Skips auto-evolve"),
+                onClick: () =>
+                  dispatch({
+                    type: "SET_EVOLVE_LOCK",
+                    payload: { pokemonId: p.id, locked: !locked },
                   }),
               }]
             : []),
@@ -294,6 +345,21 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
           style={{ imageRendering: "pixelated" }}
           draggable={false}
         />
+        {/* The lock has to be visible on the row itself: it is a silent,
+            indefinite behaviour change, and a player who set it weeks ago (or
+            on another device) needs to be able to see WHY this is the one
+            party member that never evolves. Pinned to the sprite's top-left so
+            it doesn't fight the held-item pip at the bottom-right, and outside
+            the name grid so it can't disturb the name/type/level columns. */}
+        {locked && (
+          <span
+            className="party-row-evolock"
+            title={t("Never evolve — auto-evolve skips this Pokémon. Right-click the row to allow it again.")}
+            aria-label={t("Never evolve")}
+          >
+            🚫
+          </span>
+        )}
         {p.heldItem && itemsCatalog[p.heldItem] && (
           <img
             className="held-item-badge"

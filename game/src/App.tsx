@@ -3,6 +3,7 @@ import { useBattleLoop } from "./hooks/useBattleLoop";
 import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
+import { useAutoEvolve } from "./hooks/useAutoEvolve";
 import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
 import { useStreamAutoPlay } from "./hooks/useStreamAutoPlay";
 import { StarterSelect } from "./components/StarterSelect";
@@ -13,7 +14,9 @@ import { ToastHost } from "./components/Toast";
 import { UpdateNotice } from "./components/UpdateNotice";
 import { VersionBadge } from "./components/VersionBadge";
 
-// Evolution is opt-in. EventDriver consumes pendingEvents at typewriter pace.
+// useAutoEvolve runs level evolutions on their own (default on, per-Pokémon
+// opt-out); stones and the Link Cable stay manual because they cost an item.
+// EventDriver consumes pendingEvents at typewriter pace.
 // useAutoProceed travels to newly unlocked routes when the toggle is on.
 // useCatchAnimation resolves manual catches after the throw/shake animation.
 export function App() {
@@ -21,6 +24,7 @@ export function App() {
   useBattleLoop();
   useEventDriver();
   useAutoProceed();
+  useAutoEvolve();
   useCatchAnimation();
   useStreamStartRoute();
   useStreamAutoPlay();

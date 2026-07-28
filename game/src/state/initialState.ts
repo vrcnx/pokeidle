@@ -52,6 +52,12 @@ export const initialState: GameState = {
   claimedRegionStarters: [],
   victoryTokens: 0,
   autoProceed: false,
+  // ON by default, and — because absent keys fall through this object on both
+  // load paths — ON for every save written before the field existed too. This
+  // is an idle game: a level evolution costs nothing and can't be declined
+  // into a worse outcome, so a mandatory click was pure friction. Players who
+  // want a specific mon left alone use its per-Pokémon lock (Pokemon.noEvolve).
+  autoEvolve: true,
   raidCooldownEnd: null,
   raidCooldowns: {},
   raidLegendary: null,

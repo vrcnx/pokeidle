@@ -2,6 +2,7 @@ import type { GameState, Dispatch, BossBattle } from "../types";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { buildTeam } from "./trainerFactory";
 import { regionBadgeCount } from "./unlocks";
+import { noteOperatorCommand } from "./streamMemory";
 
 // Remote control for a stream (OBS/24-7) account. The admin issues a command
 // from the dashboard → server relays it over the `stream:command` socket event
@@ -23,6 +24,11 @@ export type StreamCommand =
 
 export interface StreamCommandResult { ok: boolean; message: string }
 
+/** Who asked. Defaults to "operator" so the socket handler in GameContext —
+ *  and any future caller — is treated as a human at the dashboard without
+ *  needing to know this exists. The autonomous director passes "director". */
+export type StreamCommandSource = "operator" | "director";
+
 function regionOf(state: GameState) {
   return regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
 }
@@ -39,7 +45,14 @@ export function executeStreamCommand(
   cmd: StreamCommand,
   state: GameState,
   dispatch: Dispatch,
+  source: StreamCommandSource = "operator",
 ): StreamCommandResult {
+  // The admin's hand outranks the autopilot. Stamp every hand-issued command
+  // so the director stands down for a while instead of travelling straight
+  // back on its next tick — from the dashboard, an autopilot that instantly
+  // undoes you is indistinguishable from a remote control that doesn't work.
+  if (source === "operator") noteOperatorCommand();
+
   switch (cmd.kind) {
     case "travel": {
       if (!state.unlockedLocations.includes(cmd.locationId)) {
