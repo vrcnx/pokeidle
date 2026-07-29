@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { RouteCardList } from "./RouteCardList";
 import { itemSpriteUrl } from "../utils/sprites";
@@ -507,14 +507,33 @@ export function BagTab() {
 //
 // Box contents can run to thousands of entries, at which point "which of
 // these nine Rattata is the good one" is unanswerable from sprites alone.
-// So each cell carries its level, and the box can be narrowed by name,
-// shininess, and IV quality. The three combine with each other and sit on
-// top of the existing SORT_BOX ordering (sorting mutates the box itself;
-// filtering is purely a view).
+// So each cell carries its level and (at comfortable density) its name, and
+// the box can be narrowed by name, shininess, and IV quality. The three
+// combine with each other and sit on top of the existing SORT_BOX ordering
+// (sorting mutates the box itself; filtering is purely a view).
+//
+// Two things about the layout are load-bearing:
+//
+//   1. BoxSlot always receives the REAL index into state.box, never a
+//      position in the filtered/windowed view. REORDER_BOX, SWAP_PARTY_BOX
+//      and RELEASE_POKEMON all address the box directly, so an index that
+//      drifted with the view would move or delete the WRONG Pokémon. Every
+//      path that produces a cell goes through the same two-line mapping
+//      below, and nothing else may.
+//
+//   2. The grid is windowed, not paged. The cap is 9,999, which was 334
+//      pages of 30; rendering all of them instead would be 9,999 remote GIF
+//      requests. Since every row is one height and every column is 1fr, the
+//      window is arithmetic over the row pitch plus two spacer divs.
 // ---------------------------------------------------------------------------
 
 /** IVs are six stats capped at 31 each. */
 const IV_MAX_TOTAL = 186;
+
+/** The server's own MAX_BOX (server/src/lib/saveValidation.ts). Past it a
+ *  save comes back 400, so there is nothing to deposit into and the trailing
+ *  deposit slot would be a lie. */
+const BOX_CAPACITY = 9999;
 
 const IV_TIERS = ["any", "60", "80", "90", "perfect"] as const;
 type IvTier = (typeof IV_TIERS)[number];
@@ -548,14 +567,74 @@ interface BoxView {
   index: number;
 }
 
+type SortMode = "id" | "level" | "name";
+
+/** Cell density. A device preference, not save state — same reasoning as
+ *  layoutMode: it describes the screen you're sitting at. */
+type Density = "comfy" | "compact";
+const DENSITY_KEY = "pokemon-idle-pc-density";
+
+/** Per-density cell geometry, in px.
+ *   `min`  — the smallest acceptable cell width; drives the column count.
+ *   `name` — height of the name strip under the square sprite plate
+ *            (0 = no strip, which is what makes compact compact).
+ *   `gap`  — grid gutter, and therefore part of the row pitch. */
+const DENSITY_METRICS: Record<Density, { min: number; name: number; gap: number }> = {
+  comfy:   { min: 72, name: 15, gap: 4 },
+  compact: { min: 48, name: 0,  gap: 3 },
+};
+
+/** Rows rendered above and below the visible window. Two covers a fast
+ *  flick between frames without ever painting a blank band. */
+const OVERSCAN_ROWS = 2;
+
+function readDensity(): Density {
+  try {
+    return localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfy";
+  } catch {
+    return "comfy";
+  }
+}
+
+/**
+ * Which ordering is the box CURRENTLY in, if any — so the sort menu can tick
+ * the live answer instead of "whichever button you last pressed".
+ *
+ * SORT_BOX mutates state.box and keeps no record of the mode, and a
+ * drag-reorder can undo the ordering at any time, so remembering the last
+ * click would go stale silently. Deriving it is O(n) with an early exit and
+ * runs only when the menu opens — one pass over 9,999 entries, once, on a
+ * deliberate click.
+ */
+function currentSortMode(box: Pokemon[]): SortMode | null {
+  if (box.length < 2) return null;
+  let byId = true;
+  let byLevel = true;
+  let byName = true;
+  for (let i = 1; i < box.length; i++) {
+    const a = box[i - 1];
+    const b = box[i];
+    if (byId && (pokemonTable[a.speciesKey]?.id ?? 0) > (pokemonTable[b.speciesKey]?.id ?? 0)) byId = false;
+    if (byLevel && a.level < b.level) byLevel = false;
+    if (byName && a.name.localeCompare(b.name) > 0) byName = false;
+    if (!byId && !byLevel && !byName) return null;
+  }
+  return byId ? "id" : byLevel ? "level" : byName ? "name" : null;
+}
+
+/** Menu rows reserve the tick column whether or not they're ticked, so the
+ *  labels don't shuffle sideways as the active row moves. */
+function tick(on: boolean) {
+  return <span aria-hidden>{on ? "✓" : " "}</span>;
+}
+
 export function PCTab() {
   const { state, dispatch } = useGame();
   const t = useT();
-  const PER_PAGE = 30;
-  const [page, setPage] = useState(0);
   const [query, setQuery] = useState("");
   const [shinyOnly, setShinyOnly] = useState(false);
   const [ivTier, setIvTier] = useState<IvTier>("any");
+  const [density, setDensity] = useState<Density>(readDensity);
 
   const box = state.box;
   const filtering = query.trim() !== "" || shinyOnly || ivTier !== "any";
@@ -564,7 +643,7 @@ export function PCTab() {
   // Materialising a 9,999-entry array of wrappers on every render (the box
   // identity changes whenever the reducer touches it) is the one thing here
   // that would actually cost something, and in the common case we don't
-  // need it: the raw box is already indexable by page offset.
+  // need it: the raw box is already indexable by view offset.
   const view = useMemo<BoxView[] | null>(() => {
     if (!filtering) return null;
     const q = query.trim().toLowerCase();
@@ -591,60 +670,151 @@ export function PCTab() {
   }, [box, filtering, query, shinyOnly, ivTier]);
 
   const shown = view ? view.length : box.length;
-  const pageCount = Math.max(1, Math.ceil(shown / PER_PAGE));
-  useEffect(() => {
-    if (page > pageCount - 1) setPage(pageCount - 1);
-  }, [page, pageCount]);
-  // ...and clamp for THIS render too. The effect above runs after commit, so
-  // narrowing a filter while parked past the new end painted one frame of
-  // empty grid ("Box 61/2") before correcting itself.
-  const safePage = Math.min(page, Math.max(0, pageCount - 1));
-  // Narrowing the box while parked on page 12 would otherwise land the
-  // player on an empty page until the clamp above catches up.
-  useEffect(() => { setPage(0); }, [query, shinyOnly, ivTier]);
 
-  // Always exactly PER_PAGE cells so the grid keeps its 6×5 shape. Cells
-  // past the end of the (filtered) list are empty, and carry an index past
-  // the end of the box so drag targets treat them as trailing slots.
+  // ---- Grid geometry ------------------------------------------------------
+  // The column count is computed here rather than left to `auto-fill` because
+  // the scroll window needs to know it: rows only line up with the spacers if
+  // JS and CSS agree on how many cells are in a row.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ w: 0, h: 0, padTop: 0 });
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const read = () => {
+      const cs = getComputedStyle(el);
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      // clientWidth, not offsetWidth — it already excludes the scrollbar, so
+      // the column count doesn't flip the moment one appears.
+      const w = el.clientWidth - padL - padR;
+      const h = el.clientHeight - padT - padB;
+      setSize((prev) => (prev.w === w && prev.h === h && prev.padTop === padT ? prev : { w, h, padTop: padT }));
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const metrics = DENSITY_METRICS[density];
+  const gap = metrics.gap;
+  const cols = Math.max(1, Math.floor((size.w + gap) / (metrics.min + gap)));
+  const cellW = size.w > 0 ? (size.w - gap * (cols - 1)) / cols : metrics.min;
+  // Square sprite plate, plus the name strip. Rounded so the row pitch stays
+  // an integer and 300 rows of accumulated halves can't drift the window off
+  // the spacers.
+  const rowH = Math.round(cellW) + metrics.name;
+  const pitch = rowH + gap;
+
+  // One trailing slot so the party still has somewhere to be dropped. It is
+  // not a box position: PARTY_TO_BOX picks the first free slot itself, and
+  // `index === box.length` makes every box→box drop reject it (see BoxSlot).
+  // The old grid padded to 30 invisible cells to get this one behaviour.
+  const canDeposit = box.length < BOX_CAPACITY;
+  // Nothing to show is its own layout, so the deposit slot only joins the
+  // grid when the grid exists. It still gets rendered in the empty state —
+  // dropping a party member into an empty box has to keep working.
+  const total = shown > 0 ? shown + (canDeposit ? 1 : 0) : 0;
+
+  // ---- Scroll window ------------------------------------------------------
+  // Row-indexed rather than pixel-indexed on purpose: React bails out of the
+  // re-render when the value is unchanged, so a scroll costs one render per
+  // row crossed instead of one per scroll event.
+  const [topRow, setTopRow] = useState(0);
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const row = Math.max(0, Math.floor((e.currentTarget.scrollTop - size.padTop) / pitch));
+    setTopRow((prev) => (prev === row ? prev : row));
+  };
+  // Narrowing the filter while parked deep in the box would otherwise leave
+  // the player staring at blank space below the last match.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setTopRow(0);
+  }, [query, shinyOnly, ivTier, density]);
+
+  const totalRows = Math.ceil(total / cols);
+  // Clamp for THIS render as well as via the scroll reset above: the effect
+  // runs after commit, so a filter that shrinks the list painted one frame of
+  // empty grid before correcting itself. Same bug the old page clamp fixed.
+  const anchorRow = Math.min(topRow, Math.max(0, totalRows - 1));
+  const firstRow = Math.max(0, anchorRow - OVERSCAN_ROWS);
+  const lastRow = Math.min(
+    totalRows,
+    anchorRow + Math.ceil(size.h / pitch) + 1 + OVERSCAN_ROWS
+  );
+  const from = firstRow * cols;
+  const to = Math.min(total, lastRow * cols);
+
+  // Cells for the window only. The index mapping is byte-for-byte the one the
+  // paged version used — `at` is a position in the (filtered) view, and the
+  // index handed to BoxSlot is always the REAL index in state.box. Only the
+  // range of `at` has changed.
   const cells: { p: Pokemon | undefined; index: number }[] = [];
-  for (let i = 0; i < PER_PAGE; i++) {
-    const at = safePage * PER_PAGE + i;
-    if (view) {
+  for (let at = from; at < to; at++) {
+    if (at >= shown) {
+      cells.push({ p: undefined, index: box.length });
+    } else if (view) {
       const entry = view[at];
-      cells.push(entry ? { p: entry.p, index: entry.index } : { p: undefined, index: box.length + i });
+      cells.push({ p: entry.p, index: entry.index });
     } else {
       cells.push({ p: box[at], index: at });
     }
   }
 
+  const openSortMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const active = currentSortMode(box);
+    const sort = (mode: SortMode) => dispatch({ type: "SORT_BOX", payload: { mode } });
+    openContextMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
+      { label: t("Pokédex number"), icon: tick(active === "id"), onClick: () => sort("id") },
+      { label: t("Level, highest first"), icon: tick(active === "level"), onClick: () => sort("level") },
+      { label: t("Name, A–Z"), icon: tick(active === "name"), onClick: () => sort("name") },
+    ]);
+  };
+
+  const openFilterMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    openContextMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
+      {
+        label: t("Shiny only"),
+        icon: tick(shinyOnly),
+        onClick: () => setShinyOnly((v) => !v),
+      },
+      // A disabled row is the only section heading this menu has. It's skipped
+      // by the arrow keys, which is exactly right for a label.
+      { label: t("IV quality"), disabled: true, onClick: () => undefined },
+      ...IV_TIERS.map((tier) => ({
+        label: t(IV_TIER_LABEL[tier]),
+        icon: tick(ivTier === tier),
+        onClick: () => setIvTier(tier),
+      })),
+      {
+        label: t("Clear filters"),
+        disabled: !filtering,
+        onClick: () => { setQuery(""); setShinyOnly(false); setIvTier("any"); },
+      },
+    ]);
+  };
+
+  const toggleDensity = () => {
+    setDensity((prev) => {
+      const next: Density = prev === "comfy" ? "compact" : "comfy";
+      try { localStorage.setItem(DENSITY_KEY, next); } catch { /* private mode — session only */ }
+      return next;
+    });
+  };
+
   return (
     <div className="tab-pane pc-tab">
-      <TabPaneHead
-        title={t("Pokémon Storage")}
-        meta={filtering ? `${shown} / ${box.length} shown` : `${box.length} stored`}
-        tools={
-          <>
-            <span className="dim small" style={{ marginRight: 4 }}>{t("Sort")}</span>
-            <button title={t("Sort by Pokédex number")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "id" } })}>
-              {t("Dex#")}
-            </button>
-            <button title={t("Sort by level (highest first)")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "level" } })}>
-              {t("Lv")}
-            </button>
-            <button title={t("Sort alphabetically")} onClick={() => dispatch({ type: "SORT_BOX", payload: { mode: "name" } })}>
-              {t("A–Z")}
-            </button>
-            {pageCount > 1 && (
-              <span className="pc-pager" style={{ marginLeft: "auto" }}>
-                <button onClick={() => setPage(Math.max(0, safePage - 1))} disabled={safePage === 0}>‹</button>
-                <span className="dim small">{t("Box")} {safePage + 1}/{pageCount}</span>
-                <button onClick={() => setPage(Math.min(pageCount - 1, safePage + 1))} disabled={safePage >= pageCount - 1}>›</button>
-              </span>
-            )}
-          </>
-        }
-      />
-      <div className="pc-filters">
+      {/* One row, not three. The title, the sort trio, the pager, the two
+          filter controls and the drag hint used to stack 155px of chrome
+          above the first sprite — on a 768px screen that left the grid 22px
+          for thirty Pokémon. Search earns permanent space because it is the
+          only navigation that scales to 9,999; everything else folds into a
+          menu. */}
+      <div className="pc-toolbar">
         <div className="pc-search-wrap">
           <input
             type="search"
@@ -663,55 +833,104 @@ export function PCTab() {
             >×</button>
           )}
         </div>
+        <button type="button" className="pc-tool" onClick={openSortMenu} title={t("Sort the box")}>
+          <span aria-hidden>⇅</span> {t("Sort")}
+        </button>
         <button
           type="button"
-          className={`pc-filter ${shinyOnly ? "active" : ""}`}
-          aria-pressed={shinyOnly}
-          onClick={() => setShinyOnly((v) => !v)}
-          title={t("Show only shiny Pokémon")}
+          className={`pc-tool pc-tool-icon ${filtering ? "on" : ""}`}
+          onClick={openFilterMenu}
+          title={t("Filter by shininess and IVs")}
+          aria-label={t("Filter by shininess and IVs")}
         >
-          ✨ {t("Shiny")}
+          <span aria-hidden>⚙</span>
+          {filtering && <span className="pc-tool-dot" aria-hidden />}
         </button>
-        <select
-          className="pc-filter-select"
-          value={ivTier}
-          onChange={(e) => setIvTier(e.target.value as IvTier)}
-          title={t("Filter by IV quality")}
-          aria-label={t("Filter by IV quality")}
+        <button
+          type="button"
+          className="pc-tool pc-tool-icon"
+          onClick={toggleDensity}
+          title={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
+          aria-label={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
         >
-          {IV_TIERS.map((tier) => (
-            <option key={tier} value={tier}>{t(IV_TIER_LABEL[tier])}</option>
-          ))}
-        </select>
-        {filtering && (
-          <button
-            type="button"
-            className="pc-filter"
-            onClick={() => { setQuery(""); setShinyOnly(false); setIvTier("any"); }}
-            title={t("Clear all filters")}
-          >
-            {t("Reset")}
-          </button>
+          <span aria-hidden>{density === "comfy" ? "▪" : "▦"}</span>
+        </button>
+        <span className="pc-count" title={filtering ? t("Matches / stored") : t("Stored")}>
+          {filtering ? `${shown} / ${box.length}` : box.length}
+        </span>
+      </div>
+
+      <div className="pc-box-scroll" ref={scrollRef} onScroll={onScroll}>
+        {total === 0 ? (
+          <div className="pc-box-empty">
+            <p>
+              {filtering
+                ? t("No stored Pokémon match these filters.")
+                : t("Your PC is empty. Drag a Pokémon here from your party to deposit it.")}
+            </p>
+            {filtering && (
+              <button
+                type="button"
+                className="pc-tool"
+                onClick={() => { setQuery(""); setShinyOnly(false); setIvTier("any"); }}
+              >
+                {t("Clear filters")}
+              </button>
+            )}
+            {/* The deposit target survives the empty state, filter or no
+                filter. Dropping a party member into an empty box used to
+                work only because the grid padded itself with thirty
+                invisible cells; losing it here would be a real regression. */}
+            {canDeposit && (
+              <div className="pc-empty-drop">
+                <BoxSlot pokemon={undefined} index={box.length} showName={false} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Spacers stand in for the rows outside the window. Every row is
+                the same height and every column is 1fr, so the whole
+                virtualiser is this arithmetic — no library, no rect cache. */}
+            <div style={{ height: firstRow * pitch }} aria-hidden />
+            <div
+              className="pc-box-grid"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gridAutoRows: `${rowH}px`,
+                gap: `${gap}px`,
+              }}
+            >
+              {cells.map((cell, i) => (
+                // Keyed on the real box index (not the Pokémon id) so a cell
+                // keeps its identity across renders even if a save ever
+                // carried duplicate ids, and so drag state survives an
+                // in-place REORDER_BOX.
+                <BoxSlot
+                  key={cell.p ? `p${cell.index}` : `deposit${from + i}`}
+                  pokemon={cell.p}
+                  index={cell.index}
+                  showName={metrics.name > 0}
+                />
+              ))}
+            </div>
+            <div style={{ height: Math.max(0, (totalRows - lastRow) * pitch) }} aria-hidden />
+          </>
         )}
       </div>
-      <div className="pc-box-grid box-mode tab-box-grid">
-        {cells.map((cell, i) => (
-          // Keyed on the real box index (not the Pokémon id) so a cell keeps
-          // its identity across renders even if a save ever carried duplicate
-          // ids, and so drag state survives an in-place REORDER_BOX.
-          <BoxSlot key={cell.p ? `p${cell.index}` : `e${i}`} pokemon={cell.p} index={cell.index} />
-        ))}
-      </div>
-      <p className="dim small" style={{ margin: "6px 0 0", textAlign: "center" }}>
-        {filtering && shown === 0
-          ? t("No stored Pokémon match these filters.")
-          : t("Drag from your party (left column) to deposit, or drag from here to your party.")}
-      </p>
     </div>
   );
 }
 
-function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; index: number }) {
+function BoxSlot({
+  pokemon: p,
+  index: real,
+  showName,
+}: {
+  pokemon: Pokemon | undefined;
+  index: number;
+  showName: boolean;
+}) {
   const { state, dispatch } = useGame();
   const t = useT();
 
@@ -771,7 +990,15 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
   });
 
   return (
-    <div ref={slotRef} className={`pc-slot pc-box-slot ${!p ? "empty" : ""}`}>
+    <div
+      ref={slotRef}
+      className={`pc-slot pc-box-slot ${!p ? "empty" : ""}`}
+      title={!p ? t("Drag a Pokémon from your party here to deposit it.") : undefined}
+    >
+      {/* The trailing slot used to be one of twenty-seven fully transparent
+          cells, which read as "the PC is broken" rather than "this is the
+          end of the box". One dashed plate says the same thing on purpose. */}
+      {!p && <span className="pc-deposit" aria-hidden>+</span>}
       {p && (
         <button
           ref={cellRef}
@@ -809,34 +1036,45 @@ function BoxSlot({ pokemon: p, index: real }: { pokemon: Pokemon | undefined; in
             (ivTotal(p) / IV_MAX_TOTAL) * 100
           )}% · tap for details · hold-and-drag to move · right-click for actions`}
         >
-          {/* The GIF→static-PNG fallback that used to live here inline is
-              now PokemonSprite's job, along with the retry that makes a
-              transient CDN failure recoverable. */}
-          <PokemonSprite
-            speciesKey={p.speciesKey}
-            isShiny={p.isShiny}
-            alt={p.name}
-            width={40}
-            height={40}
-            style={{ imageRendering: "pixelated" }}
-            draggable={false}
-          />
-          {/* Level, corner-mounted rather than inline, so it costs the cell
-              no layout and the 6×5 grid keeps its shape. Four separate
-              players asked for this: a box full of the same species is
-              otherwise indistinguishable. */}
-          <span className="pc-cell-lv">L{p.level}</span>
-          {p.heldItem && itemsCatalog[p.heldItem] && (
-            <img
-              className="held-item-badge"
-              src={itemSpriteUrl(p.heldItem, itemSpriteSlug(p.heldItem))}
-              alt=""
-              title={itemsCatalog[p.heldItem]?.name ?? p.heldItem}
-              width={16}
-              height={16}
+          {/* Square plate. It, not the cell, is what the sprite is measured
+              against — the cell used to be 1:0.85 in one layout and 1:1.87 in
+              another, and a 74px Gyarados was squashed to 50px on a phone
+              while half the cell sat empty. */}
+          <span className="pc-cell-plate">
+            {/* The GIF→static-PNG fallback that used to live here inline is
+                now PokemonSprite's job, along with the retry that makes a
+                transient CDN failure recoverable. */}
+            <PokemonSprite
+              className="pc-cell-sprite"
+              speciesKey={p.speciesKey}
+              isShiny={p.isShiny}
+              alt={p.name}
+              style={{ imageRendering: "pixelated" }}
               draggable={false}
             />
-          )}
+            {/* Level, corner-mounted so it costs the row no height. Bottom
+                LEFT, not right: the held-item badge already owns the bottom
+                right. It used to be a max-contrast white-on-black pill in the
+                top-left — the first thing the eye landed on in a cell whose
+                whole job is showing a Pokémon. */}
+            <span className="pc-cell-lv">{p.level}</span>
+            {p.isShiny && <span className="pc-cell-shiny" aria-hidden>✦</span>}
+            {p.heldItem && itemsCatalog[p.heldItem] && (
+              <img
+                className="held-item-badge"
+                src={itemSpriteUrl(p.heldItem, itemSpriteSlug(p.heldItem))}
+                alt=""
+                title={itemsCatalog[p.heldItem]?.name ?? p.heldItem}
+                width={16}
+                height={16}
+                draggable={false}
+              />
+            )}
+          </span>
+          {/* The literal answer to "make it easier to see the Pokémon we
+              have": at a 44px median sprite most species are not tellable
+              apart, and the box had no names anywhere. */}
+          {showName && <span className="pc-cell-label">{p.nickname ?? p.name}</span>}
         </button>
       )}
     </div>
