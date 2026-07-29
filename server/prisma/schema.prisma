@@ -97,6 +97,15 @@ model User {
   // Presence — set by the socket connection lifecycle.
   lastSeenAt      DateTime  @default(now())
 
+  /// When this account last changed its @handle / display name. Null =
+  /// never changed, which is the state every OAuth signup starts in
+  /// (Google assigned both). Drives the rename cooldowns in
+  /// lib/nameChange.ts, and lives here rather than in a process-local
+  /// map because an in-memory window would reset on every deploy and
+  /// hand an impersonator a fresh switch every time we ship.
+  usernameChangedAt DateTime?
+  nameChangedAt     DateTime?
+
   // Daily rewards / login streak. Server-authoritative so the streak can't
   // be farmed by moving the client clock. lastDailyClaimAt is the UTC
   // instant of the last claim; the route compares it against UTC midnight.

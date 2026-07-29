@@ -31,17 +31,20 @@ function tickIntervalFor(speed: number): number {
 
 // In manual mode, the loop should NOT auto-execute turns. The MovesPanel will
 // dispatch EXECUTE_TURN with a chosen move when the player clicks. Bypass the
-// wait when (a) the player is forced into a recharge turn, (b) they're locked
-// into a multi-turn move (Outrage / Petal Dance), or (c) every move has 0 PP
-// — those have no choice to make, so the simulation should advance itself.
+// wait only when (a) the player is forced into a recharge turn or (b) they're
+// locked into a multi-turn move (Outrage / Petal Dance) — those have no choice
+// to make, so the simulation should advance itself.
+//
+// A spent moveset used to bypass the wait too, which is why a Pokémon that ran
+// out of PP silently started auto-battling and stayed that way until it was
+// healed: manual mode had no way back in. It is a choice like any other now —
+// the panel offers Struggle and the loop waits for it.
 function manualWaiting(s: GameState): boolean {
   if (s.battleMode !== "manual") return false;
   if (!s.playerPokemon) return false;
   const v = s.playerVolatile;
   if (v?.mustRecharge) return false;
   if (v?.lockedMove) return false;
-  const allOutOfPP = s.playerPokemon.moves.every((m) => m.pp <= 0);
-  if (allOutOfPP) return false;
   return true;
 }
 

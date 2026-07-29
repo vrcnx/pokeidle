@@ -247,10 +247,31 @@ function expectedDamage(
   return Math.floor(base * stab * eff * 0.925);
 }
 
+// The fallback every side uses when its whole moveset is spent. Nothing
+// learns it and it never occupies a move slot, so it has no PP of its own
+// and the PP decrement below simply finds no slot to charge.
+export const STRUGGLE_ID = "struggle";
+
+// Struggle is typeless from Gen 5 on: no STAB, no type chart. We model that
+// by handing computeDamage empty type lists. It matters more here than in
+// the real games — a Ghost is immune to Normal, so a type-respecting
+// Struggle would let one wall an out-of-PP player into a battle that can
+// never end.
+function struggleResult(): { moveId: string; move: MoveDef } {
+  return { moveId: STRUGGLE_ID, move: movesTable[STRUGGLE_ID]! };
+}
+
 // Helper for the AI: how many of the attacker's moves currently have PP left?
 function moveHasPp(side: BattleSide, moveId: string): boolean {
   const slot = side.moves.find((m) => m.id === moveId);
   return !!slot && slot.pp > 0;
+}
+
+/** True when there is no move left to use — the Struggle condition. Vacuously
+ *  true for an empty moveset, which is the right answer for the one save
+ *  shape that can produce it (a Pokémon whose last move was deleted). */
+export function isOutOfPP(moves: { pp: number }[]): boolean {
+  return moves.every((m) => m.pp <= 0);
 }
 
 export function pickSmartMove(
@@ -260,11 +281,12 @@ export function pickSmartMove(
   attackerTypes: PokemonType[],
   defenderTypes: PokemonType[]
 ): { moveId: string; move: MoveDef } {
-  // Step 1 — only consider moves with PP. If everything is out of PP we'll
-  // fall back to picking from the full list (the engine resolves to a 0-power
-  // attempt; a future Struggle implementation could replace that path).
+  // Step 1 — only consider moves with PP. Everything spent means Struggle:
+  // the old fallback re-picked from the full list, so a Pokémon with four
+  // empty slots kept firing them off at full strength forever.
   const usable = moveIds.filter((id) => moveHasPp(attacker, id));
-  const candidates = usable.length > 0 ? usable : moveIds;
+  if (usable.length === 0) return struggleResult();
+  const candidates = usable;
 
   // Step 2 — score each move's expected damage with the same risky-effect
   // penalties the original used.
@@ -337,14 +359,19 @@ export function pickSmartMove(
   return { moveId: bestMove, move: movesTable[bestMove]! };
 }
 
+// Wild-encounter move pick. Takes the whole side rather than a list of ids
+// so it can honour PP the same way pickSmartMove does — a wild Pokémon that
+// has burned through its moveset Struggles like anything else.
 export function pickRandomMove(
-  moveIds: string[]
+  attacker: BattleSide
 ): { moveId: string; move: MoveDef } {
-  const damaging = moveIds.filter((id) => {
+  const usable = attacker.moves.filter((m) => m.pp > 0).map((m) => m.id);
+  if (usable.length === 0) return struggleResult();
+  const damaging = usable.filter((id) => {
     const m = movesTable[id];
     return m && m.power > 0;
   });
-  const pool = damaging.length > 0 ? damaging : moveIds;
+  const pool = damaging.length > 0 ? damaging : usable;
   const id = pool[Math.floor(Math.random() * pool.length)];
   return { moveId: id, move: movesTable[id]! };
 }
@@ -405,9 +432,10 @@ export function executeTurn(
   // Pick player's move. Priority order:
   //   1. Forced (recharge after Hyper Beam)
   //   2. Locked (mid Outrage / Petal Dance / Thrash)
-  //   3. Manual override from the UI (only if it's actually one of this
+  //   3. Manual Struggle from the UI, when the moveset is spent
+  //   4. Manual override from the UI (only if it's actually one of this
   //      Pokémon's moves and has PP — otherwise fall through to AI/random)
-  //   4. Smart AI pick
+  //   5. Smart AI pick
   //
   // pFreshPick: did we pick a NEW move this turn (= PP should be
   // decremented), or are we continuing a previously-paid action?
@@ -424,6 +452,12 @@ export function executeTurn(
     } else if (player.lockedMove) {
       pMoveId = player.lockedMove;
       pMove = movesTable[pMoveId];
+    } else if (playerMoveOverride === STRUGGLE_ID && isOutOfPP(player.moves)) {
+      // The moves panel only offers Struggle once every slot is empty;
+      // re-check here so it can't be used as a free extra attack.
+      pMoveId = STRUGGLE_ID;
+      pMove = movesTable[STRUGGLE_ID];
+      pFreshPick = true;
     } else if (
       playerMoveOverride &&
       player.moves.some((m) => m.id === playerMoveOverride && m.pp > 0)
@@ -464,7 +498,7 @@ export function executeTurn(
           enemy.types ?? [],
           player.types ?? []
         )
-      : pickRandomMove(enemy.moves.map((m) => m.id));
+      : pickRandomMove(enemy);
     eMoveId = pick.moveId;
     eMove = pick.move;
     eFreshPick = true;
@@ -752,13 +786,16 @@ export function executeTurn(
     const effectiveMove = accBoost === 1
       ? move
       : { ...move, accuracy: Math.min(100, move.accuracy * accBoost) };
+    // Struggle is typeless: empty type lists mean no STAB and a flat 1×
+    // from the type chart, so it can always chip away at anything.
+    const isStruggle = step.moveId === STRUGGLE_ID;
     const result = computeDamage(
       step.attacker.level,
       aStat,
       dStat,
       effectiveMove,
-      step.attacker.types ?? [],
-      step.defender.types ?? [],
+      isStruggle ? [] : step.attacker.types ?? [],
+      isStruggle ? [] : step.defender.types ?? [],
       aStage,
       dStage
     );
@@ -971,7 +1008,11 @@ export function executeTurn(
         case "recoil": {
           // Magic Guard prevents recoil damage entirely.
           if (step.attacker.ability === "magicGuard") break;
-          const dmg = Math.max(1, Math.floor(appliedDamage * eff.fraction));
+          // Struggle bills the user's own max HP; everything else bills a
+          // slice of the damage it just dealt.
+          const dmg = eff.ofMaxHp
+            ? Math.max(1, Math.floor(step.attacker.maxHp * eff.fraction))
+            : Math.max(1, Math.floor(appliedDamage * eff.fraction));
           step.attacker.currentHp = Math.max(0, step.attacker.currentHp - dmg);
           events.push({
             type: "recoil",

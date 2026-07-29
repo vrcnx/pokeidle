@@ -5,6 +5,7 @@ import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { useAuth } from "../auth/AuthContext";
+import { AccountIdentityCard } from "./AccountIdentityCard";
 import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
@@ -575,6 +576,11 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 
             {tab === "account" && (
               <>
+                {/* First card in the tab, above the read-only account
+                    facts — the names are the only thing on this screen a
+                    player has ever asked to change. */}
+                <AccountIdentityCard />
+
                 {me && (
                   <section className="g-card">
                     <h3>{t("Account")}</h3>

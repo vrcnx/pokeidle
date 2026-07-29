@@ -52,6 +52,36 @@ export function toMove(moveId: string): Move {
 }
 
 // Display label — falls back to species name when no nickname is set.
+/**
+ * Species the player is HOLDING right now, which is a different question
+ * from what the Pokédex has registered. Registration is permanent —
+ * releasing, trading away or evolving a Pokémon never un-registers the
+ * species — so a dex that only knows "caught" cannot tell "I have one of
+ * these" from "I had one once".
+ *
+ * Party + PC only. A Pokémon sitting in auction escrow is deliberately not
+ * counted: it is out of the player's hands until the auction settles, and
+ * claiming otherwise would be the same kind of half-truth this exists to
+ * fix.
+ */
+export function ownedSpecies(party: Pokemon[], box: Pokemon[]): Set<string> {
+  const owned = new Set<string>();
+  for (const p of party) owned.add(p.speciesKey);
+  for (const p of box) owned.add(p.speciesKey);
+  return owned;
+}
+
+/**
+ * Single-species form of {@link ownedSpecies}. A full PC holds up to 9,999
+ * Pokémon, so a caller that only asks about one species shouldn't build a
+ * set of every species it owns to answer it — this short-circuits on the
+ * first match instead.
+ */
+export function ownsSpecies(party: Pokemon[], box: Pokemon[], speciesKey: string): boolean {
+  return party.some((p) => p.speciesKey === speciesKey)
+    || box.some((p) => p.speciesKey === speciesKey);
+}
+
 export function displayName(p: { nickname?: string; name: string }): string {
   return p.nickname ?? p.name;
 }

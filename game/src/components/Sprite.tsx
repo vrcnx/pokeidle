@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ImgHTMLAttributes } from "react";
 import { pokemonTable } from "../data/pokemon";
 import { pokemonSpriteUrl, pokemonStaticSpriteUrl, trainerSpriteUrl } from "../utils/sprites";
@@ -121,7 +121,18 @@ export function Sprite({
     []
   );
 
-  const chain = buildChain(src, fallbackSrc);
+  // Minted once per CHAIN, not once per render. `withRetryToken` bumps a
+  // module counter, so building the chain inline handed the element a URL the
+  // browser had never seen on every commit — and a sprite only reaches a retry
+  // step after it has already failed once, which is exactly the session this
+  // component exists to rescue. The battle scene re-renders several times a
+  // second, so that species re-downloaded its animated GIF on each of them and
+  // restarted from frame 0 (measured: 10 re-renders, 10 requests, 10 distinct
+  // uncacheable URLs). A fresh token is only ever needed when the sprite
+  // changes or a step fails; the first moves `chainKey`, the second moves `n`,
+  // and a plain re-render is neither.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const chain = useMemo(() => buildChain(src, fallbackSrc), [chainKey]);
   const step = chain[n];
 
   // Every source failed (or there was never a valid one — an unknown

@@ -70,7 +70,9 @@ export interface WeatherState {
 
 export type MoveEffect =
   | { type: "statChange"; target: "self" | "opponent"; changes: Partial<StatStages> }
-  | { type: "recoil"; fraction: number }
+  // `ofMaxHp` switches the recoil base from "damage dealt" (Double-Edge,
+  // Take Down) to "the user's own max HP" (Struggle).
+  | { type: "recoil"; fraction: number; ofMaxHp?: boolean }
   | { type: "recharge" }
   | { type: "selfDestruct" }
   | { type: "multiTurnLock"; minTurns: number; maxTurns: number; selfDamage: number }

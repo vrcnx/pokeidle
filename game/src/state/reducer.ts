@@ -25,7 +25,7 @@ import { levelUpsForExp } from "../utils/moves";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
 import { rollCatch } from "../utils/catching";
-import { REPEL_IDS } from "../utils/encounters";
+import { REPEL_IDS, weightFamily } from "../utils/encounters";
 import { unlockedFromProgress, pendingRegionStarter } from "../utils/unlocks";
 import {
   pickRandomLegendary,
@@ -690,6 +690,10 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "CATCH_POKEMON": {
       if (!state.enemyPokemon) return state;
+      // A fainted Pokémon can't be caught. Bail before the ball is spent —
+      // note the Master Ball short-circuits `success` below, so without this
+      // it would happily "catch" a corpse.
+      if (state.enemyPokemon.currentHp <= 0) return state;
       const ballId = action.payload.ballId;
       const inv = { ...state.inventory };
       if ((inv[ballId] ?? 0) <= 0) return pushLog(state, "You don't have any!");
@@ -711,6 +715,10 @@ export function reducer(state: GameState, action: Action): GameState {
       // and stashes everything in catchAnim. The visual layer plays the
       // arc + 3-shake then dispatches CATCH_RESOLVE to apply the outcome.
       if (!state.enemyPokemon) return state;
+      // Same fainted-target guard as CATCH_POKEMON: the throw would always
+      // fail (or, on a Master Ball, wrongly succeed) and eat the ball either
+      // way. The UI disables the buttons; this is the backstop.
+      if (state.enemyPokemon.currentHp <= 0) return state;
       // While an animation is already running, ignore further throws.
       if (state.catchAnim) return state;
       const ballId = action.payload.ballId;
@@ -1629,14 +1637,41 @@ export function reducer(state: GameState, action: Action): GameState {
       // which targets nothing) keep working unchanged. When they ARE given,
       // only that one effect toggles — otherwise pausing the Repel on one
       // species would pause every repel on every route at once.
+      const matches = (e: ActiveEffect): boolean =>
+        e.itemId === itemId &&
+        (speciesKey === undefined || e.speciesKey === speciesKey) &&
+        (routeKey === undefined || (e.routeKey ?? "") === routeKey);
+      // Pausing is how a player frees a species that already has a Repel on it
+      // so they can put Honey there instead (USE_EFFECT_ITEM refuses while the
+      // opposite is live). Resuming has to honour the same rule, or that route
+      // out puts the halve-and-double pair straight back and both silently
+      // cancel again. Pausing is always allowed; only the resume is gated.
+      const blocked = state.activeEffects.find((e) => {
+        if (!e.paused || !matches(e)) return false;
+        const family = weightFamily(e.itemId);
+        if (!family) return false;
+        return state.activeEffects.some(
+          (other) =>
+            other !== e &&
+            !other.paused &&
+            other.speciesKey === e.speciesKey &&
+            other.routeKey === e.routeKey &&
+            weightFamily(other.itemId) !== null &&
+            weightFamily(other.itemId) !== family
+        );
+      });
+      if (blocked) {
+        const blockedName = consumables[blocked.itemId]?.name ?? blocked.itemId;
+        const target = pokemonTable[blocked.speciesKey]?.name ?? blocked.speciesKey;
+        return pushLog(
+          state,
+          `${blockedName} stays paused — the opposite effect is running on ${target} here and the two cancel out.`
+        );
+      }
       return {
         ...state,
         activeEffects: state.activeEffects.map((e) =>
-          e.itemId === itemId &&
-          (speciesKey === undefined || e.speciesKey === speciesKey) &&
-          (routeKey === undefined || (e.routeKey ?? "") === routeKey)
-            ? { ...e, paused: !e.paused }
-            : e
+          matches(e) ? { ...e, paused: !e.paused } : e
         ),
       };
     }
@@ -1738,6 +1773,31 @@ export function reducer(state: GameState, action: Action): GameState {
       if ((inv[itemId] ?? 0) <= 0) return state;
       const def = consumables[itemId];
       if (!def) return state;
+      const targetName = pokemonTable[speciesKey]?.name ?? speciesKey;
+      // Repel halves an encounter weight and Honey doubles it, so running both
+      // on one species+route is a contradiction: they cancel to exactly the
+      // unmodified rate while both timers burn down, so the player pays twice
+      // for nothing and has no way to see it. Refuse rather than consume, and
+      // name the way out — pausing keeps the running effect's battles, which
+      // is why we block on it rather than cancelling or replacing it.
+      const family = weightFamily(itemId);
+      const opposed = family
+        ? state.activeEffects.find(
+            (e) =>
+              e.speciesKey === speciesKey &&
+              e.routeKey === routeKey &&
+              !e.paused &&
+              weightFamily(e.itemId) !== null &&
+              weightFamily(e.itemId) !== family
+          )
+        : undefined;
+      if (opposed) {
+        const runningName = consumables[opposed.itemId]?.name ?? opposed.itemId;
+        return pushLog(
+          state,
+          `${def.name} not used — ${targetName} already has ${runningName} running here and the two cancel out. Pause it first.`
+        );
+      }
       // Repel/Super Repel/Max Repel share ONE slot per species+route. They
       // are the same halving at different lengths, so a second tier has to
       // extend the timer rather than sit beside the first as a second
@@ -1764,7 +1824,7 @@ export function reducer(state: GameState, action: Action): GameState {
         if (existing.battlesRemaining >= cap) {
           return pushLog(
             state,
-            `${def.name} not used — ${pokemonTable[speciesKey]?.name ?? speciesKey} is already at the ${cap.toLocaleString()}-battle cap.`
+            `${def.name} not used — ${targetName} is already at the ${cap.toLocaleString()}-battle cap.`
           );
         }
         activeEffects = state.activeEffects.map((e) =>
@@ -1785,7 +1845,7 @@ export function reducer(state: GameState, action: Action): GameState {
       inv[itemId] = inv[itemId] - 1;
       return pushLog(
         { ...state, inventory: inv, activeEffects },
-        `Used ${def.name} on ${pokemonTable[speciesKey]?.name ?? speciesKey}.`
+        `Used ${def.name} on ${targetName}.`
       );
     }
 

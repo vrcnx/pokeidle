@@ -5,6 +5,7 @@ import { gymLeaders } from "../data/gymLeaders";
 import { eliteFour } from "../data/eliteFour";
 import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
 import { api, type PublicProfile, type TradeHistoryRow } from "../net/api";
+import { AccountIdentityCard } from "./AccountIdentityCard";
 import { PokemonSprite } from "./Sprite";
 import { useBattleHistory } from "../utils/battleHistory";
 import { useModalEnter, CountUp } from "../utils/animate";
@@ -189,6 +190,12 @@ function SelfCard({ onClose }: { onClose: () => void }) {
               })}
             </div>
           </section>
+
+          {/* The card IS the profile as far as players are concerned, so
+              the name editor lives here as well as in Settings → Account.
+              A Google signup looking to get their real name off the
+              leaderboards searches here first. */}
+          <AccountIdentityCard />
 
           <BattleHistorySection />
           <TradeHistorySection />

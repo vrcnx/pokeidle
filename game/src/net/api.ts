@@ -92,6 +92,14 @@ export const api = {
   // Trade history — caller-scoped, returns the last 50 trades with a
   // normalised {sent, received, partner} shape.
   myTradeHistory: () => request<{ trades: TradeHistoryRow[] }>("GET", "/api/profile/me/trades"),
+  // Renaming. Two calls rather than one PATCH of both fields: the server
+  // gives them separate validation and separate cooldowns, so a handle
+  // sitting on cooldown must not block fixing the display name — which
+  // is the one an OAuth signup urgently wants changed.
+  updateDisplayName: (name: string) =>
+    request<{ ok: true; name: string }>("PATCH", "/api/profile/me/display-name", { name }),
+  updateUsername: (username: string) =>
+    request<{ ok: true; username: string }>("PATCH", "/api/profile/me/username", { username }),
   // Public trainer directory — top trainers by level / dex / Σ-levels.
   trainerDirectory: (sort: "level" | "dex" | "sigma" = "level", limit = 30) =>
     request<{ trainers: PublicProfile[]; sort: string }>(
@@ -530,6 +538,11 @@ export interface MeProfile {
   pokedexCaughtCount: number;
   createdAt: string;
   lastSeenAt: string;
+  /** ISO instant the next username / display-name change unlocks, or null
+   *  when it can be changed right now. Resolved server-side so the client
+   *  never carries its own copy of the cooldown length. */
+  usernameChangeAllowedAt?: string | null;
+  displayNameChangeAllowedAt?: string | null;
   /** True when this is a restricted OBS/24-7 stream auto-login session.
    *  The client uses it to auto-dismiss popups (update / daily / etc.) and
    *  hide sensitive UI (trades, auctions, account settings). */

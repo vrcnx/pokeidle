@@ -6,6 +6,7 @@ import { ControlsPopover } from "./ControlsPopover";
 import { openCatchSettings } from "./CatchSettingsModal";
 import { IconPlus, IconEdit, IconTarget } from "./Icon";
 import { animatePop } from "../utils/animate";
+import { STRUGGLE_ID, isOutOfPP } from "../utils/battle";
 import { typeEffectiveness } from "../utils/typing";
 import { pokemonTable } from "../data/pokemon";
 import type { PokemonType } from "../types";
@@ -194,6 +195,10 @@ export function MovesPanel() {
 
   const activeIdx = state.activePlayerPokemonIndex;
   const pickable = canPickMove(state);
+  // Every slot empty means every slot is disabled — without an explicit
+  // Struggle button there is nothing left to click and manual mode has no
+  // way to advance the turn.
+  const outOfPP = !!player && isOutOfPP(player.moves);
 
   // Defender type lookup — used for type-effectiveness preview on each
   // tile. Status moves don't deal type-affected damage so we skip the
@@ -267,6 +272,23 @@ export function MovesPanel() {
           </button>
         );
       })}
+      {pickable && outOfPP && (
+        <button
+          type="button"
+          className="move-slot struggle-slot is-pickable"
+          onClick={() =>
+            dispatch({ type: "EXECUTE_TURN", payload: { playerMoveId: STRUGGLE_ID } })
+          }
+          title={t("No moves left — Struggle hits weakly and hurts you too")}
+        >
+          <div className="move-slot-name">
+            <span className="move-cat">✴</span> {t("Struggle")}
+          </div>
+          <div className="move-slot-stats">
+            <span>{t("Out of PP — heal to restore it")}</span>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

@@ -16,6 +16,19 @@ export const REPEL_TIERS: string[] = [...REPEL_IDS]
   .filter((id) => id in consumables)
   .sort((a, b) => consumables[a].duration - consumables[b].duration);
 
+// The two families that pull on an encounter weight. They pull the SAME
+// number in OPPOSITE directions, which is why nothing may ever run both on
+// one species+route — see the conflict guard in USE_EFFECT_ITEM. Every
+// caller that needs to reason about "is this a repel or a honey" goes
+// through here so the reducer, the roll and the UI can't drift apart.
+export type WeightFamily = "repel" | "honey";
+
+export function weightFamily(itemId: string): WeightFamily | null {
+  if (REPEL_IDS.has(itemId)) return "repel";
+  if (itemId === "honey") return "honey";
+  return null;
+}
+
 interface RouteEncounter {
   speciesKey: string;
   weight: number;
@@ -32,8 +45,8 @@ function adjustWeights(
 ): RouteEncounter[] {
   if (effects.length === 0) return list;
   return list.map((e) => {
-    let weight = e.weight;
-    let repelApplied = false;
+    let repel = false;
+    let honey = false;
     for (const eff of effects) {
       // A paused effect keeps its remaining battles but contributes
       // nothing, matching the Exp. Share rule in reducer.ts. Without this
@@ -48,13 +61,21 @@ function adjustWeights(
       // $700 for an item that did nothing. The tiers differ in duration
       // (see data/consumables.ts), not in strength — so the halving lands
       // at most once per species even if several tiers are running.
-      if (REPEL_IDS.has(eff.itemId)) {
-        if (repelApplied) continue;
-        repelApplied = true;
-        weight *= 0.5;
-      } else if (eff.itemId === "honey") weight *= 2;
+      const family = weightFamily(eff.itemId);
+      if (family === "repel") repel = true;
+      else if (family === "honey") honey = true;
     }
-    return { ...e, weight };
+    // Halving and doubling at once is a contradiction, and USE_EFFECT_ITEM
+    // now refuses to create one. Saves written before that guard existed can
+    // still hold the pair, so spell out what happens instead of leaving it to
+    // fall out of 0.5 × 2: they cancel, exactly as they always silently did.
+    // Picking a winner here would quietly change the encounter rates of every
+    // save already in that state; leaving the wash and NAMING it in the wild
+    // detail panel lets the player undo it themselves.
+    if (repel && honey) return e;
+    if (repel) return { ...e, weight: e.weight * 0.5 };
+    if (honey) return { ...e, weight: e.weight * 2 };
+    return e;
   });
 }
 

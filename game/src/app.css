@@ -138,7 +138,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-::selection { background: var(--accent-soft); color: var(--text); }
+/* Selected text was --accent-soft (6% white) behind --text (#f5f5f5): on a
+   near-black surface that is a ~#1a1a1a wash under unchanged white text,
+   so dragging over a textarea looked like nothing had been selected at
+   all. Reported against the bug-report form, but the rule is global and
+   so was the problem. Inverting is the highest-contrast option that still
+   respects the palette's no-hue rule. */
+::selection { background: var(--accent); color: var(--bg); }
 
 /* Custom scrollbars — narrow, neutral, only show on hover for unobtrusiveness. */
 *::-webkit-scrollbar         { width: 10px; height: 10px; }
@@ -954,6 +960,12 @@ header.tab-pane-head.v2 .mart-wallet {
 .dex-tab-grid .dex-cell.caught { color: #fff; }
 .dex-tab-grid .dex-cell.seen { color: var(--text-dim); }
 .dex-tab-grid .dex-cell.unknown { opacity: 0.4; }
+/* Caught, but none in the party or PC right now. Deliberately between
+   "caught" and "seen" on the ladder: it reads as a completed entry that
+   has faded, not as one you never finished. Fading the SPRITE rather than
+   the whole cell keeps the dex number at full contrast. */
+.dex-tab-grid .dex-cell.registered-only img { opacity: 0.55; }
+.dex-tab-grid .dex-cell.registered-only { color: var(--text-muted); }
 
 /* Dex Species modal */
 .dex-species-modal {
@@ -1011,6 +1023,10 @@ header.tab-pane-head.v2 .mart-wallet {
   font-weight: 700;
 }
 .dex-status-tag.caught { background: rgba(34, 197, 94, 0.15); color: var(--good); border: 1px solid rgba(34, 197, 94, 0.4); }
+/* Registered but not currently owned. Still a completed entry, so it keeps
+   the green family — outlined rather than filled, because the difference
+   between "have one" and "had one" should be visible at a glance. */
+.dex-status-tag.registered { background: transparent; color: var(--good); border: 1px dashed rgba(34, 197, 94, 0.55); }
 .dex-status-tag.seen { background: rgba(255, 255, 255, 0.06); color: var(--text-dim); border: 1px solid var(--border); }
 .dex-status-tag.shiny { background: rgba(251, 191, 36, 0.15); color: var(--gold); border: 1px solid rgba(251, 191, 36, 0.4); }
 .dex-species-section h3 {
@@ -4149,21 +4165,30 @@ body.dnd-active {
 /* Battle layout — diagonal: enemy top-right, player bottom-left.
    Sprites sit in a positioned slot so we can apply per-side flash + shake
    animations on damage without disturbing the sprite's own scaling. */
-.enemy-card {
+/* The enemy HP card and the trainer tag stack together in the top-left.
+   The tag used to be positioned independently at `top: calc(6% + 70px)` —
+   a hardcoded guess at the card's height — so any row that grew the card
+   (stat stages, the type tags) dropped it onto the tag. Stacking them lets
+   flow keep the gap honest whatever the card contains. */
+.enemy-card-stack {
   position: absolute;
   top: 6%; left: 4%;
   z-index: 3;
+  /* Definite width, not shrink-to-fit: the card inside is sized as a
+     percentage of the arena, and a percentage against an auto-width
+     abspos parent is circular. The stack takes the arena-relative size
+     and the card fills it. */
+  width: var(--hp-card-w);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
+.enemy-card-stack .hp-card { width: 100%; }
 
-/* Trainer name + remaining pokeballs. Floats just below the enemy HP card,
+/* Trainer name + remaining pokeballs. Sits just below the enemy HP card,
    no background or border — text shadow keeps it legible on the bg. */
 .trainer-tag {
-  position: absolute;
-  /* enemy-card sits at top:6% (~38px tall). Drop further below so it clears
-     the card and reads as a separate label rather than a row of the card. */
-  top: calc(6% + 70px);
-  left: 4%;
-  z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -4301,10 +4326,6 @@ body.dnd-active {
     height: calc(var(--sh, 100) * var(--sprite-boost, 1) * min(100cqw / 110, 100cqh / 100));
   }
 }
-@media (max-width: 480px) {
-  .enemy-card, .player-card { font-size: 8px; width: 168px; padding: 3px 6px; }
-}
-
 /* ── Missing-sprite placeholder ────────────────────────────────────────
    Rendered by <Sprite> (components/Sprite.tsx) once a URL, its cache-
    busting retry, and its static fallback have ALL failed. Deliberately
@@ -4516,11 +4537,8 @@ body.dnd-active {
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 4px 8px;
-  /* Fixed width sized for the longest possible name (12 chars in the
-     pixel font, ~10px/glyph = 120px) + 8px gap + 60px "Lv.100" pill +
-     16px horizontal padding = 204px. Keeps both HP cards identical
-     regardless of which Pokémon is on the field. */
-  width: 204px;
+  /* Width is set by the redesigned rule further down (it tracks the arena);
+     nothing here should re-declare it or the two will disagree. */
   font-size: 10px;
 }
 .hp-card-name {
@@ -4912,6 +4930,9 @@ body.dnd-active {
 }
 .wild-effect-badge.repel { background: #4f9af0; }
 .wild-effect-badge.honey { background: #f0c84f; color: #2a1808; text-shadow: none; }
+/* A repel and a honey both applying to one species. Neither is doing
+   anything, so the badge can't honestly claim to be either. */
+.wild-effect-badge.conflict { background: var(--bad); }
 /* Paused effects don't apply — the badge shouldn't read as "in force". */
 .wild-effect-badge.paused { opacity: 0.4; filter: grayscale(1); }
 
@@ -4950,8 +4971,28 @@ body.dnd-active {
 .wild-detail-actions button.active { box-shadow: 0 0 0 2px var(--gold); }
 
 .wild-detail-effects { display: flex; flex-direction: column; gap: 2px; font-size: 9px; }
-.wild-detail-effects small { color: var(--gold); }
+.wild-detail-effects small {
+  color: var(--gold);
+  /* Each row ends in its own Pause/Resume control, so the row is a flex line
+     that wraps rather than a text run — the button must never push the
+     battles-left figure out of the panel. */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .wild-detail-effects small.dim { color: var(--text-dim); }
+/* Repel + Honey both live on one species: nothing is being modified and both
+   timers are burning. Red, because it's the player losing items, not a status. */
+.wild-detail-effects small.wild-effect-conflict { color: var(--bad); }
+.wild-effect-pause {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-size: 8px;
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
 .wild-detail-stats { display: flex; flex-direction: column; gap: 2px; }
 .wild-stat-row {
@@ -6358,7 +6399,9 @@ body.dnd-active {
   .move-slot { padding: 4px 6px; font-size: 9px; }
   .move-slot-stats { font-size: 7px; gap: 6px; }
   .topbar { display: none; }   /* topbar moves into mobile-header */
-  .hp-card { width: 168px; padding: 3px 6px; font-size: 8px; }
+  /* HP cards are scaled down further below — the .hp-card override that
+     used to live here never applied, because the redesigned rule later in
+     this file has identical specificity and simply wins on source order. */
   /* Mobile header: stats on the left, compact icon-only Settings/Social
      on the right. Heal is intentionally NOT duplicated here — the
      toolbar above the moves grid already has it. */
@@ -6483,8 +6526,8 @@ body.dnd-active {
 
 @media (max-width: 480px) {
   body { font-size: 9px; }
-  .hp-card { width: 145px; padding: 2px 5px; font-size: 7px; }
-  .hp-card-name { font-size: 8px; }
+  /* (HP card sizing moved below the redesigned rules — see the note in the
+     900px block.) */
   .move-slot { font-size: 8px; padding: 3px 5px; }
   .move-slot-stats { font-size: 6px; gap: 4px; }
   .tab-icon { font-size: 16px; }
@@ -6560,6 +6603,21 @@ body.dnd-active {
   --player-y: 68%;
   --enemy-x: 78%;
   --enemy-y: 34%;
+  /* Beam geometry. A beam is a single flat bar grown out of the attacker, so
+     unlike the particle archetypes (which interpolate left/top and land on
+     the target for free) it has to be AIMED — with no rotation Hyper Beam
+     fired dead horizontal and sailed clean past the opponent.
+     .battle-scene is locked to aspect-ratio 16/9, so the two slots sit at a
+     fixed angle and we can bake it in rather than measuring at runtime:
+       dx = 78% - 29% = 49% of width
+       dy = 34% - 68% = -34% of height = -34% × 9/16 = -19.125% of width
+       angle  = atan2(-19.125, 49) = -21.3deg
+       length = hypot(49, 19.125)  = 52.6% of width
+     Declared here rather than only on the .target-* rules so the vars are
+     defined no matter which one is on: an undefined var would invalidate the
+     whole `transform` and drop the beam's translate along with its rotate. */
+  --beam-angle: -21.3deg;
+  --beam-length: 53%;
 }
 .move-anim.target-enemy {
   /* Player attacking → projectile flies player → enemy. */
@@ -6573,6 +6631,8 @@ body.dnd-active {
   --from-y: var(--enemy-y);
   --to-x:   var(--player-x);
   --to-y:   var(--player-y);
+  /* Same line, pointing back the other way. */
+  --beam-angle: 158.7deg;
 }
 
 /* === Fire-special: 6 staggered orange/red particles flying in an arc === */
@@ -6842,8 +6902,9 @@ body.dnd-active {
   position: absolute;
   left: var(--from-x);
   top: calc(var(--from-y) - 1%);
-  /* A thick band that grows toward the target. We use width 0→55% and
-     a transform to push toward the enemy slot. */
+  /* A thick band that grows out of the attacker along --beam-angle. The
+     pivot is the muzzle end (left edge, vertically centred) so the beam
+     swings to face the opponent instead of sliding off its origin. */
   width: 0;
   height: 22px;
   background: linear-gradient(
@@ -6855,16 +6916,16 @@ body.dnd-active {
     rgba(255, 200, 80, 0) 100%
   );
   filter: drop-shadow(0 0 14px rgba(255, 200, 80, 0.7)) drop-shadow(0 0 22px rgba(255, 130, 30, 0.5));
-  transform: translate(0, -50%);
+  transform-origin: 0 50%;
+  transform: translate(0, -50%) rotate(var(--beam-angle));
   opacity: 0;
   animation: hbRay 700ms ease-out 350ms forwards;
 }
-.move-anim-hyper-beam.target-player .hyperbeam-ray { transform: translate(-100%, -50%); }
 @keyframes hbRay {
-  0%   { width: 0;   opacity: 0; }
-  20%  { width: 55%; opacity: 1; }
-  70%  { width: 55%; opacity: 1; }
-  100% { width: 55%; opacity: 0; }
+  0%   { width: 0;                  opacity: 0; }
+  20%  { width: var(--beam-length); opacity: 1; }
+  70%  { width: var(--beam-length); opacity: 1; }
+  100% { width: var(--beam-length); opacity: 0; }
 }
 .hyperbeam-impact {
   position: absolute;
@@ -6920,16 +6981,17 @@ body.dnd-active {
     rgba(120, 200, 80, 0) 100%
   );
   filter: drop-shadow(0 0 16px rgba(160, 220, 80, 0.8));
-  transform: translate(0, -50%);
+  /* Same aiming fix as .hyperbeam-ray — this beam had the identical bug. */
+  transform-origin: 0 50%;
+  transform: translate(0, -50%) rotate(var(--beam-angle));
   opacity: 0;
   animation: sbRay 600ms ease-out 500ms forwards;
 }
-.move-anim-solar-beam.target-player .solarbeam-ray { transform: translate(-100%, -50%); }
 @keyframes sbRay {
-  0%   { width: 0;   opacity: 0; }
-  20%  { width: 55%; opacity: 1; }
-  80%  { width: 55%; opacity: 1; }
-  100% { width: 55%; opacity: 0; }
+  0%   { width: 0;                  opacity: 0; }
+  20%  { width: var(--beam-length); opacity: 1; }
+  80%  { width: var(--beam-length); opacity: 1; }
+  100% { width: var(--beam-length); opacity: 0; }
 }
 .solarbeam-impact {
   position: absolute;
@@ -7281,9 +7343,6 @@ body.dnd-active {
   position: absolute;
   left: var(--from-x);
   top: var(--from-y);
-  /* Compute beam length: distance from from→to via Pythagorean diff */
-  --dx: calc(var(--to-x) - var(--from-x));
-  --dy: calc(var(--to-y) - var(--from-y));
   width: 0;
   height: 14px;
   background: linear-gradient(
@@ -7295,25 +7354,21 @@ body.dnd-active {
     transparent 100%
   );
   filter: drop-shadow(0 0 8px rgba(180, 100, 255, 0.6));
-  /* Use a fixed beam length and let the position interpolation carry it
-     across the scene. (Computing dx/dy dynamically in calc() doesn't
-     compose well with translate().) */
-  transform: translate(0, -50%);
+  /* Aimed the same way as .hyperbeam-ray. This one was doubly wrong: no
+     rotation AND no enemy-side variant, so a wild Dragonite's beam fired
+     off the right edge of the scene. --beam-angle covers both directions. */
+  transform-origin: 0 50%;
+  transform: translate(0, -50%) rotate(var(--beam-angle));
   opacity: 0;
   animation: dragonBeamCharge 500ms ease-out forwards;
   border-radius: 50%;
 }
 @keyframes dragonBeamCharge {
-  0%   { width: 0; opacity: 0; }
-  20%  { width: 30px; opacity: 1; }
-  60%  {
-    /* approximate the diagonal in % of scene as a fixed wide beam */
-    width: 60%;
-    opacity: 1;
-    left: var(--from-x);
-  }
-  85%  { width: 60%; opacity: 1; }
-  100% { width: 60%; opacity: 0; }
+  0%   { width: 0;                  opacity: 0; }
+  20%  { width: 30px;               opacity: 1; }
+  60%  { width: var(--beam-length); opacity: 1; }
+  85%  { width: var(--beam-length); opacity: 1; }
+  100% { width: var(--beam-length); opacity: 0; }
 }
 
 /* ===== Dark-special — vignette + converging dark wisps ===== */
@@ -7424,8 +7479,16 @@ body.dnd-active {
      600px wide, each 16:9 element is 337.5px tall — together with the
      moves panel and tab strip that's ~850px, fitting on a 1080p screen
      with room to spare. Side columns flex between min/max so the layout
-     gracefully adapts to narrower viewports. */
-  grid-template-columns: minmax(220px, 280px) 520px minmax(240px, 320px);
+     gracefully adapts to narrower viewports.
+     The centre track is a minmax(), not a flat 520px: a fixed track can't
+     shrink, so the three columns had a hard 1,012px floor and the shell
+     simply overflowed a 1,024px screen — clipped, not scrollable, because
+     .game-window hid overflow. It still measures exactly 520px everywhere
+     there's room, so nothing changes above ~1,030px; its 360px floor keeps
+     the arena the widest column when there isn't (the whole grid still fits
+     the 901px minimum this layout is ever asked for — below that the shell
+     switches to mobile). */
+  grid-template-columns: minmax(220px, 280px) minmax(360px, 520px) minmax(240px, 320px);
   gap: var(--sp-3);
   padding: 0 var(--sp-1);
   max-width: 1160px;
@@ -7584,6 +7647,19 @@ body.dnd-active {
   overflow: hidden;
   border: 1px solid var(--border);
   box-shadow: var(--sh-2);
+  /* HP card width, sized off the ARENA rather than the viewport. 158px
+     truncated most names — the pixel font is full-width, so a 10-glyph
+     "CHARMANDER" plus the Lv pill needs ~195px — but a fixed 224px would
+     swallow a small arena whole. A percentage keeps the card proportional
+     to the scene it floats over in every layout (classic, wide, mobile
+     shell); the bounds stop it collapsing or ballooning at the extremes.
+     38% is the ceiling: the player card is anchored right and the widest
+     sprite reaches ~53% of the arena, so a card whose left edge sits at
+     58% always clears it — and 38% is what a 560px classic arena needs to
+     fit "CHARMANDER ✨ / Lv.100", the worst case in the dex. The
+     percentage resolves against the arena at each use site, so it has to
+     be declared here rather than on the cards. */
+  --hp-card-w: clamp(150px, 38%, 224px);
 }
 .battle-area { border-radius: var(--r-lg); overflow: hidden; }
 
@@ -7598,7 +7674,7 @@ body.dnd-active {
   font-size: 8px;
   color: var(--ink);
   letter-spacing: 0.5px;
-  width: 158px;
+  width: var(--hp-card-w);
   box-shadow: var(--sh-2);
 }
 .hp-card-name {
@@ -7607,6 +7683,42 @@ body.dnd-active {
   align-items: baseline;
   gap: var(--sp-2);
   font-size: 9px;
+}
+/* The level never shrinks — if something has to give it's the name, which
+   already ellipsises. Without this both flex items shrink and "Lv.100"
+   collapses to "Lv.1…" on the narrowest arenas. */
+.hp-card-name > span { flex: 0 0 auto; }
+/* Type tag(s) on the left, "already in your Pokédex" ball on the right.
+   Lives on its own row rather than sharing the name row: the name is the
+   thing that was being cut off, so it keeps the full width to itself. */
+.hp-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  min-height: 12px;
+}
+.hp-card-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+}
+/* Shrunk from the dex/wild-detail badge — this one sits inside a pixel-font
+   card that is already only 8px tall per line. */
+.hp-card-types .type-badge {
+  font-size: 7px;
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+.hp-card-caught {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  image-rendering: pixelated;
 }
 .hp-card-row {
   display: flex;
@@ -7699,6 +7811,16 @@ body.dnd-active {
 .move-slot.is-pickable { cursor: pointer; }
 .move-slot.is-pickable:hover { transform: translateY(-2px); filter: brightness(1.08) saturate(1.05); }
 .move-slot.no-pp { filter: saturate(0.3); cursor: not-allowed; }
+/* Struggle — the last-resort action when every slot is spent. Spans the
+   full grid width because it is the only thing left to click, and takes
+   the "bad" tint so it never reads as a normal move you'd want to use. */
+.move-slot.struggle-slot {
+  grid-column: 1 / -1;
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.move-slot.struggle-slot .move-slot-stats { opacity: 0.8; }
 .move-slot-name {
   display: flex;
   align-items: center;
@@ -7745,10 +7867,21 @@ body.dnd-active {
 }
 .bottom-tab-strip {
   display: flex;
+  /* These five are the game's whole navigation, so none of them may ever be
+     the one that falls off the end. `flex: 1` floors each tab at its own
+     min-content width, which the strip cannot honour in a narrow rail (or in
+     a language where "Bag" is "Mochila") — the surplus overflowed a card that
+     hides overflow, silently eating Dex and then PC. Wrapping onto a second
+     row keeps every tab reachable and costs only height, whereas scrolling
+     the strip would hide tabs behind a gesture nobody knows is there. */
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.25);
 }
 .bottom-tab {
+  /* Kept at `1` (basis 0) so tabs stay equal-width whenever they fit on one
+     row — the wrap above breaks the line off their min-content size, which is
+     the label, so nothing is ever clipped to make room. */
   flex: 1;
   padding: 10px 6px;
   background: transparent;
@@ -8549,6 +8682,26 @@ button:active:not(:disabled) { transform: none; }
   -webkit-backdrop-filter: none;
   border-radius: var(--r-sm);
   box-shadow: none;
+}
+/* Phones: the card's WIDTH already tracks the arena, so only the type
+   scale needs to come down. These live after the redesigned rules on
+   purpose — identical specificity means source order decides, and the
+   equivalent block up in the 900px section never took effect. */
+@media (max-width: 900px) {
+  .hp-card { padding: 4px 7px; }
+  .hp-card-meta { margin-top: 3px; }
+}
+@media (max-width: 480px) {
+  /* letter-spacing goes to 0 here: at 7-8px the pixel font is already
+     airy, and half a pixel per glyph is ~9px of a 150px card — the
+     difference between a phone fitting "CHARIZARD" and ellipsising it. */
+  .hp-card { padding: 3px 6px; font-size: 7px; letter-spacing: 0; }
+  .hp-card-name { font-size: 8px; gap: 5px; }
+  .hp-card-types .type-badge { font-size: 6px; padding: 0 4px; letter-spacing: 0; }
+  /* A phone arena is ~360px wide, so a two-type card is the tightest
+     case in the game: let the tags wrap under each other rather than
+     squeeze the ball off the row. */
+  .hp-card-meta { align-items: flex-start; }
 }
 .scene-status {
   backdrop-filter: none;
@@ -12753,6 +12906,27 @@ input:focus, textarea:focus, select:focus {
   border-radius: 4px;
   color: var(--text, #f0f0f0);
 }
+/* "This is your unsent draft" notice + its escape hatch. */
+.report-bug-restored {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.report-bug-restored > span { flex: 1 1 180px; min-width: 0; }
+.report-bug-confirm {
+  align-self: center;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
 
 /* Chat usernames are now buttons (click → public trainer card). The
    button styling inherits from .mini-chat-author so colors stay the
@@ -14105,9 +14279,20 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
 }
 
 /* ───────────────────────────────────────────────────────────────────
-   Layout 100vh fit — page should never scroll. html/body lock to the
-   viewport, game-window fills it, and internal scroll lives in the
-   columns/panels that need it.
+   Layout 100vh fit — the page should not scroll while the shell FITS.
+   html/body lock to the viewport, game-window fills it, and internal
+   scroll lives in the columns/panels that need it.
+
+   Below the size the desktop shell actually needs, "never scroll" stops
+   being a nicety and becomes a wall: the columns were squeezed until the
+   Map/Mart/Bag/PC/Dex card had ~30px of body left, and the overflow was
+   hidden, so on a small monitor the tabs could not be reached at all
+   (bug: "I have to lower my screen resolution to use them"). So the
+   shell now has a floor, and .game-window scrolls once it is hit —
+   scrolling to a usable panel beats a panel you can never open.
+   The floor is deliberately on .game-window, not html/body: it keeps a
+   single scroll container and leaves fixed-position overlays (modals,
+   toasts, the background) pinned to the viewport.
    ─────────────────────────────────────────────────────────────────── */
 html, body {
   height: 100vh;
@@ -14120,12 +14305,18 @@ html, body {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 .dashboard {
   height: 100% !important;
-  min-height: 0;
-  max-height: 100%;
+  /* 700px is the height a 1280x720 screen already hands the shell, and it
+     seats the battle scene, the toolbar and the moves card while still
+     leaving the tab card ~150px of scrollable body. Anything shorter is
+     where the tab card starts collapsing toward nothing, so that is the
+     floor. `max-height` is dropped rather than kept at 100%: it would
+     fight the floor on every viewport below it, and the floor has to win. */
+  min-height: 700px;
+  max-height: none;
   overflow: hidden;
 }
 
@@ -17055,6 +17246,29 @@ html, body {
 }
 .dex-controls .dex-search-wrap { flex: 1; min-width: 180px; }
 
+/* Dex state legend. Each label carries the swatch the grid uses for that
+   state, so the mapping is read off the page instead of guessed at. */
+.dex-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 0 2px 8px;
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+}
+.dex-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.dex-legend-item::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  flex: 0 0 auto;
+}
+.dex-legend-item.registered::before { background: transparent; border: 1px solid var(--good); }
+.dex-legend-item.seen::before      { background: var(--text-dim); }
+.dex-legend-item.unknown::before   { background: transparent; border: 1px solid var(--border-bright); }
+
 /* Cell shiny accent */
 .dex-cell.is-shiny {
   box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45), 0 0 10px rgba(251, 191, 36, 0.18);
@@ -17820,11 +18034,17 @@ html, body {
   margin: 0 auto;
 }
 /* Below the classic breakpoint the wide template would squeeze the rails, so
-   it simply reverts — wide is a large-desktop affordance only. */
+   it simply reverts — wide is a large-desktop affordance only.
+   The tracks it reverts TO used to be `300px minmax(640px, 1fr) 300px`, whose
+   floor is 1,240px + gaps. On anything narrower the grid overflowed a shell
+   that hides overflow, and since Wide is where the Map/Mart/Bag/PC/Dex tabs
+   live in the RIGHT rail, the whole tab card was pushed off the screen edge
+   with no way to scroll to it — the tabs were simply gone at 1,024px. Every
+   track is shrinkable now, so the rails narrow instead of walking off. */
 @media (max-width: 1200px) {
   .dashboard-wide {
     max-width: 1600px;
-    grid-template-columns: 300px minmax(640px, 1fr) 300px;
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr) minmax(240px, 320px);
   }
   .dashboard-wide .battle-scene {
     width: 100%;
@@ -17896,7 +18116,13 @@ html, body {
    the available height and scrolling INSIDE keeps the rail stable. */
 .dashboard-wide .party-column > .bottom-tabs {
   flex: 1 1 0;
-  min-height: 0;
+  /* Not `min-height: 0`. The party card below is content-sized, so a full
+     six-Pokémon team took the whole rail and left the tab card ~120px — on a
+     768px-tall screen the game's entire navigation was a strip with almost no
+     pane under it. The rail already scrolls (.party-column is overflow-y:
+     auto), so floor the card and let the party list be the thing that
+     scrolls: a reachable panel matters more than an always-whole party list. */
+  min-height: 240px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -18125,3 +18351,57 @@ html, body {
   color: #06283d;
   vertical-align: 2px;
 }
+
+/* ---------- Account: renaming yourself ---------- */
+/* Google signup assigns both the display name (the account holder's real
+   name, off the OAuth profile) and the @handle, then publishes them to
+   global chat and the leaderboards. This card is the way back out, so it
+   is rendered in two places — Settings → Account and the self trainer
+   card — and styled to read as an editable form rather than another row
+   of read-only account facts. */
+.account-identity .rename-row { margin-top: 12px; }
+.account-identity .rename-row + .rename-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.rename-label { margin-bottom: 4px; }
+.rename-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Mirrors .auth-label input — the field can't be a descendant of the
+   label here (the Save button shares the row and would swallow the
+   label's click), so it doesn't inherit those rules. */
+.rename-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--panel-2, #1a1a1a);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  /* 16px+ keeps iOS from auto-zooming the modal off-screen on focus. */
+  font-size: 16px;
+  min-height: 40px;
+}
+.rename-input-row input:focus {
+  outline: none;
+  border-color: var(--text-muted);
+  background: var(--panel-3, #1f1f1f);
+}
+.rename-input-row input::placeholder { color: var(--text-faint, #4a4a4a); }
+.rename-input-row input:disabled { opacity: 0.55; cursor: not-allowed; }
+.rename-input-row .g-btn-small { flex: 0 0 auto; align-self: stretch; }
+/* The @ sits against the field so the handle reads the way it does
+   everywhere else in the game, without being part of the value. */
+.rename-prefix {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.rename-locked { color: var(--gold, #eab308); }
+.rename-saved { color: #86efac; }
+.rename-error { margin-top: 8px; }

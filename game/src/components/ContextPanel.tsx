@@ -250,24 +250,37 @@ function IdleRoutePanel() {
 
 // Manual ball throwing. Auto-catch handles the grind, but players repeatedly
 // asked for a way to just throw a ball themselves at whatever is in front of
-// them — especially for a rare spawn their catch rules would skip. Only shows
-// during a live wild battle.
+// them — especially for a rare spawn their catch rules would skip. Shows for
+// the whole time the player is on a route, live encounter or not.
 function ManualCatchSection() {
   const { state, dispatch } = useGame();
   const t = useT();
-  if (state.phase !== "battle" || !state.enemyPokemon) return null;
-  const target = state.enemyPokemon;
+  // Deliberately NOT gated on there being a live encounter. This box used to
+  // unmount between wild battles, so on a route it vanished and reappeared
+  // every few seconds — the whole right column jumped with it. It stays put
+  // now and the buttons carry the state instead.
+  const target = state.phase === "battle" ? state.enemyPokemon : null;
   // A throw is already in the air — queueing another would burn a second ball
   // against an outcome that's already decided.
   const throwing = !!state.catchAnim;
-  const hpPct = Math.max(0, Math.round((target.currentHp / target.maxHp) * 100));
+  // A fainted target can't be caught by anything, Master Ball included, so a
+  // throw at one was a guaranteed wasted ball.
+  const fainted = !!target && target.currentHp <= 0;
+  const canThrow = !!target && !fainted && !throwing;
+  const hpPct = target
+    ? Math.max(0, Math.round((target.currentHp / target.maxHp) * 100))
+    : 0;
 
   return (
     <section className="ctx-section manual-catch ctx-fade-in">
       <h3 className="ctx-h3">
         {t("Throw a ball")}
         <span className="dim small" style={{ marginLeft: 6 }}>
-          {target.name} · {hpPct}% HP
+          {!target
+            ? t("no wild Pokémon right now")
+            : fainted
+            ? `${target.name} · ${t("fainted")}`
+            : `${target.name} · ${hpPct}% HP`}
         </span>
       </h3>
       <div className="manual-catch-balls">
@@ -279,8 +292,13 @@ function ManualCatchSection() {
             <button
               key={id}
               className="manual-catch-ball"
-              disabled={owned <= 0 || throwing}
-              title={owned <= 0 ? t("You have none of these") : `${ball.name} ×${owned}`}
+              disabled={owned <= 0 || !canThrow}
+              title={
+                owned <= 0 ? t("You have none of these")
+                : !target ? t("Wait for a wild Pokémon to appear")
+                : fainted ? t("It has fainted — a ball would be wasted")
+                : `${ball.name} ×${owned}`
+              }
               // TRY_CATCH, not CATCH_POKEMON: the former pre-rolls the
               // result and hands it to the ball-throw animation (arc + three
               // shakes), which is the same path auto-catch uses. Dispatching
@@ -735,6 +753,32 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
   }
   const effectLabel = (e: ActiveEffect): string =>
     `${getItemInfo(e.itemId).name} · ${e.battlesRemaining.toLocaleString()} ${t("battles left")}${e.paused ? ` (${t("paused")})` : ""}`;
+  // Which effect the cell's badge should speak for. Whatever is actually
+  // APPLYING wins: pausing the repel is the supported way to free a species
+  // for honey, and the badge used to take the repel unconditionally — so the
+  // live honey showed up as a greyed-out "R". Both applying at once is only
+  // reachable on saves written before USE_EFFECT_ITEM refused the pair, and
+  // it means neither is doing anything, so it gets its own badge rather than
+  // being reported as one of them.
+  const badgeFor = (eff: { repel?: ActiveEffect; honey?: ActiveEffect }) => {
+    const live = [eff.repel, eff.honey].filter((e): e is ActiveEffect => !!e && !e.paused);
+    const shown = live[0] ?? eff.repel ?? eff.honey;
+    if (!shown) return null;
+    const conflict = live.length > 1;
+    const kind = conflict ? "conflict" : REPEL_IDS.has(shown.itemId) ? "repel" : "honey";
+    const title = [eff.repel, eff.honey]
+      .filter((e): e is ActiveEffect => !!e)
+      .map(effectLabel)
+      .join(" · ");
+    return {
+      kind,
+      paused: !!shown.paused,
+      text: conflict ? "!" : kind === "repel" ? "R" : "H",
+      title: conflict
+        ? `${title} — ${t("these cancel each other out")}`
+        : title,
+    };
+  };
 
   return (
     <section className="ctx-section">
@@ -756,6 +800,7 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
           const rarity = rarityFromRate(ratePct);
           const sp = pokemonTable[e.speciesKey];
           const eff = effects[e.speciesKey] ?? {};
+          const badge = badgeFor(eff);
           return (
             <button
               key={e.speciesKey}
@@ -780,17 +825,12 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
                 }}
               />
               <small>{seen ? sp.name : "???"}</small>
-              {(eff.repel || eff.honey) && (
+              {badge && (
                 <span
-                  className={`wild-effect-badge ${eff.repel ? "repel" : "honey"}${
-                    (eff.repel ?? eff.honey)!.paused ? " paused" : ""
-                  }`}
-                  title={[eff.repel, eff.honey]
-                    .filter((e): e is ActiveEffect => !!e)
-                    .map(effectLabel)
-                    .join(" · ")}
+                  className={`wild-effect-badge ${badge.kind}${badge.paused ? " paused" : ""}`}
+                  title={badge.title}
                 >
-                  {eff.repel ? "R" : "H"}
+                  {badge.text}
                 </span>
               )}
             </button>

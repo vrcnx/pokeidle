@@ -186,6 +186,19 @@ app.all("/api/auth/*", async (c) => {
       return c.json({ error: "too many attempts, slow down" }, 429);
     }
   }
+  // Better Auth ships its own update-user endpoint, and this catch-all was
+  // publishing it. Its body schema is an open record, so one request could set
+  // `name` (and any other writable column) directly — bypassing every rule the
+  // dedicated rename route enforces: length and charset validation, username
+  // UNIQUENESS, the impersonation checks, the cooldown, and the audit trail.
+  // A rename policy that a client can route around is not a policy, so the
+  // only way to change a name is the validated route.
+  if (path.endsWith("/update-user")) {
+    return c.json(
+      { error: "use PATCH /api/profile/me/display-name or /api/profile/me/username" },
+      404,
+    );
+  }
   return auth.handler(c.req.raw);
 });
 

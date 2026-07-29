@@ -5,6 +5,7 @@ import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite, Sprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { obtainableCount, obtainableSpecies } from "../utils/obtainable";
+import { ownedSpecies } from "../utils/pokemon";
 import { routes } from "../data/routes";
 import { buildUnifiedShop } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
@@ -864,6 +865,21 @@ const DEX_MILESTONES: { count: number; label: string; icon: string }[] = [
   { count: 151, label: "Kanto Master",  icon: "🥇" },
 ];
 
+// The four states a dex entry can be in, worded so none of them claims
+// more than it knows. "Caught" alone used to cover both of the middle two,
+// which is what made a released or traded-away species read as if it were
+// still sitting in a box somewhere.
+function dexCellTitle(
+  name: string,
+  s: { owned: boolean; caught: boolean; seen: boolean; released: boolean },
+  t: (str: string) => string
+): string {
+  if (s.owned)  return `${name} — ${t("in your party or PC")}`;
+  if (s.caught) return `${name} — ${t("registered, but you don't have one right now")}`;
+  if (s.seen)   return `${name} — ${t("seen in the wild, not caught yet")}`;
+  return s.released ? t("Not found yet") : t("Not yet available");
+}
+
 export function DexTab() {
   const { state } = useGame();
   const t = useT();
@@ -877,6 +893,13 @@ export function DexTab() {
   const seenSet   = useMemo(() => new Set(state.pokedexSeen),   [state.pokedexSeen]);
   const caughtSet = useMemo(() => new Set(state.pokedexCaught), [state.pokedexCaught]);
   const shinySet  = useMemo(() => new Set(state.shinyCaught),   [state.shinyCaught]);
+  // Registration is permanent; ownership is not. Without this the grid
+  // said "caught" for a species you released ten hours ago and had no way
+  // to say it, which is the complaint that asked for a Living Dex.
+  const ownedSet  = useMemo(
+    () => ownedSpecies(state.party, state.box),
+    [state.party, state.box]
+  );
 
   // Per-type completion counts.
   // Declared ahead of typeCompletion: that memo runs during this render and
@@ -1043,6 +1066,16 @@ export function DexTab() {
         </div>
       </div>
 
+      {/* LEGEND — four states, four words. The grid has always encoded them
+          in the sprite treatment; nothing said what the treatments meant, so
+          "caught but no longer owned" read as a rendering glitch. */}
+      <div className="dex-legend">
+        <span className="dex-legend-item owned">{t("In your collection")}</span>
+        <span className="dex-legend-item registered">{t("Registered, none owned")}</span>
+        <span className="dex-legend-item seen">{t("Seen only")}</span>
+        <span className="dex-legend-item unknown">{t("Undiscovered")}</span>
+      </div>
+
       {/* GRID */}
       <div className="dex-tab-grid">
         {filtered.length === 0 && (
@@ -1054,6 +1087,10 @@ export function DexTab() {
           const caught = caughtSet.has(key);
           const seen   = seenSet.has(key);
           const shiny  = shinySet.has(key);
+          // Not gated on `caught` — ownership is a fact about your boxes, and
+          // gating it would make this cell disagree with the species modal,
+          // which reads the same lists.
+          const owned  = ownedSet.has(key);
           const filterCss = caught
             ? "none"
             : seen
@@ -1064,13 +1101,21 @@ export function DexTab() {
             <button
               key={key}
               type="button"
-              className={`dex-cell ${caught ? "caught" : seen ? "seen" : "unknown"} ${shiny ? "is-shiny" : ""} ${!obtainable.has(key) ? "unreleased" : ""}`}
+              className={[
+                "dex-cell",
+                caught ? "caught" : seen ? "seen" : "unknown",
+                // Registered but gone: still a completed dex entry, so it
+                // keeps its colour — it just stops claiming you have one.
+                caught && !owned ? "registered-only" : "",
+                shiny ? "is-shiny" : "",
+                !obtainable.has(key) ? "unreleased" : "",
+              ].filter(Boolean).join(" ")}
               onClick={() => clickable && setPicked(key)}
               disabled={!clickable}
               /* Unreleased species are marked so a completionist doesn't hunt
                  for something that has no encounter yet — they're excluded
                  from the counts above, but still occupy their dex number. */
-              title={clickable ? sp.name : !obtainable.has(key) ? "Not yet available" : "???"}
+              title={dexCellTitle(sp.name, { owned, caught, seen, released: obtainable.has(key) }, t)}
             >
               <PokemonSprite
                 speciesKey={key}

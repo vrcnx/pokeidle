@@ -7,6 +7,7 @@ import { evolutions } from "../data/evolutions";
 import { raidLegendaries, MYTHICAL_MIN_LEVEL } from "../data/raidLegendaries";
 import { STARTER_KEYS } from "../state/initialState";
 import { abilitiesFor, abilityInfo } from "../data/abilities";
+import { ownsSpecies } from "../utils/pokemon";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import type { PokemonType, EvolutionTrigger } from "../types";
@@ -51,6 +52,10 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
   const caught = state.pokedexCaught.includes(speciesKey);
   const seen = state.pokedexSeen.includes(speciesKey);
   const shiny = state.shinyCaught.includes(speciesKey);
+  // Two different facts, and the header used to state only the first: the
+  // dex remembers every species you have ever caught, whether or not one is
+  // still in your party or PC.
+  const owned = ownsSpecies(state.party, state.box, speciesKey);
 
   // Find every route that lists this species in its encounter table.
   const foundIn = Object.entries(encounters).flatMap(([routeKey, def]) => {
@@ -130,8 +135,20 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
                   </span>
                 ))}
                 <span className="dex-species-status-inline">
-                  {caught && <span className="dex-status-tag caught">{t("✓ Caught")}</span>}
-                  {!caught && seen && <span className="dex-status-tag seen">{t("Seen")}</span>}
+                  {owned && (
+                    <span className="dex-status-tag caught" title={t("You have at least one in your party or PC")}>
+                      {t("✓ In your collection")}
+                    </span>
+                  )}
+                  {caught && !owned && (
+                    <span
+                      className="dex-status-tag registered"
+                      title={t("Caught before, so it stays in the Pokédex — but you don't have one right now")}
+                    >
+                      {t("✓ Registered · none owned")}
+                    </span>
+                  )}
+                  {!caught && seen && <span className="dex-status-tag seen">{t("Seen — not caught yet")}</span>}
                   {shiny && <span className="dex-status-tag shiny">{t("✨ Shiny")}</span>}
                 </span>
               </div>

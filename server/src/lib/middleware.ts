@@ -172,9 +172,11 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
 // Reject sensitive actions for restricted stream sessions. Layer on top
 // of requireUser on any mutation a leaked stream link must never be able
 // to perform on the account's behalf — trades and auctions (asset
-// transfer). Account settings are already unreachable to a stream session
-// because they go through Better Auth, which a stream cookie can't
-// satisfy. A normal (non-stream) session passes straight through.
+// transfer), and renaming (routes/profile.ts). Renaming used to be
+// covered for free by "account settings go through Better Auth, which a
+// stream cookie can't satisfy"; it doesn't any more, so it is guarded
+// here explicitly rather than by that side effect. A normal (non-stream)
+// session passes straight through.
 export const blockStream: MiddlewareHandler = async (c, next) => {
   if (c.get("isStream")) {
     return c.json(

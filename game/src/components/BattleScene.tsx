@@ -4,6 +4,7 @@ import { useT } from "../i18n/useT";
 import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { routes } from "../data/routes";
+import { pokemonTable } from "../data/pokemon";
 import { useDamageFlash } from "../hooks/useDamageFlash";
 import { TrainerIntro } from "./TrainerIntro";
 import { WhiteoutOverlay } from "./WhiteoutOverlay";
@@ -92,31 +93,37 @@ export function BattleScene() {
       {/* Enemy slot — top right */}
       {enemy && (
         <>
-          <HpCard pokemon={enemy} className="enemy-card" />
-          {(state.trainerBattle || state.bossBattle) && (() => {
-            const tb = state.trainerBattle ?? state.bossBattle!;
-            const total = tb.trainerTeam.length;
-            const spent = tb.currentTrainerPokemonIndex;
-            return (
-              <div className="trainer-tag">
-                <strong>{tb.trainerName}</strong>
-                <span className="trainer-tag-balls">
-                  {Array.from({ length: total }, (_, i) => (
-                    <img
-                      key={i}
-                      src={itemSpriteUrl("pokeball")}
-                      alt={i < spent ? t("fainted") : t("ready")}
-                      className={`trainer-ball ${i < spent ? "spent" : ""}`}
-                      title={i < spent ? t("fainted") : t("ready")}
-                      width={12}
-                      height={12}
-                      draggable={false}
-                    />
-                  ))}
-                </span>
-              </div>
-            );
-          })()}
+          {/* Card and trainer tag share one stack: the tag used to be pinned
+              at a hardcoded offset guessed from the card's height, so
+              anything that grew the card (a stat-stage row, the type tags)
+              landed on top of it. Flow handles the spacing now. */}
+          <div className="enemy-card-stack">
+            <HpCard pokemon={enemy} className="enemy-card" showDexBall />
+            {(state.trainerBattle || state.bossBattle) && (() => {
+              const tb = state.trainerBattle ?? state.bossBattle!;
+              const total = tb.trainerTeam.length;
+              const spent = tb.currentTrainerPokemonIndex;
+              return (
+                <div className="trainer-tag">
+                  <strong>{tb.trainerName}</strong>
+                  <span className="trainer-tag-balls">
+                    {Array.from({ length: total }, (_, i) => (
+                      <img
+                        key={i}
+                        src={itemSpriteUrl("pokeball")}
+                        alt={i < spent ? t("fainted") : t("ready")}
+                        className={`trainer-ball ${i < spent ? "spent" : ""}`}
+                        title={i < spent ? t("fainted") : t("ready")}
+                        width={12}
+                        height={12}
+                        draggable={false}
+                      />
+                    ))}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
           <div
             key={`enemy-slot-${enemy.id}`}
             className={[
@@ -164,7 +171,7 @@ export function BattleScene() {
           <HpCard pokemon={player} className="player-card" />
         </>
       )}
-      <Typewriter text={status} key={status} />
+      <Typewriter text={status} />
       <TrainerIntro />
       <CatchAnimation />
       <MoveAnimation />
@@ -405,10 +412,24 @@ function CatchAnimation() {
 }
 
 // Types one character at a time. Speed comes from the game's speed multiplier.
+//
+// The caller used to pass `key={text}` to restart the typing on every new
+// line, which threw away the .scene-status div and built a fresh one each
+// time — and that div carries a backdrop blur, so the black bar behind the
+// text visibly flashed on every single log line. The effect below already
+// restarts on a `text` change, so the element only has to stay mounted;
+// resetting `shown` during render (rather than in the effect) keeps the swap
+// frame-perfect, which is the one thing remounting was actually buying.
 function Typewriter({ text }: { text: string }) {
   const { state } = useGame();
   const [shown, setShown] = useState("");
   const charMs = state.speed >= 5 ? 7 : state.speed >= 2 ? 16 : 30;
+
+  const lastTextRef = useRef<string | null>(null);
+  if (lastTextRef.current !== text) {
+    lastTextRef.current = text;
+    setShown(text.slice(0, 1));
+  }
 
   useEffect(() => {
     if (!text) {
@@ -432,16 +453,56 @@ function Typewriter({ text }: { text: string }) {
   return <div className="scene-status">{shown}</div>;
 }
 
-function HpCard({ pokemon, className }: { pokemon: Pokemon; className: string }) {
+// `showDexBall` is only passed for the opponent. Your own Pokémon is
+// registered in the dex by definition, so a ball on that card would be lit
+// 100% of the time and answer nothing; on the other side of the field
+// "do I already have one of these?" is the whole question.
+function HpCard({
+  pokemon,
+  className,
+  showDexBall,
+}: {
+  pokemon: Pokemon;
+  className: string;
+  showDexBall?: boolean;
+}) {
+  const { state } = useGame();
   const t = useT();
   const hpPct = (pokemon.currentHp / pokemon.maxHp) * 100;
   const hpClass = hpPct > 50 ? "ok" : hpPct > 20 ? "warn" : "low";
+  // Types come from the species table rather than the individual: a Pokemon
+  // instance only carries its stats, and the table is the same source the
+  // dex and the wild-encounter detail read from.
+  const types = pokemonTable[pokemon.speciesKey]?.types ?? [];
+  const registered = showDexBall && state.pokedexCaught.includes(pokemon.speciesKey);
   return (
     <div className={`hp-card ${className}`}>
       <div className="hp-card-name">
         <strong>{pokemon.name.toUpperCase()}{pokemon.isShiny ? " ✨" : ""}</strong>
         <span>{t("Lv.")}{pokemon.level}</span>
       </div>
+      {(types.length > 0 || registered) && (
+        <div className="hp-card-meta">
+          <span className="hp-card-types">
+            {/* Type names are rendered untranslated here to match the dex and
+                wild-detail badges — they're one shared vocabulary. */}
+            {types.map((ty) => (
+              <span key={ty} className={`type-badge type-${ty.toLowerCase()}`}>{ty}</span>
+            ))}
+          </span>
+          {registered && (
+            <img
+              className="hp-card-caught"
+              src={itemSpriteUrl("pokeball")}
+              alt={t("Already in your Pokédex")}
+              title={t("Already in your Pokédex")}
+              width={12}
+              height={12}
+              draggable={false}
+            />
+          )}
+        </div>
+      )}
       <div className="hp-card-row">
         <span className="hp-card-label">{t("HP")}</span>
         <div className={`hp-card-bar ${hpClass}`}>

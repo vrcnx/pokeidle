@@ -808,6 +808,21 @@ export const moves: Record<string, MoveDef> = {
       effect: { type: "setWeather", weather: "rain", turns: 5 } },
     hail:      { name: "Hail",       type: "Ice", category: "status", power: 0, accuracy: 100, pp: 10, priority: 0,
       effect: { type: "setWeather", weather: "hail", turns: 5 } },
+    // Nobody learns Struggle — the engine substitutes it when every move
+    // slot is at 0 PP (see STRUGGLE_ID in utils/battle.ts). The canonical
+    // backfill below would give it the right stats but not the recoil, and
+    // the recoil is the whole point: without it a spent Pokémon would fight
+    // on forever for free. Gen 5 numbers, recoil is 1/4 of the USER's max HP.
+    struggle: {
+      name: "Struggle",
+      type: "Normal",
+      category: "physical",
+      power: 50,
+      accuracy: 100,
+      pp: 1,
+      priority: 0,
+      effect: { type: "recoil", fraction: 0.25, ofMaxHp: true },
+    },
   };
 
 // ── Canonical-data backfill (Pokémon Showdown / @pkmn/dex) ─────────

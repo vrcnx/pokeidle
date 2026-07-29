@@ -3,6 +3,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { username } from "better-auth/plugins";
 import { prisma } from "./db.js";
 import { sendEmail } from "./lib/mailer.js";
+import {
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  USERNAME_RE,
+} from "./lib/nameChange.js";
 
 // FRONTEND_ORIGIN may be a comma-separated list (game frontend +
 // admin dashboard). Trusted-origins also needs each value individually.
@@ -86,11 +91,13 @@ export const auth = betterAuth({
     // (e.g. signing up as Latin-`a`-bot vs. Cyrillic-`а`-bot looks
     // identical and can trick chat readers into trusting the wrong user).
     // Match the same character class the signup form already enforces
-    // client-side, so the two layers agree.
+    // client-side, so the two layers agree — and now the rename route
+    // too, which is why the rule lives in lib/nameChange.ts rather than
+    // being spelled out separately in each of the three places.
     username({
-      minUsernameLength: 3,
-      maxUsernameLength: 20,
-      usernameValidator: (u) => /^[a-zA-Z0-9_]{3,20}$/.test(u),
+      minUsernameLength: USERNAME_MIN_LENGTH,
+      maxUsernameLength: USERNAME_MAX_LENGTH,
+      usernameValidator: (u) => USERNAME_RE.test(u),
     }),
   ],
   // Account linking — credentials and Google can attach to the same

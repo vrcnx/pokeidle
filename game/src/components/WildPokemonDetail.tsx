@@ -82,6 +82,38 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
   const honeyActive = effectOn("honey");
   const honeyDef = consumables.honey;
 
+  // Repel halves the weight, Honey doubles it — running both on one species
+  // cancels them out exactly while both timers still burn down, so the
+  // reducer refuses the second one. Mirror that refusal in the buttons so the
+  // player learns it BEFORE spending the click, not from a log line after.
+  // A paused effect applies nothing, so it never blocks its opposite.
+  const repelLive = repelRunning && !repelRunning.paused ? repelRunning : undefined;
+  const honeyLive = honeyActive && !honeyActive.paused ? honeyActive : undefined;
+  // Saves written before that guard can still hold both at once. Only that
+  // legacy case reaches this flag, and it's the one the player most needs
+  // named — nothing they own is doing anything.
+  const conflicted = !!repelLive && !!honeyLive;
+
+  const pauseButton = (eff: ActiveEffect) => (
+    <button
+      type="button"
+      className="wild-effect-pause"
+      title={
+        eff.paused
+          ? t("Resume this effect. Its remaining battles were kept while paused.")
+          : t("Pause this effect. It keeps its remaining battles and stops applying — do this to free the species for the opposite item.")
+      }
+      onClick={() =>
+        dispatch({
+          type: "TOGGLE_EFFECT_PAUSED",
+          payload: { itemId: eff.itemId, speciesKey, routeKey },
+        })
+      }
+    >
+      {eff.paused ? t("Resume") : t("Pause")}
+    </button>
+  );
+
   // Catch chance with a Poké Ball (the cheapest reference point).
   const catchPct = Math.round(catchProbability(speciesKey, "pokeball") * 100);
 
@@ -127,11 +159,13 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
           return (
             <button
               key={id}
-              disabled={owned <= 0 || atCap}
+              disabled={owned <= 0 || atCap || !!honeyLive}
               className={active ? "active" : ""}
               title={
                 owned <= 0 && !active
                   ? `${t("None in your bag — buy")} ${def.name} ${t("at a Poké Mart")}`
+                  : honeyLive
+                  ? t("Honey is running on this species and would cancel a Repel out. Pause the Honey first.")
                   : atCap
                   ? `${t("Already at the stacking cap of")} ${repelCap.toLocaleString()} ${t("battles")}`
                   : `${t("Halves this species' encounter weight on this route for")} ${def.duration.toLocaleString()} ${t("battles")}.` +
@@ -150,9 +184,13 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
           );
         })}
         <button
-          disabled={!honeyOwned}
+          disabled={!honeyOwned || !!repelLive}
           className={honeyActive ? "active" : ""}
-          title={`${t("Doubles this species' encounter weight on this route for")} ${honeyDef.duration.toLocaleString()} ${t("battles")}.`}
+          title={
+            repelLive
+              ? t("A Repel is running on this species and would cancel Honey out. Pause the Repel first.")
+              : `${t("Doubles this species' encounter weight on this route for")} ${honeyDef.duration.toLocaleString()} ${t("battles")}.`
+          }
           onClick={() => dispatch({
             type: "USE_EFFECT_ITEM",
             payload: { itemId: "honey", speciesKey, routeKey },
@@ -165,9 +203,17 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
 
       {/* What is actually running on THIS species right now. The buttons
           alone couldn't say this before: a Super/Max Repel left the base
-          Repel button unlit, so a running repel looked like no repel. */}
+          Repel button unlit, so a running repel looked like no repel. Each
+          row now also carries its own pause toggle, because pausing is the
+          move that frees the species for the opposite item and the only
+          other place to do it was the Bag tab's global effects list. */}
       {(repelRunning || honeyActive) && (
         <div className="wild-detail-effects">
+          {conflicted && (
+            <small className="wild-effect-conflict">
+              {t("Repel and Honey cancel out — this species is at its normal rate and both timers are still running. Pause one.")}
+            </small>
+          )}
           {repelRunning && (
             <small className={repelRunning.paused ? "dim" : ""}>
               {t(consumables[repelRunning.itemId]?.name ?? "Repel")} ·{" "}
@@ -175,7 +221,10 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
               {t("battles left")} —{" "}
               {repelRunning.paused
                 ? t("paused, not applying")
+                : conflicted
+                ? t("halving, cancelled by Honey")
                 : t("encounter weight halved")}
+              {pauseButton(repelRunning)}
             </small>
           )}
           {honeyActive && (
@@ -184,7 +233,10 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
               {(honeyDef.duration * 3).toLocaleString()} {t("battles left")} —{" "}
               {honeyActive.paused
                 ? t("paused, not applying")
+                : conflicted
+                ? t("doubling, cancelled by the Repel")
                 : t("encounter weight doubled")}
+              {pauseButton(honeyActive)}
             </small>
           )}
         </div>

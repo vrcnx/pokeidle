@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.2";
+export const CURRENT_VERSION = "0.9.3";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,62 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.3",
+      subtitle: "Evolutions that happen on their own, a Pokédex you can finish, and a long list of small fixes",
+      date: "2026-07-28",
+      sections: [
+        {
+          heading: "✨ Pokémon evolve on their own now",
+          items: [
+            "Level-up evolutions were never actually wired in. The code for them existed but nothing ever ran it, so a Charmander could sit at Lv45 forever — one of you filed that as a bug and you were right. They now happen by themselves the moment the level is reached",
+            "If you want one left alone, every Pokémon has its own lock — right-click it in your party, or open its detail screen. That's the Everstone, basically. There's also a global Auto-Evolve toggle in the battle controls if you'd rather approve every one by hand",
+            "Right-click → Evolve now works for level evolutions too, not just stones. Before this, a Pokémon could sit there glowing \"ready to evolve\" and its menu had no Evolve option anywhere in it",
+            "Stones and Link Cables stay manual, because those spend an item and we're not spending it for you",
+          ],
+        },
+        {
+          heading: "📖 The Pokédex can be finished — and the Shiny Charm is a real item",
+          items: [
+            "Completing the Pokédex was supposed to award the Shiny Charm. It awarded nothing: the charm existed as a catalog entry that no code path ever put in anyone's bag, and the doubled shiny rate was applied invisibly behind a hidden check. Finishing the dex now hands you the actual item, with a message saying so. If you were already over the old threshold, you keep the doubled rate",
+            "Tyrogue only ever became Hitmontop. Its Attack-vs-Defense split didn't exist in the data at all, so Hitmonlee and Hitmonchan were unreachable from that line. All three branches work now, and a Tyrogue's detail screen shows which one it is currently headed for",
+            "That left Hitmontop gated behind an Attack = Defense tie that gets rarer the more a Pokémon levels (roughly 11.5% at Lv20, down to 2.6% at Lv100) — one species standing between everybody and dex completion, on a coin flip you couldn't see. It's now also a rare spawn in the Johto Nursery raid pool. Evolving Tyrogue at Lv20 is still the normal way to get one",
+            "The dex also stops conflating two different things. A species you caught and later released, traded away or evolved stays registered — it just no longer claims to be sitting in one of your boxes. In your collection / registered but none owned / seen only / undiscovered are four distinct states now, with a legend under the filters saying which is which",
+          ],
+        },
+        {
+          heading: "🏝️ Raids",
+          items: [
+            "Catching the legendary used to END the raid. The single thing a raid is for was the one action that stopped it, and the only ways out burned your cooldown. A catch now clears the wave exactly like knocking it out does, and the next legendary comes straight in",
+            "A raid in progress shows a banner with the wave you're on and how long you've been in there. Before, BEGIN RAID simply greyed out and nothing on the card explained why",
+          ],
+        },
+        {
+          heading: "💻 PC boxes",
+          items: [
+            "Dragging a Pokémon around your boxes does something now. The drag worked, the slot lit up when you hovered it, and the drop was thrown away in silence",
+            "Box tiles show each Pokémon's level, and there are Shiny and IV-quality filters that stack with the search box and the sort order",
+          ],
+        },
+        {
+          heading: "🖥️ Battle view",
+          items: [
+            "Battle Pokémon are bigger — up to about a third bigger for the typical species. Sizes stay honest relative to each other, so a Ditto is still small next to an Onix; the arena just isn't mostly empty space any more",
+            "The in-battle info cards were too narrow and cut off most names. They're wider now, and sized against the battle scene so they scale with whichever layout you're on. The extra room carries the Pokémon's type (or types), plus a Poké Ball on the opponent's card when that species is already registered in your Pokédex",
+            "In Wide layout, the whole screen no longer resizes itself when you switch tabs in the right-hand column. Going from Mart to Map was shrinking the entire shell and pulling it off the edges of the display",
+          ],
+        },
+        {
+          heading: "🐛 Fixed",
+          items: [
+            "Super Repel and Max Repel work. We told you in 0.6.0 that they were fixed — that was wrong, and they still did nothing. The one screen that can start a repel was hardcoded to the basic Repel, so the other two were purchasable in a dozen marts with no way to use them at all. All three tiers now share one timer per Pokémon per route, and using one while you're already at the cap tells you instead of quietly eating the item",
+            "Sprites no longer vanish for the rest of your session. A single failed image load used to hide that Pokémon everywhere until you reloaded the page (reported as \"Gengar's sprite eventually disappears\") — images now retry, and fall back to a visible placeholder rather than hiding themselves",
+            "The Report a bug form no longer wipes everything you typed when you close it. Your draft is kept as you go and restored when you reopen the form, and closing with something still in the box asks whether to keep it or throw it away",
+            "Selected text was nearly invisible — the highlight was a 6% white wash on a near-black background, so dragging over a box looked like nothing had been selected. Highlighting now actually shows, everywhere in the game",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.2",
       subtitle: "A wide screen layout, an honest Pokédex, and EXP for catching",
