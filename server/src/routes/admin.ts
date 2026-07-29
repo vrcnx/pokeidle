@@ -2194,7 +2194,14 @@ app.post("/mass-gift", async (c) => {
 
   // Optional Global chat announcement, rendered as the same gift system card
   // players already know from admin gifts.
-  if (d.announce && d.announce.trim()) {
+  //
+  // Global-audience gifts ONLY. A "selected" gift's announce used to post to
+  // global chat too, so a personal restitution written in the second person
+  // ("the shiny Nidoran YOU won at auction...") pinged all 2,300 players, and
+  // chat immediately filled with "did everyone get this? where's my poke?".
+  // A targeted gift already announces itself to the right person — the prize
+  // label renders in their delivery toast — so the room does not need to know.
+  if (d.audience !== "selected" && d.announce && d.announce.trim()) {
     try {
       const io = getIo();
       if (io) {
