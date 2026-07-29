@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.3";
+export const CURRENT_VERSION = "0.9.4";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,52 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.4",
+      subtitle: "PvP actually works, a PC you can see, and your name is yours",
+      date: "2026-07-29",
+      sections: [
+        {
+          heading: "⚔️ PvP works now. It did not before — at all",
+          items: [
+            "Every PvP battle ended instantly as a tie: the screen opened, closed itself, and nothing counted. The cause was one missing character — the code watching for the battle to end checked for lines starting with \"|tie\", which also matched the \"|tier|\" line the engine prints at the START of every battle. So every match was declared over before turn one, since the day PvP shipped. If you ever tried PvP and thought it was broken: it was, and thank you to the player whose report finally caught it",
+            "When a matchup genuinely can't start, you now get told why instead of watching a window appear and vanish",
+          ],
+        },
+        {
+          heading: "💻 PC storage, redesigned",
+          items: [
+            "No more pages. Your whole box is one scrolling grid — 90 Pokémon was three pages before; a full box would have been three hundred",
+            "Every tile shows the Pokémon's name next to its level, because at box-sprite size half of you couldn't tell a Nidorino from a Nidoking (fair)",
+            "A density toggle in the toolbar: comfortable big tiles, or compact ones that fit far more on screen",
+            "The three stacked header rows are one toolbar. On smaller screens the old header alone was taller than the space left for actual Pokémon — at 1366×768 the grid was 32 pixels tall and didn't scroll. That's fixed properly",
+          ],
+        },
+        {
+          heading: "⚔️ Battles",
+          items: [
+            "Running every move to 0 PP no longer breaks your Pokémon. It used to silently switch itself to auto-battle, keep using empty moves at full power, and refuse to go back to manual until healed. Now it uses Struggle, like the real games — it hurts the user for a quarter of their max HP, and it can hit anything, so a Ghost can't trap you in a battle that never ends",
+            "You can't throw balls at a fainted Pokémon any more. Every ball thrown at 0 HP was a guaranteed miss that still ate the ball — including, we're sorry to say, Master Balls, which would actually have \"caught\" it and consumed your rarest item for nothing",
+            "Repel and Honey on the same Pokémon cancelled each other exactly, while both timers kept burning. You were paying twice for nothing. The second one is now refused with an explanation, and the item isn't consumed",
+            "Hyper Beam, Solar Beam and Dragon Beam actually aim at the opponent now instead of firing dead straight — enemy Dragon Beams were leaving the screen entirely. The message bar also stopped flashing black on every update, and the Throw-a-Ball box no longer blinks in and out between encounters",
+          ],
+        },
+        {
+          heading: "🪪 Your name is yours",
+          items: [
+            "You can change your display name and your username, from your profile. If you signed up with Google, your real name became your public display name without asking you — that was wrong, and several of you said so. Renames are validated, unique, and rate-limited so nobody can impersonate anyone by name-swapping",
+          ],
+        },
+        {
+          heading: "📖 Small but important",
+          items: [
+            "Pokémon you get from trades, auction wins and gifts now register in your Pokédex (and shiny ones in your shiny dex). They never did — you could own a species your dex denied, and since finishing the dex now awards the Shiny Charm, completing it by trading was silently impossible",
+            "Admins in chat wear a red ★ ADMIN badge in the side-rail chat too, so you can tell it's actually us",
+            "The CHAT title bar and the chat window are one card now instead of two stacked ones — the seam between them was a styling rule fighting another styling rule, and the chat won",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.3",
       subtitle: "Evolutions that happen on their own, a Pokédex you can finish, and a long list of small fixes",
