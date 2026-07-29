@@ -275,6 +275,24 @@ function markCaught(state: GameState, key: string): GameState {
   return grantShinyCharmOnCompletion(seen);
 }
 
+/**
+ * Register a Pokémon that ARRIVED rather than being caught — a trade, an
+ * auction win, or a gift/prize.
+ *
+ * Catching funnels through markCaught, but these three paths only pushed the
+ * mon into party/box, so a species you owned could be absent from your dex.
+ * That is wrong on its face (you have it), and it matters more since dex
+ * completion grants the Shiny Charm: a player finishing their dex by trading —
+ * which is exactly what trading is for — could never complete it.
+ */
+function registerAcquired(state: GameState, mon: Pokemon): GameState {
+  let next = markCaught(state, mon.speciesKey);
+  if (mon.isShiny && !next.shinyCaught.includes(mon.speciesKey)) {
+    next = { ...next, shinyCaught: [...next.shinyCaught, mon.speciesKey] };
+  }
+  return next;
+}
+
 // Completing the Pokédex hands over the Shiny Charm — as an item, with a line
 // in the log. Every dex registration in the game funnels through markCaught,
 // so this is the one place the grant has to live.
@@ -1484,6 +1502,10 @@ export function reducer(state: GameState, action: Action): GameState {
         box[idx] = fresh;
         next = { ...state, box, nextPokemonId };
       }
+      // A traded-in species counts as owned. Trading is a primary way
+      // players complete a dex, and dex completion now grants the Shiny
+      // Charm — so not registering here made that unreachable by trade.
+      next = registerAcquired(next, fresh);
       next = pushLog(next, `Traded for ${fresh.nickname ?? fresh.name}!`);
 
       // Trade-evolution rider — if the received species has a `{ trade: true }`
@@ -1550,6 +1572,7 @@ export function reducer(state: GameState, action: Action): GameState {
         next = next.party.length < 6
           ? { ...next, party: [...next.party, fresh], nextPokemonId }
           : { ...next, box: [...next.box, fresh], nextPokemonId };
+        next = registerAcquired(next, fresh);
       }
       return pushLog(next, payload.logMessage);
     }
@@ -1599,7 +1622,11 @@ export function reducer(state: GameState, action: Action): GameState {
           // hand out a one-off prize twice.
           const dupe = assigned !== null
             && (box.some((m) => m.id === assigned) || next.party.some((m) => m.id === assigned));
-          if (!dupe) box = [...box, mon];
+          if (!dupe) {
+            box = [...box, mon];
+            // A prize mon counts as owned too — same reason as trades.
+            next = registerAcquired(next, mon);
+          }
           // Only the locally-minted branch consumes a number from the local
           // sequence. A server-assigned id is derived from the grant, not from
           // nextPokemonId, so bumping it here would drift us off the server's

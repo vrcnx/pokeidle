@@ -1786,6 +1786,8 @@ header.tab-pane-head.v2 .mart-wallet {
   color: #fff;
 }
 .pc-tool-icon { padding: 8px 10px; }
+/* The icon buttons hold a 14px SVG, which has no text baseline to sit on. */
+.pc-tool-icon svg { display: block; }
 /* "A filter is on" without spending a row on the controls themselves. The
    count next to it turns into `12 / 90`, which says the same thing again. */
 .pc-tool-dot {
@@ -18305,10 +18307,22 @@ html, body {
   margin-bottom: 0;
 }
 .chat-card > .channel-header:not(.channel-header--announce) + .mini-chat {
-  border-top: 0;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  margin-top: 0;
+  /* !important is not decoration here. A later blanket rule gives every card
+     in this rail `border: 1px solid var(--border) !important` and
+     `border-radius: 8px !important`, which outranked plain declarations and
+     put the top border and the rounded top corners straight back — so the
+     header still read as its own detached card even though the two elements
+     are flush (measured gap: 0px). */
+  border-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  margin-top: 0 !important;
+}
+/* ...and the same blanket rule paints the body `var(--panel)` while the header
+   is `var(--panel-2)`. Two tones stacked read as two cards no matter what the
+   borders do, which is the other half of why the title looked separated. */
+.chat-card > .channel-header:not(.channel-header--announce) {
+  background: var(--panel);
 }
 
 /* ---------- Routes card: reclaim the wasted frame ---------- */
