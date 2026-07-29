@@ -11,6 +11,12 @@ import { readStreamCookie, resolveStreamKey } from "./lib/streamSession.js";
 import { recordCommandResult } from "./lib/streamCommandLog.js";
 import { recordError } from "./lib/errorReporting.js";
 import {
+  validatePvpTeam,
+  auditTeamOwnership,
+  ENFORCE_OWNERSHIP,
+  type PvpTeamMon,
+} from "./lib/pvpTeamValidation.js";
+import {
   battleRooms,
   newBattleId,
   startBattle,
@@ -154,6 +160,50 @@ const TRADE_ROOM_TTL_MS = 5 * 60_000; // 5 min once both sides are in the room
 // Generate a short trade id (prefix + 9 random hex chars).
 function newTradeId(): string {
   return `t_${Math.random().toString(16).slice(2, 11)}`;
+}
+
+// Shared intake for the three PvP team entry points (battle:invite,
+// battle:queue, battle:respond). Each of them previously did nothing but
+// an Array.isArray + length check and then `team as never` — no stat
+// bounds and no ownership check, on a path whose result is rated into
+// PlayerRating. See lib/pvpTeamValidation.ts for the measured scope of
+// what that left forgeable.
+//
+// Bounds are enforced. Ownership is shadow-logged only: saveData lags
+// live client state by the autosave debounce plus a roundtrip (the
+// documented cause of the Haunter→Gastly trade bug), so a Pokémon caught
+// seconds ago is legitimately missing from the DB and rejecting it would
+// block a real queue join. In shadow mode the audit is deliberately NOT
+// awaited — an observation must not add latency or a new failure mode to
+// matchmaking.
+async function acceptPvpTeam(
+  team: unknown,
+  who: { id: string; username: string },
+  ctx: { format: string; via: string },
+): Promise<{ ok: true; team: PvpTeamMon[] } | { ok: false; error: string }> {
+  const v = validatePvpTeam(team);
+  if (!v.ok) {
+    void recordError({
+      kind: "server",
+      message: "pvp_team_rejected",
+      source: "pvp.teamIntake",
+      meta: {
+        userId: who.id, username: who.username,
+        via: ctx.via, format: ctx.format, reason: v.error,
+      },
+    });
+    return v;
+  }
+  const auditCtx = { format: ctx.format, via: ctx.via, username: who.username };
+  if (ENFORCE_OWNERSHIP) {
+    const audit = await auditTeamOwnership(who.id, v.team, auditCtx);
+    if (audit.unowned.length > 0) {
+      return { ok: false, error: "team contains Pokémon that aren't in your save" };
+    }
+  } else {
+    void auditTeamOwnership(who.id, v.team, auditCtx).catch(() => { /* observing only */ });
+  }
+  return { ok: true, team: v.team };
 }
 
 // Online presence — userId → set of socket ids.
@@ -1063,9 +1113,6 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (typeof toUserId !== "string" || !toUserId || toUserId === user.id) {
           ack?.({ ok: false, error: "bad target" }); return;
         }
-        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
-          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
-        }
         if (!battleInviteLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" }); return;
         }
@@ -1073,6 +1120,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // random50, but never tournament (those are server-spawned by
         // the bracket runner). Default to anything-goes.
         const fmt: BattleFormat = format === "random50" ? "random50" : "anything-goes";
+        // Bounds-enforced, ownership shadow-logged. See acceptPvpTeam.
+        const vInvite = await acceptPvpTeam(team, user, { format: fmt, via: "invite" });
+        if (!vInvite.ok) { ack?.({ ok: false, error: vInvite.error }); return; }
         // One outstanding battle per user — same heuristic as trades.
         for (const room of battleRooms.values()) {
           if (
@@ -1101,7 +1151,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           format: fmt,
           createdAt: Date.now(),
           lastChoiceAt: Date.now(),
-          a: { userId: user.id, username: user.username, team: team as never, stream: null, request: null, connected: true },
+          a: { userId: user.id, username: user.username, team: vInvite.team as never, stream: null, request: null, connected: true },
           b: { userId: recipient.id, username: recipient.username, team: [], stream: null, request: null, connected: false },
           log: [],
           stream: null,
@@ -1135,12 +1185,13 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     socket.on(
       "battle:queue",
       async ({ team }: { team: unknown[] }, ack?: (r: any) => void) => {
-        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
-          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
-        }
         if (!battleInviteLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" }); return;
         }
+        // The rated path — this is the one whose result moves ELO, so it
+        // is the one team forgery mattered most on. See acceptPvpTeam.
+        const vQueue = await acceptPvpTeam(team, user, { format: "random50", via: "queue" });
+        if (!vQueue.ok) { ack?.({ ok: false, error: vQueue.error }); return; }
         // Don't queue if already in a battle.
         for (const room of battleRooms.values()) {
           if (
@@ -1153,7 +1204,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         const added = joinQueue({
           userId: user.id,
           username: user.username,
-          team: team as never,
+          team: vQueue.team as never,
           joinedAt: Date.now(),
         });
         if (!added) { ack?.({ ok: false, error: "already queued" }); return; }
@@ -1261,15 +1312,14 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           battleRooms.delete(battleId);
           ack?.({ ok: true }); return;
         }
-        if (!Array.isArray(team) || team.length < 1 || team.length > 6) {
-          ack?.({ ok: false, error: "team must be 1..6 mons" }); return;
-        }
+        const vRespond = await acceptPvpTeam(team, user, { format: room.format, via: "respond" });
+        if (!vRespond.ok) { ack?.({ ok: false, error: vRespond.error }); return; }
         // Drop them from the matchmaking queue if waiting — accepting
         // a friend invite implies they're no longer looking for a
         // random match. Without this, the queue could pair them with
         // someone else mid-friend-battle.
         leaveQueue(user.id);
-        room.b.team = team as never;
+        room.b.team = vRespond.team as never;
         room.b.connected = true;
         // "battle:start" opens the battle screen, so it goes inside
         // startBattle's onReady — i.e. only once the simulator has
