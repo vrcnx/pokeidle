@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
-import { isStreamMode } from "../state/streamMode";
+import { useStreamMode } from "../state/streamMode";
 
 // Detects when a newer build has deployed and prompts the player to reload.
 //
@@ -32,6 +32,14 @@ async function isNewBuildAvailable(): Promise<boolean> {
 
 export function UpdateNotice() {
   const t = useT();
+  // SUBSCRIBE, don't read once. isStreamMode() is a module singleton that
+  // /api/profile/me fills in AFTER mount, so reading it inside the poll
+  // returned false on the stream — the branch below fell through to the
+  // "click Reload" prompt that a broadcast has nobody to click, and
+  // availableRef latched so it never reconsidered once stream mode landed.
+  // The stream then sat on a stale build until someone reloaded it by hand,
+  // which is exactly what happened after the last two deploys.
+  const streamMode = useStreamMode();
   const [available, setAvailable] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const availableRef = useRef(false);
@@ -42,15 +50,6 @@ export function UpdateNotice() {
       if (cancelled || availableRef.current) return;
       if (await isNewBuildAvailable() && !cancelled) {
         availableRef.current = true;
-        // A stream has nobody to click "reload", so it would sit on a stale
-        // build indefinitely after a frontend deploy. Reload it automatically
-        // — the save is server-backed and the stream session re-authenticates
-        // from its cookie, so nothing is lost. Short delay so an in-flight
-        // autosave lands first.
-        if (isStreamMode()) {
-          setTimeout(() => window.location.reload(), 3000);
-          return;
-        }
         setAvailable(true);
       }
     };
@@ -70,7 +69,19 @@ export function UpdateNotice() {
     };
   }, []);
 
-  if (!available || dismissed) return null;
+  // A broadcast has nobody to click Reload, so it reloads itself — but only
+  // once BOTH facts are known, and this effect re-runs when either arrives.
+  // The save is server-backed and the stream session re-authenticates from
+  // its cookie, so nothing is lost; the short delay lets an in-flight
+  // autosave land first.
+  useEffect(() => {
+    if (!available || !streamMode) return;
+    const id = window.setTimeout(() => window.location.reload(), 3000);
+    return () => window.clearTimeout(id);
+  }, [available, streamMode]);
+
+  // The prompt is for humans; the stream reloads itself above.
+  if (!available || dismissed || streamMode) return null;
 
   return (
     <div className="update-notice" role="status" aria-live="polite">
