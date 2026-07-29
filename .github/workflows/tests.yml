@@ -1,0 +1,57 @@
+name: Tests
+
+# Deploys are auto-on-push, so this is the regression gate: the vitest
+# suites in server/ and game/ encode bugs that actually shipped (the
+# "|tie"/"|tier|" PvP parse, the versionless-write guard, the grant-
+# delivery CAS, Struggle at 0 PP, raid continuation, the Shiny Charm
+# grant, ...). Both jobs run in parallel and finish in well under a
+# minute each; no secrets, no database, no network access from any test —
+# db.ts and socket.ts are stubbed in every test that could reach them.
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-tests:
+    name: Server tests (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      # Codegen only — inspects the schema, never the live DB. Tests
+      # themselves point DATABASE_URL at a refuse-to-connect address
+      # (see server/vitest.config.ts) and mock src/db.ts besides.
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - run: npm test
+
+  game-tests:
+    name: Game tests (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - run: npm ci
+      - run: npm test

@@ -14,6 +14,7 @@ import {
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { describePrizes } from "../lib/giveaway.js";
 import { recordError } from "../lib/errorReporting.js";
+import { noteSaveReject } from "../lib/alerting.js";
 import { milestoneSig, milestoneRegressed, destructiveLosses } from "../lib/saveRegression.js";
 
 const app = new Hono();
@@ -196,6 +197,9 @@ app.post("/", requireUser, async (c) => {
   // obviously bogus saves (level > 100, negative money, party > 6, ...).
   const v = validateSave(save);
   if (!v.ok) {
+    // Regression-class refusal — counts toward the save-reject alert
+    // threshold (lib/alerting.ts). Routine stale-save 409s do not.
+    noteSaveReject(`validation: ${v.reason}`);
     return c.json({ error: "save rejected", reason: v.reason }, 400);
   }
 
@@ -239,6 +243,7 @@ app.post("/", requireUser, async (c) => {
 
   // 2a) The end state, behind an env flag. See blindWritesAllowed().
   if (blind && !blindWritesAllowed()) {
+    noteSaveReject("version_required");
     return c.json({
       error: "version_required",
       reason: "expectedSaveVersion is required — reload the page to get the current client",
@@ -306,6 +311,7 @@ app.post("/", requireUser, async (c) => {
       const before = milestoneSig(prior);
       const after  = milestoneSig(save as Record<string, unknown>);
       if (milestoneRegressed(before, after)) {
+        noteSaveReject("regression_blocked");
         return c.json({
           error: "regression_blocked",
           reason: "incoming save erases milestone progress — refusing to clobber the cloud copy",
@@ -316,6 +322,7 @@ app.post("/", requireUser, async (c) => {
       if (blind) {
         const losses = destructiveLosses(prior, save as Record<string, unknown>);
         if (losses.length > 0) {
+          noteSaveReject("versionless_regression");
           return c.json({
             error: "versionless_regression",
             reason:

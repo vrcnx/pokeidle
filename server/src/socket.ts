@@ -785,7 +785,21 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           },
         })
         .catch((e) => {
-          console.error("[trade] failed to persist record", { tradeId: t.id, err: String(e) });
+          // recordError, not console.error: a dropped row means this trade
+          // vanishes from both players' history and the admin dashboard, and
+          // a console line is exactly how the dead-PvP class of failure went
+          // unnoticed. Same treatment as pvp_match_persist_failed.
+          void recordError({
+            kind: "server",
+            message: "trade_record_persist_failed",
+            source: "socket.trade:complete",
+            meta: {
+              tradeId: t.id,
+              aUserId: t.a.userId, aUsername: t.a.username,
+              bUserId: t.b.userId, bUsername: t.b.username,
+              error: String(e),
+            },
+          });
         });
       setTimeout(() => trades.delete(t.id), 5_000);
     };

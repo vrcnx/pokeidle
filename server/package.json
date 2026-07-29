@@ -10,6 +10,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "db:push": "echo 'REFUSED: db push diffs the whole schema and can DROP live columns/tables. Prod is managed by Prisma Migrate. Use: npm run db:migrate (dev) then commit the migration -- deploy applies it via migrate deploy.' && exit 1",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
@@ -32,6 +34,7 @@
     "@types/node": "^22.10.2",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.7"
   }
 }

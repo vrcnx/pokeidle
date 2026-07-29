@@ -1,6 +1,7 @@
 import { prisma } from "../db.js";
 import { randomBytes } from "node:crypto";
 import { logger } from "./logger.js";
+import { notifyErrorEvent } from "./alerting.js";
 
 // Persist an error event into the ErrorLog table for admin review.
 // Uses raw SQL because the running dev server can hold a lock on the
@@ -32,14 +33,33 @@ export async function recordError(input: ErrorLogInput): Promise<void> {
   const level = input.level ?? "error";
   const metaJson = input.meta ? JSON.stringify(input.meta) : null;
   // Persist + structured log so live operators see it and the admin
-  // dashboard can query the same event later.
+  // dashboard can query the same event later. `meta` is included here on
+  // purpose: it used to be dropped from this line, so when the DB insert
+  // below failed (or the event never reached the DB at all in dev) the
+  // context — the battle id, the user, the simulator's own message — was
+  // gone everywhere. The log line is the fallback store; it must carry
+  // everything the row would have.
   logger[level === "warn" ? "warn" : "error"](input.message, {
     kind: input.kind,
     source: input.source ?? null,
     userId: input.userId ?? null,
     username: input.username ?? null,
     stack: input.stack ?? null,
+    ...(input.meta ? { meta: input.meta } : {}),
   });
+  // Threshold alerting (lib/alerting.ts). No-op unless ALERT_WEBHOOK_URL is
+  // set. Deliberately BEFORE the NODE_ENV gate below — whether alerts fire
+  // is decided by the webhook env var, not by which environment we're in —
+  // and wrapped so alerting can never break error recording.
+  try {
+    notifyErrorEvent({
+      message: input.message,
+      kind: input.kind,
+      level,
+      source: input.source ?? null,
+      meta: input.meta ?? null,
+    });
+  } catch { /* alerting is best-effort by contract */ }
   // server/.env's DATABASE_URL points at the live production database even
   // for local dev (so admin scripts/dev servers can read real data), which
   // means a local `tsx watch` crash (e.g. EADDRINUSE from restarting while
@@ -58,8 +78,24 @@ export async function recordError(input: ErrorLogInput): Promise<void> {
          ${input.userAgent ?? null}, ${metaJson}, NOW())
     `;
   } catch (e) {
-    // If the DB itself is unhappy, log + drop — never let logging
-    // break the request path.
-    logger.error("[errorReporting] failed to persist", { err: String(e) });
+    // If the DB itself is unhappy, log + drop — never let logging break the
+    // request path. But drop the ROW, not the CONTEXT: this line used to
+    // carry only the insert error, so a failed insert silently destroyed the
+    // event it was trying to record. Echo the full event so the structured
+    // log remains a complete fallback store.
+    logger.error("[errorReporting] failed to persist", {
+      err: String(e),
+      event: {
+        id,
+        kind: input.kind,
+        level,
+        message: input.message,
+        source: input.source ?? null,
+        userId: input.userId ?? null,
+        username: input.username ?? null,
+        stack: input.stack ?? null,
+        meta: input.meta ?? null,
+      },
+    });
   }
 }

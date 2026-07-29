@@ -492,6 +492,22 @@ function reportBattleFailure(room: BattleRoom, source: string, e: unknown): void
   });
 }
 
+// ─── Battle-end protocol line classification ─────────────────────────
+// Exact-match rules, extracted so the regression that killed PvP can be
+// pinned by a unit test:
+//
+// `startsWith("|tie")` — no trailing pipe — also matches
+// `|tier|[Gen 5] Custom Game`, which Showdown emits six lines into the
+// preamble of EVERY battle, before turn 1. That one missing character
+// ended every PvP match the instant it began. The real tie line is
+// exactly `|tie` (argumentless), so it must be an exact match or a
+// `|tie|`-prefixed match — never a bare `|tie` prefix.
+export function battleEndFromLine(line: string): "win" | "tie" | null {
+  if (line.startsWith("|win|")) return "win";
+  if (line === "|tie" || line.startsWith("|tie|")) return "tie";
+  return null;
+}
+
 // Forward the omniscient stream's log into the room's persisted log.
 // Also fans the chunk out to every spectator currently subscribed —
 // they see everything (omniscient = both sides), unlike the
@@ -511,17 +527,17 @@ async function pumpOmniLog(
         if (line) room.log.push(line);
         // Detect end-of-battle protocol lines so we can finalize.
         //
-        // These two tests have to be EXACT. `startsWith("|tie")` — no
-        // trailing pipe — also matches `|tier|[Gen 5] Custom Game`,
-        // which Showdown emits six lines into the preamble of every
-        // single battle, before turn 1. That one missing character
-        // ended every PvP match the instant it began: endBattle fired
-        // with reason "tie", tore the simulator down, and sent both
-        // players a winnerless `battle:complete` — a battle screen that
-        // opened, showed no turns, auto-closed, and never touched Elo.
-        // The real tie line is exactly `|tie`.
-        const isWin = line.startsWith("|win|");
-        const isTie = line === "|tie" || line.startsWith("|tie|");
+        // The matching rules live in battleEndFromLine (exported, unit-
+        // tested) because they have to be EXACT: a bare `|tie` prefix
+        // match also caught `|tier|[Gen 5] Custom Game` from the preamble
+        // of every battle. That one missing character ended every PvP
+        // match the instant it began: endBattle fired with reason "tie",
+        // tore the simulator down, and sent both players a winnerless
+        // `battle:complete` — a battle screen that opened, showed no
+        // turns, auto-closed, and never touched Elo.
+        const end = battleEndFromLine(line);
+        const isWin = end === "win";
+        const isTie = end === "tie";
         if (isWin || isTie) {
           // Parse the winner name out of `|win|<name>`. Match by
           // username (we set the player names from a/b.username at
