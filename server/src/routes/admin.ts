@@ -1866,6 +1866,33 @@ app.get("/giveaways", async (c) => {
 //     loaded the game since — or is still on a pre-`grantAck` client, which is
 //     never delivered to. Nothing to do.
 //   * deliveredAt set → done.
+// ── Auctions (read-only ops window) ──────────────────────────────────
+// Exists because auction rows hold the ONLY copy of a sold Pokemon between
+// escrow and delivery: the mon is removed from the seller's save at listing
+// and exists solely as Auction.pokemonSnapshot until the winner's save
+// absorbs it. When delivery goes wrong (naill's shiny Nidoran), this is the
+// one place the lost mon can be recovered from — there was previously no way
+// to read it without a database console.
+app.get("/auctions", async (c) => {
+  const status = (c.req.query("status") ?? "").trim();
+  const q = (c.req.query("q") ?? "").trim().toLowerCase();
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query("limit") ?? "50", 10)));
+  const rows = await prisma.auction.findMany({
+    where: status ? { status } : {},
+    orderBy: { endsAt: "desc" },
+    take: limit,
+  });
+  const out = rows.filter((r) => {
+    if (!q) return true;
+    return (
+      r.pokemonSnapshot.toLowerCase().includes(q) ||
+      r.sellerId.toLowerCase().includes(q) ||
+      (r.currentBidderId ?? "").toLowerCase().includes(q)
+    );
+  });
+  return c.json({ auctions: out });
+});
+
 app.get("/pending-grants", async (c) => {
   const url = new URL(c.req.url);
   const userId = url.searchParams.get("userId");
