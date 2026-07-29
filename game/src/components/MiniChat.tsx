@@ -165,6 +165,16 @@ export function MiniChat() {
                     }}
                   >
                     {m.user.name ?? m.user.username}
+                    {/* Admin badge. The server has always sent isAdmin on every
+                        chat message; it simply was not rendered here, so a dev
+                        answering a question in global read as any other player.
+                        Sits before the level chip because "who is this" matters
+                        more than "how far along are they". */}
+                    {m.user.isAdmin && (
+                      <span className="mini-chat-admin" title={t("Admin")}>
+                        ★ {t("ADMIN")}
+                      </span>
+                    )}
                     <span className={`mini-chat-lv ${levelTierClass(m.user.accountLevel)}`}>
                       {t("Lv ")}{m.user.accountLevel}
                     </span>

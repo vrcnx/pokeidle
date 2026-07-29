@@ -819,12 +819,6 @@ header.tab-pane-head.v2 .tab-pane-head-tools button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-header.tab-pane-head.v2 .tab-pane-head-tools .pc-pager {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
 header.tab-pane-head.v2 .tab-pane-head-tools .dim,
 header.tab-pane-head.v2 .tab-pane-head-tools .small {
   color: rgba(255, 255, 255, 0.45) !important;
@@ -864,14 +858,6 @@ header.tab-pane-head.v2 .mart-wallet {
     min-height: 30px;
     padding: 6px 12px;
   }
-}
-
-/* PC tab: re-use the box grid but stretch to fill the tab body. */
-.tab-box-grid {
-  flex: 1;
-  min-height: 0;
-  aspect-ratio: auto !important;
-  width: 100%;
 }
 
 /* Dex tab — search + chrome-less grid */
@@ -1557,25 +1543,57 @@ header.tab-pane-head.v2 .mart-wallet {
   justify-content: space-between;
   margin-bottom: 6px;
 }
-.pc-pager { display: inline-flex; align-items: center; gap: 4px; }
-.pc-pager button { padding: 2px 8px; font-size: 12px; }
-.pc-box-grid {
-  flex: 1;
-  display: grid;
-  /* Classic Pokémon Storage: a 6×5 sprite grid on a flat dark canvas — no
-     outer frame, no per-cell outlines, just the box background. */
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(5, 1fr);
-  gap: 2px;
+/* The box is one long scrolling grid, not a stack of fixed 6×5 pages.
+   `.pc-box-scroll` is the scroller and owns the panel treatment;
+   `.pc-box-grid` inside it holds only the rows currently in the window and
+   gets its column count / row height inline from PCTab, which has to know
+   both to place the spacers. */
+.pc-box-scroll {
+  flex: 1 1 auto;
+  /* Enough for a full row plus a peek of the next, so the box never
+     collapses to a sliver the way the old flex-only grid did (measured 22px
+     for thirty Pokémon at 1366×768) and so it's obvious it scrolls. */
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Reserve the scrollbar. Without it, crossing the threshold where a
+     scrollbar appears changes clientWidth, which can change the column
+     count, which changes the row count — a layout that argues with itself. */
+  scrollbar-gutter: stable;
   padding: 8px;
   background: var(--panel-2);
   border: none;
   border-radius: 6px;
-  min-height: 0;
-  aspect-ratio: 6 / 5;
-  align-self: start;
-  width: 100%;
-  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.pc-box-grid {
+  display: grid;
+  /* grid-template-columns / grid-auto-rows / gap come from PCTab. */
+  align-content: start;
+}
+.pc-box-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  min-height: 100px;
+  text-align: center;
+  padding: 12px;
+}
+.pc-box-empty p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+}
+/* The lone deposit target, at roughly the size it has inside the grid. */
+.pc-empty-drop {
+  display: grid;
+  grid-template-columns: 72px;
+  grid-auto-rows: 72px;
 }
 .pc-slot {
   position: relative;
@@ -1589,8 +1607,21 @@ header.tab-pane-head.v2 .mart-wallet {
   min-height: 0;
   background: transparent;
 }
-/* Empty slots are completely invisible — no outline, no fill. */
-.pc-slot.empty { border-color: transparent; background: transparent; }
+/* The one trailing slot: a dashed "deposit here" plate. There used to be up
+   to twenty-nine of these, fully transparent, filling the panel after the
+   last Pokémon — a three-Pokémon box painted twenty-seven invisible cells and
+   read as broken rather than as empty. */
+.pc-slot.empty {
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.02);
+}
+.pc-deposit {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
 .pc-slot.drop-target-active {
   border-color: var(--gold);
   border-style: solid;
@@ -1598,12 +1629,6 @@ header.tab-pane-head.v2 .mart-wallet {
   animation: dragGlow 1.3s ease-in-out infinite;
   transform: scale(1.06);
   box-shadow: 0 0 0 2px rgba(246, 200, 74, 0.18);
-}
-.pc-empty-label {
-  font-family: inherit;
-  font-size: 7px;
-  color: var(--text-dim);
-  letter-spacing: 1px;
 }
 .pc-cell {
   width: 100%;
@@ -1615,16 +1640,17 @@ header.tab-pane-head.v2 .mart-wallet {
      which read as "PC is empty until you mouse over random cells". */
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  padding: 2px;
+  border-radius: 4px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   gap: 0;
   cursor: grab;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   transition: transform 140ms ease, opacity 140ms ease, filter 140ms ease, background-color 140ms ease, border-color 140ms ease;
 }
 .pc-cell.drag-source-active {
@@ -1632,7 +1658,21 @@ header.tab-pane-head.v2 .mart-wallet {
   transform: scale(0.86);
   filter: blur(0.6px) saturate(0.8);
 }
-.pc-cell img {
+/* The square the sprite actually lives in. The row height is set to
+   plate + name strip, so this ends up 1:1 whatever the panel width is. */
+.pc-cell-plate {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+/* The Pokémon sprite specifically — NOT every <img> in the cell. This used
+   to be `.pc-cell img`, which also caught the held-item badge and inflated
+   that 16px pip to the 28px floor below. */
+.pc-cell .pc-cell-sprite {
   max-width: 100%;
   max-height: 100%;
   width: auto;
@@ -1645,57 +1685,130 @@ header.tab-pane-head.v2 .mart-wallet {
   min-height: 28px;
   object-fit: contain;
 }
+/* The held item hangs 6px outside its sprite everywhere else, which works
+   because those call sites have slack around the sprite. Here the plate goes
+   edge to edge and the cell clips, so a dangling pip loses its outer corner.
+   Tuck it inside instead, at the pip's real 16px. */
+.pc-cell .held-item-badge {
+  bottom: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+}
 .pc-cell:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--border-strong); }
 .pc-cell:active { cursor: grabbing; }
-/* Box cells are pure sprite — no name/level labels, like the original PC. */
-.pc-box-slot .pc-cell-label,
-.pc-box-slot .pc-cell-level { display: none; }
+/* Name strip. This is what makes the box readable — the median sprite
+   renders around 44px, at which most species are not tellable apart, and
+   until now the box carried no names at all. Hidden at compact density,
+   where the whole point is fitting more sprites on screen. */
 .pc-cell-label {
+  flex: 0 0 auto;
+  padding: 0 3px 2px;
   font-size: 9px;
   font-weight: 600;
+  line-height: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.80);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .pc-cell-level { font-size: 8px; color: var(--text-dim); }
-/* Level badge on box cells. Corner-mounted rather than a row under the
-   sprite (that's .pc-cell-level, which box mode hides) so it costs the
-   6×5 grid no height — a box full of the same species is otherwise
-   impossible to tell apart. */
+/* Level, corner-mounted so it costs the row no height — a box full of the
+   same species is otherwise impossible to tell apart. It used to be a
+   700-weight white pill on 62%-black in the TOP-LEFT: the highest-contrast
+   object in a cell whose entire job is showing a Pokémon, sitting exactly
+   where the eye lands first. Demoted, not removed. */
 .pc-cell-lv {
   position: absolute;
-  top: 1px;
-  left: 2px;
+  bottom: 1px;
+  left: 3px;
   z-index: 2;
-  padding: 0 3px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.62);
-  color: rgba(255, 255, 255, 0.94);
+  color: rgba(255, 255, 255, 0.72);
   font-size: 9px;
-  font-weight: 700;
-  line-height: 13px;
+  font-weight: 500;
+  line-height: 11px;
   letter-spacing: 0.2px;
   font-variant-numeric: tabular-nums;
-  text-shadow: none;
+  /* A shadow rather than a pill: legible over a bright sprite without
+     drawing a filled rectangle over it. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+/* Shiny mark. The alternate palette is the only current tell, and at 44px
+   most of them are too subtle to spot while scanning. */
+.pc-cell-shiny {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  z-index: 2;
+  font-size: 9px;
+  line-height: 11px;
+  color: var(--gold);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   pointer-events: none;
 }
 
-/* PC filter row — search + shiny toggle + IV tier. Sits between the head
-   (title / sort / pager) and the grid, and narrows the view only; sorting
-   still mutates the box itself. */
-.pc-filters {
+/* PC toolbar — ONE row: search, sort menu, filter menu, density, count.
+   It replaces a title row, a sort+pager row and a filter row that together
+   spent 155px before the first sprite (66% of the pane on a 768px laptop).
+   Sorting still mutates the box itself; filtering is purely a view. */
+.pc-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
-  margin: 0 0 6px;
+  min-height: 32px;
+}
+.pc-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.pc-tool:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.30);
+  color: #fff;
+}
+.pc-tool-icon { padding: 8px 10px; }
+/* "A filter is on" without spending a row on the controls themselves. The
+   count next to it turns into `12 / 90`, which says the same thing again. */
+.pc-tool-dot {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.pc-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.75;
 }
 .pc-search-wrap {
   position: relative;
-  flex: 1 1 140px;
-  min-width: 110px;
+  flex: 1 1 120px;
+  min-width: 90px;
 }
 .pc-search {
   width: 100%;
@@ -1724,34 +1837,6 @@ header.tab-pane-head.v2 .mart-wallet {
   cursor: pointer;
 }
 .pc-search-clear:hover { color: #fff; }
-.pc-filter,
-.pc-filter-select {
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 6px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 120ms, border-color 120ms, color 120ms;
-}
-.pc-filter:hover,
-.pc-filter-select:hover {
-  background: rgba(255, 255, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.30);
-  color: #fff;
-}
-.pc-filter.active {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: #0a0a0a;
-  font-weight: 700;
-}
-.pc-filter-select option { background: var(--panel-2); color: var(--text); }
 .pc-help {
   text-align: center;
   padding: 8px 12px;
@@ -3474,31 +3559,38 @@ body.dnd-active {
 .mobile-shell .raid-lineup,
 .mobile-shell .raid-lineup-label { display: none; }
 
-/* Hide the Sort controls on the mobile PC tab — the player rarely re-sorts,
-   and on a phone they just eat vertical space above the box grid. Hiding
-   the WHOLE tools row (as before) also hid the box PAGER that shares it, so
-   mobile players couldn't change pages (reported: "los botones de la caja
-   no aparecen, no se puede pasar de página").
-   Update: an earlier version hid the sort buttons on mobile to save space, but
-   players then had no way to ORGANIZE their box on phones ("no hay ninguno
-   para organizarlas"). Show the sort buttons AND the pager — just let the
-   tools row wrap and shrink so both fit on a narrow screen. */
-.mobile-shell .pc-tab .tab-pane-head-tools {
-  flex-wrap: wrap;
-  gap: 4px;
-  row-gap: 4px;
+/* The mobile PC toolbar. There is a long history here of hiding controls to
+   buy vertical space and then having to put them back — the sort buttons went
+   first ("no hay ninguno para organizarlas"), then the whole tools row, which
+   took the pager with it ("no se puede pasar de página"). Nothing is hidden
+   now: the pager is gone entirely, and sort and filters are one tap each
+   inside a menu, so the whole toolbar fits one row on a 390px phone. */
+.mobile-shell .pc-tab { padding: 10px 12px; }
+/* The box grid is a scroll WINDOW — it renders the rows in view plus a
+   little overscan and needs a real viewport height to measure against.
+   Every other mobile tab body is `min-height: 100%` and free to grow with
+   its content (see .mobile-content > .bottom-tab-body above), which for the
+   box means it reports the height of the ENTIRE box: the window then spans
+   everything, and a 9,999-entry box would mount 9,999 cells and fire 9,999
+   sprite requests. Measured before this rule: a 91-Pokémon box stretched the
+   pane to 2332px and rendered all 91 at once.
+   Scoped to `.pc-view-box` so the Dex, which shares this host and does want
+   to grow, is untouched. */
+.mobile-content > .bottom-tab-body.pc-host.pc-view-box {
+  height: 100%;
+  min-height: 0;
 }
-.mobile-shell .pc-tab .tab-pane-head-tools > button {
-  padding: 4px 7px !important;
-  font-size: 11px !important;
+/* Bounding the host creates free space, and `.mobile-content >
+   .bottom-tab-body > *` (two classes) out-specifies .mobile-pc-tabs' own
+   `flex: 0 0 auto` (one class), so the Box/Dex toggle would grow to take
+   half of it — measured 51px → 211px, straight out of the grid's budget. */
+.mobile-content > .bottom-tab-body.pc-host.pc-view-box > .mobile-pc-tabs {
+  flex: 0 0 auto;
 }
-.mobile-shell .pc-tab .tab-pane-head-tools .pc-pager { margin-left: auto; }
-/* Filter row on phones: same wrap-and-shrink treatment as the tools row so
-   search + shiny + IV all stay reachable instead of overflowing. */
-.mobile-shell .pc-tab .pc-filters { gap: 4px; margin-bottom: 4px; }
-.mobile-shell .pc-tab .pc-filter,
-.mobile-shell .pc-tab .pc-filter-select { padding: 5px 8px; font-size: 11px; }
-.mobile-shell .pc-tab .pc-search-wrap { min-width: 96px; }
+.mobile-shell .pc-tab .pc-toolbar { gap: 5px; }
+.mobile-shell .pc-tab .pc-tool { padding: 8px 9px; font-size: 11px; }
+.mobile-shell .pc-tab .pc-tool-icon { padding: 8px; }
+.mobile-shell .pc-tab .pc-search-wrap { min-width: 80px; }
 
 /* Audio settings — volume slider in the Settings modal. */
 .audio-volume-row {
@@ -9253,6 +9345,22 @@ input, textarea, select {
   gap: 6px;
 }
 .mini-chat-msg.mine .mini-chat-author { color: var(--accent); }
+/* ADMIN badge in the compact chat. Deliberately the SAME mark and colours as
+   .g-chat-msg-admin in the Social panel — the two chats show the same people,
+   and a second style for the same fact would just read as a different role.
+   Only the geometry differs, to fit the tighter name row. */
+.mini-chat-admin {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  font-family: inherit;
+  padding: 1px 5px;
+  border-radius: 999px;
+  margin-left: 4px;
+  color: #fff;
+  background: linear-gradient(135deg, #e0245e, #c81d4e);
+  flex: 0 0 auto;
+}
 .mini-chat-lv {
   font-size: 8px;
   font-weight: 600;
@@ -11854,16 +11962,19 @@ input:focus, textarea:focus, select:focus {
   color: #ffffff;
   gap: 10px;
 }
+/* The PC's own frame is tighter than the shared one, and the box grid is now
+   the scroller — the pane itself only scrolls in the degenerate case where
+   the panel is shorter than one row of Pokémon plus the toolbar. */
+.pc-tab {
+  padding: 12px 14px;
+  gap: 8px;
+}
 /* Bag, PC, and Dex backgrounds are dark CSS gradients now — keep their
    text white. Mart's tile-floor background is light, so its text flips
    to black. */
 .pc-tab,
-.pc-tab .tab-pane-head h3,
-.pc-tab .tab-pane-head .dim,
 .pc-tab .dim,
-.pc-tab .small,
-.pc-tab .pc-pager,
-.pc-tab .pc-pager .dim {
+.pc-tab .small {
   color: #ffffff !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
@@ -11915,30 +12026,18 @@ input:focus, textarea:focus, select:focus {
 }
 /* PC slots stay transparent so the box wood/illustration shows through;
    the cell hover/drag feedback already handles the interactive states. */
-.pc-tab .pc-box-grid {
+.pc-tab .pc-box-scroll {
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   padding: 10px;
   backdrop-filter: blur(2px);
 }
-.pc-tab .tab-pane-tools button,
-.pc-tab .pc-pager button {
-  background: rgba(255, 255, 255, 0.65) !important;
-  border: 1px solid rgba(0, 0, 0, 0.28) !important;
-  color: #0a0a0a !important;
-  font-weight: 600;
-}
-.pc-tab .tab-pane-tools button:hover:not(:disabled),
-.pc-tab .pc-pager button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.85) !important;
-  border-color: rgba(0, 0, 0, 0.45) !important;
-}
-/* Same treatment for the filter row — the PC pane sits on an illustrated
-   backdrop, so translucent-on-dark chrome is unreadable here. */
+/* The PC pane sits on an illustrated backdrop, so translucent-on-dark
+   chrome is unreadable here — the toolbar controls get a solid light pill
+   instead. */
 .pc-tab .pc-search,
-.pc-tab .pc-filter,
-.pc-tab .pc-filter-select {
+.pc-tab .pc-tool {
   background: rgba(255, 255, 255, 0.65);
   border: 1px solid rgba(0, 0, 0, 0.28);
   color: #0a0a0a;
@@ -11946,17 +12045,17 @@ input:focus, textarea:focus, select:focus {
 }
 .pc-tab .pc-search::placeholder { color: rgba(0, 0, 0, 0.5); }
 .pc-tab .pc-search:focus,
-.pc-tab .pc-filter:hover,
-.pc-tab .pc-filter-select:hover {
+.pc-tab .pc-tool:hover {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(0, 0, 0, 0.45);
   color: #0a0a0a;
 }
-.pc-tab .pc-filter.active {
+.pc-tab .pc-tool.on {
   background: var(--gold);
   border-color: rgba(0, 0, 0, 0.45);
   color: #0a0a0a;
 }
+.pc-tab .pc-tool.on .pc-tool-dot { background: #0a0a0a; }
 .pc-tab .pc-search-clear { color: rgba(0, 0, 0, 0.55); }
 .pc-tab .pc-search-clear:hover { color: #000; }
 .bag-tab {
@@ -15336,10 +15435,15 @@ html, body {
     min-height: 44px !important;
     min-width: 36px;
   }
-  /* PC pagination chevrons. */
-  .pc-pager button {
-    min-width: 44px !important;
-    min-height: 44px !important;
+  /* PC toolbar. The pagination chevrons this used to floor are gone —
+     the box scrolls — but the sort / filter / density pills that replaced
+     them are the same size class and need the same treatment. */
+  .pc-toolbar .pc-tool {
+    min-height: 40px;
+  }
+  .pc-toolbar .pc-tool-icon {
+    min-width: 40px;
+    justify-content: center;
   }
   /* Catch settings + manage moves row buttons. */
   .catch-settings-modal button,
