@@ -9,6 +9,7 @@ import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
 import { readStreamCookie, resolveStreamKey } from "./lib/streamSession.js";
 import { recordCommandResult } from "./lib/streamCommandLog.js";
+import { recordError } from "./lib/errorReporting.js";
 import {
   battleRooms,
   newBattleId,
@@ -380,26 +381,45 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       spectators: new Set(),
     };
     battleRooms.set(battleId, room);
-    sendToAnyUser(aEntry.userId, "battle:start", {
-      battleId, format: room.format,
-      opponent: { id: bEntry.userId, username: bEntry.username },
-      you: "a",
-    });
-    sendToAnyUser(bEntry.userId, "battle:start", {
-      battleId, format: room.format,
-      opponent: { id: aEntry.userId, username: aEntry.username },
-      you: "b",
-    });
+    // Start the simulator BEFORE telling anyone a battle exists. The
+    // other order opened the battle screen on both clients and only
+    // then found out whether there was a battle behind it — so a
+    // refusal showed up as a window that appeared and vanished with no
+    // explanation. Now a refusal is just an error message.
     try {
-      await startBattle(io, room, sendToAnyUser);
+      await startBattle(io, room, sendToAnyUser, () => {
+        sendToAnyUser(aEntry.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: bEntry.userId, username: bEntry.username },
+          you: "a",
+        });
+        sendToAnyUser(bEntry.userId, "battle:start", {
+          battleId, format: room.format,
+          opponent: { id: aEntry.userId, username: aEntry.username },
+          you: "b",
+        });
+      });
       console.log("[pvp] matchmaking spawned battle", { battleId, a: aEntry.username, b: bEntry.username });
     } catch (e) {
       room.status = "cancelled";
-      const reason = `Engine refused the matchup: ${String(e)}`;
+      const detail = e instanceof Error ? e.message : String(e);
+      const reason = `Couldn't start the battle: ${detail}`;
       sendToAnyUser(aEntry.userId, "battle:cancelled", { battleId, reason });
       sendToAnyUser(bEntry.userId, "battle:cancelled", { battleId, reason });
       battleRooms.delete(battleId);
-      console.error("[pvp] matchmaking startBattle failed", { battleId, err: String(e) });
+      void recordError({
+        kind: "server",
+        message: "pvp_start_battle_failed",
+        source: "socket.tryPairAndSpawnRoom",
+        stack: e instanceof Error ? e.stack ?? null : null,
+        meta: {
+          battleId,
+          format: room.format,
+          simulatorError: detail,
+          aUserId: aEntry.userId, aUsername: aEntry.username, aTeamSize: aEntry.team.length,
+          bUserId: bEntry.userId, bUsername: bEntry.username, bTeamSize: bEntry.team.length,
+        },
+      });
     }
   };
 
@@ -1237,26 +1257,48 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         leaveQueue(user.id);
         room.b.team = team as never;
         room.b.connected = true;
-        sendToUser(room.a.userId, "battle:start", {
-          battleId, format: room.format,
-          opponent: { id: room.b.userId, username: room.b.username },
-          you: "a",
-        });
-        sendToUser(room.b.userId, "battle:start", {
-          battleId, format: room.format,
-          opponent: { id: room.a.userId, username: room.a.username },
-          you: "b",
-        });
+        // "battle:start" opens the battle screen, so it goes inside
+        // startBattle's onReady — i.e. only once the simulator has
+        // accepted both teams. Emitting it up front is what turned a
+        // refused matchup into a window that opened and closed by
+        // itself with nothing said.
         try {
-          await startBattle(io, room, sendToUser);
+          await startBattle(io, room, sendToUser, () => {
+            sendToUser(room.a.userId, "battle:start", {
+              battleId, format: room.format,
+              opponent: { id: room.b.userId, username: room.b.username },
+              you: "a",
+            });
+            sendToUser(room.b.userId, "battle:start", {
+              battleId, format: room.format,
+              opponent: { id: room.a.userId, username: room.a.username },
+              you: "b",
+            });
+          });
           ack?.({ ok: true });
         } catch (e) {
           room.status = "cancelled";
-          sendToUser(room.a.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-          sendToUser(room.b.userId, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+          const detail = e instanceof Error ? e.message : String(e);
+          const reason = `Couldn't start the battle: ${detail}`;
+          sendToUser(room.a.userId, "battle:cancelled", { battleId, reason });
+          sendToUser(room.b.userId, "battle:cancelled", { battleId, reason });
           battleRooms.delete(battleId);
-          console.error("[pvp] startBattle failed", { battleId, err: String(e) });
-          ack?.({ ok: false, error: "engine refused the matchup" });
+          void recordError({
+            kind: "server",
+            message: "pvp_start_battle_failed",
+            source: "socket.battle:respond",
+            stack: e instanceof Error ? e.stack ?? null : null,
+            userId: user.id,
+            username: user.username,
+            meta: {
+              battleId,
+              format: room.format,
+              simulatorError: detail,
+              aUserId: room.a.userId, aUsername: room.a.username, aTeamSize: room.a.team.length,
+              bUserId: room.b.userId, bUsername: room.b.username, bTeamSize: room.b.team.length,
+            },
+          });
+          ack?.({ ok: false, error: reason });
         }
       },
     );

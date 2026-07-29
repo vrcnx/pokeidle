@@ -3276,24 +3276,42 @@ app.post("/tournaments/:id/match", async (c) => {
     levelCap: t.levelCap ?? undefined,
   };
   battleRooms.set(battleId, room);
-  sendToUserGlobal(aUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
-    levelCap: t.levelCap ?? null,
-  });
-  sendToUserGlobal(bUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
-    levelCap: t.levelCap ?? null,
-  });
+  // battle:start opens the players' battle screen — it only fires once
+  // the simulator has accepted the matchup. See pvp.ts's onReady note.
   try {
-    await startBattle(getIo()!, room, sendToUserGlobal);
+    await startBattle(getIo()!, room, sendToUserGlobal, () => {
+      sendToUserGlobal(aUser.id, "battle:start", {
+        battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
+        levelCap: t.levelCap ?? null,
+      });
+      sendToUserGlobal(bUser.id, "battle:start", {
+        battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
+        levelCap: t.levelCap ?? null,
+      });
+    });
     void makeAudit(c)(me.id, "tournament.start_match", t.id, { battleId, aUserId, bUserId });
     return c.json({ ok: true, battleId });
   } catch (e) {
     room.status = "cancelled";
-    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    const detail = e instanceof Error ? e.message : String(e);
+    const reason = `Couldn't start the battle: ${detail}`;
+    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason });
+    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason });
     battleRooms.delete(battleId);
-    return c.json({ error: "engine refused", detail: String(e) }, 500);
+    void recordError({
+      kind: "server",
+      message: "pvp_start_battle_failed",
+      source: "admin.tournaments.start-match",
+      stack: e instanceof Error ? e.stack ?? null : null,
+      userId: me.id,
+      meta: {
+        battleId, format: room.format, simulatorError: detail,
+        tournamentId: t.id,
+        aUserId: aUser.id, aUsername: aUser.username, aTeamSize: teamA.length,
+        bUserId: bUser.id, bUsername: bUser.username, bTeamSize: teamB.length,
+      },
+    });
+    return c.json({ error: "engine refused", detail }, 500);
   }
 });
 

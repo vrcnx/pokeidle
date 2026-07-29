@@ -525,24 +525,45 @@ export async function startTournamentBattle(
   };
   battleRooms.set(battleId, room);
 
-  sendToUserGlobal(aUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
-    levelCap: t.levelCap ?? null, tournamentId: t.id, bracketMatchId: match.id,
-  });
-  sendToUserGlobal(bUser.id, "battle:start", {
-    battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
-    levelCap: t.levelCap ?? null, tournamentId: t.id, bracketMatchId: match.id,
-  });
-
+  // "battle:start" is what opens the battle screen, so it only fires
+  // once startBattle has accepted the matchup — see the onReady note in
+  // pvp.ts. Announcing first meant a refusal showed both players a
+  // window that opened and vanished.
   try {
-    await startBattle(io, room, sendToUserGlobal);
+    await startBattle(io, room, sendToUserGlobal, () => {
+      sendToUserGlobal(aUser.id, "battle:start", {
+        battleId, format: room.format, opponent: { id: bUser.id, username: bUser.username }, you: "a",
+        levelCap: t.levelCap ?? null, tournamentId: t.id, bracketMatchId: match.id,
+      });
+      sendToUserGlobal(bUser.id, "battle:start", {
+        battleId, format: room.format, opponent: { id: aUser.id, username: aUser.username }, you: "b",
+        levelCap: t.levelCap ?? null, tournamentId: t.id, bracketMatchId: match.id,
+      });
+    });
     return { ok: true, battleId };
   } catch (e) {
     room.status = "cancelled";
-    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
-    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason: "Engine refused the matchup." });
+    const detail = e instanceof Error ? e.message : String(e);
+    const reason = `Couldn't start the battle: ${detail}`;
+    sendToUserGlobal(aUser.id, "battle:cancelled", { battleId, reason });
+    sendToUserGlobal(bUser.id, "battle:cancelled", { battleId, reason });
     battleRooms.delete(battleId);
-    return { ok: false, reason: `engine refused: ${String(e)}` };
+    void recordError({
+      kind: "server",
+      message: "pvp_start_battle_failed",
+      source: "tournamentRunner.startBracketMatch",
+      stack: e instanceof Error ? e.stack ?? null : null,
+      meta: {
+        battleId,
+        format: room.format,
+        simulatorError: detail,
+        tournamentId: t.id,
+        bracketMatchId: match.id,
+        aUserId: aUser.id, aUsername: aUser.username, aTeamSize: teamA.length,
+        bUserId: bUser.id, bUsername: bUser.username, bTeamSize: teamB.length,
+      },
+    });
+    return { ok: false, reason: `engine refused: ${detail}` };
   }
 }
 

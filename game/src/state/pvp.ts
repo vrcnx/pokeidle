@@ -391,11 +391,15 @@ export function bindPvpSocket() {
   );
 
   sock.on("battle:cancelled", (payload: { battleId: string; reason: string }) => {
-    const affected = _state.invite?.battleId === payload.battleId
-      || _state.room?.battleId === payload.battleId;
-    if (!affected) return;
-    _state.invite = null;
-    _state.room = null;
+    // The server only ever sends this to the two participants, so an id
+    // we don't recognise still concerns us — and in the most important
+    // case it always is one. The player who SENT a challenge holds no
+    // `invite` (they aren't the one being invited) and no `room` yet, so
+    // the old "ignore anything I can't match" guard threw away exactly
+    // the message that explains why their battle never happened. Clear
+    // whatever we do recognise, and always show the reason.
+    if (_state.invite?.battleId === payload.battleId) _state.invite = null;
+    if (_state.room?.battleId === payload.battleId) _state.room = null;
     _state.cancelMessage = payload.reason;
     emit();
     if (_cancelBannerTimer) clearTimeout(_cancelBannerTimer);

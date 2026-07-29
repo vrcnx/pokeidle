@@ -15,9 +15,29 @@
 //   "completed" — winner decided + PvpMatch row written
 //   "cancelled" — either side cancelled / disconnected mid-battle
 
-import { BattleStreams, Teams } from "@pkmn/sim";
+import { BattleStreams, Teams, Dex } from "@pkmn/sim";
 import type { Server } from "socket.io";
 import { prisma } from "./db.js";
+import { recordError } from "./lib/errorReporting.js";
+
+// ─── Simulator format ────────────────────────────────────────────────
+// Custom Game is the only Showdown format that accepts our teams as-is:
+// no tier bans, no species clause, no "you must bring exactly six", any
+// level. That part was right.
+//
+// What it ALSO ships is Team Preview, and that broke every battle in a
+// second way: the first |request| a player gets is
+// `{"teamPreview":true,...}` — no `active`, no moves — and the battle
+// modal has no team-order picker (players already chose their lead and
+// their order in the TeamBuilder before the invite went out). Nobody
+// could answer that request, so the battle sat there until the 5-minute
+// AFK watchdog forfeited it. `!Team Preview` is Showdown's own custom-
+// rule syntax for dropping a clause; with it the battle opens straight
+// on turn 1 with each side's chosen lead.
+const SIM_BASE_FORMAT_ID = "gen5customgame";
+const SIM_FORMAT_ID = `${SIM_BASE_FORMAT_ID}@@@!Team Preview`;
+/** Dex used to validate ids before we hand a team to the simulator. */
+const SIM_DEX = Dex.forFormat(SIM_BASE_FORMAT_ID);
 
 // ─── Pokémon → Showdown PokemonSet adapter ──────────────────────────
 // Maps the game's internal Pokémon shape to the format @pkmn/sim
@@ -52,7 +72,7 @@ function toShowdownId(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export function pokemonToShowdownSet(p: GamePokemonShape): {
+export interface ShowdownSet {
   name: string;
   species: string;
   item: string;
@@ -64,7 +84,9 @@ export function pokemonToShowdownSet(p: GamePokemonShape): {
   level: number;
   shiny: boolean;
   gender: string;
-} {
+}
+
+export function pokemonToShowdownSet(p: GamePokemonShape): ShowdownSet {
   // Normalize every id to Showdown format. Empty moveset (admin-
   // granted mons, or a Pokémon that hasn't learned anything yet) gets
   // a Tackle fallback so the simulator doesn't reject the team for
@@ -101,6 +123,63 @@ export function pokemonToShowdownSet(p: GamePokemonShape): {
     shiny: !!p.isShiny,
     gender: "",
   };
+}
+
+// ─── Make a team the simulator can actually accept ──────────────────
+// The game keeps adding content, and not all of it exists in Showdown's
+// dex (a fan move, a species we added early, an item that never shipped
+// to PS). The simulator does NOT validate a team when you hand it to
+// `>player` — it builds the Pokémon and throws deep inside the stream
+// pump, where the failure is both fatal and hard to attribute.
+//
+// So we check the ids ourselves first, and DEGRADE rather than refuse:
+// an unknown move is dropped, an unknown ability or item is cleared
+// (the simulator then falls back to the species' own default), and only
+// a Pokémon whose *species* is unknown has to be skipped — there is
+// nothing sane to substitute for it. Refusing the whole matchup because
+// one mon knows one unrecognised move is exactly the failure mode this
+// report is about; losing one move is not.
+//
+// Everything we change is returned in `notes` so the caller can log it
+// — a silent substitution is how content drift stays invisible.
+export function adaptTeamForSimulator(
+  team: GamePokemonShape[],
+): { sets: ShowdownSet[]; notes: string[] } {
+  const notes: string[] = [];
+  const sets: ShowdownSet[] = [];
+  for (const mon of team) {
+    let set: ShowdownSet;
+    try {
+      set = pokemonToShowdownSet(mon);
+    } catch (e) {
+      notes.push(`skipped a Pokémon we could not read (${String(e)})`);
+      continue;
+    }
+    const label = set.species || set.name || "?";
+    if (!SIM_DEX.species.get(set.species).exists) {
+      notes.push(`dropped ${label}: species unknown to the simulator`);
+      continue;
+    }
+    if (set.ability && !SIM_DEX.abilities.get(set.ability).exists) {
+      notes.push(`${label}: cleared unknown ability "${set.ability}"`);
+      set.ability = "";
+    }
+    if (set.item && !SIM_DEX.items.get(set.item).exists) {
+      notes.push(`${label}: cleared unknown item "${set.item}"`);
+      set.item = "";
+    }
+    const keptMoves = set.moves.filter((m) => {
+      if (SIM_DEX.moves.get(m).exists) return true;
+      notes.push(`${label}: dropped unknown move "${m}"`);
+      return false;
+    });
+    // Never ship a moveless Pokémon — it would be stuck on Struggle
+    // forever. Same Tackle fallback the adapter uses for empty movesets.
+    set.moves = keptMoves.length > 0 ? keptMoves : ["tackle"];
+    if (keptMoves.length === 0) notes.push(`${label}: no usable moves left, fell back to Tackle`);
+    sets.push(set);
+  }
+  return { sets, notes };
 }
 
 // ─── Battle room ─────────────────────────────────────────────────────
@@ -195,12 +274,34 @@ function applyLevelCap(team: GamePokemonShape[], cap: number | null): GamePokemo
 // The "anything-goes" format is a no-restrictions free-for-all that
 // accepts any species, item, move, ability. v1 deliberately doesn't
 // gate on a tier system because the game's not balanced for one yet.
+//
+// `onReady` exists so the "tell the players a battle is happening" step
+// can sit at exactly the right point in this sequence, and callers can't
+// get it wrong. Everything that can refuse the matchup runs before it;
+// nothing that produces battle state runs until after it. Callers used
+// to emit "battle:start" themselves before calling in, which opened the
+// screen on a matchup that might still be rejected — and they can't
+// simply emit it afterwards either, because by then the first turn has
+// already been pumped to a client that has no room to put it in.
 export async function startBattle(
   io: Server,
   room: BattleRoom,
   sendToUser: (userId: string, event: string, payload: unknown) => void,
+  onReady?: () => void,
 ): Promise<void> {
-  if (room.status !== "invited") return;
+  // Every caller creates the room "invited" immediately above, so this
+  // is unreachable — but it returns without ever calling onReady, which
+  // would leave the caller believing a battle started. Don't let that be
+  // silent either.
+  if (room.status !== "invited") {
+    void recordError({
+      kind: "server",
+      message: "pvp_start_battle_bad_state",
+      source: "pvp.startBattle",
+      meta: { battleId: room.id, format: room.format, status: room.status },
+    });
+    return;
+  }
   room.status = "active";
   if (room.expiryTimer) clearTimeout(room.expiryTimer);
 
@@ -209,8 +310,34 @@ export async function startBattle(
   // internally from base + IVs + EVs + level, so capping here means
   // every battle mechanic uses the capped level.
   const cap = levelCapForFormat(room.format as BattleFormat, room);
-  const teamA = applyLevelCap(room.a.team, cap).map(pokemonToShowdownSet);
-  const teamB = applyLevelCap(room.b.team, cap).map(pokemonToShowdownSet);
+  const adaptedA = adaptTeamForSimulator(applyLevelCap(room.a.team, cap));
+  const adaptedB = adaptTeamForSimulator(applyLevelCap(room.b.team, cap));
+  const teamA = adaptedA.sets;
+  const teamB = adaptedB.sets;
+  // A substitution is not an error — the battle goes ahead — but it IS
+  // a signal that live content has drifted away from Showdown's dex, so
+  // it goes on the record rather than into a console nobody reads.
+  if (adaptedA.notes.length > 0 || adaptedB.notes.length > 0) {
+    void recordError({
+      kind: "server",
+      level: "warn",
+      message: "pvp_team_adapted",
+      source: "pvp.startBattle",
+      meta: {
+        battleId: room.id,
+        format: room.format,
+        aUserId: room.a.userId, aUsername: room.a.username, aNotes: adaptedA.notes,
+        bUserId: room.b.userId, bUsername: room.b.username, bNotes: adaptedB.notes,
+      },
+    });
+  }
+  // Degrading can only ever take a team to zero if literally none of
+  // their Pokémon exist in the dex. That is the one case worth refusing,
+  // and the caller now turns it into a real message for the player.
+  if (teamA.length === 0 || teamB.length === 0) {
+    const who = teamA.length === 0 ? room.a.username : room.b.username;
+    throw new Error(`${who} has no Pokémon the battle simulator recognises`);
+  }
   // Teams.pack throws if any PokemonSet has an unknown species / move /
   // item id — we want that error to surface (rather than crash inside
   // the stream pump where it's harder to debug). Logging the team on
@@ -240,6 +367,9 @@ export async function startBattle(
   room.a.stream = playerStreams.p1;
   room.b.stream = playerStreams.p2;
 
+  // Last point at which we can still refuse cleanly. Announce now.
+  onReady?.();
+
   // Pump player-private output → that player's socket. We leave the
   // omniscient `playerStreams.spectator` unused; if we ever add
   // spectators we'd subscribe to that one.
@@ -248,7 +378,7 @@ export async function startBattle(
   pumpOmniLog(playerStreams.omniscient, room, sendToUser);
 
   const startCmd = [
-    `>start {"formatid":"gen5customgame"}`,
+    `>start {"formatid":${JSON.stringify(SIM_FORMAT_ID)}}`,
     `>player p1 {"name":${JSON.stringify(room.a.username)},"team":${JSON.stringify(packedA)}}`,
     `>player p2 {"name":${JSON.stringify(room.b.username)},"team":${JSON.stringify(packedB)}}`,
   ].join("\n");
@@ -331,8 +461,35 @@ async function pumpPlayerStream(
       });
     }
   } catch (e) {
-    console.error("[pvp] player stream error", { battleId: room.id, side, err: String(e) });
+    // A throw here is not cosmetic: @pkmn/sim does not validate a team
+    // when you hand it to `>player`, it builds the Pokémon and pushes a
+    // FATAL error onto the streams — so "the simulator rejected this
+    // matchup" surfaces here, not out of startBattle. A console.error
+    // meant the battle just stopped producing turns with nothing in the
+    // admin error panel to explain it.
+    reportBattleFailure(room, `pvp.pumpPlayerStream:${side}`, e);
   }
+}
+
+/** One place for "the simulator gave up on this battle". Records to the
+ *  same ErrorLog the rest of the server writes to, with both user ids,
+ *  the format and the simulator's own message, then ends the room so
+ *  the players get a result instead of a frozen screen. */
+function reportBattleFailure(room: BattleRoom, source: string, e: unknown): void {
+  const message = e instanceof Error ? e.message : String(e);
+  void recordError({
+    kind: "server",
+    message: "pvp_simulator_stream_failed",
+    source,
+    stack: e instanceof Error ? e.stack ?? null : null,
+    meta: {
+      battleId: room.id,
+      format: room.format,
+      simulatorError: message,
+      aUserId: room.a.userId, aUsername: room.a.username, aTeamSize: room.a.team.length,
+      bUserId: room.b.userId, bUsername: room.b.username, bTeamSize: room.b.team.length,
+    },
+  });
 }
 
 // Forward the omniscient stream's log into the room's persisted log.
@@ -353,11 +510,23 @@ async function pumpOmniLog(
       for (const line of chunk.split("\n")) {
         if (line) room.log.push(line);
         // Detect end-of-battle protocol lines so we can finalize.
-        if (line.startsWith("|win|") || line.startsWith("|tie")) {
+        //
+        // These two tests have to be EXACT. `startsWith("|tie")` — no
+        // trailing pipe — also matches `|tier|[Gen 5] Custom Game`,
+        // which Showdown emits six lines into the preamble of every
+        // single battle, before turn 1. That one missing character
+        // ended every PvP match the instant it began: endBattle fired
+        // with reason "tie", tore the simulator down, and sent both
+        // players a winnerless `battle:complete` — a battle screen that
+        // opened, showed no turns, auto-closed, and never touched Elo.
+        // The real tie line is exactly `|tie`.
+        const isWin = line.startsWith("|win|");
+        const isTie = line === "|tie" || line.startsWith("|tie|");
+        if (isWin || isTie) {
           // Parse the winner name out of `|win|<name>`. Match by
           // username (we set the player names from a/b.username at
           // startBattle).
-          if (line.startsWith("|win|")) {
+          if (isWin) {
             const name = line.slice("|win|".length);
             if (name === room.a.username) {
               room.winnerId = room.a.userId;
@@ -365,6 +534,21 @@ async function pumpOmniLog(
             } else if (name === room.b.username) {
               room.winnerId = room.b.userId;
               room.loserId = room.a.userId;
+            } else {
+              // We named both sides ourselves at startBattle, so this
+              // cannot happen — and if it ever does, the match would be
+              // silently recorded as a winnerless "completed" row and
+              // no rating would move. Say so out loud instead.
+              void recordError({
+                kind: "server",
+                message: "pvp_win_line_unmatched",
+                source: "pvp.pumpOmniLog",
+                meta: {
+                  battleId: room.id, format: room.format, line,
+                  aUserId: room.a.userId, aUsername: room.a.username,
+                  bUserId: room.b.userId, bUsername: room.b.username,
+                },
+              });
             }
             room.endReason = "ko";
           } else {
@@ -395,7 +579,11 @@ async function pumpOmniLog(
       }
     }
   } catch (e) {
-    console.error("[pvp] omni stream error", { battleId: room.id, err: String(e) });
+    reportBattleFailure(room, "pvp.pumpOmniLog", e);
+    // The simulator is gone; without this the room would sit "active"
+    // until the AFK watchdog forfeited somebody for a fault that was
+    // never theirs.
+    void endBattle(room, sendToUser, "cancelled");
   }
 }
 
@@ -463,7 +651,18 @@ export async function endBattle(
         reason === "forfeit" || reason === "timeout" ? "forfeit" : "ko",
       );
     } catch (e) {
-      console.error("[pvp] failed to apply ELO", { battleId: room.id, err: String(e) });
+      // "I won and my rating didn't move" is a player-visible bug, so
+      // it belongs in the error log, not just this process's stdout.
+      void recordError({
+        kind: "server",
+        message: "pvp_elo_update_failed",
+        source: "pvp.endBattle",
+        meta: {
+          battleId: room.id, format: room.format, reason,
+          winnerId: room.winnerId, loserId: room.loserId,
+          error: String(e),
+        },
+      });
     }
   }
 
@@ -490,7 +689,18 @@ export async function endBattle(
       },
     })
     .catch((e) => {
-      console.error("[pvp] failed to persist match", { battleId: room.id, err: String(e) });
+      // A dropped row means the match vanishes from both players'
+      // history and from every replay link. Record it.
+      void recordError({
+        kind: "server",
+        message: "pvp_match_persist_failed",
+        source: "pvp.endBattle",
+        meta: {
+          battleId: room.id, format: room.format, reason,
+          aUserId: room.a.userId, bUserId: room.b.userId,
+          error: String(e),
+        },
+      });
     });
 
   if (sendToUser) {
