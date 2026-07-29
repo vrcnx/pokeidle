@@ -10,6 +10,7 @@ import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
+import { displayName } from "../utils/pokemon";
 import {
   evolutionLocked,
   levelEvolutionBranches,
@@ -20,6 +21,8 @@ import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
 import { BottomTabs } from "./BottomTabs";
 import { InventoryRibbon } from "./InventoryRibbon";
+import { PvpRail } from "./PvpArena";
+import { useIsPvpBattle } from "../state/pvp";
 import type { Pokemon, GameState, StatusCondition } from "../types";
 import { useT } from "../i18n/useT";
 
@@ -118,6 +121,13 @@ function statusBadgeClass(s: StatusCondition): string {
 export function PartyColumn({ showProfileStrip = true, wide = false }: { showProfileStrip?: boolean; wide?: boolean }) {
   const { state } = useGame();
   const t = useT();
+  const pvpBattle = useIsPvpBattle();
+  // During a PvP battle this whole rail becomes the PvP control panel:
+  // match header + turn clock, both teams, and the battle log. The idle
+  // verbs (Mart / Bag / PC / Dex, Heal, party switching) are deliberately
+  // gone — none of them mean anything in a PvP turn, and leaving the PC
+  // reachable would let a player deposit their active Pokémon mid-battle.
+  if (pvpBattle) return <PvpRail />;
   return (
     <div className="party-column control-column">
       {/* Wide: this rail becomes navigation + inventory — the tabs lead, and
@@ -323,7 +333,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
             danger: true,
             disabled: partySize <= 1,
             onClick: () => {
-              if (window.confirm(`Release ${p.name}? This cannot be undone.`)) {
+              if (window.confirm(`Release ${displayName(p)}? This cannot be undone.`)) {
                 dispatch({
                   type: "RELEASE_POKEMON",
                   payload: { source: "party", index: idx },
@@ -339,7 +349,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
         <PokemonSprite
           speciesKey={p.speciesKey}
           isShiny={p.isShiny}
-          alt={p.name}
+          alt={displayName(p)}
           width={48}
           height={48}
           style={{ imageRendering: "pixelated" }}
@@ -374,7 +384,7 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
       </div>
       <div className="party-row-info">
         <div className="party-row-name">
-          <strong>{p.name}{p.isShiny ? " ✨" : ""}</strong>
+          <strong>{displayName(p)}{p.isShiny ? " ✨" : ""}</strong>
           <span className="party-row-types">
             {sp?.types.map((t) => (
               <span key={t} className={`party-type-chip type-${t.toLowerCase()}`}>{t}</span>

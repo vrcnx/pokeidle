@@ -2,6 +2,7 @@ import { catchRates } from "../data/catchRates";
 import { pokeballs } from "../data/pokeballs";
 import { BALL_ORDER } from "./items";
 import { resolveCatchSettings } from "./catchSettings";
+import { ownsSpecies } from "./pokemon";
 import type { GameState } from "../types";
 
 export function speciesCatchRate(speciesKey: string): number {
@@ -71,7 +72,17 @@ export function shouldAutoCatch(
     case "always":          return true;
     case "shiny_only":      return isShiny;
     case "level_threshold": return level >= settings.levelThreshold;
+    // "Not registered". `pokedexCaught` is append-only — releasing, trading
+    // away or evolving a species never un-registers it — so this stops for
+    // good once the entry exists. Unchanged from the day it shipped; the split
+    // below is what gives players the other reading they kept asking for.
     case "pokedex_new":     return !state.pokedexCaught.includes(speciesKey);
+    // "Not owned". Asks what the player is HOLDING, which is a different
+    // question and the one that lets a released / traded / evolved-away
+    // species come back into scope. ownsSpecies short-circuits on the first
+    // match instead of building a set of every species in a 9,999-slot PC —
+    // this runs on every single wild encounter.
+    case "not_owned":       return !ownsSpecies(state.party, state.box, speciesKey);
     default:                return true;
   }
 }

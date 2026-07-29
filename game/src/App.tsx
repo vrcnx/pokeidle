@@ -1,5 +1,6 @@
 import { useGame } from "./state/GameContext";
 import { useBattleLoop } from "./hooks/useBattleLoop";
+import { useIsPvpBattle } from "./state/pvp";
 import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
@@ -21,7 +22,14 @@ import { VersionBadge } from "./components/VersionBadge";
 // useCatchAnimation resolves manual catches after the throw/shake animation.
 export function App() {
   const { state } = useGame();
-  useBattleLoop();
+  // A PvP battle suspends idle turn PRODUCTION. Without this the idle game
+  // keeps grinding invisibly behind the arena — the loop is mounted here,
+  // above GameShell, so swapping the centre column does not stop it.
+  // useEventDriver and useCatchAnimation are deliberately NOT suspended:
+  // they only CONSUME, so an in-flight turn or ball throw finishes cleanly
+  // instead of being stranded half-resolved.
+  const pvpBattle = useIsPvpBattle();
+  useBattleLoop(pvpBattle);
   useEventDriver();
   useAutoProceed();
   useAutoEvolve();

@@ -233,7 +233,32 @@ export type CatchMode =
   | "always"
   | "shiny_only"
   | "level_threshold"
-  | "pokedex_new";
+  /**
+   * "Not registered" — catch only species the Pokédex has never registered.
+   *
+   * THE KEY IS DELIBERATELY NOT RENAMED. It reads like it might mean "not
+   * owned", and once the dex started distinguishing registered from currently
+   * owned that ambiguity became a bug report (br_cb4d83f3ada30b1ec4). The
+   * behaviour it has always had is the REGISTERED one — `pokedexCaught` is
+   * append-only, so releasing or trading a species never brings it back into
+   * scope — and the label now says so.
+   *
+   * Renaming the stored value would be a migration for no gain and real risk:
+   * every save in the wild carries this string, GameContext keys two
+   * exact-match one-time migrations on the literal, and useStreamAutoPlay
+   * writes it in four places. Keeping the value is what makes the split a
+   * pure addition with a no-op migration — see `not_owned` below.
+   */
+  | "pokedex_new"
+  /**
+   * "Not owned" — catch anything not currently in the party or the PC.
+   *
+   * The genuinely new option, and the one most players asking for "not caught
+   * yet" actually meant: re-catch a species after releasing, trading or
+   * evolving away the only one you had. Never assigned by a migration; a save
+   * only holds it once the player picks it.
+   */
+  | "not_owned";
 
 export interface CatchSettings {
   enabled: boolean;

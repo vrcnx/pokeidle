@@ -11,6 +11,7 @@ import { pokeballs } from "../data/pokeballs";
 import { getStreamConfig, isStreamMode } from "../state/streamMode";
 import { routes } from "../data/routes";
 import { getRouteTrainers, buildTeam, trainerSprite } from "../utils/trainerFactory";
+import { enemySettleMs, tickIntervalFor } from "../utils/battleTiming";
 import type { GameState } from "../types";
 
 // Weaken-before-catch: keep attacking until the wild Pokémon is at or below
@@ -21,13 +22,12 @@ const WEAKEN_HP_THRESHOLD = 0.30;
 
 // The simulation tick. While the phase is "idle" the loop kicks off encounters
 // on the current route. While the phase is "battle" it ticks turns until one
-// side faints. Speed setting controls how fast (1=1000ms, 2=500ms, 5=200ms).
-
-function tickIntervalFor(speed: number): number {
-  if (speed >= 5) return 200;
-  if (speed >= 2) return 500;
-  return 1000;
-}
+// side faints.
+//
+// `tickIntervalFor` moved to utils/battleTiming.ts, which is now the single
+// definition of "one unit of game time" — the appear animations scale against
+// it, and keeping them in separate files is exactly how the trainer intro came
+// to ignore the speed setting.
 
 // In manual mode, the loop should NOT auto-execute turns. The MovesPanel will
 // dispatch EXECUTE_TURN with a chosen move when the player clicks. Bypass the
@@ -48,7 +48,21 @@ function manualWaiting(s: GameState): boolean {
   return true;
 }
 
-export function useBattleLoop(): void {
+/**
+ * @param suspended Stop PRODUCING turns. Passed true while a PvP battle owns
+ *   the screen: the loop is mounted above GameShell, so replacing the centre
+ *   column with the arena does not stop it, and without this the idle game
+ *   keeps grinding invisibly behind a PvP match — banking exp, catching
+ *   Pokémon and firing level-up modals the player never sees.
+ *
+ *   Suspension is deliberately a plain argument rather than `state.paused`.
+ *   TOGGLE_PAUSE is a bare toggle with no setter (there is no SET_PAUSED
+ *   action), so two owners of that boolean means one stray re-render can
+ *   un-pause the game mid-battle. It also stops PRODUCTION only: the event
+ *   driver and catch animation keep draining, so an in-flight turn finishes
+ *   cleanly instead of being stranded half-resolved.
+ */
+export function useBattleLoop(suspended = false): void {
   // True while we have wanted a ball and had none. Reset as soon as a
   // ball is available again, so each dry spell warns exactly once.
   const outOfBallsRef = useRef(false);
@@ -65,7 +79,7 @@ export function useBattleLoop(): void {
     let cancelled = false;
     let timeout: number | null = null;
     const schedule = () => {
-      if (cancelled) return;
+      if (cancelled || suspended) return;
       const cur = stateRef.current;
       if (cur.paused || cur.phase === "starterSelect" || cur.phase === "regionStarterSelect" || cur.phase === "evolution") return;
       timeout = window.setTimeout(tick, tickIntervalFor(cur.speed));
@@ -125,12 +139,17 @@ export function useBattleLoop(): void {
       }
 
       // New opponent? Hold off until the appear animation finishes.
-      // Wild: ~700ms (pokeball-pop is 600ms + a little settle)
-      // Trainer/boss: ~1800ms (trainer slide-in 0–1100ms + pokeball-pop 1100–1700ms)
+      //
+      // SCALED BY GAME SPEED (br_7362030de4444c8da8). These were flat 1800 /
+      // 700ms regardless of the speed setting, so at ×5 — where a tick is
+      // 200ms — a trainer send-next burned nine ticks doing nothing while the
+      // player watched a full-speed slide-in. The same numbers drive the CSS
+      // (BattleScene publishes them as custom properties), so the sprite and
+      // the loop still agree at every speed instead of one racing the other.
       if (cur.enemyPokemon && cur.enemyPokemon.id !== lastEnemyIdRef.current) {
         lastEnemyIdRef.current = cur.enemyPokemon.id;
         const fromTrainer = !!(cur.trainerBattle || cur.bossBattle);
-        enemySettleAtRef.current = Date.now() + (fromTrainer ? 1800 : 700);
+        enemySettleAtRef.current = Date.now() + enemySettleMs(cur.speed, fromTrainer);
       }
       if (cur.enemyPokemon && Date.now() < enemySettleAtRef.current) {
         // Schedule the next poll just past the settle deadline (or ~150ms,
@@ -298,6 +317,7 @@ export function useBattleLoop(): void {
     state.pendingEvents.length,
     state.currentLocation,
     state.battleMode,
+    suspended,
     dispatch,
   ]);
 }

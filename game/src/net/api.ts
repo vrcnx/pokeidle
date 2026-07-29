@@ -271,6 +271,23 @@ export const api = {
     request<{ ok: true; reward: DailyReward; streak: number; longestStreak: number; status: DailyStatus }>(
       "POST", "/api/dailies/claim"),
 
+  // Away-time catch-up progress. The server measures the away period from its
+  // OWN record of when this account last uploaded a save — the client sends no
+  // time, no duration and no amount, so the system clock is irrelevant.
+  //
+  // MUST be called before this session's first putSave: that upload is what
+  // moves the mark the away period is measured from. See the boot sequence in
+  // state/GameContext.tsx.
+  //
+  // The money does not arrive in this response. `claimAway` makes the reward
+  // OWED (one PendingGrant row) and the next putSave folds it in and echoes it
+  // as `grantsApplied` — the same two-step every giveaway prize takes, and the
+  // reason this feature needs no save-write path of its own.
+  awayStatus: () => request<AwayProgress>("GET", "/api/away/status"),
+  claimAway: () =>
+    request<AwayProgress & { ok: true; claimed: boolean; grantId?: string }>(
+      "POST", "/api/away/claim"),
+
   // Friends
   listFriends: () => request<FriendList>("GET", "/api/friends"),
   requestFriend: (username: string) =>
@@ -505,6 +522,34 @@ export interface DailyReward {
   money: number;
   items: { itemId: string; quantity: number }[];
   label: string;
+}
+
+/**
+ * Away-time catch-up progress, as the server computed it.
+ *
+ * Every field is server-derived. `minMs` / `capMs` are echoed rather than
+ * duplicated client-side so the UI explains the actual rules in force instead
+ * of a second copy of them that drifts after a balance change.
+ */
+export interface AwayProgress {
+  /** Away time below this earns nothing. */
+  minMs: number;
+  /** Away time stops accruing past this. */
+  capMs: number;
+  /** When the away period started, per the server. Null = this account has
+   *  never uploaded a save, so there is no anchor to measure from. */
+  awaySince: string | null;
+  /** Real elapsed time since `awaySince`. */
+  elapsedMs: number;
+  /** Elapsed time after the cap — what was actually paid for. */
+  creditedMs: number;
+  /** True when the player was away longer than `capMs`. Surfaced so the UI can
+   *  say "capped at 8h" rather than quietly paying for less than the gap. */
+  capped: boolean;
+  /** Badge-scaled hourly rate this account earns while away. */
+  moneyPerHour: number;
+  money: number;
+  claimable: boolean;
 }
 export interface DailyStatus {
   claimedToday: boolean;

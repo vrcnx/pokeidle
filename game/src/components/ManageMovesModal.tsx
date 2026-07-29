@@ -6,6 +6,7 @@ import { learnableMovesUpToLevel, type LearnedMove } from "../utils/moves";
 import { useModalEnter } from "../utils/animate";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
+import { displayName } from "../utils/pokemon";
 
 // Imperative open/close — same pattern as PokemonDetailModal.
 type Target = { type: "party"; index: number };
@@ -173,7 +174,7 @@ function ManageMovesDialog({
 
       <div className="g-modal-body">
         <section className="g-card g-card-full">
-          <h3>{pokemon.name} <span className="dim">{t("— Lv. ")}{pokemon.level}</span></h3>
+          <h3>{displayName(pokemon)} <span className="dim">{t("— Lv. ")}{pokemon.level}</span></h3>
           <div className="manage-current-v2">
             <span className="dim small" style={{ marginBottom: 4 }}>{t("Current (")}{draft.length}{t("/4)")}</span>
             {[0, 1, 2, 3].map((slot) => {

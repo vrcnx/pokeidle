@@ -23,6 +23,7 @@ import { reportClientError } from "../net/errorReporter";
 import { getSocket } from "../net/socket";
 import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
+import { settleAwayProgress } from "./awayProgress";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
 import { grandfatherShinyCharm } from "../utils/shinyCharm";
@@ -850,7 +851,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const sync = async () => {
       try {
+        // ── AWAY-TIME CATCH-UP, AND WHY IT GOES HERE ────────────────────
+        // The server measures away time from its own record of this account's
+        // last accepted upload. The reconcile below UPLOADS, so the claim has
+        // to finish first — otherwise the anchor moves to "now", the gap
+        // measures ~0, and the player silently forfeits the night they were
+        // away. See state/awayProgress.ts.
+        //
+        // Started BEFORE getSave and awaited AFTER it: getSave is a pure read
+        // and cannot move the anchor, so the two overlap and boot pays one
+        // round trip instead of two — while still completing before any
+        // putSave. settleAwayProgress never throws, so a failure here can
+        // never take the save path down with it.
+        const awaySettled = settleAwayProgress();
         const cloud = await api.getSave();
+        if (cancelled) return;
+        await awaySettled;
         if (cancelled) return;
         const cloudData = cloud.saveData as any;
         const cloudOk = cloudData

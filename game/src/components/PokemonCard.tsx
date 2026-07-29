@@ -1,4 +1,5 @@
 import type { Pokemon } from "../types";
+import { displayName } from "../utils/pokemon";
 import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
@@ -18,7 +19,7 @@ export function PokemonCard({ pokemon, isBack = false, small = false }: Props) {
     <div className={`pokemon-card ${small ? "small" : ""}`}>
       <div className="pokemon-card-header">
         <strong>
-          {pokemon.name}
+          {displayName(pokemon)}
           {pokemon.isShiny ? " ✨" : ""}
         </strong>
         <span>{t("Lv. ")}{pokemon.level}</span>
@@ -28,7 +29,7 @@ export function PokemonCard({ pokemon, isBack = false, small = false }: Props) {
         speciesKey={pokemon.speciesKey}
         isBack={isBack}
         isShiny={pokemon.isShiny}
-        alt={pokemon.name}
+        alt={displayName(pokemon)}
         width={small ? 64 : 96}
         height={small ? 64 : 96}
         style={{ imageRendering: "pixelated" }}

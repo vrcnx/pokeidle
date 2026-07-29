@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { useT } from "../i18n/useT";
+import { REWARD_LINE } from "./BattleLog";
 
 // Floating "Log" button + modal. The log used to live inline in the centre
 // column but it ate vertical space and duplicated the parchment status bar.
@@ -33,7 +34,7 @@ export function BattleLogModal() {
                 state.battleLog.map((line, i) => (
                   <div
                     key={i}
-                    className={`battle-log-line${/gained \d+ EXP/.test(line) ? " log-exp" : ""}`}
+                    className={`battle-log-line${REWARD_LINE.test(line) ? " log-exp" : ""}`}
                   >
                     {line}
                   </div>

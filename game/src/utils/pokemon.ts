@@ -82,8 +82,23 @@ export function ownsSpecies(party: Pokemon[], box: Pokemon[], speciesKey: string
     || box.some((p) => p.speciesKey === speciesKey);
 }
 
-export function displayName(p: { nickname?: string; name: string }): string {
-  return p.nickname ?? p.name;
+/**
+ * What to call this Pokémon in the UI: its nickname if it has one, otherwise
+ * its species name.
+ *
+ * Trims and falls back on BLANK, not just on null/undefined. `??` alone lets
+ * an empty or all-whitespace nickname through, and the result is a Pokémon
+ * with no name at all in the party row, the HP card and the battle text. Two
+ * shapes reach here that `??` would not catch: a `""` written by any save
+ * predating SET_NICKNAME's sanitize step, and the `nickname: string | null`
+ * that arrives over the trade wire (state/trade.ts).
+ *
+ * The truthiness check is also what NicknameField already did inline; this is
+ * the same rule in the one place every caller shares.
+ */
+export function displayName(p: { nickname?: string | null; name: string }): string {
+  const nick = p.nickname?.trim();
+  return nick ? nick : p.name;
 }
 
 // Base shiny rate is 1/8192 (Gen V). With the Shiny Charm — granted for

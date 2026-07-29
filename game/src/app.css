@@ -897,61 +897,257 @@ header.tab-pane-head.v2 .mart-wallet {
   line-height: 1;
 }
 .dex-search-clear:hover { color: #fff; }
-.dex-tab-grid {
-  /* flex:0 0 auto (not flex:1) so the grid takes its NATURAL content height
-     and the whole dex pane scrolls as one unit. On desktop the bottom-tabs
-     pane is short (~250px); with flex:1 the grid shrank to the ~8px left
-     over after the hero/type/controls chrome and the entire Pokédex was
-     invisible ("dex completely bugged on desktop"). */
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  gap: 2px;
-  padding: 4px 0;
+/* Dex tab v3 — one toolbar row + windowed grid, the PC box's scheme: the
+   pane is a column (toolbar, then scroller), `.dex-scroll` owns the scroll,
+   and `.dex-grid` inside it holds only the rows in the window between two
+   spacer divs sized by DexTab. Deliberately NOT TabPaneHead (shared by
+   Mart/Bag/PC — changing it changes all four) and NOT the era-stacked
+   `.tab-pane-head` padding rules further down; own classes, no fight. */
+.dex-tab.dex-tab-v3 {
+  overflow: hidden;
+  gap: 8px;
 }
-/* The dex pane itself owns the scroll; its chrome stays put above the grid. */
-.dex-tab-v2 { overflow-y: auto; }
-.dex-tab-v2 > .dex-hero,
-.dex-tab-v2 > .dex-types,
-.dex-tab-v2 > .dex-controls { flex-shrink: 0; }
-/* The 18-type completion strip wraps into ~150px of pills — on the short
-   desktop bottom-tabs pane that buried the grid entirely. Cap it so a row
-   or two of Pokémon is always visible; the strip scrolls internally for
-   the rest. */
-.dex-tab-v2 > .dex-types {
-  max-height: 84px;
-  overflow-y: auto;
+.dex-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 36px;
 }
-/* Override the generic .dex-cell chrome inside the dex tab specifically:
-   no borders, no backgrounds, no green-tinted "caught" indicator. Just
-   sprites + dex numbers. */
-.dex-tab-grid .dex-cell {
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  border-radius: 4px;
-  padding: 4px 2px;
+/* The base .dex-search-wrap margin dates from when search was its own row
+   above the grid; inside the toolbar it just tilts the row. */
+.dex-toolbar .dex-search-wrap {
+  margin-bottom: 0;
+  flex: 1 1 120px;
+  min-width: 90px;
+}
+/* Toolbar buttons — dark frosted pills matching the search input's
+   treatment on the red Pokédex shell (the PC's light pills belong to its
+   illustrated backdrop, not here). */
+.dex-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  color: #fff;
   cursor: pointer;
-  font-size: 9px;
-  color: var(--text-dim);
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms;
+}
+.dex-tool:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.dex-tool svg { display: block; }
+.dex-tool-dot {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+/* The dex's headline — caught count over a slim completion bar. Clicking
+   opens the trophy case (ring, milestones, per-type bars), which used to
+   be permanent chrome above the grid. */
+.dex-progress-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.32);
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.dex-progress-chip:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.dex-chip-count {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dex-chip-dim { opacity: 0.65; font-weight: 500; }
+.dex-progress-track {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.dex-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #fbbf24, #fde68a);
+}
+.dex-scroll {
+  flex: 1 1 auto;
+  /* Enough for a full row plus a peek of the next — same floor and
+     scrollbar reservation reasoning as .pc-box-scroll. */
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  padding: 6px;
+  border-radius: 8px;
+  overscroll-behavior: contain;
+}
+.dex-grid {
+  display: grid;
+  /* grid-template-columns / grid-auto-rows / gap come from DexTab. */
+  align-content: start;
+}
+.dex-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  min-height: 100px;
+  text-align: center;
+  padding: 12px;
+}
+.dex-empty p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+}
+/* Cells. New class rather than the generic .dex-cell (still worn by
+   PokedexPanel) — the old grid needed !important on every property to
+   un-style that ancestry; a fresh name doesn't fight anyone. */
+.dex3-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  font-family: inherit;
+  color: #fff;
   transition: background 0.1s, border-color 0.1s;
 }
-.dex-tab-grid .dex-cell:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: var(--border-strong) !important;
+.dex3-cell:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
 }
-.dex-tab-grid .dex-cell:disabled { cursor: default; }
-.dex-tab-grid .dex-cell img { width: 36px; height: 36px; }
-/* The generic .dex-cell.caught rule paints a green tint elsewhere — kill
-   it inside the dex-tab grid since we only want the sprite to convey state. */
-.dex-tab-grid .dex-cell.caught { color: #fff; }
-.dex-tab-grid .dex-cell.seen { color: var(--text-dim); }
-.dex-tab-grid .dex-cell.unknown { opacity: 0.4; }
+/* Square sprite plate + name strip — the row height is plate + strip, so
+   the plate ends up 1:1 whatever the panel width is (see .pc-cell-plate). */
+.dex3-plate {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+.dex3-sprite {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  /* Floor on intrinsic size — small-sprite species render as dots
+     otherwise. Same fix as .pc-cell-sprite, slightly lower because dex
+     cells can go down to 44px at compact density. */
+  min-width: 24px;
+  min-height: 24px;
+  object-fit: contain;
+}
+/* Dex number, corner-mounted so it costs the row no height. */
+.dex3-id {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  z-index: 2;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 10px;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+/* The literal "make the subject the content" fix the PC shipped: names
+   under sprites at comfy density. The old grid had no names anywhere. */
+.dex3-name {
+  flex: 0 0 auto;
+  padding: 0 3px 2px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.dex3-cell.seen .dex3-name { color: rgba(255, 255, 255, 0.6); }
+.dex3-cell.unknown { opacity: 0.45; }
 /* Caught, but none in the party or PC right now. Deliberately between
    "caught" and "seen" on the ladder: it reads as a completed entry that
    has faded, not as one you never finished. Fading the SPRITE rather than
    the whole cell keeps the dex number at full contrast. */
-.dex-tab-grid .dex-cell.registered-only img { opacity: 0.55; }
-.dex-tab-grid .dex-cell.registered-only { color: var(--text-muted); }
+.dex3-cell.registered-only .dex3-sprite { opacity: 0.55; }
+.dex3-cell.registered-only .dex3-name { color: rgba(255, 255, 255, 0.65); }
+.dex3-cell.is-shiny {
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
+}
+/* Dex entries that exist for numbering but have no encounter yet. Dimmed
+   and dashed so a completionist can tell "not released" from "not found". */
+.dex3-cell.unreleased {
+  opacity: 0.3;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+/* Legend swatches, worn by the filter-menu rows — the menu doubles as the
+   legend, which used to be its own permanent strip above the grid. */
+.dex-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.dex-swatch.owned      { background: var(--good); }
+.dex-swatch.registered { background: transparent; border: 1px solid var(--good); }
+.dex-swatch.seen       { background: var(--text-dim); }
+.dex-swatch.shiny      { background: var(--gold); }
+.dex-swatch.unknown    { background: transparent; border: 1px solid var(--border-bright); }
+/* Filter rows wear the radio tick AND the legend swatch; the menu's fixed
+   14px icon well clips the pair, so let it size to content there. */
+.dex-menu-ic { display: inline-flex; align-items: center; gap: 4px; }
+.ctx-menu-icon:has(.dex-menu-ic) { width: auto; min-width: 14px; }
+/* The trophy-case sheet the progress chip opens. */
+.dex-progress-modal { width: min(560px, 96vw); }
 
 /* Dex Species modal */
 .dex-species-modal {
@@ -3184,6 +3380,10 @@ body.dnd-active {
   justify-content: center;
   gap: 6px;
   padding: 8px 12px;
+  /* These two sub-tabs are the World tab's primary navigation and only
+     exist on phones; 8px padding left them 34px tall, under the 40px
+     thumb floor everything else in the shell gets. */
+  min-height: 40px;
   font-size: 12px;
   font-weight: 600;
   background: transparent;
@@ -3242,6 +3442,8 @@ body.dnd-active {
   justify-content: center;
   gap: 6px;
   padding: 8px 12px;
+  /* Same 40px thumb floor as .mobile-world-tabs — mobile-only strip. */
+  min-height: 40px;
   font-size: 12px;
   font-weight: 600;
   background: transparent;
@@ -3567,7 +3769,8 @@ body.dnd-active {
    took the pager with it ("no se puede pasar de página"). Nothing is hidden
    now: the pager is gone entirely, and sort and filters are one tap each
    inside a menu, so the whole toolbar fits one row on a 390px phone. */
-.mobile-shell .pc-tab { padding: 10px 12px; }
+.mobile-shell .pc-tab,
+.mobile-shell .dex-tab { padding: 10px 12px; }
 /* The box grid is a scroll WINDOW — it renders the rows in view plus a
    little overscan and needs a real viewport height to measure against.
    Every other mobile tab body is `min-height: 100%` and free to grow with
@@ -3576,9 +3779,11 @@ body.dnd-active {
    everything, and a 9,999-entry box would mount 9,999 cells and fire 9,999
    sprite requests. Measured before this rule: a 91-Pokémon box stretched the
    pane to 2332px and rendered all 91 at once.
-   Scoped to `.pc-view-box` so the Dex, which shares this host and does want
-   to grow, is untouched. */
-.mobile-content > .bottom-tab-body.pc-host.pc-view-box {
+   The Dex sub-view is a scroll window now too (it used to grow — the pane
+   stretched to its full 4,263px, .mobile-content scrolled instead, and the
+   toolbar could never stay put), so both sub-views bound the host. */
+.mobile-content > .bottom-tab-body.pc-host.pc-view-box,
+.mobile-content > .bottom-tab-body.pc-host.pc-view-dex {
   height: 100%;
   min-height: 0;
 }
@@ -3586,13 +3791,25 @@ body.dnd-active {
    .bottom-tab-body > *` (two classes) out-specifies .mobile-pc-tabs' own
    `flex: 0 0 auto` (one class), so the Box/Dex toggle would grow to take
    half of it — measured 51px → 211px, straight out of the grid's budget. */
-.mobile-content > .bottom-tab-body.pc-host.pc-view-box > .mobile-pc-tabs {
+.mobile-content > .bottom-tab-body.pc-host.pc-view-box > .mobile-pc-tabs,
+.mobile-content > .bottom-tab-body.pc-host.pc-view-dex > .mobile-pc-tabs {
   flex: 0 0 auto;
 }
 .mobile-shell .pc-tab .pc-toolbar { gap: 5px; }
-.mobile-shell .pc-tab .pc-tool { padding: 8px 9px; font-size: 11px; }
-.mobile-shell .pc-tab .pc-tool-icon { padding: 8px; }
+/* min-height 40px: the pointer:coarse floor further down only fires on
+   real touch devices; at phone widths these are thumb targets regardless
+   of what the pointer reports (measured 29px tall without it). Scoped to
+   the mobile shell so the desktop PC toolbar keeps its density. */
+.mobile-shell .pc-tab .pc-tool { padding: 8px 9px; font-size: 11px; min-height: 40px; }
+.mobile-shell .pc-tab .pc-tool-icon { padding: 8px; min-width: 40px; }
 .mobile-shell .pc-tab .pc-search-wrap { min-width: 80px; }
+/* 16px so iOS Safari doesn't auto-zoom on focus — the dex search carries
+   the same fix (see the .dex-tab input rule); the PC toolbar missed it. */
+.mobile-shell .pc-tab .pc-search { font-size: 16px; min-height: 40px; }
+/* Same floors for the Dex toolbar. */
+.mobile-shell .dex-tab .dex-toolbar { gap: 5px; }
+.mobile-shell .dex-tab .dex-tool { min-height: 40px; min-width: 40px; }
+.mobile-shell .dex-tab .dex-progress-chip { min-height: 40px; justify-content: center; }
 
 /* Audio settings — volume slider in the Settings modal. */
 .audio-volume-row {
@@ -4468,11 +4685,18 @@ body.dnd-active {
   image-rendering: pixelated;
   opacity: 0;
   filter: drop-shadow(2px 4px 0 rgba(0,0,0,0.4));
-  animation: trainerEnterBehind 1500ms ease-out forwards;
+  /* Duration comes from BattleScene (--trainer-intro-dur), which scales it
+     with the game-speed setting; the literal is the ×1 fallback. It was a flat
+     1500ms here, so at ×5 this animation was the slowest thing on screen
+     (br_7362030de4444c8da8). Keyframe percentages need no change — they are
+     proportional, so the whole beat compresses evenly. */
+  animation: trainerEnterBehind var(--trainer-intro-dur, 1500ms) ease-out forwards;
 }
 @keyframes trainerEnterBehind {
-  /* Slide in (0-300ms) → hold while Pokemon hasn't appeared yet
-     (300-1100ms) → slide out as the Pokemon pops in (1100-1500ms). */
+  /* Proportions, not absolutes — the duration is set by --trainer-intro-dur:
+     slide in (0-20%) → hold while the Pokemon hasn't appeared yet (20-73%) →
+     slide out as it pops in (73-100%). At ×1 that is the original
+     0-300 / 300-1100 / 1100-1500ms. */
   0%   { transform: translateX(150%); opacity: 0; }
   20%  { transform: translateX(0);    opacity: 1; }
   73%  { transform: translateX(0);    opacity: 1; }
@@ -4481,15 +4705,21 @@ body.dnd-active {
 
 /* When the enemy slot is part of a trainer battle, hold the Pokemon
    off-screen until the trainer-behind has had its moment, then run the
-   pokeball-pop. The 1100ms delay lines up with the trainer's slide-out. */
+   pokeball-pop. The delay lines up with the trainer's slide-out (73% of the
+   intro), and comes from BattleScene so it scales with game speed alongside
+   the intro itself — the literal is the ×1 fallback. useBattleLoop's
+   enemy-settle window is computed from the same numbers (utils/battleTiming.ts),
+   so the loop never fires a turn at a sprite that is still off-screen. */
 .sprite-slot.trainer-delayed .enemy-sprite {
-  animation-delay: 1100ms;
+  animation-delay: var(--trainer-intro-delay, 1100ms);
   animation-fill-mode: backwards;
 }
 .sprite-slot.trainer-delayed::before {
   /* Pokeball flash also delayed so it fires when the Pokemon actually
-     appears, not at React mount time. */
-  animation-delay: 1100ms;
+     appears, not at React mount time. Inherits the custom property from
+     .battle-scene — a pseudo-element cannot be reached by an inline style,
+     which is why this is a variable rather than a style prop. */
+  animation-delay: var(--trainer-intro-delay, 1100ms);
   animation-fill-mode: backwards;
 }
 
@@ -6606,6 +6836,10 @@ body.dnd-active {
     min-width: 0;
     padding: 0 !important;
   }
+  /* The 36px segment height above was tuned for the old inline toolbar;
+     stacked full-width in the mobile shell there's room for the 40px
+     thumb floor. Higher specificity than the 36px rule, same media. */
+  .mobile-shell .moves-toolbar .speed-segment { height: 40px !important; }
   .mobile-shell .moves-toolbar > .moves-toolbar-group:not(.speed-segment) > * {
     flex: 1 1 0;
     min-width: 0;
@@ -11029,6 +11263,31 @@ input:focus, textarea:focus, select:focus {
   border: 1px solid var(--border) !important;
   border-radius: 5px !important;
 }
+/* Where-to-Find rows as the shiny-hunting list: rate-sorted upstream, the
+   best route flagged gold, routes the player hasn't unlocked dimmed.
+   `!important` to outrank the blanket row treatment right above. */
+.dex-species-routes li.best {
+  background: rgba(251, 191, 36, 0.10) !important;
+  border-color: rgba(251, 191, 36, 0.45) !important;
+}
+.dex-species-routes li.locked { opacity: 0.55; }
+.dex-route-best {
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.dex-route-here { cursor: default; }
+/* The odds line at the top of Where to Find — the real rollShiny numbers,
+   not a vibe. */
+.dex-shiny-odds {
+  margin: 0;
+  font-size: 12px;
+}
+.dex-shiny-odds-rate { font-weight: 700; color: var(--gold); }
+.dex-shiny-note { margin-top: 0; }
 
 /* All in-modal cards (info-section etc.) drop their per-row card BG so
    only the modal itself is the card. */
@@ -11937,7 +12196,7 @@ input:focus, textarea:focus, select:focus {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 .dex-tab .tab-pane-head { /* shares the frosted card styles via the multi-selector below */ }
-.dex-tab .dex-tab-grid,
+.dex-tab .dex-scroll,
 .dex-tab .dex-search-wrap input {
   background: rgba(0, 0, 0, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -15431,9 +15690,11 @@ html, body {
   .held-item-pick-list button {
     min-height: 44px !important;
   }
-  /* Mart row buttons. */
+  /* Mart row buttons — including the +10 / Max jumps, which this block
+     originally missed (measured 25px tall on a phone). */
   .mart-buy-btn,
-  .mart-qty-step {
+  .mart-qty-step,
+  .mart-qty-jump {
     min-height: 44px !important;
     min-width: 36px;
   }
@@ -15445,6 +15706,15 @@ html, body {
   }
   .pc-toolbar .pc-tool-icon {
     min-width: 40px;
+    justify-content: center;
+  }
+  /* Dex toolbar — same size class as the PC's pills. */
+  .dex-toolbar .dex-tool {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  .dex-toolbar .dex-progress-chip {
+    min-height: 40px;
     justify-content: center;
   }
   /* Catch settings + manage moves row buttons. */
@@ -15924,6 +16194,18 @@ html, body {
   .bag-sell-confirm { height: 44px; padding: 0 14px; }
   .bag-sell-cancel  { width: 44px; height: 44px; }
 }
+/* The coarse-pointer floor above never fires in a phone-width window
+   driven by a mouse (or the devtools emulator); the mobile shell floors
+   them regardless. min-height beats the 28px `height` in the base rule. */
+.mobile-shell .bag-sell-btn,
+.mobile-shell .bag-sell-confirm { min-height: 40px; }
+.mobile-shell .bag-sell-cancel  { min-width: 40px; min-height: 40px; }
+/* Mart steppers, same reasoning (measured 26px in a mouse-driven phone
+   window). 44px, not 40: this selector out-specifies the coarse-pointer
+   mart rule above, so a lower value here would shrink real phones. */
+.mobile-shell .mart-qty-step,
+.mobile-shell .mart-qty-jump,
+.mobile-shell .mart-buy-btn { min-height: 44px; min-width: 36px; }
 
 /* Same bug the Mart row had (see the max-width:640px block near
    .mart-row): .bag-tab .bag-row-v2 is `display:flex` with no wrap, so
@@ -17170,10 +17452,11 @@ html, body {
 }
 
 /* =================================================================
-   Pokédex tab v2 — gamified hero strip + filters + type completion
+   Pokédex trophy case — completion ring, milestones and per-type bars.
+   These used to be the dex tab's permanent hero chrome (338–613px above
+   the first sprite); they now render inside .dex-progress-modal, opened
+   from the toolbar's progress chip. Markup and semantics unchanged.
    ================================================================= */
-.dex-tab-v2 { display: flex; flex-direction: column; gap: 10px; }
-
 .dex-hero {
   display: grid;
   grid-template-columns: auto auto 1fr;
@@ -17318,67 +17601,7 @@ html, body {
 
 .dex-type-num { font-size: 9.5px; color: var(--text-muted); }
 
-/* Controls */
-.dex-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.dex-filter-pills {
-  display: inline-flex;
-  background: var(--panel-2);
-  padding: 3px;
-  border-radius: 999px;
-  gap: 2px;
-}
-.dex-filter {
-  background: transparent;
-  border: 0;
-  padding: 5px 12px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: var(--text-muted);
-  border-radius: 999px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.dex-filter:hover { color: var(--text); }
-.dex-filter.active {
-  background: var(--panel-4);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-.dex-controls .dex-search-wrap { flex: 1; min-width: 180px; }
-
-/* Dex state legend. Each label carries the swatch the grid uses for that
-   state, so the mapping is read off the page instead of guessed at. */
-.dex-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  padding: 0 2px 8px;
-  font-size: var(--fs-2xs);
-  color: var(--text-dim);
-}
-.dex-legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.dex-legend-item::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--good);
-  flex: 0 0 auto;
-}
-.dex-legend-item.registered::before { background: transparent; border: 1px solid var(--good); }
-.dex-legend-item.seen::before      { background: var(--text-dim); }
-.dex-legend-item.unknown::before   { background: transparent; border: 1px solid var(--border-bright); }
-
-/* Cell shiny accent */
-.dex-cell.is-shiny {
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45), 0 0 10px rgba(251, 191, 36, 0.18);
-}
+/* Cell shiny badge — worn by the v3 grid cells (inside .dex3-plate). */
 .dex-cell-shiny {
   position: absolute;
   top: 2px;
@@ -17386,6 +17609,7 @@ html, body {
   font-size: 10px;
   filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.8));
 }
+/* PokedexPanel's generic cells still position badges against this. */
 .dex-cell { position: relative; }
 
 @media (max-width: 600px) {
@@ -18078,12 +18302,8 @@ html, body {
 .mart-qty-jump:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: var(--text); }
 .mart-qty-jump:disabled { opacity: 0.3; cursor: not-allowed; }
 
-/* Dex entries that exist for numbering but have no encounter yet. Dimmed and
-   dashed so a completionist can tell "not released" apart from "not found". */
-.dex-cell.unreleased {
-  opacity: 0.3;
-  border-style: dashed;
-}
+/* (The old .dex-cell.unreleased rule lived here; the marking moved to
+   .dex3-cell.unreleased with the dex grid redesign.) */
 
 /* ---------- Wide desktop layout (opt-in secondary) ---------- */
 /* Classic caps the dashboard at 1600px with a 300 / 640+ / 300 split, which

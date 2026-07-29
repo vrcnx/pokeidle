@@ -20,7 +20,10 @@ import { calcAllStats, capTotalExp, expYield } from "../utils/stats";
 import { createPokemon, toMove, ZERO_EVS, rollShiny } from "../utils/pokemon";
 import { grantShinyCharmIfEarned, hasShinyCharm, SHINY_CHARM_ITEM } from "../utils/shinyCharm";
 import { resolveEvolutionTarget } from "../utils/evolution";
-import { evYieldFor, applyEvYield } from "../data/evYields";
+import {
+  evYieldFor, applyEvYield, describeEvGain, evTotal, MAX_EV_TOTAL,
+} from "../data/evYields";
+import { normalizeNickname } from "../utils/nickname";
 import { levelUpsForExp } from "../utils/moves";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
@@ -136,7 +139,39 @@ function applyExp(
   const species = pokemonTable[active.speciesKey];
   const newTotalExp = capTotalExp(active.totalExp + exp, species.growthRate);
   const ups = levelUpsForExp(active.speciesKey, species.growthRate, active.level, newTotalExp);
-  const newEvs = evYield ? applyEvYield(active.evs ?? ZERO_EVS, evYield) : (active.evs ?? ZERO_EVS);
+  const oldEvs = active.evs ?? ZERO_EVS;
+  const newEvs = evYield ? applyEvYield(oldEvs, evYield) : oldEvs;
+
+  // ── WHY THIS LINE EXISTS ──────────────────────────────────────────────
+  // EVs have been awarded on every defeat and every catch since the natures/
+  // EVs feature shipped, and NOTHING said so. The only EV control a player
+  // ever saw was the berry row in the detail modal, which subtracts — so the
+  // whole system read as "you can lower a number that nothing raises". Three
+  // separate players concluded exactly that in chat, twice in Spanish and
+  // once in Portuguese ("no entiendo el chiste de bajar los EV si al final no
+  // le podemos subir ni sube por si solo").
+  //
+  // The gain was real the whole time; only the feedback was missing. So this
+  // is a visibility fix, not a new mechanic: one line in the same log that
+  // already reports EXP, sourced from the ACTUAL before/after diff so it
+  // never claims a gain the caps ate.
+  //
+  // Active mon only. Exp Share spreads the same yield across the whole
+  // backline, and logging six near-identical lines per battle — at 5× speed,
+  // several battles a second — would bury the EXP and level-up lines the log
+  // exists for. The radar in the detail modal is where the per-mon totals
+  // live; this line only has to prove the number moves.
+  if (evYield) {
+    const gained = describeEvGain(oldEvs, newEvs);
+    if (gained) {
+      logs.push(`${active.name} gained EVs: ${gained}.`);
+    } else if (evTotal(oldEvs) >= MAX_EV_TOTAL) {
+      // Say so ONCE per battle rather than staying silent: a maxed mon that
+      // stopped reporting gains is the same bug report all over again, and
+      // "fully EV trained" is the answer players actually need.
+      logs.push(`${active.name} is fully EV trained (${MAX_EV_TOTAL} EVs).`);
+    }
+  }
 
   let updated: Pokemon = { ...active, totalExp: newTotalExp, evs: newEvs };
   let levelUpNotification = state.levelUpNotification;
@@ -1705,16 +1740,14 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "SET_NICKNAME": {
       const { pokemonId, nickname } = action.payload;
-      // Sanitize: strip control chars and angle brackets (defence-in-depth —
-      // React already escapes text nodes, but keeping bad input out of state
-      // also keeps the save file clean), collapse whitespace, length-limit.
-      const cleaned = nickname
-        .replace(/[\x00-\x1f\x7f]/g, "")
-        .replace(/[<>]/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 12);
-      const next = cleaned.length > 0 ? cleaned : undefined;
+      // Sanitize + screen through the shared rule (utils/nickname.ts) so the
+      // editor and the store can never disagree about what is acceptable.
+      // Refusing loudly matters: silently keeping the old name is exactly what
+      // "renaming doesn't work" bug reports are made of.
+      const result = normalizeNickname(nickname);
+      if (!result.ok) return pushLog(state, result.reason);
+
+      const next = result.value;
       const apply = (p: Pokemon): Pokemon =>
         p.id === pokemonId ? { ...p, nickname: next } : p;
       return syncPlayerToParty({

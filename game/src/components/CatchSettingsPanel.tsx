@@ -2,18 +2,12 @@ import { useGame } from "../state/GameContext";
 import { encounters } from "../data/encounters";
 import { pokemonTable } from "../data/pokemon";
 import { PokemonSprite } from "./Sprite";
-import { resolveCatchSettings } from "../utils/catchSettings";
+import { CATCH_MODE_OPTIONS, catchModeHint, resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import type { CatchMode, CatchSettings } from "../types";
 import { useT } from "../i18n/useT";
 
-const MODE_OPTIONS: { value: CatchMode; label: string }[] = [
-  { value: "always",          label: "Always catch" },
-  { value: "shiny_only",      label: "Only shinies" },
-  { value: "level_threshold", label: "Above level…" },
-  { value: "pokedex_new",     label: "Not caught yet" },
-];
 
 // Per-route, per-species rules. Default falls through to globalCatchDefaults.
 export function CatchSettingsPanel() {
@@ -108,14 +102,17 @@ function CatchEditor({
         />{" "}
         {t("Auto-catch")}
       </label>
+      {/* The two dex-based modes are a coin-flip from their names alone, so the
+          selected one explains itself in the tooltip and in the hint below. */}
       <select
         value={settings.mode}
+        title={t(catchModeHint(settings.mode))}
         onChange={(e) =>
           onChange({ ...settings, mode: e.target.value as CatchMode })
         }
       >
-        {MODE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>{t(o.label)}</option>
+        {CATCH_MODE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value} title={t(o.hint)}>{t(o.label)}</option>
         ))}
       </select>
       {settings.mode === "level_threshold" && (

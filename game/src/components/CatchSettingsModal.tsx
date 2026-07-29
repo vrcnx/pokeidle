@@ -5,7 +5,7 @@ import { routes } from "../data/routes";
 import { pokemonTable } from "../data/pokemon";
 import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
-import { resolveCatchSettings } from "../utils/catchSettings";
+import { CATCH_MODE_OPTIONS, resolveCatchSettings } from "../utils/catchSettings";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import { useModalEnter } from "../utils/animate";
@@ -32,12 +32,6 @@ function useRouteKey(): string | null {
   return r;
 }
 
-const MODES: { value: CatchMode; label: string }[] = [
-  { value: "always",          label: "Always catch" },
-  { value: "shiny_only",      label: "Only if shiny" },
-  { value: "level_threshold", label: "Above level:" },
-  { value: "pokedex_new",     label: "Not caught yet" },
-];
 
 // Catch Settings — opens from the "Catch" button on the Wild Pokemon header.
 // Layout matches the original: shiny toggle → mode radios → ball selector
@@ -123,14 +117,19 @@ function CatchSettingsDialog({
               {t("★ Always catch shinies")}
             </button>
             <div className="catch-mode-section">
-              {MODES.map((m) => (
+              {CATCH_MODE_OPTIONS.map((m) => (
                 <label key={m.value} className="catch-mode-row">
                   <input
                     type="radio"
                     checked={defaults.mode === m.value}
                     onChange={() => updateDefault({ mode: m.value })}
                   />
-                  <span>{t(m.label)}</span>
+                  <span>
+                    {t(m.label)}
+                    <small className="dim" style={{ display: "block", fontWeight: 400 }}>
+                      {t(m.hint)}
+                    </small>
+                  </span>
                   {m.value === "level_threshold" && defaults.mode === "level_threshold" && (
                     <input
                       type="number"

@@ -3,6 +3,8 @@ import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { BottomTabs } from "./BottomTabs";
 import { ContextPanel } from "./ContextPanel";
+import { PvpCenter } from "./PvpArena";
+import { useIsPvpBattle } from "../state/pvp";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
 import { sfxManager } from "../utils/sfx";
 import { useT } from "../i18n/useT";
@@ -16,6 +18,20 @@ import { useT } from "../i18n/useT";
 // either bus without opening Settings.
 
 export function CenterColumn({ wide = false }: { wide?: boolean }) {
+  const pvpBattle = useIsPvpBattle();
+  // A PvP battle takes over the centre IN PLACE — same slot, same size, so
+  // the window does not move when a match starts. The idle scene, toolbar
+  // and moves are what get replaced; the shell around them stays mounted,
+  // which is what keeps EvolutionModal / HealOverlay / WhiteoutOverlay alive
+  // (they are the only dispatchers that can clear a terminal state.phase,
+  // and useBattleLoop early-returns on "evolution" permanently).
+  if (pvpBattle) {
+    return (
+      <div className="center-column">
+        <PvpCenter />
+      </div>
+    );
+  }
   return (
     <div className="center-column">
       <div className="battle-area">

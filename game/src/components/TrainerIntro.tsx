@@ -6,6 +6,13 @@ import { TrainerSprite } from "./Sprite";
 // hold / slide-out timing matches the pokeball-pop duration of the Pokemon
 // sprite so the two read as one beat.
 //
+// The beat is SPEED-SCALED. Its duration and the Pokemon's entrance delay come
+// from --trainer-intro-dur / --trainer-intro-delay, published on .battle-scene
+// by BattleScene from utils/battleTiming.ts, which also gives useBattleLoop the
+// matching settle window. Nothing here has a timing of its own — the animation
+// used to be a flat 1500ms and was the one thing ×5 speed didn't touch
+// (br_7362030de4444c8da8).
+//
 // We use the enemy Pokemon's id as the React key — when a new opponent
 // appears (trainer's first mon, send-next, etc.) the element re-mounts and
 // the CSS animation re-fires. Outside trainer/boss battles this renders

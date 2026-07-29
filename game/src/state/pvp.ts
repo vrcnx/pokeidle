@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { getSocket } from "../net/socket";
 import type { Pokemon } from "../types";
+import {
+  initialBattleView,
+  applyChunk,
+  type BattleView,
+  type NarrationLine,
+} from "./pvpBattleView";
 
 // Module-scoped state for an in-flight PvP battle. Mirrors the trade
 // store's design — module-level singleton with React subscribers — so
@@ -33,6 +39,23 @@ export interface BattleRoom {
   request: BattleRequest | null;
   /** Accumulated protocol lines for the battle log. */
   log: BattleLogEntry[];
+  /** Complete decoded battle state — both actives with HP/status/boosts/
+   *  volatiles, both benches, hazards, screens, weather, field. This is
+   *  what the arena renders; `log` above is the old 11-tag decoder kept
+   *  only until PvpBattleModal is retired. */
+  view: BattleView;
+  /** Human-readable narration produced by the full decoder. */
+  narration: NarrationLine[];
+  /** Set while the opponent's last socket is gone but their reconnect
+   *  grace has not expired. The surviving player must be told something —
+   *  otherwise a disconnect looks like the battle hanging. */
+  opponentAway: { username: string; graceEndsAt: number } | null;
+  /** Set when a server restart voided the battle. The rooms live in an
+   *  in-process Map, so a deploy evaporates them: there is nothing to
+   *  recover and the honest move is to say so rather than leave a
+   *  live-looking screen whose turn timer counts toward a deadline
+   *  nobody is enforcing. */
+  voided: boolean;
   /** Server-supplied per-turn deadline. The simulator resets this
    *  whenever a fresh |request| arrives; the watchdog forfeits the
    *  side that misses it. UI uses this for a countdown badge. */
@@ -219,7 +242,16 @@ export function cancelBattle(battleId: string) {
 }
 export function clearBattleRoom() {
   _state.room = null;
+  // Drop any half-narrated move with the room it belonged to.
+  _scratch = { pendingMove: null };
   emit();
+}
+
+/** True while a PvP battle owns the screen. Derived from the room rather
+ *  than tracked in a second flag: two owners of one boolean with no
+ *  idempotent setter is how `paused` became hazardous. */
+export function useIsPvpBattle(): boolean {
+  return usePvpState().room !== null;
 }
 export function clearBattleCancelMessage() {
   _state.cancelMessage = null;
@@ -230,6 +262,16 @@ export function clearBattleCancelMessage() {
 
 let _bound = false;
 let _cancelBannerTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Decoder scratch. A move line is HELD rather than emitted so that the
+// |-crit| / |-supereffective| / |-miss| lines that follow it can decorate
+// it instead of arriving as separate log entries. That hold has to survive
+// across `battle:state` chunks, because the socket splits the stream
+// wherever it likes and a move can easily land in a different chunk from
+// its own modifiers. Module-scoped for exactly that reason, and reset on
+// every battle:start so a new battle can never inherit a half-narrated
+// move from the last one.
+let _scratch: { pendingMove: NarrationLine | null } = { pendingMove: null };
 export function bindPvpSocket() {
   if (_bound) return;
   _bound = true;
@@ -246,6 +288,7 @@ export function bindPvpSocket() {
     (payload: { battleId: string; format: string; opponent: { id: string; username: string }; you: "a" | "b" }) => {
       _state.invite = null;
       _state.queue = null;  // matchmaking landed us here
+      _scratch = { pendingMove: null };
       _state.room = {
         battleId: payload.battleId,
         format: payload.format,
@@ -253,6 +296,10 @@ export function bindPvpSocket() {
         side: payload.you,
         request: null,
         log: [],
+        view: initialBattleView("You", payload.opponent.username),
+        narration: [],
+        opponentAway: null,
+        voided: false,
         turnDeadlineAt: null,
         result: null,
       };
@@ -281,10 +328,13 @@ export function bindPvpSocket() {
         if (!line) continue;
         newEntries.push(decodeProtocolLine(line, room.side));
       }
+      const decoded = applyChunk(room.view, payload.chunk, room.side, _scratch);
       _state.room = {
         ...room,
         request: payload.request ?? room.request,
         log: [...room.log, ...newEntries].slice(-200),
+        view: decoded.view,
+        narration: [...room.narration, ...decoded.lines].slice(-300),
         turnDeadlineAt: payload.turnDeadlineAt ?? room.turnDeadlineAt,
       };
       emit();
@@ -314,6 +364,105 @@ export function bindPvpSocket() {
       emit();
     },
   );
+
+  // ── Opponent connectivity ─────────────────────────────────────
+  // A disconnect used to be an instant rated loss. It now opens a grace
+  // window, and the surviving player is told — without this they stare at
+  // a frozen turn timer, which is a worse experience than the bad loss it
+  // replaced.
+  sock.on(
+    "battle:opponent-away",
+    (payload: { battleId: string; username: string; graceEndsAt: number }) => {
+      const room = _state.room;
+      if (!room || room.battleId !== payload.battleId) return;
+      _state.room = {
+        ...room,
+        opponentAway: { username: payload.username, graceEndsAt: payload.graceEndsAt },
+      };
+      emit();
+    },
+  );
+
+  sock.on("battle:opponent-back", (payload: { battleId: string }) => {
+    const room = _state.room;
+    if (!room || room.battleId !== payload.battleId) return;
+    _state.room = { ...room, opponentAway: null };
+    emit();
+  });
+
+  // Broadcast on every join/leave. The old client rendered "You're alone in
+  // the queue" off a one-shot `battle:queue:joined` snapshot, so it stayed
+  // wrong for the rest of the wait.
+  sock.on("battle:queue:update", (payload: { queueSize: number }) => {
+    const q = _state.queue;
+    if (!q) return;
+    _state.queue = { ...q, queueSize: payload.queueSize };
+    emit();
+  });
+
+  // ── Reconnect recovery ────────────────────────────────────────
+  // Battle rooms are an in-process Map on the server, so there are exactly
+  // two possibilities after our socket comes back: the room is still there
+  // (a wifi blip — rejoin and carry on) or the process restarted and it is
+  // gone forever (a deploy — nothing to recover, say so plainly). Asking is
+  // the only way to tell the two apart, and NOT asking is what left players
+  // on a live-looking screen whose choices silently no-op.
+  sock.on("connect", () => {
+    const room = _state.room;
+    if (!room || room.result) return;
+    sock.emit(
+      "battle:rejoin",
+      { battleId: room.battleId },
+      (r: {
+        ok: boolean;
+        reason?: string;
+        snapshot?: {
+          battleId: string; format: string; side: "a" | "b";
+          opponent: { id: string; username: string };
+          levelCap: number | null;
+          request: BattleRequest | null;
+          log: string[];
+          turnDeadlineAt: number | null;
+        };
+      }) => {
+        const cur = _state.room;
+        if (!cur || cur.battleId !== room.battleId) return;
+        if (!r?.ok || !r.snapshot) {
+          // The battle did not survive. Mark it voided rather than
+          // clearing it outright — the player deserves to be told why the
+          // screen they were on has gone, and that it was not rated.
+          _state.room = { ...cur, voided: true };
+          emit();
+          return;
+        }
+        const s = r.snapshot;
+        // Rebuild the view from the side-filtered log the server kept.
+        // Deliberately NOT the omniscient log: that one carries the
+        // opponent's whole team.
+        _scratch = { pendingMove: null };
+        const rebuilt = applyChunk(
+          initialBattleView("You", s.opponent.username),
+          s.log.join("\n"),
+          s.side,
+          _scratch,
+        );
+        _state.room = {
+          ...cur,
+          format: s.format,
+          side: s.side,
+          opponent: s.opponent,
+          levelCap: s.levelCap,
+          request: s.request,
+          view: rebuilt.view,
+          narration: rebuilt.lines.slice(-300),
+          turnDeadlineAt: s.turnDeadlineAt,
+          opponentAway: null,
+          voided: false,
+        };
+        emit();
+      },
+    );
+  });
 
   sock.on("battle:queue:joined", (payload: { position: number; queueSize: number }) => {
     _state.queue = {

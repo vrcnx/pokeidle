@@ -18,6 +18,8 @@ import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { expForLevel } from "../utils/stats";
+import { displayName } from "../utils/pokemon";
+import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
@@ -388,7 +390,7 @@ export function PokemonDetailModal() {
           closePokemonDetail();
         }}
         onRelease={() => {
-          if (confirm(`Release ${p.name}?`)) {
+          if (confirm(`Release ${displayName(p)}?`)) {
             dispatch({
               type: "RELEASE_POKEMON",
               payload: { source: selected.type, index: selected.index },
@@ -447,7 +449,7 @@ function PokemonDetailDialog({
       className="g-modal pokemon-detail-v2"
       onClick={(e) => e.stopPropagation()}
       role="dialog"
-      aria-label={p.name}
+      aria-label={displayName(p)}
     >
       <header className="g-modal-head">
         <h2><NicknameField pokemon={p} /></h2>
@@ -460,14 +462,19 @@ function PokemonDetailDialog({
             className="g-pokemon-sprite-hero"
             speciesKey={p.speciesKey}
             isShiny={p.isShiny}
-            alt={p.name}
+            alt={displayName(p)}
             width={64}
             height={64}
             style={{ imageRendering: "pixelated" }}
           />
           <div className="g-profile-info">
+            {/* Name over species — the layout was always built for a nickname
+                (that is what the second, dimmer line is for), but the first
+                line read `p.name`, which IS the species name. Unnamed mons
+                printed "Bulbasaur / Bulbasaur" and renamed ones hid the
+                nickname the player had just typed one header above. */}
             <div className="g-profile-name">
-              {p.name}{p.isShiny ? " ✨" : ""}
+              {displayName(p)}{p.isShiny ? " ✨" : ""}
               <span className="g-profile-species">{sp.name}</span>
             </div>
             <div className="dex-species-types">
@@ -616,6 +623,16 @@ function PokemonDetailDialog({
 
           <section className="g-card">
             <h3>{t("EV training")}</h3>
+            {/* The radar alone showed a number with no story attached, and the
+                only EV CONTROL in this modal is the berry row below, which
+                subtracts. Players reasonably concluded EVs never rise (three
+                separate reports). They always did — every defeat and every
+                catch trains the active Pokémon. Saying so here is the other
+                half of the battle-log line: the log proves it moves, this
+                explains where it comes from and why it eventually stops. */}
+            <p className="dim small" style={{ margin: "0 0 8px" }}>
+              {t("EVs rise every time this Pokémon defeats or catches another — how much, and in which stat, depends on the species beaten. Caps: 252 per stat, 510 in total.")}
+            </p>
             <EvRadar evs={p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 }} ivs={p.ivs} />
           </section>
         </div>
@@ -730,7 +747,7 @@ function PokemonDetailDialog({
         <div className="swap-picker-overlay">
           <div className="swap-picker">
             <header className="swap-picker-head">
-              <strong>Swap {p.name} with…</strong>
+              <strong>Swap {displayName(p)} with…</strong>
               <button className="g-modal-close" onClick={() => setSwapPicking(false)} aria-label={t("Cancel")}>×</button>
             </header>
             <ul className="swap-picker-list">
@@ -825,16 +842,31 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(pokemon.nickname ?? "");
+  // Set when the shared rule refuses the draft. Kept in the field rather than
+  // read back off state, because a REFUSAL leaves the mon's nickname exactly
+  // as it was — there is nothing in state to observe, which is why a rejected
+  // rename used to look like a rename that silently did nothing.
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(pokemon.nickname ?? "");
+    setError(null);
   }, [pokemon.id, pokemon.nickname]);
 
   function commit() {
+    // Ask the same function the reducer will ask. On refusal, stay in edit
+    // mode with the text still there so the player can fix it, instead of
+    // dropping their typing and closing.
+    const result = normalizeNickname(draft);
+    if (!result.ok) {
+      setError(result.reason);
+      return;
+    }
     dispatch({
       type: "SET_NICKNAME",
       payload: { pokemonId: pokemon.id, nickname: draft },
     });
+    setError(null);
     setEditing(false);
   }
 
@@ -845,22 +877,31 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
           autoFocus
           className="nickname-input"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { setDraft(e.target.value); setError(null); }}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
-            if (e.key === "Escape") setEditing(false);
+            if (e.key === "Escape") { setError(null); setEditing(false); }
           }}
           placeholder={pokemon.name}
-          maxLength={12}
+          maxLength={NICKNAME_MAX_LENGTH}
+          aria-label={t("Nickname")}
+          aria-invalid={error ? true : undefined}
         />
         <small> Lv. {pokemon.level}</small>
+        {/* Reuses the shared .g-error chip rather than inventing a class, so
+            the refusal looks like every other refusal in the app. */}
+        {error && (
+          <small className="g-error" style={{ display: "block", marginTop: 6 }}>
+            {t(error)}
+          </small>
+        )}
       </h2>
     );
   }
   return (
     <h2 onClick={() => setEditing(true)} title={t("Click to rename")} style={{ cursor: "text" }}>
-      {pokemon.nickname || pokemon.name}{pokemon.isShiny ? " ✨" : ""}
+      {displayName(pokemon)}{pokemon.isShiny ? " ✨" : ""}
       <small> Lv. {pokemon.level}</small>
     </h2>
   );

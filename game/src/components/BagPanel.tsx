@@ -9,6 +9,7 @@ import { PokemonSprite } from "./Sprite";
 import { getItemInfo } from "../utils/items";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
+import { displayName } from "../utils/pokemon";
 
 // Bag — use stones on party members, apply repels/honey to encounter species
 // on the current route.
@@ -89,7 +90,7 @@ export function BagPanel() {
                     height={48}
                     style={{ imageRendering: "pixelated" }}
                   />
-                  <span>{mon.name} <span className="dim">Lv{mon.level}</span></span>
+                  <span>{displayName(mon)} <span className="dim">Lv{mon.level}</span></span>
                 </button>
               );
             })}
@@ -146,7 +147,7 @@ export function BagPanel() {
                         height={48}
                         style={{ imageRendering: "pixelated" }}
                       />
-                      <span>{mon.name} <span className="dim">Lv{mon.level}</span></span>
+                      <span>{displayName(mon)} <span className="dim">Lv{mon.level}</span></span>
                     </button>
                   );
                 })}

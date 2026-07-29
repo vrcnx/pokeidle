@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useGame } from "../state/GameContext";
 import { useT } from "../i18n/useT";
 import { itemSpriteUrl } from "../utils/sprites";
@@ -11,6 +11,8 @@ import { WhiteoutOverlay } from "./WhiteoutOverlay";
 import { MoveAnimation } from "./MoveAnimation";
 import { HealOverlay } from "./HealOverlay";
 import { BattleJuice } from "./BattleJuice";
+import { displayName } from "../utils/pokemon";
+import { trainerIntroMs, trainerIntroPokemonDelayMs } from "../utils/battleTiming";
 import type { Pokemon, RouteType } from "../types";
 
 // Aspect-ratio-locked battle arena that always shows the current scene.
@@ -64,7 +66,21 @@ export function BattleScene() {
   const enemyBump = useDamageFlash(enemy?.id, enemy?.currentHp);
 
   return (
-    <div className={`battle-scene speed-${state.speed}`}>
+    <div
+      className={`battle-scene speed-${state.speed}`}
+      /* The trainer intro's timings, published to CSS so the stylesheet stops
+         hardcoding them (br_7362030de4444c8da8 — the slide-in ignored game
+         speed). Custom properties rather than the `speed-N` class already on
+         this element: stream chat can set any speed value and the reducer does
+         not clamp it, so a class-per-speed ruleset would silently fall back to
+         full-speed for anything but 1/2/5. These also reach `::before`, which
+         inline styles cannot, and every rule keeps a hardcoded fallback so the
+         CSS and this component can ship independently. */
+      style={{
+        "--trainer-intro-dur": `${trainerIntroMs(state.speed)}ms`,
+        "--trainer-intro-delay": `${trainerIntroPokemonDelayMs(state.speed)}ms`,
+      } as CSSProperties}
+    >
       {/* scene-content wraps everything that should rattle on Earthquake-
           class moves. .move-anim adds .shake-screen to itself; CSS uses
           :has() to apply the shake animation here. WhiteoutOverlay sits
@@ -143,7 +159,7 @@ export function BattleScene() {
               className="enemy-sprite"
               speciesKey={enemy.speciesKey}
               isShiny={enemy.isShiny}
-              alt={enemy.name}
+              alt={displayName(enemy)}
               style={{ imageRendering: "pixelated" }}
             />
             {enemy.status && <SpriteStatusBadge status={enemy.status} />}
@@ -163,7 +179,7 @@ export function BattleScene() {
               speciesKey={player.speciesKey}
               isBack
               isShiny={player.isShiny}
-              alt={player.name}
+              alt={displayName(player)}
               style={{ imageRendering: "pixelated" }}
             />
             {player.status && <SpriteStatusBadge status={player.status} />}
@@ -478,7 +494,7 @@ function HpCard({
   return (
     <div className={`hp-card ${className}`}>
       <div className="hp-card-name">
-        <strong>{pokemon.name.toUpperCase()}{pokemon.isShiny ? " ✨" : ""}</strong>
+        <strong>{displayName(pokemon).toUpperCase()}{pokemon.isShiny ? " ✨" : ""}</strong>
         <span>{t("Lv.")}{pokemon.level}</span>
       </div>
       {(types.length > 0 || registered) && (
@@ -618,7 +634,7 @@ function statusLine(state: ReturnType<typeof useGame>["state"], t: (str: string)
     && !state.playerVolatile?.mustRecharge
     && !state.playerVolatile?.lockedMove
   ) {
-    return `What will ${state.playerPokemon.name} do?`;
+    return `What will ${displayName(state.playerPokemon)} do?`;
   }
   return t("Looking for trainers…");
 }

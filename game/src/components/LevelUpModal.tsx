@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { useT } from "../i18n/useT";
+import { displayName } from "../utils/pokemon";
 
 // Surfaces level-up notifications and lets the player swap out a move when
 // the new ones would push the moveset above 4. The reducer's `appendNewMoves`
@@ -57,7 +58,7 @@ export function LevelUpModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <header className="g-modal-head">
-          <h2>{pokemon.name} grew to level {note.level}!</h2>
+          <h2>{displayName(pokemon)} grew to level {note.level}!</h2>
           <button className="g-modal-close" onClick={dismiss} aria-label={t("Close")}>×</button>
         </header>
         <div className="g-modal-body">

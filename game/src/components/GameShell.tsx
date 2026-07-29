@@ -22,6 +22,7 @@ import { RegionStarterSelect } from "./RegionStarterSelect";
 import { ChangelogModal } from "./ChangelogModal";
 import { HowToPlayModal } from "./HowToPlayModal";
 import { DailyRewardModal } from "./DailyRewardModal";
+import { AwayProgressModal } from "./AwayProgressModal";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { ManageMovesModal } from "./ManageMovesModal";
 import { CatchSettingsModal } from "./CatchSettingsModal";
@@ -107,6 +108,7 @@ export function GameShell() {
       <ChangelogModal />
       <HowToPlayModal />
       <DailyRewardModal />
+      <AwayProgressModal />
       <PokemonDetailModal />
       <ManageMovesModal />
       <CatchSettingsModal />

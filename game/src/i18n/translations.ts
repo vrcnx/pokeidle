@@ -46,7 +46,21 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Always catch": "Sempre capturar",
     "Only shinies": "Somente shinies",
     "Above level…": "Acima do nível…",
+    "Above level": "Acima do nível",
+    // Kept for saves/tabs still rendering the pre-split label.
     "Not caught yet": "Ainda não capturado",
+    // Auto-catch modes — the old single "Not caught yet" split in two
+    // (br_cb4d83f3ada30b1ec4). Hints included because the two names are a
+    // coin-flip on their own.
+    "Not owned": "Não possuídos",
+    "Not registered": "Não registrados",
+    "Every wild encounter.": "Todo encontro selvagem.",
+    "Shiny encounters only.": "Somente encontros shiny.",
+    "Only at or above the level you set.": "Somente no nível que você definir ou acima.",
+    "Anything you aren't holding right now, in your party or PC. Release, trade or evolve away your last one and the species counts again.":
+      "Qualquer um que você não tenha agora, na equipe ou no PC. Se você soltar, trocar ou evoluir o último, a espécie conta de novo.",
+    "Only species your Pokédex has never registered. Registration is permanent, so each species triggers this at most once, ever.":
+      "Somente espécies que sua Pokédex nunca registrou. O registro é permanente, então cada espécie ativa isso no máximo uma vez.",
     "🏆 Pokémon League": "🏆 Liga Pokémon",
     "Earn all 8 Gym Badges to challenge the Elite Four. (": "Conquiste todas as 8 Insígnias de Ginásio para desafiar a Elite dos Quatro. (",
     " earned)": " conquistadas)",
@@ -283,6 +297,13 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "→ Party": "→ Equipe",
     "Swap with party": "Trocar com a equipe",
     "Click to rename": "Clique para renomear",
+    "Nickname": "Apelido",
+    "That nickname isn't allowed. Try another one.": "Esse apelido não é permitido. Tente outro.",
+    // EVs DID always rise from battle; nothing said so, and three players
+    // concluded the system only subtracts — dudsdiem in pt-BR, ma62087 twice
+    // in es. This sentence is the fix, so it matters that both read well.
+    "EVs rise every time this Pokémon defeats or catches another — how much, and in which stat, depends on the species beaten. Caps: 252 per stat, 510 in total.":
+      "Os EVs aumentam sempre que este Pokémon derrota ou captura outro — quanto, e em qual atributo, depende da espécie derrotada. Limites: 252 por atributo, 510 no total.",
     "Spe": "Spe",
     "EV radar": "Radar de EVs",
     "EV total": "Total de EVs",
@@ -584,6 +605,21 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Trade with other trainers, battle them in PvP, and enter free giveaways. Your progress saves automatically, on every device.": "Troque com outros treinadores, enfrente-os no PvP e participe de sorteios gratuitos. Seu progresso é salvo automaticamente, em todos os dispositivos.",
     "Couldn't claim right now — try again in a moment.": "Não foi possível resgatar agora — tente novamente em instantes.",
     "Daily reward": "Recompensa diária",
+    // ── Away-time catch-up (br_876bae56ef21c9021c) ──
+    // "its annoying to always have to keep the game open" was the loudest
+    // sentiment in chat, so the explanation of what away time does and does
+    // NOT pay has to land in the player's own language.
+    "While you were away": "Enquanto você esteve fora",
+    "You were away for": "Você ficou fora por",
+    "capped at": "limitado a",
+    "Away earnings": "Ganhos ausente",
+    "Your rate": "Sua taxa",
+    " / hour": " / hora",
+    "Away time pays a small stipend only — no battles, EXP or catches happen while the game is closed, and the rate is far below what you earn actually playing. It grows with each Gym Badge, and stops accruing after":
+      "O tempo ausente paga apenas uma pequena ajuda — nenhuma batalha, EXP ou captura acontece com o jogo fechado, e a taxa é bem menor do que jogando de verdade. Ela cresce com cada Insígnia de Ginásio e para de acumular depois de",
+    "The money is added to your save on your next autosave.":
+      "O dinheiro é adicionado ao seu save no próximo salvamento automático.",
+    "Nice": "Beleza",
     "See you tomorrow": "Até amanhã",
     "Welcome back": "Bem-vindo de volta",
     "Consecutive days claimed": "Dias consecutivos resgatados",
@@ -665,6 +701,32 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Starter": "Inicial",
     "Prof. Oak's gift": "Presente do Prof. Carvalho",
     "Evolve ": "Evoluir ",
+    "Pokédex progress": "Progresso da Pokédex",
+    "Pokédex progress — open the full breakdown": "Progresso da Pokédex — abrir o detalhamento completo",
+    "Faded = registered, none owned": "Apagado = registrado, nenhum com você",
+    "Any type": "Qualquer tipo",
+    "Type": "Tipo",
+    "Type: any": "Tipo: qualquer",
+    "Clear filters": "Limpar filtros",
+    "Filter by state and type": "Filtrar por estado e tipo",
+    "Switch to compact cells": "Mudar para células compactas",
+    "Switch to comfortable cells": "Mudar para células confortáveis",
+    "No shinies yet — every encounter rolls 1 in 8,192.": "Nenhum shiny ainda — cada encontro rola 1 em 8.192.",
+    "No shinies yet — every encounter rolls 1 in 4,096 with your Shiny Charm.": "Nenhum shiny ainda — cada encontro rola 1 em 4.096 com o seu Amuleto Shiny.",
+    "Nothing left undiscovered.": "Nada mais por descobrir.",
+    "Not seen yet": "Ainda não visto",
+    "✨ Shiny odds: 1 in 8,192 per encounter": "✨ Chance de shiny: 1 em 8.192 por encontro",
+    "✨ Shiny odds: 1 in 4,096 per encounter": "✨ Chance de shiny: 1 em 4.096 por encontro",
+    " — Shiny Charm active": " — Amuleto Shiny ativo",
+    " — complete the Pokédex to earn the Shiny Charm and double them": " — complete a Pokédex para ganhar o Amuleto Shiny e dobrá-la",
+    "The roll is the same on every route, so your best shiny route is simply wherever it spawns most often.": "A rolagem é a mesma em todas as rotas — sua melhor rota de shiny é simplesmente onde a espécie mais aparece.",
+    "Location leads only — see one in the wild to unlock stats, abilities and spawn rates.": "Apenas pistas de localização — veja um na natureza para desbloquear status, habilidades e taxas de aparição.",
+    "best": "melhor",
+    "not unlocked yet": "ainda não desbloqueada",
+    "badges": "insígnias",
+    "Champion first": "Campeão primeiro",
+    "locked": "bloqueada",
+    "Raids": "Raids",
     "Insert an emoji": "Inserir um emoji",
     "Couldn't load giveaways.": "Não foi possível carregar os sorteios.",
     "You're already entered!": "Você já está participando!",
@@ -921,7 +983,21 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Always catch": "Capturar siempre",
     "Only shinies": "Solo shinies",
     "Above level…": "Por encima del nivel…",
+    "Above level": "Por encima del nivel",
+    // Kept for saves/tabs still rendering the pre-split label.
     "Not caught yet": "Aún no capturado",
+    // Auto-catch modes — the old single "Not caught yet" split in two
+    // (br_cb4d83f3ada30b1ec4). Hints included because the two names are a
+    // coin-flip on their own.
+    "Not owned": "No los tienes",
+    "Not registered": "No registrados",
+    "Every wild encounter.": "Todos los encuentros salvajes.",
+    "Shiny encounters only.": "Solo encuentros shiny.",
+    "Only at or above the level you set.": "Solo en el nivel que indiques o por encima.",
+    "Anything you aren't holding right now, in your party or PC. Release, trade or evolve away your last one and the species counts again.":
+      "Cualquiera que no tengas ahora mismo, ni en el equipo ni en el PC. Si liberas, intercambias o evolucionas el último, la especie vuelve a contar.",
+    "Only species your Pokédex has never registered. Registration is permanent, so each species triggers this at most once, ever.":
+      "Solo especies que tu Pokédex nunca ha registrado. El registro es permanente, así que cada especie activa esto una vez como máximo.",
     "🏆 Pokémon League": "🏆 Liga Pokémon",
     "Earn all 8 Gym Badges to challenge the Elite Four. (": "Consigue las 8 Medallas de Gimnasio para desafiar al Alto Mando. (",
     " earned)": " conseguidas)",
@@ -1158,6 +1234,14 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "→ Party": "→ Equipo",
     "Swap with party": "Intercambiar con el equipo",
     "Click to rename": "Haz clic para renombrar",
+    "Nickname": "Apodo",
+    "That nickname isn't allowed. Try another one.": "Ese apodo no está permitido. Prueba con otro.",
+    // EVs DID always rise from battle; nothing said so, and three players
+    // concluded the system only subtracts — ma62087 said it twice in Spanish
+    // ("no entiendo el chiste de bajar los EV si al final no le podemos subir
+    // ni sube por si solo"). This sentence is the answer to that.
+    "EVs rise every time this Pokémon defeats or catches another — how much, and in which stat, depends on the species beaten. Caps: 252 per stat, 510 in total.":
+      "Los EV suben cada vez que este Pokémon derrota o captura a otro — cuánto, y en qué estadística, depende de la especie derrotada. Límites: 252 por estadística, 510 en total.",
     "Spe": "Spe",
     "EV radar": "Radar de EVs",
     "EV total": "Total de EVs",
@@ -1459,6 +1543,21 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Trade with other trainers, battle them in PvP, and enter free giveaways. Your progress saves automatically, on every device.": "Intercambia con otros entrenadores, enfréntalos en el PvP y participa en sorteos gratuitos. Tu progreso se guarda automáticamente, en todos los dispositivos.",
     "Couldn't claim right now — try again in a moment.": "No se pudo reclamar ahora mismo — inténtalo de nuevo en un momento.",
     "Daily reward": "Recompensa diaria",
+    // ── Away-time catch-up (br_876bae56ef21c9021c) ──
+    // "its annoying to always have to keep the game open" was the loudest
+    // sentiment in chat, so the explanation of what away time does and does
+    // NOT pay has to land in the player's own language.
+    "While you were away": "Mientras estabas fuera",
+    "You were away for": "Estuviste fuera",
+    "capped at": "limitado a",
+    "Away earnings": "Ganancias ausente",
+    "Your rate": "Tu tasa",
+    " / hour": " / hora",
+    "Away time pays a small stipend only — no battles, EXP or catches happen while the game is closed, and the rate is far below what you earn actually playing. It grows with each Gym Badge, and stops accruing after":
+      "El tiempo ausente solo paga una pequeña ayuda — no ocurren combates, EXP ni capturas con el juego cerrado, y la tasa es muy inferior a lo que ganas jugando de verdad. Crece con cada Medalla de Gimnasio y deja de acumularse tras",
+    "The money is added to your save on your next autosave.":
+      "El dinero se añade a tu partida en el próximo guardado automático.",
+    "Nice": "Genial",
     "See you tomorrow": "Nos vemos mañana",
     "Welcome back": "Bienvenido de nuevo",
     "Consecutive days claimed": "Días consecutivos reclamados",
@@ -1540,6 +1639,32 @@ export const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
     "Starter": "Inicial",
     "Prof. Oak's gift": "Regalo del Prof. Oak",
     "Evolve ": "Evolucionar ",
+    "Pokédex progress": "Progreso de la Pokédex",
+    "Pokédex progress — open the full breakdown": "Progreso de la Pokédex — abrir el desglose completo",
+    "Faded = registered, none owned": "Atenuado = registrado, no tienes ninguno",
+    "Any type": "Cualquier tipo",
+    "Type": "Tipo",
+    "Type: any": "Tipo: cualquiera",
+    "Clear filters": "Limpiar filtros",
+    "Filter by state and type": "Filtrar por estado y tipo",
+    "Switch to compact cells": "Cambiar a celdas compactas",
+    "Switch to comfortable cells": "Cambiar a celdas cómodas",
+    "No shinies yet — every encounter rolls 1 in 8,192.": "Aún no hay shinies — cada encuentro tira 1 entre 8.192.",
+    "No shinies yet — every encounter rolls 1 in 4,096 with your Shiny Charm.": "Aún no hay shinies — cada encuentro tira 1 entre 4.096 con tu Amuleto Shiny.",
+    "Nothing left undiscovered.": "No queda nada por descubrir.",
+    "Not seen yet": "Aún no visto",
+    "✨ Shiny odds: 1 in 8,192 per encounter": "✨ Probabilidad de shiny: 1 entre 8.192 por encuentro",
+    "✨ Shiny odds: 1 in 4,096 per encounter": "✨ Probabilidad de shiny: 1 entre 4.096 por encuentro",
+    " — Shiny Charm active": " — Amuleto Shiny activo",
+    " — complete the Pokédex to earn the Shiny Charm and double them": " — completa la Pokédex para ganar el Amuleto Shiny y duplicarla",
+    "The roll is the same on every route, so your best shiny route is simply wherever it spawns most often.": "La tirada es la misma en todas las rutas: tu mejor ruta shiny es simplemente donde más aparece la especie.",
+    "Location leads only — see one in the wild to unlock stats, abilities and spawn rates.": "Solo pistas de ubicación — ve uno en libertad para desbloquear estadísticas, habilidades y tasas de aparición.",
+    "best": "mejor",
+    "not unlocked yet": "aún no desbloqueada",
+    "badges": "medallas",
+    "Champion first": "primero el Campeón",
+    "locked": "bloqueada",
+    "Raids": "Raids",
     "Insert an emoji": "Insertar un emoji",
     "Couldn't load giveaways.": "No se pudieron cargar los sorteos.",
     "You're already entered!": "¡Ya estás participando!",

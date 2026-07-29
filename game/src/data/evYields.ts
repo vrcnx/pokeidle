@@ -48,6 +48,12 @@ export const evYields: Record<string, Yield> = {
   sandshrew: { defense: 1 },
   sandslash: { defense: 2 },
 
+  // Snakes. Absent until now, which meant the two species were the only
+  // encounterable ones in the game that trained nothing at all — a silent
+  // zero, indistinguishable from "EVs don't work" to anyone grinding them.
+  ekans:     { attack: 1 },
+  arbok:     { attack: 2 },
+
   // Nidoran
   nidoranF:  { hp: 1 },
   nidorina:  { hp: 2 },
@@ -419,21 +425,58 @@ export function evYieldFor(speciesKey: string): Stats {
   };
 }
 
+export const EV_STAT_ORDER: (keyof Stats)[] = [
+  "hp", "attack", "defense", "spAttack", "spDefense", "speed",
+];
+
+/** Per-stat ceiling. */
+export const MAX_EV_PER_STAT = 252;
+/** Ceiling on the sum of all six. */
+export const MAX_EV_TOTAL = 510;
+
+export function evTotal(evs: Stats): number {
+  return EV_STAT_ORDER.reduce((s, k) => s + (evs[k] ?? 0), 0);
+}
+
 // Add yield to current EVs, capped 252 per stat and 510 total. Earlier stats
 // are credited first when totalling against the cap.
 export function applyEvYield(current: Stats, yld: Stats): Stats {
-  const order: (keyof Stats)[] = [
-    "hp", "attack", "defense", "spAttack", "spDefense", "speed",
-  ];
+  const order = EV_STAT_ORDER;
   let total = order.reduce((s, k) => s + current[k], 0);
   const out: Stats = { ...current };
   for (const k of order) {
-    if (total >= 510) break;
-    if (out[k] >= 252) continue;
-    const add = Math.min(yld[k], 252 - out[k], 510 - total);
+    if (total >= MAX_EV_TOTAL) break;
+    if (out[k] >= MAX_EV_PER_STAT) continue;
+    const add = Math.min(yld[k], MAX_EV_PER_STAT - out[k], MAX_EV_TOTAL - total);
     if (add <= 0) continue;
     out[k] += add;
     total += add;
   }
   return out;
+}
+
+/** Short stat labels for the EV gain line, matching the radar's abbreviations. */
+const EV_STAT_LABEL: Record<keyof Stats, string> = {
+  hp: "HP", attack: "Attack", defense: "Defense",
+  spAttack: "Sp. Atk", spDefense: "Sp. Def", speed: "Speed",
+};
+
+/**
+ * The EV gain a battle ACTUALLY produced, phrased for the battle log.
+ *
+ * Diffs before/after rather than reporting the species' nominal yield,
+ * because applyEvYield clamps at both ceilings: a mon already sitting on 252
+ * Speed gains nothing from a Pidgey, and telling it "+3 Speed EVs" when the
+ * number on the radar did not move is worse than saying nothing — it is the
+ * same "the stat system lies to me" complaint from the other direction.
+ *
+ * Returns null when nothing moved, so the caller logs nothing at all.
+ */
+export function describeEvGain(before: Stats, after: Stats): string | null {
+  const parts: string[] = [];
+  for (const k of EV_STAT_ORDER) {
+    const delta = (after[k] ?? 0) - (before[k] ?? 0);
+    if (delta > 0) parts.push(`+${delta} ${EV_STAT_LABEL[k]}`);
+  }
+  return parts.length > 0 ? parts.join(", ") : null;
 }

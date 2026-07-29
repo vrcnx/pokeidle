@@ -1,0 +1,460 @@
+/* PvP arena chrome.
+ *
+ * Deliberately its own file rather than an addition to app.css. Two
+ * reasons: app.css is ~600KB with rules from several eras that already
+ * fight each other via !important, and it is under concurrent edit by
+ * other work. A separate file imported by PvpArena.tsx cannot collide with
+ * either, and Vite inlines it the same way.
+ *
+ * Everything here is namespaced `pvp2-`. The fighter cards, move tiles,
+ * type badges, status badges and trainer tag deliberately reuse app.css's
+ * existing classes (.hp-card, .move-slot, .type-badge, .hp-status-badge,
+ * .trainer-tag) so the arena inherits the game's look without duplicating
+ * a single rule. Only genuinely new chrome is styled below.
+ */
+
+/* ── Centre column ────────────────────────────────────────────────── */
+
+.pvp2-center {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* The battle frame. Mirrors the idle .battle-scene proportions so the
+   window does not jump when a PvP battle takes the slot. */
+.pvp2-scene {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+  flex: 0 0 auto;
+}
+
+.pvp2-scene .battle-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: auto;
+  /* Slightly dimmed so white card text stays legible over a bright
+     stadium backdrop. */
+  filter: brightness(0.82) saturate(1.05);
+}
+
+.pvp2-slot {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 58%;
+}
+
+.pvp2-slot-foe { top: 10px; right: 10px; flex-direction: row-reverse; }
+.pvp2-slot-you { bottom: 10px; left: 10px; align-items: flex-end; }
+
+.pvp2-you-card { display: flex; flex-direction: column; }
+
+.pvp2-slot-empty {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+
+/* ── Sprites ──────────────────────────────────────────────────────── */
+
+.pvp2-sprite {
+  display: grid;
+  place-items: end center;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.pvp2-sprite img {
+  width: auto;
+  height: auto;
+  max-width: calc(96px * var(--sprite-boost, 1.3));
+  max-height: calc(96px * var(--sprite-boost, 1.3));
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
+}
+
+/* A fainted Pokémon drops and fades rather than vanishing, so the player
+   can see WHICH one went down. */
+.pvp2-sprite.fainted {
+  opacity: 0.25;
+  transform: translateY(14px) scaleY(0.72);
+}
+
+.pvp2-fainted { opacity: 0.55; }
+
+/* ── Turn chip / field strip ──────────────────────────────────────── */
+
+.pvp2-turn-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 600 11px/1.4 var(--font-body);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-bright);
+}
+
+.pvp2-field-strip {
+  position: absolute;
+  top: 38px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pvp2-field-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font: 600 10px/1.5 var(--font-body);
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid var(--border-bright);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.pvp2-field-chip.weather { border-color: rgba(104, 144, 240, 0.7); color: #cfe0ff; }
+.pvp2-field-chip.hazard  { border-color: rgba(248, 113, 113, 0.7); color: #ffd4d4; }
+.pvp2-field-chip.screen  { border-color: rgba(250, 204, 21, 0.7);  color: #fff0bf; }
+.pvp2-field-chip.field   { border-color: rgba(167, 139, 250, 0.7); color: #e6ddff; }
+
+/* ── Stat stages / volatiles on the card ──────────────────────────── */
+
+.pvp2-stage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.pvp2-stage {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font: 700 9px/1.5 var(--font-body);
+  letter-spacing: 0.02em;
+}
+
+.pvp2-stage.up   { background: var(--good-soft); color: var(--good); }
+.pvp2-stage.down  { background: var(--bad-soft);  color: var(--bad); }
+
+.pvp2-charging {
+  margin-top: 2px;
+  color: var(--gold);
+  font-size: 9px;
+}
+
+.pvp2-ball-unknown { opacity: 0.35; }
+
+.pvp2-name-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+}
+.pvp2-name-link:hover { text-decoration-color: currentColor; }
+
+/* ── Action area ──────────────────────────────────────────────────── */
+
+.pvp2-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.pvp2-action-title {
+  margin: 0;
+  font: 600 12px/1.4 var(--font-body);
+  color: var(--text-muted);
+}
+
+.pvp2-waiting {
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+/* .moves-panel already lays out a 2x2 grid; only spacing differs here. */
+.pvp2-moves { margin: 0; }
+
+.pvp2-switch-row { display: flex; justify-content: flex-start; }
+
+.pvp2-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.pvp2-switch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.pvp2-switch-card:hover:not(:disabled) {
+  background: var(--panel-3);
+  border-color: var(--border-bright);
+}
+
+.pvp2-switch-card:disabled { cursor: not-allowed; opacity: 0.45; }
+.pvp2-switch-card.active { border-color: var(--gold); }
+.pvp2-switch-card.fainted { opacity: 0.35; }
+
+.pvp2-switch-name {
+  font: 600 10px/1.3 var(--font-body);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.pvp2-switch-hp,
+.pvp2-team-hp {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hp-bg);
+  overflow: hidden;
+}
+
+.pvp2-switch-hp > span,
+.pvp2-team-hp > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 260ms ease;
+}
+
+.pvp2-switch-hp.ok > span,   .pvp2-team-hp.ok > span   { background: var(--good); }
+.pvp2-switch-hp.warn > span, .pvp2-team-hp.warn > span { background: var(--warn); }
+.pvp2-switch-hp.low > span,  .pvp2-team-hp.low > span  { background: var(--bad); }
+
+.pvp2-forfeit-row { display: flex; justify-content: flex-end; }
+.pvp2-forfeit-btn { opacity: 0.65; }
+.pvp2-forfeit-btn:hover { opacity: 1; }
+
+.pvp2-forfeit-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Banners ──────────────────────────────────────────────────────── */
+
+.pvp2-away-banner {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: 600 12px/1.4 var(--font-body);
+  text-align: center;
+}
+
+.pvp2-voided,
+.pvp2-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+}
+
+.pvp2-result.win  { border-color: var(--good); background: var(--good-soft); }
+.pvp2-result.loss { border-color: var(--bad);  background: var(--bad-soft); }
+
+.pvp2-result-verdict { font: 700 15px/1.3 var(--font-body); }
+
+.pvp2-result-delta { font: 700 13px/1.3 var(--font-body); }
+.pvp2-result-delta.up   { color: var(--good); }
+.pvp2-result-delta.down { color: var(--bad); }
+
+/* ── Right rail ───────────────────────────────────────────────────── */
+
+.pvp2-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.pvp2-rail-title {
+  font: 700 12px/1.3 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pvp2-rail-format {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+.pvp2-timer {
+  font: 700 12px/1.3 var(--font-mono);
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--panel-3);
+}
+
+.pvp2-timer.urgent {
+  background: var(--bad-soft);
+  color: var(--bad);
+  animation: pvp2-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pvp2-pulse {
+  50% { opacity: 0.55; }
+}
+
+.pvp2-team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pvp2-team-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  grid-template-areas:
+    "sprite name lv"
+    "sprite hp   hp";
+  align-items: center;
+  gap: 2px 6px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.pvp2-team-row.active { border-color: var(--gold); background: var(--panel-2); }
+.pvp2-team-row.fainted { opacity: 0.4; }
+.pvp2-team-row img { grid-area: sprite; }
+.pvp2-team-name {
+  grid-area: name;
+  font: 600 11px/1.3 var(--font-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pvp2-team-lv { grid-area: lv; font-size: 9px; }
+.pvp2-team-hp { grid-area: hp; }
+.pvp2-team-hidden { margin: 4px 0 0; }
+
+/* ── Log ──────────────────────────────────────────────────────────── */
+
+.pvp2-log-card { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+
+.pvp2-log {
+  flex: 1 1 auto;
+  min-height: 90px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font: 400 11px/1.45 var(--font-body);
+  padding-right: 2px;
+}
+
+.pvp2-log-line { padding: 1px 0; color: var(--ink-soft); }
+.pvp2-log-line.mine   { color: var(--ink); }
+.pvp2-log-line.theirs { color: var(--text-muted); }
+
+.pvp2-log-line.kind-turn {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pvp2-log-line.kind-cant   { color: var(--warn); font-weight: 600; }
+.pvp2-log-line.kind-faint  { color: var(--bad);  font-weight: 600; }
+.pvp2-log-line.kind-status { color: #d8b4fe; }
+.pvp2-log-line.kind-boost  { color: var(--good); }
+.pvp2-log-line.kind-unboost { color: #fca5a5; }
+.pvp2-log-line.kind-weather,
+.pvp2-log-line.kind-field  { color: #93c5fd; }
+.pvp2-log-line.kind-hazard { color: #fdba74; }
+.pvp2-log-line.kind-item,
+.pvp2-log-line.kind-ability { color: var(--gold-2); }
+.pvp2-log-line.kind-win,
+.pvp2-log-line.kind-tie    { font-weight: 700; color: var(--gold); }
+.pvp2-log-line.kind-error  { color: var(--bad); }
+
+.pvp2-log-tags { margin-left: 5px; }
+.pvp2-log-tags em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-left: 3px;
+}
+.pvp2-log-tags em.great { background: var(--good-soft); color: var(--good); }
+.pvp2-log-tags em.weak  { background: var(--panel-3);   color: var(--text-muted); }
+.pvp2-log-tags em.crit  { background: var(--gold);      color: #1a1a1a; }
+
+/* ── Narrow / mobile ──────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .pvp2-slot { max-width: 66%; }
+  .pvp2-sprite img {
+    max-width: calc(68px * var(--sprite-boost, 1.3));
+    max-height: calc(68px * var(--sprite-boost, 1.3));
+  }
+  .pvp2-field-strip { top: 34px; }
+  /* Touch targets: the mobile audit found several controls under 40px,
+     which is below the comfortable minimum for a thumb. */
+  .pvp2-switch-card { min-height: 68px; }
+  .pvp2-log { max-height: 180px; }
+}

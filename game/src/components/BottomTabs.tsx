@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { RouteCardList } from "./RouteCardList";
-import { itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteUrl, pokemonStaticSpriteUrl } from "../utils/sprites";
 import { PokemonSprite, Sprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { obtainableCount, obtainableSpecies } from "../utils/obtainable";
 import { ownedSpecies } from "../utils/pokemon";
+import { hasShinyCharm } from "../utils/shinyCharm";
 import { routes } from "../data/routes";
 import { buildUnifiedShop } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
@@ -26,11 +27,11 @@ import {
 } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
 import { pushToast } from "./Toast";
-import { animatePop } from "../utils/animate";
+import { animatePop, useModalEnter } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { useDraggable, useDropTarget } from "../hooks/useDrag";
 import { useT } from "../i18n/useT";
-import type { Pokemon } from "../types";
+import type { Pokemon, PokemonType } from "../types";
 import type { ReactNode } from "react";
 
 // Bottom of the center column — used to be just the Town Map. Now it's a
@@ -1089,6 +1090,15 @@ function BoxSlot({
 
 // ---------------------------------------------------------------------------
 // Pokédex — tri-state grid (unseen black / seen gray / caught color).
+//
+// Rebuilt on the PC's recipe, for the PC's reasons. The hero ring, the
+// 18-type completion strip, the filter pills and the legend stacked
+// 338–613px of chrome above the first sprite — at every desktop size the
+// grid opened below the fold — and all 288 cells mounted at once as
+// animated GIFs (~11MB of sprite traffic for one full scroll). Now the
+// chrome is one toolbar row, the grid is a scroll window over static
+// PNGs, and the trophy case (ring, milestones, per-type bars) lives one
+// tap away behind the progress chip instead of taxing every open.
 // ---------------------------------------------------------------------------
 type DexFilter = "all" | "caught" | "seen" | "shiny" | "unknown";
 
@@ -1124,31 +1134,109 @@ function dexCellTitle(
   return s.released ? t("Not found yet") : t("Not yet available");
 }
 
-export function DexTab() {
+/** Dex cell geometry per density — same contract as DENSITY_METRICS above:
+ *  `min` drives the column count, `name` is the label strip under the sprite
+ *  plate (0 = no strip), `gap` is part of the row pitch. Slightly tighter
+ *  than the PC's: dex cells carry no drag affordance or held-item badge. */
+const DEX_DENSITY_KEY = "pokemon-idle-dex-density";
+const DEX_DENSITY_METRICS: Record<Density, { min: number; name: number; gap: number }> = {
+  comfy:   { min: 64, name: 14, gap: 4 },
+  compact: { min: 44, name: 0,  gap: 3 },
+};
+
+function readDexDensity(): Density {
+  try {
+    return localStorage.getItem(DEX_DENSITY_KEY) === "compact" ? "compact" : "comfy";
+  } catch {
+    return "comfy";
+  }
+}
+
+/**
+ * One dex entry. Memoised, with primitive props only, on purpose: DexTab
+ * re-renders on every battle tick (the owned set reads state.party, whose
+ * identity changes each tick), and without the memo every mounted cell
+ * reconciled several times a second for a grid that almost never changes.
+ * With it, a tick that changes nothing stops at zero re-rendered cells.
+ */
+const DexCell = memo(function DexCell({
+  speciesKey, id, name, caught, seen, owned, shiny, unreleased, showName, onPick, t,
+}: {
+  speciesKey: string;
+  id: number;
+  name: string;
+  caught: boolean;
+  seen: boolean;
+  owned: boolean;
+  shiny: boolean;
+  unreleased: boolean;
+  showName: boolean;
+  onPick: (key: string) => void;
+  t: (str: string) => string;
+}) {
+  const filterCss = caught
+    ? "none"
+    : seen
+    ? "grayscale(1) brightness(0.85)"
+    : "brightness(0)";
+  return (
+    <button
+      type="button"
+      className={[
+        "dex3-cell",
+        caught ? "caught" : seen ? "seen" : "unknown",
+        // Registered but gone: still a completed dex entry, so it
+        // keeps its colour — it just stops claiming you have one.
+        caught && !owned ? "registered-only" : "",
+        shiny ? "is-shiny" : "",
+        /* Unreleased species are marked so a completionist doesn't hunt
+           for something that has no encounter yet — they're excluded
+           from the counts, but still occupy their dex number. */
+        unreleased ? "unreleased" : "",
+      ].filter(Boolean).join(" ")}
+      /* Unseen cells open the modal too. It reveals location leads only
+         (see DexSpeciesModal) — a disabled cell was a dead end: the exact
+         entries a completionist needs to hunt were the only ones the dex
+         refused to say anything about. */
+      onClick={() => onPick(speciesKey)}
+      title={dexCellTitle(name, { owned, caught, seen, released: !unreleased }, t)}
+    >
+      <span className="dex3-plate">
+        {/* Static PNG, not the animated GIF: identifying a species is the
+            grid's job and the modal hero keeps the animation. 288 looping
+            GIFs measured ~11MB for one full scroll of the old grid. */}
+        <Sprite
+          className="dex3-sprite"
+          src={pokemonStaticSpriteUrl(id, shiny && caught)}
+          alt={caught || seen ? name : "???"}
+          style={{ imageRendering: "pixelated", filter: filterCss }}
+          draggable={false}
+        />
+        <small className="dex3-id tabular">#{String(id).padStart(3, "0")}</small>
+        {shiny && <span className="dex-cell-shiny" aria-hidden>✨</span>}
+      </span>
+      {showName && <span className="dex3-name">{name}</span>}
+    </button>
+  );
+});
+
+/**
+ * The trophy case — completion ring, seen/shiny counters, milestones and
+ * the per-type bars, unchanged in code and semantics, just moved behind
+ * the toolbar's progress chip. It used to be 210–513px of every open;
+ * it's consulted occasionally, so it pays for itself only on request.
+ */
+function DexProgressSheet({ onClose }: { onClose: () => void }) {
   const { state } = useGame();
   const t = useT();
-  const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<string | null>(null);
-  const [filter, setFilter] = useState<DexFilter>("all");
+  const dialogRef = useModalEnter(".dex-hero, .dex-types");
 
   const all = useMemo(() => Object.entries(pokemonTable).sort(([, a], [, b]) => a.id - b.id), []);
-  const q = query.trim().toLowerCase();
-
-  const seenSet   = useMemo(() => new Set(state.pokedexSeen),   [state.pokedexSeen]);
   const caughtSet = useMemo(() => new Set(state.pokedexCaught), [state.pokedexCaught]);
-  const shinySet  = useMemo(() => new Set(state.shinyCaught),   [state.shinyCaught]);
-  // Registration is permanent; ownership is not. Without this the grid
-  // said "caught" for a species you released ten hours ago and had no way
-  // to say it, which is the complaint that asked for a Living Dex.
-  const ownedSet  = useMemo(
-    () => ownedSpecies(state.party, state.box),
-    [state.party, state.box]
-  );
 
-  // Per-type completion counts.
   // Declared ahead of typeCompletion: that memo runs during this render and
   // reads `obtainable`, so a later `const` would hit the temporal dead zone
-  // and throw before the Dex could paint.
+  // and throw before the sheet could paint.
   const obtainable = obtainableSpecies();
 
   const typeCompletion = useMemo(() => {
@@ -1165,7 +1253,130 @@ export function DexTab() {
       }
     }
     return byType;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, caughtSet]);
+
+  const dexTotal = obtainableCount();
+  const caughtObtainable = state.pokedexCaught.filter((k) => obtainable.has(k)).length;
+  const completion = Math.min(100, (caughtObtainable / Math.max(1, dexTotal)) * 100);
+  // Master lands exactly on 100% — the same moment the Shiny Charm is granted
+  // and the full-dex trophy unlocks, so all three agree.
+  const milestones = [
+    ...DEX_MILESTONES.filter((m) => m.count < dexTotal),
+    { count: dexTotal, label: "Master", icon: "🏆" },
+  ];
+  const nextMilestone = milestones.find((m) => caughtObtainable < m.count);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        ref={dialogRef}
+        className="g-modal dex-progress-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={t("Pokédex progress")}
+      >
+        <header className="g-modal-head">
+          <h2>{t("Pokédex progress")}</h2>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
+        </header>
+        <div className="g-modal-body">
+          <header className="dex-hero">
+            <div className="dex-hero-ring">
+              <svg viewBox="0 0 36 36" className="dex-hero-ring-svg" aria-hidden>
+                <path
+                  className="dex-hero-ring-track"
+                  d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
+                />
+                <path
+                  className="dex-hero-ring-fill"
+                  d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
+                  style={{ strokeDasharray: `${completion}, 100` }}
+                />
+              </svg>
+              <span className="dex-hero-ring-text">{Math.round(completion)}%</span>
+            </div>
+            <div className="dex-hero-stats">
+              <div>
+                <span className="dex-hero-label">{t("Caught")}</span>
+                <strong className="tabular">{caughtObtainable}<span className="dim"> / {dexTotal}</span></strong>
+              </div>
+              <div>
+                <span className="dex-hero-label">{t("Seen")}</span>
+                <strong className="tabular">{state.pokedexSeen.length}</strong>
+              </div>
+              <div>
+                <span className="dex-hero-label">{t("Shinies")}</span>
+                <strong className="tabular">{state.shinyCaught.length}</strong>
+              </div>
+            </div>
+            <div className="dex-hero-milestones" aria-label={t("Milestones")}>
+              {milestones.map((m) => {
+                const done = caughtObtainable >= m.count;
+                const active = nextMilestone && nextMilestone.count === m.count;
+                return (
+                  <div
+                    key={m.count}
+                    className={`dex-milestone ${done ? "done" : ""} ${active ? "active" : ""}`}
+                    title={`${m.label} — ${m.count}`}
+                  >
+                    <span className="dex-milestone-icon">{done ? m.icon : "🔒"}</span>
+                    <span className="dex-milestone-count tabular">{m.count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </header>
+
+          <section className="dex-types">
+            {DEX_TYPES.map((ty) => {
+              const bucket = typeCompletion[ty];
+              if (!bucket || bucket.total === 0) return null;
+              const pct = (bucket.caught / Math.max(1, bucket.total)) * 100;
+              const complete = bucket.caught === bucket.total;
+              return (
+                <div key={ty} className={`dex-type-pill type-${ty.toLowerCase()} ${complete ? "complete" : ""}`} title={`${ty}: ${bucket.caught} / ${bucket.total}`}>
+                  <span className="dex-type-name">{ty}</span>
+                  <span className="dex-type-bar">
+                    <span className="dex-type-bar-fill" style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className="dex-type-num tabular">{bucket.caught}/{bucket.total}</span>
+                </div>
+              );
+            })}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function DexTab() {
+  const { state } = useGame();
+  const t = useT();
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [filter, setFilter] = useState<DexFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<PokemonType | null>(null);
+  const [density, setDensity] = useState<Density>(readDexDensity);
+  const [progressOpen, setProgressOpen] = useState(false);
+
+  const all = useMemo(() => Object.entries(pokemonTable).sort(([, a], [, b]) => a.id - b.id), []);
+  const q = query.trim().toLowerCase();
+
+  const seenSet   = useMemo(() => new Set(state.pokedexSeen),   [state.pokedexSeen]);
+  const caughtSet = useMemo(() => new Set(state.pokedexCaught), [state.pokedexCaught]);
+  const shinySet  = useMemo(() => new Set(state.shinyCaught),   [state.shinyCaught]);
+  // Registration is permanent; ownership is not. Without this the grid
+  // said "caught" for a species you released ten hours ago and had no way
+  // to say it, which is the complaint that asked for a Living Dex.
+  const ownedSet  = useMemo(
+    () => ownedSpecies(state.party, state.box),
+    [state.party, state.box]
+  );
+
+  const obtainable = obtainableSpecies();
+  const filtering = filter !== "all" || typeFilter !== null || q !== "";
 
   const filtered = useMemo(() => {
     let base = all;
@@ -1173,6 +1384,7 @@ export function DexTab() {
     if (filter === "seen")    base = base.filter(([k]) => seenSet.has(k) && !caughtSet.has(k));
     if (filter === "shiny")   base = base.filter(([k]) => shinySet.has(k));
     if (filter === "unknown") base = base.filter(([k]) => !seenSet.has(k));
+    if (typeFilter) base = base.filter(([, sp]) => sp.types.includes(typeFilter));
     if (!q) return base;
     return base.filter(([key, sp]) => {
       const idStr = String(sp.id);
@@ -1184,7 +1396,7 @@ export function DexTab() {
         padded.includes(q.replace(/^#/, ""))
       );
     });
-  }, [all, filter, caughtSet, seenSet, shinySet, q]);
+  }, [all, filter, typeFilter, caughtSet, seenSet, shinySet, q]);
 
   // Count against species that can ACTUALLY be caught. Using the raw
   // pokemonTable size meant ~35 Johto entries that exist for dex numbering but
@@ -1195,102 +1407,174 @@ export function DexTab() {
   const dexTotal = obtainableCount();
   const caughtObtainable = state.pokedexCaught.filter((k) => obtainable.has(k)).length;
   const completion = Math.min(100, (caughtObtainable / Math.max(1, dexTotal)) * 100);
-  // Master lands exactly on 100% — the same moment the Shiny Charm is granted
-  // and the full-dex trophy unlocks, so all three now agree.
-  const milestones = [
-    ...DEX_MILESTONES.filter((m) => m.count < dexTotal),
-    { count: dexTotal, label: "Master", icon: "🏆" },
-  ];
-  const nextMilestone = milestones.find((m) => caughtObtainable < m.count);
+
+  // ---- Grid geometry ------------------------------------------------------
+  // The PC box's spacer arithmetic, dex-sized — see PCTab above for why the
+  // column count is computed here instead of left to `auto-fill`.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ w: 0, h: 0, padTop: 0 });
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const read = () => {
+      const cs = getComputedStyle(el);
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const w = el.clientWidth - padL - padR;
+      const h = el.clientHeight - padT - padB;
+      setSize((prev) => (prev.w === w && prev.h === h && prev.padTop === padT ? prev : { w, h, padTop: padT }));
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const metrics = DEX_DENSITY_METRICS[density];
+  const gap = metrics.gap;
+  const cols = Math.max(1, Math.floor((size.w + gap) / (metrics.min + gap)));
+  const cellW = size.w > 0 ? (size.w - gap * (cols - 1)) / cols : metrics.min;
+  const rowH = Math.round(cellW) + metrics.name;
+  const pitch = rowH + gap;
+
+  const [topRow, setTopRow] = useState(0);
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const row = Math.max(0, Math.floor((e.currentTarget.scrollTop - size.padTop) / pitch));
+    setTopRow((prev) => (prev === row ? prev : row));
+  };
+  // Narrowing the filter while parked deep in the grid would otherwise leave
+  // the player staring at blank space below the last match.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setTopRow(0);
+  }, [query, filter, typeFilter, density]);
+
+  const total = filtered.length;
+  const totalRows = Math.ceil(total / cols);
+  const anchorRow = Math.min(topRow, Math.max(0, totalRows - 1));
+  const firstRow = Math.max(0, anchorRow - OVERSCAN_ROWS);
+  const lastRow = Math.min(
+    totalRows,
+    anchorRow + Math.ceil(size.h / pitch) + 1 + OVERSCAN_ROWS
+  );
+  const from = firstRow * cols;
+  const to = Math.min(total, lastRow * cols);
+
+  const onPick = useCallback((key: string) => setPicked(key), []);
+
+  const clearFilters = () => { setQuery(""); setFilter("all"); setTypeFilter(null); };
+
+  const toggleDensity = () => {
+    setDensity((prev) => {
+      const next: Density = prev === "comfy" ? "compact" : "comfy";
+      try { localStorage.setItem(DEX_DENSITY_KEY, next); } catch { /* private mode — session only */ }
+      return next;
+    });
+  };
+
+  // Legend swatch, worn by the filter rows — the menu doubles as the legend,
+  // which used to be its own permanent strip above the grid.
+  const swatch = (cls: string) => <span className={`dex-swatch ${cls}`} aria-hidden />;
+  const filterIcon = (on: boolean, cls: string) => (
+    <span className="dex-menu-ic">{tick(on)}{swatch(cls)}</span>
+  );
+
+  const openTypeMenu = (at: { clientX: number; clientY: number }) => {
+    openContextMenu(at, [
+      { label: t("Any type"), icon: tick(typeFilter === null), onClick: () => setTypeFilter(null) },
+      ...DEX_TYPES.map((ty) => ({
+        label: ty as string,
+        icon: tick(typeFilter === ty),
+        onClick: () => setTypeFilter(ty),
+      })),
+    ]);
+  };
+
+  const openFilterMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const at = { clientX: r.left, clientY: r.bottom + 4 };
+    openContextMenu(at, [
+      { label: t("All"), icon: tick(filter === "all"), onClick: () => setFilter("all") },
+      { label: t("Caught"), icon: filterIcon(filter === "caught", "owned"), onClick: () => setFilter("caught") },
+      { label: t("Seen only"), icon: filterIcon(filter === "seen", "seen"), onClick: () => setFilter("seen") },
+      { label: t("✨ Shiny"), icon: filterIcon(filter === "shiny", "shiny"), onClick: () => setFilter("shiny") },
+      { label: t("Undiscovered"), icon: filterIcon(filter === "unknown", "unknown"), onClick: () => setFilter("unknown") },
+      // Legend-only row: the fourth sprite treatment has no filter of its
+      // own (registered-but-gone is a sub-state of Caught). A disabled row
+      // is the closest thing this menu has to a footnote.
+      { label: t("Faded = registered, none owned"), icon: swatch("registered"), disabled: true, onClick: () => undefined },
+      {
+        label: typeFilter ? `${t("Type")}: ${typeFilter}` : t("Type: any"),
+        hint: "›",
+        // Reopened one tick later on purpose: the menu host runs onClick and
+        // THEN closes itself, so a synchronous openContextMenu here would be
+        // wiped by that close.
+        onClick: () => { setTimeout(() => openTypeMenu(at), 0); },
+      },
+      { label: t("Clear filters"), disabled: !filtering, onClick: clearFilters },
+    ]);
+  };
+
+  const emptyMessage = (): string => {
+    if (filter === "shiny" && !q) {
+      // Real numbers from rollShiny (utils/pokemon.ts) — the empty state
+      // doubles as the pitch for why the shiny filter exists at all.
+      return hasShinyCharm(state)
+        ? t("No shinies yet — every encounter rolls 1 in 4,096 with your Shiny Charm.")
+        : t("No shinies yet — every encounter rolls 1 in 8,192.");
+    }
+    if (filter === "unknown" && !q) return t("Nothing left undiscovered.");
+    return t("Nothing matches the current filter.");
+  };
+
+  const cells: ReactNode[] = [];
+  for (let at = from; at < to; at++) {
+    const [key, sp] = filtered[at];
+    cells.push(
+      <DexCell
+        key={key}
+        speciesKey={key}
+        id={sp.id}
+        name={sp.name}
+        caught={caughtSet.has(key)}
+        seen={seenSet.has(key)}
+        // Not gated on `caught` — ownership is a fact about your boxes, and
+        // gating it would make this cell disagree with the species modal,
+        // which reads the same lists.
+        owned={ownedSet.has(key)}
+        shiny={shinySet.has(key)}
+        unreleased={!obtainable.has(key)}
+        showName={metrics.name > 0}
+        onPick={onPick}
+        t={t}
+      />
+    );
+  }
 
   return (
-    <div className="tab-pane dex-tab dex-tab-v2">
-      {/* HERO STRIP — completion ring + milestones */}
-      <header className="dex-hero">
-        <div className="dex-hero-ring">
-          <svg viewBox="0 0 36 36" className="dex-hero-ring-svg" aria-hidden>
-            <path
-              className="dex-hero-ring-track"
-              d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
-            />
-            <path
-              className="dex-hero-ring-fill"
-              d="M18 2.5 a 15.5 15.5 0 1 1 0 31 a 15.5 15.5 0 1 1 0 -31"
-              style={{ strokeDasharray: `${completion}, 100` }}
-            />
-          </svg>
-          <span className="dex-hero-ring-text">{Math.round(completion)}%</span>
-        </div>
-        <div className="dex-hero-stats">
-          <div>
-            <span className="dex-hero-label">{t("Caught")}</span>
-            <strong className="tabular">{caughtObtainable}<span className="dim"> / {dexTotal}</span></strong>
-          </div>
-          <div>
-            <span className="dex-hero-label">{t("Seen")}</span>
-            <strong className="tabular">{state.pokedexSeen.length}</strong>
-          </div>
-          <div>
-            <span className="dex-hero-label">{t("Shinies")}</span>
-            <strong className="tabular">{state.shinyCaught.length}</strong>
-          </div>
-        </div>
-        <div className="dex-hero-milestones" aria-label={t("Milestones")}>
-          {milestones.map((m) => {
-            const done = caughtObtainable >= m.count;
-            const active = nextMilestone && nextMilestone.count === m.count;
-            return (
-              <div
-                key={m.count}
-                className={`dex-milestone ${done ? "done" : ""} ${active ? "active" : ""}`}
-                title={`${m.label} — ${m.count}`}
-              >
-                <span className="dex-milestone-icon">{done ? m.icon : "🔒"}</span>
-                <span className="dex-milestone-count tabular">{m.count}</span>
-              </div>
-            );
-          })}
-        </div>
-      </header>
-
-      {/* TYPE COMPLETION STRIP */}
-      <section className="dex-types">
-        {DEX_TYPES.map((t) => {
-          const bucket = typeCompletion[t];
-          if (!bucket || bucket.total === 0) return null;
-          const pct = (bucket.caught / Math.max(1, bucket.total)) * 100;
-          const complete = bucket.caught === bucket.total;
-          return (
-            <div key={t} className={`dex-type-pill type-${t.toLowerCase()} ${complete ? "complete" : ""}`} title={`${t}: ${bucket.caught} / ${bucket.total}`}>
-              <span className="dex-type-name">{t}</span>
-              <span className="dex-type-bar">
-                <span className="dex-type-bar-fill" style={{ width: `${pct}%` }} />
-              </span>
-              <span className="dex-type-num tabular">{bucket.caught}/{bucket.total}</span>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* FILTERS + SEARCH */}
-      <div className="dex-controls">
-        <div className="dex-filter-pills" role="tablist">
-          {(["all", "caught", "seen", "shiny", "unknown"] as DexFilter[]).map((f) => (
-            <button
-              key={f}
-              role="tab"
-              aria-selected={filter === f}
-              className={`dex-filter ${filter === f ? "active" : ""}`}
-              onClick={() => setFilter(f)}
-            >
-              {f === "all"     ? t("All")
-                : f === "caught"  ? t("Caught")
-                : f === "seen"    ? t("Seen")
-                : f === "shiny"   ? t("✨ Shiny")
-                :                   "???"}
-            </button>
-          ))}
-        </div>
+    <div className="tab-pane dex-tab dex-tab-v3">
+      {/* One row, not four. The hero, the type strip, the pills and the
+          legend spent 338px (desktop) to 613px (wide rail) before the first
+          sprite — the entire pane and then some. Search keeps permanent
+          space because it is the only navigation that scales to 288 entries;
+          the progress headline shrinks to a chip; everything else folds into
+          the filter menu. */}
+      <div className="dex-toolbar">
+        <button
+          type="button"
+          className="dex-progress-chip"
+          onClick={() => setProgressOpen(true)}
+          title={t("Pokédex progress — open the full breakdown")}
+        >
+          <span className="dex-chip-count tabular">
+            {caughtObtainable}<span className="dex-chip-dim"> / {dexTotal}</span>
+          </span>
+          <span className="dex-progress-track" aria-hidden>
+            <span className="dex-progress-fill" style={{ width: `${completion}%` }} />
+          </span>
+        </button>
         <div className="dex-search-wrap">
           <input
             type="search"
@@ -1298,6 +1582,7 @@ export function DexTab() {
             placeholder={t("Search by name or dex #")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            aria-label={t("Search by name or dex #")}
           />
           {query && (
             <button
@@ -1308,73 +1593,58 @@ export function DexTab() {
             >×</button>
           )}
         </div>
+        <button
+          type="button"
+          className={`dex-tool ${filtering && !q ? "on" : ""}`}
+          onClick={openFilterMenu}
+          title={t("Filter by state and type")}
+          aria-label={t("Filter by state and type")}
+        >
+          <IconSliders size={14} />
+          {(filter !== "all" || typeFilter) && <span className="dex-tool-dot" aria-hidden />}
+        </button>
+        <button
+          type="button"
+          className="dex-tool"
+          onClick={toggleDensity}
+          title={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
+          aria-label={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
+        >
+          {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
+        </button>
       </div>
 
-      {/* LEGEND — four states, four words. The grid has always encoded them
-          in the sprite treatment; nothing said what the treatments meant, so
-          "caught but no longer owned" read as a rendering glitch. */}
-      <div className="dex-legend">
-        <span className="dex-legend-item owned">{t("In your collection")}</span>
-        <span className="dex-legend-item registered">{t("Registered, none owned")}</span>
-        <span className="dex-legend-item seen">{t("Seen only")}</span>
-        <span className="dex-legend-item unknown">{t("Undiscovered")}</span>
-      </div>
-
-      {/* GRID */}
-      <div className="dex-tab-grid">
-        {filtered.length === 0 && (
-          <p className="dim small" style={{ gridColumn: "1 / -1" }}>
-            {t("Nothing matches the current filter.")}
-          </p>
-        )}
-        {filtered.map(([key, sp]) => {
-          const caught = caughtSet.has(key);
-          const seen   = seenSet.has(key);
-          const shiny  = shinySet.has(key);
-          // Not gated on `caught` — ownership is a fact about your boxes, and
-          // gating it would make this cell disagree with the species modal,
-          // which reads the same lists.
-          const owned  = ownedSet.has(key);
-          const filterCss = caught
-            ? "none"
-            : seen
-            ? "grayscale(1) brightness(0.85)"
-            : "brightness(0)";
-          const clickable = seen || caught;
-          return (
-            <button
-              key={key}
-              type="button"
-              className={[
-                "dex-cell",
-                caught ? "caught" : seen ? "seen" : "unknown",
-                // Registered but gone: still a completed dex entry, so it
-                // keeps its colour — it just stops claiming you have one.
-                caught && !owned ? "registered-only" : "",
-                shiny ? "is-shiny" : "",
-                !obtainable.has(key) ? "unreleased" : "",
-              ].filter(Boolean).join(" ")}
-              onClick={() => clickable && setPicked(key)}
-              disabled={!clickable}
-              /* Unreleased species are marked so a completionist doesn't hunt
-                 for something that has no encounter yet — they're excluded
-                 from the counts above, but still occupy their dex number. */
-              title={dexCellTitle(sp.name, { owned, caught, seen, released: obtainable.has(key) }, t)}
+      <div className="dex-scroll" ref={scrollRef} onScroll={onScroll}>
+        {total === 0 ? (
+          <div className="dex-empty">
+            <p>{emptyMessage()}</p>
+            {filtering && (
+              <button type="button" className="dex-tool" onClick={clearFilters}>
+                {t("Clear filters")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Spacers stand in for the rows outside the window — the same
+                no-library virtualiser as the PC box grid. */}
+            <div style={{ height: firstRow * pitch }} aria-hidden />
+            <div
+              className="dex-grid"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gridAutoRows: `${rowH}px`,
+                gap: `${gap}px`,
+              }}
             >
-              <PokemonSprite
-                speciesKey={key}
-                isShiny={shiny && caught}
-                alt={clickable ? sp.name : "???"}
-                width={36}
-                height={36}
-                style={{ imageRendering: "pixelated", filter: filterCss }}
-              />
-              <small>#{String(sp.id).padStart(3, "0")}</small>
-              {shiny && <span className="dex-cell-shiny" aria-hidden>✨</span>}
-            </button>
-          );
-        })}
+              {cells}
+            </div>
+            <div style={{ height: Math.max(0, (totalRows - lastRow) * pitch) }} aria-hidden />
+          </>
+        )}
       </div>
+
+      {progressOpen && <DexProgressSheet onClose={() => setProgressOpen(false)} />}
       {picked && <DexSpeciesModal speciesKey={picked} onClose={() => setPicked(null)} />}
     </div>
   );

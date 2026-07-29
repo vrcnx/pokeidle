@@ -1,6 +1,7 @@
 import { useGame } from "../state/GameContext";
 import { PokemonSprite } from "./Sprite";
 import { useT } from "../i18n/useT";
+import { displayName } from "../utils/pokemon";
 
 // No ESC handler / close button on this modal — the player MUST pick a
 // new active Pokémon to continue the battle. Closing without a pick
@@ -24,7 +25,7 @@ export function FaintSwitchModal() {
         aria-label={t("Choose next Pokémon")}
       >
         <header className="g-modal-head">
-          <h2>{state.playerPokemon?.name} {t("fainted!")}</h2>
+          <h2>{state.playerPokemon ? displayName(state.playerPokemon) : ""} {t("fainted!")}</h2>
         </header>
         <div className="g-modal-body">
           <p className="dim small" style={{ margin: "0 0 8px" }}>
@@ -45,12 +46,12 @@ export function FaintSwitchModal() {
                 <PokemonSprite
                   speciesKey={p.speciesKey}
                   isShiny={p.isShiny}
-                  alt={p.name}
+                  alt={displayName(p)}
                   width={48}
                   height={48}
                   style={{ imageRendering: "pixelated" }}
                 />
-                <span><strong>{p.name}</strong> <small className="dim">{t("Lv")} {p.level}</small></span>
+                <span><strong>{displayName(p)}</strong> <small className="dim">{t("Lv")} {p.level}</small></span>
                 <small className="dim">
                   {t("HP")} {p.currentHp} / {p.maxHp}
                 </small>

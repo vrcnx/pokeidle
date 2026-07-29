@@ -18,8 +18,9 @@ import { useT } from "../i18n/useT";
 // Mobile single-column layout. Battle scene + moves are always pinned
 // at the top; the bottom area swaps between six top-level tabs that
 // match how the desktop dashboard organises content — without nested
-// tab strips that confused the navigation before. Mart is accessed
-// from the Map tab's location panel; Dex is in Settings → Trainer Card.
+// tab strips that confused the navigation before. The Pokédex rides
+// inside the PC tab as a sub-view (see pcView below) — a seventh
+// top-level tab would wrap the bar on a 360px phone.
 type MobileTab = "world" | "party" | "mart" | "bag" | "pc" | "chat";
 // "world" merges the old Here + Map tabs into a single bottom-bar slot
 // with an internal sub-tab toggle so we don't overflow into a second
