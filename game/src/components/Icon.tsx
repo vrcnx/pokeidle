@@ -292,6 +292,38 @@ export function IconSliders({ size = 16, strokeWidth = 2, className }: IconProps
   );
 }
 
+// Cell-density pair for the PC box: 2×2 = comfortable, 3×3 = compact. The
+// button shows the density it will switch TO, so the two read as one control.
+// These exist because the obvious glyphs don't work at toolbar size — U+25AA
+// ("▪") measures 5px wide however large you set the font, since it is a
+// *small* square by definition rather than a scalable one.
+export function IconGridLarge({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1" />
+    </svg>
+  );
+}
+
+export function IconGridSmall({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <rect x="3" y="3" width="4.5" height="4.5" rx="0.8" />
+      <rect x="9.75" y="3" width="4.5" height="4.5" rx="0.8" />
+      <rect x="16.5" y="3" width="4.5" height="4.5" rx="0.8" />
+      <rect x="3" y="9.75" width="4.5" height="4.5" rx="0.8" />
+      <rect x="9.75" y="9.75" width="4.5" height="4.5" rx="0.8" />
+      <rect x="16.5" y="9.75" width="4.5" height="4.5" rx="0.8" />
+      <rect x="3" y="16.5" width="4.5" height="4.5" rx="0.8" />
+      <rect x="9.75" y="16.5" width="4.5" height="4.5" rx="0.8" />
+      <rect x="16.5" y="16.5" width="4.5" height="4.5" rx="0.8" />
+    </svg>
+  );
+}
+
 // Crossed swords — used for the PvP battle entry point.
 export function IconSwords({ size = 16, strokeWidth = 2, className }: IconProps) {
   return (

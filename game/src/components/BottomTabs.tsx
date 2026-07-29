@@ -20,7 +20,10 @@ import {
   getCatalogCategory,
   type ItemCategory,
 } from "../data/itemsCatalog";
-import { IconMap, IconCart, IconBackpack, IconMonitor, IconBook } from "./Icon";
+import {
+  IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
+  IconSliders, IconGridLarge, IconGridSmall,
+} from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
 import { pushToast } from "./Toast";
 import { animatePop } from "../utils/animate";
@@ -843,7 +846,7 @@ export function PCTab() {
           title={t("Filter by shininess and IVs")}
           aria-label={t("Filter by shininess and IVs")}
         >
-          <span aria-hidden>⚙</span>
+          <IconSliders size={14} />
           {filtering && <span className="pc-tool-dot" aria-hidden />}
         </button>
         <button
@@ -853,7 +856,10 @@ export function PCTab() {
           title={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
           aria-label={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
         >
-          <span aria-hidden>{density === "comfy" ? "▪" : "▦"}</span>
+          {/* Shows the density it will switch TO. Real icons rather than
+              ▪ / ▦: U+25AA measures 5px wide however large the font is set,
+              which read as a speck of dust in the toolbar. */}
+          {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
         </button>
         <span className="pc-count" title={filtering ? t("Matches / stored") : t("Stored")}>
           {filtering ? `${shown} / ${box.length}` : box.length}
