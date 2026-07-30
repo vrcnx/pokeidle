@@ -45,6 +45,7 @@ import {
   type BattleRoom,
   type GraceDeps,
 } from "../src/pvp.js";
+import { answerTeamPreview, passTeamPreview } from "./support/teamPreview.js";
 
 // ── Teams with zero token overlap ────────────────────────────────────────
 // Every species / nickname / item / ability / move on one side is absent from
@@ -203,6 +204,10 @@ describe("battle:rejoin ack — the opponent's private state must not cross", ()
     const { events, deps } = makeDeps(present);
 
     await startBattle(null as never, room, deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(300);
     await playUntilRich(room, 8_000);
 
@@ -264,6 +269,10 @@ describe("battle:rejoin ack — the opponent's private state must not cross", ()
     const { events, deps } = makeDeps(present);
 
     await startBattle(null as never, room, deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(300);
     await playUntilRich(room, 8_000);
 
@@ -279,11 +288,42 @@ describe("battle:rejoin ack — the opponent's private state must not cross", ()
     const aJson = JSON.stringify(aAck.snapshot);
     const bJson = JSON.stringify(bAck.snapshot);
 
-    // The canary Pokémon never took the field, so NONE of its identity is
-    // public. Not the species, not the nickname, not the item, not the
-    // ability, not a move name.
-    for (const token of B_CANARY_TOKENS) expect(aJson).not.toContain(token);
-    for (const token of A_CANARY_TOKENS) expect(bJson).not.toContain(token);
+    // ─── The boundary Team Preview moved, and the one it did not ────────
+    //
+    // Before Team Preview this loop ran over every canary token including the
+    // species, on the reasoning that a Pokémon which never took the field is
+    // wholly private. Team Preview publishes the SPECIES of all six on both
+    // sides before turn 1 — `|poke|p2|Skarmory, L50, M|`, on the shared channel,
+    // to both players — so the species half of that claim is now false by
+    // design, and asserting it would only mean the phase had failed to happen.
+    //
+    // Nothing else moved. A nickname, a held item, an ability, a move and a
+    // stat spread are all still invisible to the opponent, before the phase and
+    // after it, and the |request| payload that carries them is still entirely
+    // one-sided. So the loop runs over the tokens MINUS the species, and the
+    // species is asserted PRESENT immediately below — which is a stronger test
+    // than the original, because a regression that reverted the redaction (or
+    // widened the request) now has to get past a positive and a negative
+    // assertion rather than one blanket negative that a disabled phase would
+    // satisfy for free.
+    const speciesTokens = new Set(["Ferrothorn", "ferrothorn", "Skarmory", "skarmory"]);
+    const privateOf = (all: string[]) => all.filter((tk) => !speciesTokens.has(tk));
+    for (const token of privateOf(B_CANARY_TOKENS)) {
+      expect(aJson, `A's snapshot leaked B's private token "${token}"`).not.toContain(token);
+    }
+    for (const token of privateOf(A_CANARY_TOKENS)) {
+      expect(bJson, `B's snapshot leaked A's private token "${token}"`).not.toContain(token);
+    }
+    // The phase really did happen, and it really did reveal exactly the species.
+    expect(aJson).toContain("|teampreview");
+    expect(aJson).toContain("Skarmory");
+    expect(bJson).toContain("Ferrothorn");
+    // …and NOT the held-item marker the simulator's own `|poke|` line carries.
+    // Both canaries hold an item (Rocky Helmet / Shed Shell), so an unstripped
+    // `|poke|…|item` would be here. This is the assertion that fails if
+    // redactPreviewItems is ever removed from the player pump.
+    expect(aJson).not.toContain("|item");
+    expect(bJson).not.toContain("|item");
     // Each side does see its own canary — proof the tokens are reachable at
     // all, so the assertions above are not passing by typo.
     expect(aJson).toContain("ALICECANARY");
@@ -338,6 +378,10 @@ describe("battle:rejoin ack — the opponent's private state must not cross", ()
     const { events, deps } = makeDeps(present);
 
     await startBattle(null as never, room, deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(300);
     await playUntilRich(room, 3_000);
 
@@ -382,6 +426,10 @@ describe("battle:rejoin ack — the opponent's private state must not cross", ()
     const present = new Set(["uA", "uB", "uC"]);
     const { deps } = makeDeps(present);
     await startBattle(null as never, room, deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(300);
 
     const hostile: unknown[] = [
@@ -430,6 +478,10 @@ describe("the channel boundary the per-side log sits on", () => {
     const present = new Set(["uA", "uB"]);
     const { events, deps } = makeDeps(present);
     await startBattle(null as never, room, deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(300);
     await playUntilRich(room, 6_000);
 

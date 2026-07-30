@@ -100,12 +100,39 @@ export interface BenchMon {
   revealed: boolean;
 }
 
+/**
+ * One roster entry as Team Preview reveals it.
+ *
+ * This is a DIFFERENT shape from BenchMon on purpose, and the difference is the
+ * whole information-security story of the phase: there is no ident (the
+ * protocol does not send a nickname at preview — measured: a Pokémon nicknamed
+ * "SECRETNAME" arrives as `|poke|p1|Pikachu, L50, F|`), no HP, no status, no
+ * moves, no item and no ability. Reusing BenchMon would have meant inventing
+ * `hpPct: 100` and an `ident` for something the server never said, and a lie in
+ * the model is how a lie reaches the screen.
+ *
+ * `slot` is the 1-based position in the side's own `|poke|` order, which is
+ * exactly the number the `team N` choice takes.
+ */
+export interface PreviewMon {
+  slot: number;
+  speciesKey: string;
+  level: number;
+  gender: "M" | "F" | "";
+}
+
 export interface SideView {
   /** Trainer name as the protocol announced it. */
   player: string;
   teamSize: number;
   active: ActiveMon | null;
   bench: BenchMon[];
+  /** The Team Preview roster, from `|poke|`. Empty except during the phase and
+   *  after it — the lines arrive once and are never re-sent, so this is kept
+   *  rather than cleared at `|start`: it is the only record of the opponent's
+   *  FULL team, and the rail's "+2 not yet revealed" count reads better against
+   *  a roster than against a number. */
+  preview: PreviewMon[];
   hazards: { spikes: number; toxicspikes: number; stealthrock: boolean; stickyweb: boolean };
   screens: Record<string, number | true>;
 }
@@ -116,6 +143,16 @@ export interface BattleView {
   field: string[];
   you: SideView;
   foe: SideView;
+  /** True between `|teampreview` and `|start` — i.e. exactly while the
+   *  simulator is waiting for both sides' team orders.
+   *
+   *  Derived from the SHARED protocol rather than from `request.teamPreview`,
+   *  deliberately. The request is the authority on "may I still choose", which
+   *  goes false for me the instant I lock in while the phase carries on; this
+   *  flag is the authority on "what is on screen", which must stay true while I
+   *  wait for the opponent. The picker needs both and they are not the same
+   *  question. */
+  teamPreview: boolean;
   /** Terminal state, mirrored from |win| / |tie|. */
   ended: { winner: string | null; tie: boolean } | null;
 }
@@ -195,6 +232,7 @@ function emptySide(player: string): SideView {
     teamSize: 0,
     active: null,
     bench: [],
+    preview: [],
     hazards: { spikes: 0, toxicspikes: 0, stealthrock: false, stickyweb: false },
     screens: {},
   };
@@ -207,6 +245,7 @@ export function initialBattleView(youName = "You", foeName = "Opponent"): Battle
     field: [],
     you: emptySide(youName),
     foe: emptySide(foeName),
+    teamPreview: false,
     ended: null,
   };
 }
@@ -376,6 +415,52 @@ export function applyLine(
       next.turn = parseInt(parts[2] ?? "0", 10) || 0;
       return { view: next, lines: [...out, { kind: "turn", text: `Turn ${next.turn}` }] };
     }
+
+    // ── Team Preview ───────────────────────────────────────────────
+    // Three tags that used to be in the deliberately-silent list below, back
+    // when the format removed the phase with `!Team Preview` and they could
+    // therefore never arrive. The phase is on now, and these three lines are
+    // the ENTIRE channel through which one side learns anything about the
+    // other's team — so they are decoded into state, and still produce no
+    // narration: "Pikachu" appearing in the message box six times before the
+    // battle starts is not a battle log, it is noise.
+    case "clearpoke":
+      // Sent once, immediately before the `|poke|` block. Resets rather than
+      // appends so a rejoin replay of the whole delivered log rebuilds exactly
+      // one roster per side instead of two.
+      next.you = { ...next.you, preview: [] };
+      next.foe = { ...next.foe, preview: [] };
+      return { view: next, lines: [...out, ] };
+    case "poke": {
+      // |poke|p1|Pikachu, L50, F|      ← the fourth field is the held-item
+      // flag, and the SERVER strips it before this ever arrives (see
+      // server/src/lib/pvpTeamPreview.ts). It is not read here either way:
+      // decoding it would put a real competitive signal one `git revert` away
+      // from the screen.
+      const s = parts[2] === "p1" ? "a" : parts[2] === "p2" ? "b" : null;
+      const key = viewSideKey(s);
+      if (!key) return { view: next, lines: [...out, ] };
+      const d = parseDetails(parts[3] ?? "");
+      const preview = [
+        ...next[key].preview,
+        { slot: next[key].preview.length + 1, speciesKey: d.speciesKey, level: d.level, gender: d.gender },
+      ];
+      // `|teamsize|` does NOT arrive until both sides have locked in, so
+      // without this the preview screen could not say how many the foe has
+      // even though it is listing them. Counting the roster is the same fact.
+      next[key] = { ...next[key], preview, teamSize: Math.max(next[key].teamSize, preview.length) };
+      return { view: next, lines: [...out, ] };
+    }
+    case "teampreview":
+      next.teamPreview = true;
+      return { view: next, lines: [...out, ] };
+    case "start":
+      // The phase is over the instant the battle proper begins. This tag was
+      // silent before and stays silent — `|start` is immediately followed by
+      // the two `|switch|` lines that DO narrate — but it now carries the one
+      // piece of state that tells the arena to put the picker away.
+      next.teamPreview = false;
+      return { view: next, lines: [...out, ] };
     case "win": {
       flushMove();
       next.ended = { winner: parts[2] ?? null, tie: false };
@@ -879,7 +964,8 @@ export function applyLine(
     case "html":
     case "uhtml":
     case "debug":
-    case "start":
+    // `|start` is NOT here any more — it moved up to the Team Preview block,
+    // where it still emits no narration but now clears `teamPreview`.
     case "done":
     case "request":
     case "inactive":
@@ -898,9 +984,6 @@ export function applyLine(
     case "-terastallize":
     case "seed":
     case "split":
-    case "teampreview":
-    case "clearpoke":
-    case "poke":
       return { view: next, lines: [...out, ] };
 
     default:

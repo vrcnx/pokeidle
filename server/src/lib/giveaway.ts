@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { z } from "zod";
 
 // Provably-fair winner selection.
 //
@@ -104,6 +105,98 @@ export type Prize =
  */
 export type AppliedPrize = Prize & { assignedId?: string };
 
+// ── The bounds on a prize, in ONE place ─────────────────────────────
+//
+// WHY THIS MOVED HERE, and it is not tidying. These bounds used to live as a
+// private `PrizeSchema` const inside routes/admin.ts, and two of the three
+// operator paths that mint a prize used it while the third did not:
+//
+//   giveaway create  POST /admin/giveaways      z.array(PrizeSchema).min(1).max(10)
+//   mass gift        POST /admin/mass-gift      z.array(PrizeSchema).min(1).max(10)
+//   TOURNAMENT       POST/PATCH /admin/tournaments   z.string().max(20_000)
+//
+// The tournament routes took the prize list as an opaque JSON STRING and ran
+// only `checkPrizesDeliverable(parsePrizes(...))` on it. `parsePrizes` below is
+// deliberately lenient — it is the reader for rows that were validated on the
+// way IN — so it JSON.parses and casts with no per-element checking at all, and
+// checkPrizesDeliverable folds onto an empty save and asks validateSave, whose
+// only item rule is MAX_INVENTORY_STACK. Net effect, measured by executing both
+// checks over the same payloads:
+//
+//   999,999x expShare      giveaway REFUSED   tournament ACCEPTED
+//   999,999x masterball    giveaway REFUSED   tournament ACCEPTED
+//   999,999x shinycharm    giveaway REFUSED   tournament ACCEPTED
+//   $999,999,999           giveaway REFUSED   tournament ACCEPTED
+//   itemId "../../etc; DROP TABLE"
+//                          giveaway REFUSED   tournament ACCEPTED
+//   300 distinct items at 999,999 each (14,891 chars, inside the 20,000 cap)
+//                          giveaway REFUSED   tournament ACCEPTED
+//
+// A tournament prize is paid through enqueuePrizeGrant, so it lands via the
+// PendingGrant fold — which is applied ON TOP of the client's bytes INSIDE
+// commitSave, i.e. strictly after lib/saveGainGuard.ts has already run. The
+// gain guard is blind to it by construction (that blindness is deliberate and
+// correct: it is what stops the guard flagging the server's own payments). So
+// the item ceiling that catches a fabricated pile on the upload path —
+// ITEM_STACK_RESTRICTED, 1,000 — cannot see a prize at all, and the tournament
+// route was the one prize path with nothing else in its place.
+//
+// Nothing exploited it: production holds ZERO Tournament rows, and every
+// PendingGrant ever written is 1-50 units of an ordinary item. It is a latent
+// hole, closed here by construction rather than by remembering to repeat the
+// schema at a fourth call site.
+export const PrizeSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("item"),
+    itemId: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),
+    quantity: z.number().int().min(1).max(999),
+  }),
+  z.object({ kind: z.literal("money"), amount: z.number().int().min(1).max(10_000_000) }),
+  // The admin client builds the real mon (it owns the stat formula); we bound
+  // the shape here and validateSave gates the final write.
+  z.object({ kind: z.literal("pokemon"), label: z.string().max(80), mon: z.record(z.string(), z.unknown()) }),
+]);
+
+/** A whole prize list, as every operator-facing route accepts it. */
+export const PrizeListSchema = z.array(PrizeSchema).min(1).max(10);
+
+/**
+ * Validate a prize list that arrives as a JSON STRING rather than as parsed
+ * JSON — the shape the tournament routes use, because Tournament.prizes is a
+ * string column mirroring Giveaway.prizes.
+ *
+ * Returns the prizes RE-NORMALISED through the schema, so the caller stores
+ * exactly what was validated and no unchecked field can round-trip into the
+ * row. Deliberately does NOT call checkPrizesDeliverable: that lives in
+ * prizeGrant.ts, which imports this module, and the callers already run it
+ * afterwards. This function answers "is it in bounds", that one answers "will
+ * it fold" — both are needed and they are separate questions.
+ */
+export function parsePrizesStrict(
+  json: string,
+): { ok: true; prizes: Prize[] } | { ok: false; reason: string } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return { ok: false, reason: "prizes must be valid JSON" };
+  }
+  const parsed = PrizeListSchema.safeParse(raw);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const where = first?.path.length ? `prizes[${first.path.join(".")}]: ` : "";
+    return { ok: false, reason: `${where}${first?.message ?? "invalid prize list"}` };
+  }
+  return { ok: true, prizes: parsed.data as Prize[] };
+}
+
+/**
+ * LENIENT reader for a prize list that was already validated on the way in.
+ * Every caller of this reads a STORED row (Giveaway.prizes, Tournament.prizes,
+ * PendingGrant.prizes). Do not reach for it on an inbound request body —
+ * PrizeListSchema / parsePrizesStrict are the inbound gate, and routing a
+ * request through this one is exactly the hole documented above.
+ */
 export function parsePrizes(json: string): Prize[] {
   try {
     const v = JSON.parse(json);

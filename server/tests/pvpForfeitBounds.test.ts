@@ -77,6 +77,7 @@ import {
   type BattleRoom,
   type GraceDeps,
 } from "../src/pvp.js";
+import { answerTeamPreview, awaitingPreview } from "./support/teamPreview.js";
 
 // ── Harness ───────────────────────────────────────────────────────────────
 
@@ -123,6 +124,23 @@ async function liveBattle(
   battleRooms.set(id, room);
   await startBattle(io, room, (u, e, pl) => { h.events.push({ userId: u, event: e, payload: pl }); });
   await vi.advanceTimersByTimeAsync(0);
+
+  // TEAM PREVIEW, ANSWERED HERE OR THIS WHOLE FILE GOES VACUOUS.
+  //
+  // Every test below drives the battle with `applyChoice(room, …, "move 1")`
+  // and then asserts on movedAt / the turn clock. applyChoice returns ok for a
+  // move submitted DURING Team Preview — the whitelist passes, the write
+  // succeeds, and the refusal comes back asynchronously as
+  // `|error|[Invalid choice] Can't move: You need a teampreview response` — so
+  // it still stamps movedAt and every assertion here would keep passing while
+  // measuring choices the simulator threw away. The `expect` below is what
+  // makes that impossible: the phase has to have really been there and really
+  // been left.
+  await vi.advanceTimersByTimeAsync(0);
+  answerTeamPreview(room);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(awaitingPreview(room.a) || awaitingPreview(room.b)).toBe(false);
+  expect(room.a.request).toBeTruthy();
   return room;
 }
 
@@ -130,6 +148,10 @@ function tearDown(room: BattleRoom): void {
   if (room.expiryTimer) clearInterval(room.expiryTimer);
   if (room.a.graceTimer) clearTimeout(room.a.graceTimer);
   if (room.b.graceTimer) clearTimeout(room.b.graceTimer);
+  // The Team Preview auto-lock is a timer like any other, and this file swaps
+  // between fake and real timers inside single tests — a survivor would fire
+  // against a torn-down room.
+  if (room.previewTimer) clearTimeout(room.previewTimer);
   battleRooms.delete(room.id);
 }
 

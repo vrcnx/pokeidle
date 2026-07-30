@@ -6721,9 +6721,20 @@ body.dnd-active {
    like Party/Bag/PC/Chat get ~193 px more breathing room. The battle
    scene itself stays visible (HP cards + sprites) so players still
    see live progress while organising their party / browsing the
-   bag. They tap "Here" to interact with moves or use the toolbar. */
+   bag. They tap "Here" to interact with moves or use the toolbar.
+
+   `:not(.pvp2-moves)` EXEMPTS THE PvP MOVE GRID, and it is here rather
+   than as an override in pvpArena.css for one reason: `!important` can
+   only be beaten by another `!important`, so the arena's rule had to
+   carry one, and adding !important declarations to win a fight this
+   selector can simply decline is how a stylesheet becomes unarguable.
+   The arena reuses `.moves-panel` on purpose (a PvP tile IS an idle
+   tile), and a PvP shell has no `tab-world` class, so without the
+   exemption the one control every turn depends on was display:none.
+   `.pvp2-moves` is emitted by PvpArena.tsx and nowhere else, so this
+   cannot loosen the rule for any idle tab. */
 .mobile-shell:not(.tab-world) .moves-toolbar,
-.mobile-shell:not(.tab-world) .moves-panel {
+.mobile-shell:not(.tab-world) .moves-panel:not(.pvp2-moves) {
   display: none !important;
 }
 .mobile-arena .battle-scene {

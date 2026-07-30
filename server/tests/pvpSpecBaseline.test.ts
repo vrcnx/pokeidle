@@ -67,13 +67,96 @@ interface Baseline {
   describes: number;
 }
 
+// ─── REVISION 2 · Team Preview was turned on ────────────────────────────
+//
+// Five of the six moved, and the header above says the diff belongs in the same
+// review as the edit. It is this note.
+//
+// WHAT CHANGED IN THE PRODUCT. `simFormatId(false)` became `simFormatId(true)`:
+// Custom Game's Team Preview phase is live, so the first |request| every side
+// receives is `{"teamPreview":true}` with no `active` and no moves, and nothing
+// reaches turn 1 until both sides answer it. src/pvp.ts arms a 20-second
+// auto-lock inside startBattle so the phase can never stall a battle.
+//
+// WHY EVERY DRIVER HAD TO MOVE. `applyChoice(room, "uA", "move 1")` immediately
+// after startBattle used to be correct and is not any more — the simulator
+// answers it with `|error|[Invalid choice] Can't move: You need a teampreview
+// response` and the battle stays in the phase. Worse for a ratchet's purposes:
+// applyChoice still returns `{ok:true}` for that write, because the refusal is
+// asynchronous, so the affected files would have kept PASSING while measuring
+// choices the simulator threw away. Every edit below is a driver answering the
+// phase, and tests/pvpForfeitBounds.test.ts additionally asserts the phase was
+// really entered and really left so that vacuity is not available again.
+//
+// THE ONE BEHAVIOURAL ASSERTION THAT WAS INVERTED, and it is the one worth
+// reading the diff for: pvpRejoinLeak.test.ts and pvpBot.test.ts asserted that
+// the SPECIES of an opponent's Pokemon which had never taken the field was
+// absent from a rejoin snapshot. Team Preview publishes all six species to both
+// players before turn 1 — that IS the phase — so the claim is now false by
+// design and keeping it would only have measured whether the feature failed to
+// happen. Both were inverted to assert the species is PRESENT, and the private
+// half (nickname, held item, ability, moves, EV/IV spread, the opponent's own
+// |request| payload, and the `|poke|…|item` held-item marker) is asserted
+// ABSENT by name. That is strictly stronger than what they said before: the old
+// blanket negative was satisfied for free by a disabled phase, and the new pair
+// is not.
+//
+// NOTHING WAS WEAKENED, and the counts below are the evidence rather than the
+// claim: `its` and `describes` are UNCHANGED for all five (23/5, 5/2, 10/5,
+// 10/4, 51/16), and every one of the five grew. No test was deleted, skipped or
+// softened — the "no disabled, exclusive or soft assertions" case further down
+// still runs over all six.
+//
+// pvpSocketE2E.test.ts is untouched and its hash is unmoved: it asserts the
+// TRANSPORT contract (a battle:choose is acked, a room stays "active", a player
+// is never locked out), none of which depends on which phase the simulator is
+// in. It was green through the whole change.
+//
+// ─── REVISION 3 · the optimistic ack was closed, and it caught this file ──
+//
+// REVISION 2's last paragraph, immediately above, is the thing this revision
+// disproves — and it disproves it in the most useful possible way, so it is
+// left standing rather than edited out.
+//
+// It said pvpSocketE2E.test.ts was green through the Team Preview change and
+// therefore unaffected. It WAS green. It was green because of the defect
+// REVISION 2 itself described two paragraphs earlier: applyChoice returned
+// `{ok: true}` for a `move` written during the phase, because the simulator's
+// refusal is asynchronous. Two tests in that file assert exactly `{ok: true}`
+// for a `move 1` sent moments after `battle:start` — so they were measuring a
+// choice the simulator discarded, and the transport contract they claim to pin
+// ("a player is never locked out") was never actually exercised.
+//
+// src/pvp.ts's choiceFitsPhase now refuses an off-phase choice SYNCHRONOUSLY,
+// from the request the server already holds, so those two acks turned into
+// `{ok: false, error: "team preview: pick a lead first"}` and the file went red
+// — which is the ratchet doing its job in the direction it was built for.
+//
+// WHAT CHANGED IN THE FILE, and nothing else did:
+//   * a `leavePreview(A, B, battleId)` helper, which answers the phase for both
+//     seats over the REAL socket (`battle:choose` with `default`, the same
+//     string the server's own auto-lock writes) and returns once both requests
+//     are turn-1 requests;
+//   * one call to it in "E2E reconnect probe limiter", before the closing
+//     `move 1`;
+//   * one call to it in "E2E choose during grace", before A disconnects — the
+//     seat has to lock its lead while it still has a socket, or the battle
+//     would be sitting on the 20-second auto-lock and the test would be about
+//     the phase rather than about the grace window;
+//   * one import of isTeamPreviewRequest.
+//
+// NOTHING WAS WEAKENED. `its` 25 and `describes` 10 are both UNCHANGED, no
+// assertion was deleted or relaxed, and the two `toEqual({ok: true})` claims are
+// still there — they are now true of a real turn-1 move instead of being
+// vacuously satisfied by a discarded one. The file grew by 2,303 characters,
+// all of them the helper and its comment.
 const BASELINE: Baseline[] = [
-  { file: "pvpReconnect.test.ts",        sha256: "51e0d3b13e30c05e59e06153544b839da6d5dee42a7eec98e7158723cca713c2", chars: 33166, its: 23, describes: 5 },
-  { file: "pvpRejoinLeak.test.ts",       sha256: "c0d528e0b14f6730e6a395c19d432f1443036ca344737dca5ec9efab56d8de12", chars: 20905, its: 5,  describes: 2 },
-  { file: "pvpOutcomeIntegrity.test.ts", sha256: "10f05440c4f76c1188388f8ce0af7ccc2f56f6d8e9bd0b5e8c857e868a359d9c", chars: 21973, its: 10, describes: 5 },
-  { file: "pvpForfeitBounds.test.ts",    sha256: "47bbffd593a3c7d135f1500f9ae2a44039e9a16d452b3fcfc0d782083f9a48c5", chars: 18294, its: 10, describes: 4 },
-  { file: "pvpBot.test.ts",              sha256: "2ed8211adc2d561f02c7acaf773e186cf6fa9a533475e332f6dd33536293eddb", chars: 71567, its: 51, describes: 16 },
-  { file: "pvpSocketE2E.test.ts",        sha256: "aa1eec7b28c1dc6528e6fb5beaff642bf629d2952f246742b48735592fc3fd45", chars: 41137, its: 25, describes: 10 },
+  { file: "pvpReconnect.test.ts",        sha256: "fbfa41b82346ddfdd7180e54d4f8e67b639ea07b921d1b48ea0d2ca094ea9765", chars: 33952, its: 23, describes: 5 },
+  { file: "pvpRejoinLeak.test.ts",       sha256: "ae0e51a6b4906f4e705f9bfc5520315035b4e3d7b5fe99d4017916084a05699b", chars: 24036, its: 5,  describes: 2 },
+  { file: "pvpOutcomeIntegrity.test.ts", sha256: "47738c560621ab6b6d7acd3d656dc0037e90836604c4c687a650f3d9f12af964", chars: 24658, its: 10, describes: 5 },
+  { file: "pvpForfeitBounds.test.ts",    sha256: "04b1f85f9270fe0644974c4f6127348d45ae6c9179d0f4f224f8ca913bcc90e4", chars: 19533, its: 10, describes: 4 },
+  { file: "pvpBot.test.ts",              sha256: "f1bcb589e9bfac49702aad858b053280384514a681d29952455cf9a403efc471", chars: 76026, its: 51, describes: 16 },
+  { file: "pvpSocketE2E.test.ts",        sha256: "d180e40314a834edfc19d31f3daa3a1001050251b9240e06e4f8d2185ad7f7c0", chars: 43440, its: 25, describes: 10 },
 ];
 
 const TESTS = path.join(process.cwd(), "tests");

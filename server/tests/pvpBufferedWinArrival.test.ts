@@ -57,6 +57,7 @@ import {
   startBattle,
   type BattleRoom,
 } from "../src/pvp.js";
+import { answerTeamPreview, passTeamPreview } from "./support/teamPreview.js";
 
 const io = { to: () => ({ emit: () => {} }) } as never;
 const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -114,6 +115,10 @@ describe("the fixture really does produce a turn-1 win", () => {
   it("KOs in one turn AFTER level normalisation, in the rated format", async () => {
     const room = makeRoom("random50");
     await startBattle(io, room, sendToUser);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(200);
     // Both sides genuinely at Lv 50 — the raise as well as the lower. If a
     // future change makes normalisation lowering-only again, the Magikarp is
@@ -140,6 +145,10 @@ describe("a |win| drained after the battle ended", () => {
   it("really does arrive, and really does name the other player", async () => {
     const room = makeRoom("random50");
     await startBattle(io, room, sendToUser);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(200);
 
     // The one condition the corruption needed: endBattle swallows a throw from
@@ -196,6 +205,10 @@ describe("a |win| drained after the battle ended", () => {
     // the match ended even when they agree about who won.
     const room = makeRoom("random50");
     await startBattle(io, room, sendToUser);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(200);
     const real = room.stream!;
     room.stream = {
@@ -234,6 +247,10 @@ describe("without the arrival assertion the reproduction is vacuous", () => {
       ability: "swiftSwim", moves: [{ id: "splash" }],
     }] as never;
     await startBattle(io, room, sendToUser);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(200);
     const real = room.stream!;
     room.stream = {

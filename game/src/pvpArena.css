@@ -250,14 +250,52 @@
 
 .pvp2-ball-unknown { opacity: 0.35; }
 
+/* The opponent's name, which opens their public trainer card.
+ *
+ * ─── IT WAS DEAD, ON DESKTOP AND MOBILE ALIKE ─────────────────────────
+ *
+ * MEASURED before the two declarations below: `getComputedStyle(link)
+ * .pointerEvents === "none"`, inherited from its parent `.trainer-tag`, which
+ * app.css declares `pointer-events: none` so the idle battle's name plate
+ * cannot swallow clicks aimed at the scene behind it. `elementFromPoint` at the
+ * link's own centre returned an unrelated element, and a full
+ * pointerdown/mousedown/pointerup/mouseup/click sequence dispatched at that
+ * centre fired the click handler ZERO times. It was the only control in the
+ * whole PvP shell that did nothing when pressed.
+ *
+ * `pointer-events: auto` on a child of a `none` parent DOES re-enable hit
+ * testing for that child — the property is not inherited-and-locked the way
+ * `visibility: hidden` is — so the name becomes live without giving the plate
+ * around it back its ability to eat clicks.
+ *
+ * THE SECOND HALF IS THE TOUCH TARGET. The link measures 63×15 at 390px and
+ * 87×16 at 1280 — a text run, and the mobile audit's floor is 40px. Growing the
+ * box would push the name plate into the enemy HP card above it, so the HIT
+ * AREA grows instead, via a pseudo-element that participates in hit testing but
+ * not in layout: 15px of text plus 13px above and below is 41px, and the ±10px
+ * horizontally makes a short username comfortable without the strip reaching
+ * anything else (nothing in the scene between the HP card and the sprites is
+ * interactive, so a generous target here cannot steal a tap from another
+ * control). The pseudo-element inherits `pointer-events: auto` from the link,
+ * so it needs no declaration of its own. */
 .pvp2-name-link {
+  position: relative;
   background: none;
   border: 0;
   padding: 0;
   color: inherit;
   font: inherit;
   cursor: pointer;
+  pointer-events: auto;
   text-decoration: underline dotted transparent;
+}
+.pvp2-name-link::after {
+  content: "";
+  position: absolute;
+  top: -13px;
+  bottom: -13px;
+  left: -10px;
+  right: -10px;
 }
 .pvp2-name-link:hover { text-decoration-color: currentColor; }
 
@@ -885,10 +923,36 @@
 .pvp2-rematch-note.warn    { color: var(--warn); }
 .pvp2-rematch-note.bad     { color: var(--bad); }
 
-/* Four actions do not fit one phone row, and the primary must never be the one
-   that wraps off. `wrap-reverse` puts the primary (last in DOM order, so it
-   reads last for a screen reader too) on the TOP row when it wraps. */
-.pvp2-result-foot { flex-wrap: wrap-reverse; gap: 6px; }
+/* ─── THERE IS DELIBERATELY NO `flex-wrap` RULE HERE ───────────────────
+ *
+ * There was one: `.g-modal-foot.pvp2-result-foot { flex-wrap: wrap-reverse }`,
+ * to keep the primary action off the wrapped-away row on a phone. Its own
+ * comment recorded that `.pvp2-result-foot` alone had TIED with app.css's
+ * `.g-modal-foot` and lost the source-order coin flip — so the rule had never
+ * once applied — and the second class was added to win the tie.
+ *
+ * WINNING THE TIE IS WHAT EXPOSED IT AS UNNECESSARY, in both directions:
+ *
+ *   ON A PHONE it is dead code. The `@media (max-width: 760px)` block further
+ *   down declares `flex-direction: column-reverse; flex-wrap: nowrap` for this
+ *   exact footer, which is a strictly better answer to the same problem (four
+ *   full-width rows, primary on top) and overrides any wrap setting.
+ *
+ *   ON DESKTOP it was a change nobody asked for. The dialog is a fixed 520px
+ *   wide at every viewport, and MEASURED at 1280×800 on a completed battle with
+ *   `nowrap`: all four buttons on ONE row at 100/132/105/129px, `scrollWidth ===
+ *   clientWidth` and `scrollHeight 38 <= clientHeight 38` on every one of them.
+ *   Nothing is compressed, nothing is clipped, no label is truncated. With
+ *   `wrap-reverse` the same footer became two rows and 111px tall instead of 65
+ *   — 46px of extra dialog for no gain. (The claim that "the four buttons need
+ *   ~501px in a ~488px row" describes their PREFERRED widths; under `nowrap`
+ *   they shrink into the padding slack they already had, which is why the
+ *   overflow check above comes back clean.)
+ *
+ * So the rule is gone rather than re-scoped: the phone case is owned by the
+ * media block, and desktop is back to exactly the single row it had before the
+ * tie-break. If a fifth action is ever added, the media block is the thing to
+ * extend — not this. */
 .pvp2-result-foot > button { min-height: 40px; }
 
 /* ── Right rail ───────────────────────────────────────────────────── */
@@ -1113,3 +1177,579 @@
 @media (max-width: 760px) {
   .pvp2-bot-picker { max-width: 88vw; }
 }
+
+/* ── The phone ─────────────────────────────────────────────────────────
+ *
+ * MEASURED BEFORE: at 390×760 with a live battle in the store, `.pvp2-center`
+ * and `.pvp2-scene` did not exist and `.mobile-arena` was still 374×211 of
+ * IDLE `.battle-scene`. Zero move tiles, no message box, no forfeit — the only
+ * PvP surface that reached a phone at all was `.pvp2-rail`, and only under the
+ * Party tab, because PartyColumn swaps itself out for it.
+ *
+ * The layout is described in PvpArena.tsx (see "The phone"). What lives here is
+ * only the geometry, and it is deliberately short: every surface is a component
+ * desktop already renders, so the phone needs hosting boxes and a scroll
+ * contract, not a second stylesheet.
+ *
+ * SPECIFICITY. app.css is a separate stylesheet and the bundler's emission
+ * order between the two is not something this file should bet on, so every rule
+ * that overrides an app.css declaration carries at least one class more than
+ * the rule it beats — the same convention `.scene-status.pvp2-msg` and
+ * `.g-modal.pvp2-result-dialog` above already follow. */
+
+/* The idle scene is HIDDEN, not unmounted: it owns WhiteoutOverlay and
+   HealOverlay, the only components that can dispatch out of `phase: "healing"`.
+   Beats app.css's `.mobile-arena .battle-scene` (two classes) with two classes
+   plus a child combinator. */
+.mobile-arena.is-pvp > .battle-scene { display: none; }
+
+.pvp2-m-stage {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Full-bleed, exactly like the idle scene it stands in for: app.css gives
+   `.mobile-arena .battle-scene` no radius and no side borders, and a rounded
+   card floating in the row would read as a widget bolted into the game rather
+   than as the game. The message box is the scene's bottom edge, so its own
+   rounded corners go with it. */
+.mobile-arena.is-pvp .pvp2-scene {
+  border-radius: 0;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+}
+.mobile-arena.is-pvp .scene-status.pvp2-msg {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* The status strip — the two facts that must never be one tab away.
+ *
+ * On desktop the console is on screen for the whole battle, and its title
+ * ("Your move" / "Opponent is choosing" / "Choose your next Pokémon") is how a
+ * player knows the battle is waiting on them. On a phone the console is one of
+ * four tabs, so that state is republished here, beside the countdown that
+ * enforces it — and this strip is outside the tab body, so it survives every
+ * tab switch. */
+.pvp2-m-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  min-height: 34px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.pvp2-m-format {
+  min-width: 0;
+  font: 600 10px/1.4 var(--font-body);
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pvp2-m-state {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font: 700 10px/1.5 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--panel-3);
+  color: var(--text-muted);
+}
+/* Green for "the battle is waiting on you" — the only one of these that is a
+   call to action, and the reason the strip exists. */
+.pvp2-m-state.is-act  { background: var(--good-soft); color: var(--good); }
+.pvp2-m-state.is-away { background: var(--warn-soft); color: var(--warn); }
+.pvp2-m-state.is-over { background: var(--gold); color: #1a1a1a; }
+
+/* ── The tab bodies and who owns the scroll ────────────────────────────
+ *
+ * `.mobile-content` owns scrolling for the whole shell, and `.mobile-content >
+ * *` is `min-height: 100%` so a tab body grows and the content area scrolls
+ * under it. That default is RIGHT for two of these three and wrong for the
+ * third, and getting it wrong is exactly the bug the PC and Dex tabs had to fix
+ * (a body free to grow reported the height of its entire contents, the pane
+ * stretched to thousands of pixels and the toolbar could never stay put).
+ *
+ *   battle — keeps the default. The console stretches to fill when it fits,
+ *            and on a short phone the content area scrolls rather than clipping
+ *            the bench. Measured at 360×640, the smallest phone worth caring
+ *            about, the console wants ~324px and the body has ~289 — a clipped
+ *            bench there would mean a switch you cannot reach with the clock
+ *            running, which is strictly worse than a scroll.
+ *   log    — bounded, so the transcript scrolls INSIDE itself and its heading
+ *            stays put. Same call the Dex sub-view made.
+ *   team   — keeps the default and grows; up to twelve rows is a list, and a
+ *            list is the one thing the content area's scroll is already for. */
+.pvp2-m-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.mobile-content > .pvp2-m-panel.view-log {
+  height: 100%;
+  min-height: 0;
+  padding: 8px;
+}
+.mobile-content > .pvp2-m-panel.view-team {
+  gap: 8px;
+  padding: 8px;
+}
+
+/* The console is the tab, so it is full-bleed too — a bordered card inset in a
+   374px column would spend 20px of the move tiles' width on decoration. */
+.pvp2-m-panel.view-battle > .pvp2-console {
+  border-radius: 0;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  padding: 8px 10px 10px;
+}
+
+/* THE MOVE GRID HAS TO BE PUT BACK. Measured on the first build of this
+   layout: four `.move-slot` tiles at 0×0. The arena's move grid deliberately
+   reuses the idle game's `.moves-panel` class so a PvP tile is visually the
+   same object as an idle one — and app.css hid that class outright on every
+   mobile tab but "world", with `!important`. A PvP shell has no `tab-world`
+   class, so the one control the whole battle turns on was display:none.
+
+   THE FIRST FIX WAS `display: grid !important` HERE, and it worked, but only
+   because `!important` is the only thing that beats `!important` — no amount
+   of specificity can. Trading one !important for another leaves the next
+   person with two rules that can each only ever be overridden by escalating
+   again. So the exemption moved to the hider itself, which now reads
+       .mobile-shell:not(.tab-world) .moves-panel:not(.pvp2-moves)
+   and the grid is simply never hidden in the first place. `.moves-panel`'s own
+   base rule in app.css is already `display: grid`, so nothing has to declare
+   it back — this file now says NOTHING about the panel's display, and the two
+   stylesheets no longer have a fight to arbitrate.
+
+   Verified by execution across all six idle mobile tabs at 390×760 with no PvP
+   room: the panel still computes `none` on Party/Mart/Bag/PC/Chat and `grid`
+   on World, exactly as before. */
+
+/* BALANCE. Measured with the grid put back: move tiles 167×58 and bench cards
+   86×86, i.e. the occasional control was taller than the one pressed every
+   single turn. The cause is the flags row — a switch card is 69px of sprite,
+   name and HP bar, and a status badge or the "Out" tag adds a whole fourth row
+   to EVERY card in the grid because grid rows are shared. At this size a flag
+   is an annotation on the card, not a row of it, so it moves into the corner
+   the card already reserves (`.pvp2-switch-card` is `position: relative`
+   already) and the rows drop to the 68px thumb floor. That hands ~16px back to
+   the move tiles, which is where it belongs. */
+.mobile-shell .pvp2-m-panel .pvp2-switch-grid.as-rail .pvp2-switch-flags {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  max-width: calc(100% - 4px);
+  justify-content: flex-end;
+}
+
+.pvp2-m-panel.view-log > .pvp2-log-card { flex: 1 1 auto; min-height: 0; }
+/* The rail caps the transcript at 260px (180px narrow) because there it is one
+   card among several. Here it IS the tab. */
+.pvp2-m-panel.view-log .pvp2-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pvp2-m-panel.view-team > .pvp2-team-card { flex: 0 0 auto; }
+
+/* ── Touch targets ─────────────────────────────────────────────────────
+ *
+ * The mobile audit's floor is 40px. Forfeit is 24px tall on desktop and that is
+ * correct there — it is quiet by weight and position, in a labelled header at
+ * the far end of the panel from every attack. Quiet has to stop meaning SMALL
+ * once the pointer is a thumb, so it keeps the muted treatment and gets the
+ * floor. Two classes each, so they beat the single-class rules above. */
+.mobile-shell .pvp2-console-head { min-height: 40px; }
+.mobile-shell .pvp2-forfeit-btn { min-height: 40px; padding-left: 12px; padding-right: 12px; }
+.mobile-shell .pvp2-forfeit-confirm button { min-height: 40px; }
+/* The confirm bar wraps to two rows on a 374px shell; its two buttons then
+   share the second row rather than one of them being a 90px sliver. */
+.mobile-shell .pvp2-forfeit-confirm > button { flex: 1 1 40%; justify-content: center; }
+
+/* One bar, two modes: six idle tabs or four PvP ones. */
+.mobile-shell .mobile-tabbar.pvp-tabbar { grid-template-columns: repeat(4, 1fr); }
+
+/* SHORT PHONES. At 390×760 the console fits the tab body exactly (374×391,
+   nothing scrolls). At 360×640 it wants 420 in a 288 body, because a 16/9 scene
+   plus a header, a status strip and a tab bar leave 288px and the console's own
+   floors add up to more than that. It grows and the body scrolls, which is the
+   right failure — a clipped bench is a switch you cannot reach with the clock
+   running — but the ORDER matters: the moves must be the part above the fold.
+   Measured without this rule, `grid-auto-rows: minmax(56px, 1fr)` in an
+   indefinite-height console let each tile take its max-content 78px, pushing the
+   whole bench past the fold. Capping the rows here pulls the first bench row
+   back into view. Keyed on viewport height so a TALL phone keeps stretching its
+   tiles to fill the column rather than leaving a dead band under them. */
+@media (max-height: 700px) {
+  .mobile-shell .pvp2-moves { grid-auto-rows: minmax(56px, 64px); }
+
+  /* THE FORCED SWITCH AT 360×640, which the rule above does not reach because
+   * in that mode there are no move tiles to cap.
+   *
+   * MEASURED, before these three declarations: console 383px inside a 289px tab
+   * body, six 101×104 cards in two rows at y=447 and y=557 — and the second row
+   * ends at 661 in a 640-tall viewport. Three of the six were offscreen and
+   * `elementFromPoint` at their centres returned the element above them, i.e.
+   * they were not merely low, they were not hit-testable. `.mobile-content` did
+   * carry 95px of scroll so they were recoverable, and the comment above says a
+   * scroll is the right failure — but this is the ONE moment the battle is
+   * blocked on the player with the clock running, and "scroll, then tap" is the
+   * wrong ask at the wrong moment. 383 → 289 is the whole job, and it is 94px.
+   *
+   * WHERE THE 94 COMES FROM, measured piece by piece:
+   *   60px  two bench rows capped from 104 to 74. 68 is the card's declared
+   *         thumb floor (sprite + name + HP bar), so 74 keeps a margin over it
+   *         rather than sitting on it.
+   *   45px  the notice's second sentence. "You must send out a replacement
+   *         before the battle can go on." wraps to two 11px lines here, and it
+   *         is the FOURTH place the same instruction appears on this screen —
+   *         the console title says "Choose your next Pokémon", the status strip
+   *         says "Send out a Pokémon", the bench heading says "Send out", and
+   *         the message box has just narrated the faint. The `<strong>` ("Your
+   *         Pokémon fainted.") stays, so nothing is unexplained; only the
+   *         restatement goes, and only on a phone too short to afford it.
+   * That is 105px of headroom against a 94px deficit — deliberately more than
+   * the exact fit, because a longer nickname or a status badge must not put a
+   * card back under the fold. */
+  .mobile-shell .pvp2-console.mode-forced .pvp2-switch-grid.as-wide {
+    grid-auto-rows: minmax(68px, 74px);
+  }
+  .mobile-shell .pvp2-console.mode-forced .pvp2-forced-notice { padding: 6px 10px; }
+  .mobile-shell .pvp2-console.mode-forced .pvp2-forced-notice > span { display: none; }
+}
+
+/* ── LANDSCAPE: two columns, because one column cannot work ────────────
+ *
+ * MEASURED at 667×375 with a live battle, before this block: `.pvp2-scene` was
+ * 651×366 — 16:9 taken off the VIEWPORT WIDTH — so the arena alone claimed 401
+ * of the 375 available pixels. `.mobile-content` was squeezed to 651×1 at
+ * y=439 and `.mobile-tabbar` sat at y=440…496, entirely below the fold, with
+ * `.mobile-shell` at `overflow: hidden` and the document not scrolling
+ * (scrollHeight 375 = viewport 375). Everything below the scene was therefore
+ * unreachable: Battle/Teams/Log/Chat, forfeit, all four moves and all six bench
+ * cards measured offscreen AND failed hit-testing. Same at 740×360 (scene 407
+ * tall) and 844×390 (scene 466 tall).
+ *
+ * The idle shell fails identically at the same sizes — this is app-wide
+ * geometry (`.mobile-arena .battle-scene { aspect-ratio: 16/9; flex-shrink: 0 }`
+ * in app.css, which `.pvp2-scene` deliberately mirrors) and not something the
+ * arena introduced. What makes it PvP's problem to solve is the consequence:
+ * the idle game plays itself, so a landscape phone there is a degraded view,
+ * while PvP has a turn clock and a 5-minute AFK forfeit watchdog, so a
+ * landscape phone there is a LOST MATCH. That asymmetry is also why this block
+ * is scoped to `.pvp-live` rather than fixing `.mobile-shell` for everyone:
+ * re-laying-out the idle game's six mobile tabs is a product change with no
+ * failing consequence behind it, and it belongs to whoever asks for it.
+ *
+ * THE FIX IS NOT A SQUEEZE. Capping the scene's height would leave a 651×140
+ * letterbox with the console still stacked under it in a 375px column — the
+ * same shape, just less of it. A landscape phone has the one thing the portrait
+ * layout is short of, WIDTH, so the shell becomes two columns: the scene keeps
+ * its 16:9 in a 44% track (286×161 at 667px, so the sprites and HP cards are
+ * unsquashed), and the tab body takes the rest at full row height and scrolls
+ * inside itself exactly as it does in portrait. Header and tab bar span both.
+ *
+ * `.mobile-shell` is already `display: grid` with `grid-template-rows: auto auto
+ * 1fr auto` and a single column, so this is a re-tracking of a grid that exists
+ * rather than a new layout mode, and every child is placed explicitly so the
+ * order cannot depend on source order. Two classes beat app.css's one.
+ *
+ * The query is `min-width` AND `max-height` rather than `orientation:
+ * landscape`: a 320×480 phone is portrait by orientation but would still match
+ * a bare `max-height: 560px`, and two 160px columns is worse than one bad one.
+ * 600px of width is enough for a 264px scene track beside a 336px console. */
+@media (min-width: 600px) and (max-height: 560px) {
+  .mobile-shell.pvp-live {
+    grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .mobile-shell.pvp-live > .mobile-header { grid-column: 1 / -1; grid-row: 1; }
+  .mobile-shell.pvp-live > .mobile-arena {
+    grid-column: 1;
+    grid-row: 2;
+    /* min-height:0 is what lets the 1fr row actually cap this track — a grid
+       item's automatic minimum size is its content, which is precisely how the
+       16:9 scene pushed the tab bar off the bottom in the first place. */
+    min-height: 0;
+    overflow: hidden;
+  }
+  .mobile-shell.pvp-live > .mobile-content {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    /* The seam is now vertical. Keeping the top border as well would draw a
+       stray rule across the top of the console. */
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+  .mobile-shell.pvp-live > .mobile-tabbar { grid-column: 1 / -1; grid-row: 3; }
+  /* The scene no longer spans the shell, so its full-bleed treatment (see
+     `.mobile-arena.is-pvp .pvp2-scene` above) would leave the column's own edge
+     undrawn. */
+  .mobile-shell.pvp-live .mobile-arena.is-pvp .pvp2-scene { border-bottom: 1px solid var(--border); }
+}
+
+/* ── The forced switch on a narrow console ─────────────────────────────
+ *
+ * MEASURED, and this was the worst thing the phone layout found: with a faint
+ * pending, the console was 374×1023 inside a 391px tab body — a 632px scroll,
+ * with six switch cards stacked one per row at 185×150. That is the ONE moment
+ * a battle is blocked on the player and the clock is the thing that resolves
+ * it, so a control below the fold there is a lost match.
+ *
+ * The cause is a specificity collision that the existing container query could
+ * not have won. `@container pvp2console (max-width: 520px)` collapses
+ * `.pvp2-console-body` to a single column — but that selector is ONE class, and
+ * `.pvp2-console.mode-forced .pvp2-console-body` (three classes, declared for
+ * the desktop 1fr/1.15fr split) beats it no matter where it sits in the file.
+ * So a forced switch kept the two-track body at every width, gave the bench a
+ * ~185px track, and the auto-fill grid could fit exactly one card per row.
+ *
+ * The fix matches that rule's specificity inside the query, which is also why
+ * it lives here rather than in the shared block above: a bare `.pvp2-console-
+ * body` there would have kept losing. This is not a phone-only fix — the same
+ * collapse was wrong for any console under 520px. */
+@container pvp2console (max-width: 520px) {
+  /* Both rows `auto` rather than `auto minmax(0,1fr)`: the console is stretched
+     by its flex parent when there is room, so `auto` rows still fill it, and
+     when there ISN'T room the panel grows and `.mobile-content` scrolls rather
+     than the bench being clipped at a fixed track height. Growing is recoverable
+     and clipping is not. */
+  .pvp2-console.mode-forced .pvp2-console-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  /* Same auto-fill shape the always-on bench uses at this width, so a forced
+     switch is the familiar grid rather than a different object — just taller,
+     because this is a decision the player did not get to prepare for. */
+  .pvp2-console.mode-forced .pvp2-switch-grid.as-wide {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    grid-auto-rows: minmax(68px, 104px);
+    align-content: start;
+    flex: 0 0 auto;
+  }
+  .pvp2-console.mode-forced .pvp2-forced-notice { padding: 8px 10px; }
+  .pvp2-console.mode-forced .pvp2-forced-notice strong { font-size: 12px; }
+}
+
+/* Full-bleed cost the forced state one of its three signals — the console's
+   warn-coloured border. The tint, the title colour and the status chip in the
+   strip above all survive; this puts the fourth back as a rule the player reads
+   before any text. */
+.pvp2-m-panel.view-battle > .pvp2-console.mode-forced { border-top: 2px solid var(--warn); }
+
+/* ── The result dialog's footer on a phone ─────────────────────────────
+ *
+ * Wrapping is not enough here. Four labels — "View final board", "Find another
+ * opponent", "Back to the game", "Ask for a rematch" — will fit one 378px row
+ * geometrically and be illegible doing it, which is exactly what a phone
+ * measured: 77px per button, and the longest label overflowing its own 40px box.
+ * A dialog whose buttons you cannot read is not "reachable".
+ *
+ * `column-reverse` rather than a 2×2 grid so the DOM order still reads
+ * correctly to a screen reader while the PRIMARY (last in DOM) sits at the top
+ * where a thumb rests, with the exit directly under it. Three classes, so it
+ * beats both `.g-modal-foot` and the `wrap-reverse` rule above without a tie. */
+@media (max-width: 760px) {
+  .g-modal.pvp2-result-dialog .pvp2-result-foot {
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .g-modal.pvp2-result-dialog .pvp2-result-foot > button {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
+/* ══ Team Preview ══════════════════════════════════════════════════════
+ *
+ * Two surfaces, both of which REUSE rather than reimplement:
+ *
+ *   * the stage lives inside `.scene-content` — app.css's own `inset: 0`
+ *     full-bleed box — so it is inside the arena's 16/9 battle window rather
+ *     than a modal floating over it. It sits between the two `.trainer-tag` /
+ *     card anchors, in the same top-is-foe / bottom-is-you geometry the battle
+ *     itself uses, so the rosters are where their fighters are about to be;
+ *   * the picker emits `.pvp2-console` and `.pvp2-switch-grid.as-wide`, the
+ *     panel and the card grid the forced-switch case already uses. That is
+ *     what keeps the console the SAME SIZE through preview → turn 1: a picker
+ *     with its own box would make the whole column jump at the exact moment
+ *     the battle opens.
+ *
+ * Nothing here renders HP, status or a type badge, because `PreviewMon` has
+ * none of those — see the header of the Team Preview section in PvpArena.tsx.
+ */
+
+.pvp2-preview-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* Clear of the `.trainer-tag` at the top and the message box at the bottom.
+     The bottom value is `.scene-status`'s own height plus a little air. */
+  padding: 30px 10px 46px;
+  gap: 6px;
+  pointer-events: none;   /* the stage is a READOUT; the picker below is the control */
+  z-index: 12;
+}
+
+.pvp2-preview-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+}
+.pvp2-preview-row.is-you { align-items: flex-end; }
+
+.pvp2-preview-who {
+  font: 800 9px/1.4 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  padding: 0 4px;
+}
+
+.pvp2-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pvp2-preview-row.is-you .pvp2-preview-list { justify-content: flex-end; }
+
+/* A dark plate behind each entry: the arena background is a photo, and white
+   text on Indigo Plateau's sky is unreadable at 9px without one. */
+.pvp2-preview-mon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 5px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(14, 14, 18, 0.72);
+  backdrop-filter: blur(2px);
+  min-width: 54px;
+}
+.pvp2-preview-mon img,
+.pvp2-preview-mon .sprite-missing { width: 40px; height: 40px; object-fit: contain; }
+
+.pvp2-preview-name {
+  font: 700 9px/1.2 var(--font-body);
+  color: #fff;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pvp2-preview-lv { font: 600 8px/1.2 var(--font-body); color: rgba(255, 255, 255, 0.72); }
+.pvp2-preview-empty { color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); }
+
+/* ── The picker ─────────────────────────────────────────────────────── */
+
+.pvp2-console.mode-preview { border-color: var(--gold); }
+.pvp2-console.mode-preview .pvp2-console-title { color: var(--gold); }
+
+.pvp2-preview-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Cards on the left, the commit control on the right — the same two-column
+   split the fight console uses, so the primary button lands where the bench
+   column does and the eye does not have to relearn the panel. */
+.pvp2-console-body.is-preview {
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 0.95fr);
+}
+.pvp2-preview-pick { min-width: 0; min-height: 0; display: flex; }
+
+.pvp2-preview-grid {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-auto-rows: minmax(84px, 130px);
+  align-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The chosen lead has to be unmistakable at a glance under a 20-second clock,
+   so it takes the gold border AND a fill — `.active` on the switch grid only
+   borders, because there "active" means "already out" and is a fact rather than
+   a choice the player just made. */
+.pvp2-preview-card.picked {
+  border-color: var(--gold);
+  background: var(--gold-soft, rgba(212, 175, 55, 0.16));
+}
+.pvp2-preview-card.picked .pvp2-switch-tag { background: var(--gold); color: #1a1a1a; }
+
+.pvp2-preview-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pvp2-preview-lock {
+  width: 100%;
+  min-height: 40px;   /* the mobile audit's floor, and the primary action here */
+  white-space: normal;
+  line-height: 1.25;
+}
+.pvp2-preview-hint { margin: 0; line-height: 1.4; }
+.pvp2-preview-locked { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.pvp2-preview-locked strong { color: var(--gold); }
+
+.pvp2-team-list.is-preview .pvp2-team-row { grid-template-columns: auto 1fr auto; }
+
+/* ── Phone ─────────────────────────────────────────────────────────────
+ *
+ * `.mobile-content` owns scrolling and the console tab must never scroll, so
+ * the picker stacks instead of shrinking: six cards two-up, then the commit
+ * button full width beneath them. Same rule the fight console follows. */
+.mobile-shell .pvp2-console-body.is-preview {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.mobile-shell .pvp2-preview-grid {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  grid-auto-rows: minmax(76px, 108px);
+}
+.mobile-shell .pvp2-preview-card { min-height: 40px; }
+.mobile-shell .pvp2-preview-actions { flex-direction: column; }
+.mobile-shell .pvp2-preview-stage { padding: 26px 6px 40px; }
+.mobile-shell .pvp2-preview-mon { min-width: 46px; padding: 2px 3px 3px; }
+.mobile-shell .pvp2-preview-mon img,
+.mobile-shell .pvp2-preview-mon .sprite-missing { width: 32px; height: 32px; }
+.mobile-shell .pvp2-preview-name { max-width: 48px; }
+
+/* Locked in: the panel loses its "act now" gold and settles into a waiting
+   state, so the difference between "you still owe a decision" and "you are
+   waiting on them" is visible from across the room. */
+.pvp2-console.mode-preview.is-locked { border-color: var(--border-strong); }
+.pvp2-console.mode-preview.is-locked .pvp2-console-title { color: var(--text-muted); }
+.pvp2-preview-change { align-self: flex-start; min-height: 32px; }
+.mobile-shell .pvp2-preview-change { min-height: 40px; align-self: stretch; }

@@ -73,8 +73,41 @@ export interface BattleRoom {
   voided: boolean;
   /** Server-supplied per-turn deadline. The simulator resets this
    *  whenever a fresh |request| arrives; the watchdog forfeits the
-   *  side that misses it. UI uses this for a countdown badge. */
+   *  side that misses it. UI uses this for a countdown badge.
+   *
+   *  During Team Preview this carries the SHORT auto-lock deadline instead —
+   *  server-side, one function (turnDeadlineFor in server/src/pvp.ts) — so the
+   *  countdown on screen is always the one actually being enforced. */
   turnDeadlineAt: number | null;
+
+  /**
+   * The Team Preview lead this client has locked in: a 1-based slot, 0 for
+   * `default` (the order as built), or null for "not answered yet".
+   *
+   * WHY THIS IS CLIENT STATE AND HAS TO BE. The simulator sends NO
+   * acknowledgement when a side answers Team Preview — no protocol line, no
+   * fresh |request| — and the next thing on the wire is `|start`, which only
+   * happens once BOTH sides have answered. So `request.teamPreview` is still
+   * true for a player who has already locked in, and there is nothing on the
+   * wire that distinguishes "still deciding" from "waiting for them". Measured
+   * in the browser against a real battle: the choice reached the server
+   * (`[choose] team 4` in its log) while the arena went on saying "Choose your
+   * lead" with the button armed.
+   *
+   * WHY IT LIVES IN THE STORE RATHER THAN IN THE PICKER. Three surfaces need
+   * it and two of them are not the picker: the battle message box (a sibling
+   * component inside the scene) and — on a phone — the status strip, which
+   * lives in a DIFFERENT TAB from the console. Component-local state would have
+   * left the phone's message box saying "choose who leads" indefinitely to a
+   * player who had already chosen.
+   *
+   * Reset to null when a new battle starts, when the phase ends, and on rejoin
+   * — see the reducer sites. Null is the safe default in every one of those
+   * cases: re-choosing is legal until both sides lock, so offering the picker
+   * to somebody who has already answered costs nothing, while hiding it from
+   * somebody who has not would strand them.
+   */
+  previewLead: number | null;
   /** Final outcome — null while battle is live. */
   result: {
     winnerId: string | null;
@@ -93,6 +126,19 @@ export interface BattleRoom {
 }
 
 export interface BattleRequest {
+  /** Team Preview. When true this request has NO `active` and no moves — the
+   *  only legal answers are `team <order>` and `default` — and it is the
+   *  authority on "may I still choose a lead", which goes false for me the
+   *  moment I lock in even though the phase continues until the opponent does
+   *  too. `view.teamPreview` is the other half of that pair; see
+   *  pvpBattleView.ts.
+   *
+   *  Nothing about the OPPONENT is in this payload. Measured against the real
+   *  simulator on a battle whose p1 lead was a nicknamed, shiny, item-holding
+   *  Pikachu: p2's preview request contains the substring "p1" zero times, and
+   *  none of the nickname, the item, the ability or the move appear anywhere in
+   *  it. The opponent's species arrive on the shared `|poke|` lines instead. */
+  teamPreview?: boolean;
   // Showdown's |request| protocol — full shape varies, but for v1 we
   // only render `active[].moves` and `side.pokemon` as the picker.
   active?: Array<{
@@ -306,6 +352,40 @@ export function chooseBattleAction(
 ) {
   getSocket().emit("battle:choose", { battleId, choice }, ack);
 }
+
+/**
+ * Answer Team Preview: send the team order and remember that we did.
+ *
+ * One function rather than "call chooseBattleAction and also set a flag",
+ * because the flag IS the only record that the choice happened — the simulator
+ * acknowledges nothing (see BattleRoom.previewLead) — so a caller that sent the
+ * choice without setting it would leave the whole UI believing the player had
+ * not answered.
+ *
+ * `slot` is 1-based, or null for "the order I already built", which goes on the
+ * wire as `default`. Both were measured against the real simulator to produce
+ * the identity lead; sending `default` rather than `team 1` keeps the wire
+ * honest about which of the two the player actually did.
+ */
+export function lockTeamPreview(battleId: string, slot: number | null) {
+  const room = _state.room;
+  if (!room || room.battleId !== battleId) return;
+  chooseBattleAction(battleId, slot == null ? "default" : `team ${slot}`);
+  _state.room = { ...room, previewLead: slot ?? 0 };
+  emit();
+}
+
+/** Re-open the picker. Legal right up until BOTH sides have answered — a second
+ *  `team` choice overwrites the first, measured against the real simulator — so
+ *  this only clears our own record; nothing is sent until the player locks
+ *  again. */
+export function unlockTeamPreview(battleId: string) {
+  const room = _state.room;
+  if (!room || room.battleId !== battleId) return;
+  _state.room = { ...room, previewLead: null };
+  emit();
+}
+
 export function cancelBattle(battleId: string) {
   getSocket().emit("battle:cancel", { battleId });
 }
@@ -370,6 +450,7 @@ export function bindPvpSocket() {
         opponentAway: null,
         voided: false,
         turnDeadlineAt: null,
+        previewLead: null,
         result: null,
       };
       _state.cancelMessage = null;
@@ -398,13 +479,18 @@ export function bindPvpSocket() {
         newEntries.push(decodeProtocolLine(line, room.side));
       }
       const decoded = applyChunk(room.view, payload.chunk, room.side, _scratch);
+      const request = payload.request ?? room.request;
       _state.room = {
         ...room,
-        request: payload.request ?? room.request,
+        request,
         log: [...room.log, ...newEntries].slice(-200),
         view: decoded.view,
         narration: [...room.narration, ...decoded.lines].slice(-300),
         turnDeadlineAt: payload.turnDeadlineAt ?? room.turnDeadlineAt,
+        // The phase is over the moment the request stops being a preview one.
+        // Clearing here rather than in the picker means the flag cannot outlive
+        // the phase and re-appear on a later battle in the same room object.
+        previewLead: request?.teamPreview ? room.previewLead : null,
       };
       emit();
     },
@@ -527,6 +613,12 @@ export function bindPvpSocket() {
           turnDeadlineAt: s.turnDeadlineAt,
           opponentAway: null,
           voided: false,
+          // A reload during Team Preview genuinely cannot know whether this
+          // client already answered — the server publishes no acknowledgement
+          // — so the picker re-opens. That is the safe direction: re-choosing
+          // is legal until both sides lock and simply overwrites, whereas
+          // guessing "already locked" would strand a player who had not.
+          previewLead: null,
         };
         emit();
       },

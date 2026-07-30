@@ -31,7 +31,9 @@ import {
   clampRoundMinutes, usernameOf,
 } from "../lib/tournamentRunner.js";
 import { endBattle } from "../pvp.js";
-import { parsePrizes, describePrizes, type Prize } from "../lib/giveaway.js";
+import {
+  parsePrizes, parsePrizesStrict, describePrizes, PrizeListSchema, type Prize,
+} from "../lib/giveaway.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
 import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
@@ -1783,18 +1785,16 @@ app.delete("/chat/:id", async (c) => {
 });
 
 // ── Giveaways ─────────────────────────────────────────────────────────
-const PrizeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("item"), itemId: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/), quantity: z.number().int().min(1).max(999) }),
-  z.object({ kind: z.literal("money"), amount: z.number().int().min(1).max(10_000_000) }),
-  // The admin client builds the real mon (it owns the stat formula);
-  // we bound the shape here and validateSave gates the final write.
-  z.object({ kind: z.literal("pokemon"), label: z.string().max(80), mon: z.record(z.string(), z.unknown()) }),
-]);
+// PrizeSchema / PrizeListSchema live in lib/giveaway.ts, next to the Prize type
+// they bound, so that EVERY route which mints a prize is gated by the same
+// numbers. They used to be a private const in this file, and the tournament
+// routes below quietly did not use them — see the comment on PrizeSchema for
+// what that let through.
 const GiveawayBody = z.object({
   title: z.string().min(1).max(120),
   description: z.string().max(2000),
   winnerCount: z.number().int().min(1).max(100),
-  prizes: z.array(PrizeSchema).min(1).max(10),
+  prizes: PrizeListSchema,
   minAccountLevel: z.number().int().min(0).max(10_000).nullable().optional(),
   startsAt: z.string().datetime().nullable().optional(),
   endsAt: z.string().datetime().nullable().optional(),
@@ -2145,7 +2145,7 @@ app.post("/giveaways/:id/draw", async (c) => {
 const MassGiftBody = z.object({
   audience: z.enum(["all", "online", "selected"]),
   userIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/)).max(5000).optional(),
-  prizes: z.array(PrizeSchema).min(1).max(10),
+  prizes: PrizeListSchema,
   announce: z.string().max(300).optional(),
   minAccountLevel: z.number().int().min(0).max(100_000).nullable().optional(),
 });
@@ -2776,7 +2776,10 @@ const TournamentCreateBody = z.object({
   roundWindowMinutes: z.number().int().min(5).max(60 * 24 * 14).optional(),
   /** Let the runner drive it. Off = hand-run showmatch. */
   autoRun: z.boolean().optional(),
-  /** Champion prize, as the same Prize[] JSON giveaways use. */
+  /** Champion prize, as the same Prize[] JSON giveaways use — and now held to
+   *  the same bounds. The string is parsed and re-normalised through
+   *  PrizeListSchema by parsePrizesStrict before it is stored; the length cap
+   *  only stops a huge body reaching the JSON parser. */
   prizes: z.string().max(20_000).nullable().optional(),
 });
 
@@ -2799,12 +2802,21 @@ app.post("/tournaments", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
   }
-  // Refuse a prize we already know can never be delivered, at CREATE
-  // time, rather than discovering it when the final resolves and the
-  // champion is standing there empty-handed.
+  // TWO checks, and they answer different questions. parsePrizesStrict asks
+  // "is this in bounds" — the same PrizeListSchema giveaways and mass-gift are
+  // held to, which this route used to skip entirely (see lib/giveaway.ts).
+  // checkPrizesDeliverable then asks "will it actually fold", at CREATE time,
+  // rather than discovering it when the final resolves and the champion is
+  // standing there empty-handed.
+  let prizesJson: string | null = null;
   if (parsed.data.prizes) {
-    const bad = checkPrizesDeliverable(parsePrizes(parsed.data.prizes));
+    const strict = parsePrizesStrict(parsed.data.prizes);
+    if (!strict.ok) return c.json({ error: "prize rejected", reason: strict.reason }, 400);
+    const bad = checkPrizesDeliverable(strict.prizes);
     if (bad) return c.json({ error: "prize would corrupt save", reason: bad }, 400);
+    // Store the re-normalised form, so the row can only ever hold what the
+    // schema accepted.
+    prizesJson = JSON.stringify(strict.prizes);
   }
   const t = await prisma.tournament.create({
     data: {
@@ -2815,7 +2827,7 @@ app.post("/tournaments", async (c) => {
       ownerId: me.id,
       roundWindowMinutes: parsed.data.roundWindowMinutes ?? 1440,
       autoRun: parsed.data.autoRun ?? true,
-      prizes: parsed.data.prizes ?? null,
+      prizes: prizesJson,
     },
   });
   void makeAudit(c)(me.id, "tournament.create", t.id, { name: t.name, levelCap: t.levelCap });
@@ -2857,9 +2869,16 @@ app.patch("/tournaments/:id", async (c) => {
   if (body.prizes !== undefined) {
     if (body.prizes === null) data.prizes = null;
     else {
-      const bad = checkPrizesDeliverable(parsePrizes(body.prizes));
+      // Same two gates as create, and for the same reason: an operator who can
+      // PATCH a prize past the bounds has the create bound for nothing.
+      if (typeof body.prizes !== "string" || body.prizes.length > 20_000) {
+        return c.json({ error: "prize rejected", reason: "prizes must be a JSON string under 20,000 chars" }, 400);
+      }
+      const strict = parsePrizesStrict(body.prizes);
+      if (!strict.ok) return c.json({ error: "prize rejected", reason: strict.reason }, 400);
+      const bad = checkPrizesDeliverable(strict.prizes);
       if (bad) return c.json({ error: "prize would corrupt save", reason: bad }, 400);
-      data.prizes = body.prizes;
+      data.prizes = JSON.stringify(strict.prizes);
     }
   }
   // Status was `if (typeof body.status === "string")` — any string, no

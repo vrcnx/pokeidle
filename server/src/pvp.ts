@@ -37,6 +37,11 @@ import {
   type LegalityOptions,
   type LegalityViolation,
 } from "./lib/pvpFormat.js";
+import {
+  TEAM_PREVIEW_LOCK_MS,
+  isTeamPreviewRequest,
+  redactPreviewItems,
+} from "./lib/pvpTeamPreview.js";
 
 // ─── Simulator format ────────────────────────────────────────────────
 // The RULESET lives in lib/pvpFormat.ts and this file imports it rather than
@@ -48,19 +53,35 @@ import {
 // tier bans, no species clause, no "you must bring exactly six", any level.
 // That part was right, and it is still the base.
 //
-// What it ALSO ships is Team Preview, and that broke every battle in a
-// second way: the first |request| a player gets is
-// `{"teamPreview":true,...}` — no `active`, no moves — and the battle
-// modal has no team-order picker (players already chose their lead and
-// their order in the TeamBuilder before the invite went out). Nobody
-// could answer that request, so the battle sat there until the 5-minute
-// AFK watchdog forfeited it. Hence simFormatId(FALSE): it appends Showdown's
-// own `!Team Preview` removal syntax and the battle opens straight on turn 1
-// with each side's chosen lead. Re-probed against the real simulator while
-// wiring this: with Team Preview left ON, `|start` never appears and every
-// choice comes back `|error|[Invalid choice] Can't move: You need a
-// teampreview response`. Do not pass true until a picker exists on BOTH the
-// normal and the tournament start paths.
+// What it ALSO ships is Team Preview, and that used to break every battle in a
+// second way: the first |request| a player gets is `{"teamPreview":true,...}` —
+// no `active`, no moves — and the battle UI had no team-order picker. Nobody
+// could answer that request, so the battle sat there until the 5-minute AFK
+// watchdog forfeited it. That is why this line read simFormatId(FALSE) for its
+// whole life, and the failure was re-measured every time somebody looked at it:
+// with Team Preview on and nothing able to answer, `|start` never appears and
+// every choice comes back `|error|[Invalid choice] Can't move: You need a
+// teampreview response`.
+//
+// IT IS NOW ON, and the two things the old comment said had to exist first both
+// do:
+//
+//   * A PICKER, on the client, on every path — the arena renders it in its own
+//     centre window off `request.teamPreview`, which arrives through the
+//     battle:state channel that ALREADY existed. No new socket event, no new
+//     battle:start field, so the friend-invite, matchmaking, tournament and
+//     admin start paths all got it without a line of their own.
+//   * An AUTO-LOCK, on the server, in THIS file — see armTeamPreviewLock below.
+//     It is armed inside startBattle, which is the single choke point all four
+//     of those callers pass through, so the "tournament start path also needs
+//     it" problem is solved structurally rather than by remembering.
+//
+// The auto-lock is what makes the flag safe: after TEAM_PREVIEW_LOCK_MS the
+// server writes `default` for every side that has not answered, and only for
+// those sides (proved by execution — a blind sweep clobbers a lead the player
+// already picked; see resolveTeamPreviewLock). `default` is the identity order,
+// i.e. the exact battle a player got before this feature existed, so the
+// failure mode of not answering is "no change", not a loss.
 //
 // The BATTLE-TIME clauses simFormatId adds (Sleep Clause Mod, Endless Battle
 // Clause) were each re-probed one at a time against the real simulator before
@@ -88,7 +109,7 @@ import {
 // halves stayed byte-identical, measured across a battle driven to two faints —
 // so nothing about the rejoin replay depended on it either way. Hiding foe HP
 // properly remains an OPEN item on our side of the stream.
-const SIM_FORMAT_ID = simFormatId(false);
+const SIM_FORMAT_ID = simFormatId(true);
 /** Dex used to validate ids before we hand a team to the simulator. */
 const SIM_DEX = Dex.forFormat(SIM_BASE_FORMAT_ID);
 
@@ -241,6 +262,11 @@ export function adaptTeamForSimulator(
 // and a test that hard-coded 45_000 would silently stop testing anything the
 // day this changed.
 
+/** Re-exported so the client-facing timing constants are all reachable from
+ *  one module and a test does not have to know which file each lives in. The
+ *  definition and its reasoning stay in lib/pvpTeamPreview.ts. */
+export { TEAM_PREVIEW_LOCK_MS };
+
 /** How long a turn may sit unanswered before the AFK watchdog resolves it. */
 export const TURN_TIMEOUT_MS = 5 * 60_000;
 /** How often that watchdog looks. */
@@ -357,8 +383,25 @@ export interface BattleRoom {
    *  spectators. NEVER replayed to a participant — see BattleSide.log. */
   log: string[];
   /** The omniscient battle stream. Null until both sides accept. Held so we
-   *  can pump it from outside the io callback context. */
-  stream: { write: (data: string) => void; destroy: () => void } | null;
+   *  can pump it from outside the io callback context.
+   *
+   *  `battle` is @pkmn/sim's own live Battle object, hanging off BattleStream.
+   *  It is declared OPTIONAL and every read of it is guarded, because this
+   *  field is also written by tests and by the drain with hand-rolled stubs
+   *  that have only `write` and `destroy` — and because the only thing that
+   *  reads it (the Team Preview auto-lock) must degrade to "do nothing" rather
+   *  than throw out of a setTimeout callback and kill the process.
+   *
+   *  It is read for exactly ONE question, `which sides have already locked a
+   *  team order`, and there is no other way to ask it: the simulator publishes
+   *  no acknowledgement for an accepted choice, only an `|error|` for a refused
+   *  one, so "did this side answer" cannot be derived from the stream. See
+   *  resolveTeamPreviewLock for what goes wrong when you guess instead. */
+  stream: {
+    write: (data: string) => void;
+    destroy: () => void;
+    battle?: SimBattleHandle | null;
+  } | null;
   /** Watchdog timer for invite TTL / per-turn timeout. */
   expiryTimer: NodeJS.Timeout | null;
   /** Final outcome, set when status === "completed". */
@@ -401,6 +444,38 @@ export interface BattleRoom {
   levelCap?: number;
   /** Set of userIds currently watching as spectators. */
   spectators: Set<string>;
+
+  // ── Team Preview ───────────────────────────────────────────────────
+  /** Epoch ms both sides must answer the Team Preview request by, or null
+   *  whenever the room is not in that phase — which is every moment of a
+   *  battle except the first few seconds.
+   *
+   *  It doubles as the phase flag AND as the deadline the client renders:
+   *  turnDeadlineFor() returns this in preference to the turn clock, so the
+   *  arena's existing countdown badge shows the SHORT preview clock during the
+   *  phase and the long turn clock afterwards with no client change and no
+   *  second wire field. Nulled by syncTeamPreviewPhase the instant the
+   *  simulator leaves the phase. */
+  previewDeadlineAt?: number | null;
+  /** The pending auto-lock. Cleared by syncTeamPreviewPhase when the phase ends
+   *  on its own, and unconditionally by endBattle — a timer that outlived its
+   *  room would write into a destroyed stream, which throws SYNCHRONOUSLY out
+   *  of a setTimeout callback and takes the whole process with it. */
+  previewTimer?: NodeJS.Timeout | null;
+}
+
+/** The sliver of @pkmn/sim's Battle the auto-lock needs, declared structurally
+ *  rather than imported: pvp.ts already imports the simulator, but naming the
+ *  real type here would make every hand-built test stub a compile error for the
+ *  sake of two methods. Both are optional so a stub that has neither is simply
+ *  a room whose preview cannot be swept — which is the safe direction. */
+interface SimBattleHandle {
+  /** "teampreview" | "move" | "switch" | "" — the phase the battle is IN. The
+   *  auto-lock refuses to write anything unless this says teampreview, so a
+   *  timer that somehow survived into a live turn cannot submit `default`
+   *  moves for two players who were mid-decision. */
+  requestState?: string;
+  sides?: readonly { id?: string; isChoiceDone?: () => boolean }[];
 }
 
 export const battleRooms = new Map<string, BattleRoom>();
@@ -517,6 +592,136 @@ export function turnTimeoutFor(room: BattleRoom): number {
 
 function watchdogPollFor(room: BattleRoom): number {
   return isBotRoom(room) ? BOT_WATCHDOG_POLL_MS : WATCHDOG_POLL_MS;
+}
+
+/** The deadline this room is actually enforcing right now.
+ *
+ *  ONE function so the number the client renders and the number the server
+ *  enforces cannot disagree — they used to be the same expression written out
+ *  twice (pumpPlayerStream and snapshotForSide), which was fine until Team
+ *  Preview introduced a second, much shorter clock. A rejoin mid-preview that
+ *  answered with the five-minute turn deadline would show a countdown four and
+ *  a half minutes longer than the auto-lock the server is about to run. */
+export function turnDeadlineFor(room: BattleRoom): number {
+  return room.previewDeadlineAt ?? room.lastChoiceAt + turnTimeoutFor(room);
+}
+
+// ─── Team Preview: the auto-lock ─────────────────────────────────────
+// The whole reason Team Preview was disabled is that a phase nobody answers
+// stalls a battle until the AFK watchdog. So the phase ships with a hard
+// deadline that ALWAYS resolves it, and the deadline is armed in startBattle —
+// the one place matchmaking, friend invites, the tournament bracket ticker and
+// the admin start-match route all pass through.
+
+/** Arm the auto-lock. Called once, immediately after `>start`. */
+function armTeamPreviewLock(
+  room: BattleRoom,
+  sendToUser: (userId: string, event: string, payload: unknown) => void,
+): void {
+  if (room.previewTimer) clearTimeout(room.previewTimer);
+  room.previewDeadlineAt = Date.now() + TEAM_PREVIEW_LOCK_MS;
+  room.previewTimer = setTimeout(() => {
+    room.previewTimer = null;
+    resolveTeamPreviewLock(room, sendToUser);
+  }, TEAM_PREVIEW_LOCK_MS);
+}
+
+/**
+ * The deadline came due: lock in whatever each side has.
+ *
+ * TWO THINGS THIS IS BUILT AROUND, both measured against the real simulator
+ * rather than reasoned about.
+ *
+ * 1. IT MAY ONLY SWEEP SIDES THAT HAVE NOT ANSWERED. A second `team` choice
+ *    before both sides lock OVERWRITES the first — that is real simulator
+ *    behaviour and it is what lets a player change their mind — so a blind
+ *    `>p1 default; >p2 default` sweep silently reverts a lead the player picked
+ *    on second one. Negative control, executed: p1 writes `team 3`, the server
+ *    then writes `default` to both, and the battle opens
+ *    `|switch|p1a: A1|Pikachu…` — slot 1, not the Gengar they chose. Sweeping
+ *    only `!isChoiceDone()` sides opens `|switch|p1a: A3|Gengar…` and the
+ *    absent side gets the identity order, which is the correct outcome for
+ *    both.
+ *
+ * 2. IT MAY ONLY FIRE DURING THE PHASE. `battle.requestState` is the
+ *    simulator's own answer to "what am I waiting for", and it reads
+ *    "teampreview" only during the phase and "move" the instant it ends. Gating
+ *    on it means a timer that somehow outlived its phase cannot submit
+ *    `default` MOVES for two players who were mid-decision — which would be a
+ *    far worse bug than the stall this exists to prevent.
+ *
+ * Nothing in here may throw: this runs out of a bare setTimeout callback, where
+ * an escaped exception is process death and takes every other live battle with
+ * it. A destroyed-but-not-nulled stream throws "Push after end of read stream"
+ * synchronously on write, which is exactly the shape that has killed this
+ * process before (see applyChoice).
+ */
+export function resolveTeamPreviewLock(
+  room: BattleRoom,
+  sendToUser?: (userId: string, event: string, payload: unknown) => void,
+): void {
+  room.previewDeadlineAt = null;
+  if (room.status !== "active") return;
+  const stream = room.stream;
+  const battle = stream?.battle;
+  if (!stream || !battle) return;
+  if (battle.requestState !== "teampreview") return;
+  const swept: string[] = [];
+  for (const side of battle.sides ?? []) {
+    const id = side?.id;
+    if (!id) continue;
+    // `isChoiceDone` missing (a stub) is treated as "already done", i.e. do
+    // nothing — the safe direction, since the alternative is writing over a
+    // choice we cannot see.
+    if (side.isChoiceDone?.() !== false) continue;
+    try {
+      stream.write(`>${id} default`);
+      swept.push(id);
+    } catch (e) {
+      // The stream is gone, so the battle cannot advance and no later chunk can
+      // arrive to resolve it. End it rather than leave a live-looking board —
+      // the same reasoning as the AI seat's mute fallback.
+      void recordError({
+        kind: "server",
+        message: "pvp_team_preview_lock_failed",
+        source: "pvp.resolveTeamPreviewLock",
+        meta: { battleId: room.id, format: room.format, side: id, error: String(e) },
+      });
+      void endBattle(room, sendToUser, "cancelled");
+      return;
+    }
+  }
+  if (swept.length > 0) {
+    console.log("[pvp] team preview auto-locked", { battleId: room.id, format: room.format, sides: swept });
+  }
+}
+
+/**
+ * Keep `previewDeadlineAt` honest against the simulator's own phase.
+ *
+ * Called after every |request| lands on either side. The phase ends when the
+ * simulator stops waiting for team orders, and `requestState` is the only
+ * authority on that — deriving it from "did a request without teamPreview
+ * arrive" would be per-side, and the two sides leave the phase in the same
+ * instant, so a per-side derivation would clear the room's deadline off
+ * whichever chunk happened to be pumped first.
+ *
+ * Clearing the timer here (rather than letting it fire into a `requestState`
+ * check) is not redundant with resolveTeamPreviewLock's own gate: it stops a
+ * finished battle from holding a live handle for twenty seconds, which is what
+ * keeps `battleRooms.delete` from being the only thing standing between a
+ * completed room and a timer.
+ */
+function syncTeamPreviewPhase(room: BattleRoom): void {
+  if (room.previewDeadlineAt == null && !room.previewTimer) return;
+  const state = room.stream?.battle?.requestState;
+  // `undefined` means we cannot see the battle (a stub stream, or the stream
+  // has been destroyed). Leave the deadline alone and let the timer's own gate
+  // decide — clearing it here on a missing handle would disarm the phase for
+  // every hand-built stub, i.e. exactly the rooms with no other safety net.
+  if (state === undefined || state === "teampreview") return;
+  room.previewDeadlineAt = null;
+  if (room.previewTimer) { clearTimeout(room.previewTimer); room.previewTimer = null; }
 }
 
 /** Which side is this userId, or null.
@@ -746,6 +951,22 @@ export async function startBattle(
   room.expiryTimer = setInterval(() => {
     runTurnWatchdog(room, sendToUser);
   }, watchdogPollFor(room));
+
+  // THE TEAM PREVIEW AUTO-LOCK, armed here and nowhere else.
+  //
+  // This single line is what makes Team Preview safe to have on at all, and its
+  // position is the point: startBattle is the ONE function matchmaking, friend
+  // invites, the tournament bracket ticker and the admin start-match route all
+  // call, so every room type that exists — and every one nobody has written yet
+  // — gets the auto-lock with no code of its own and no way to forget it. The
+  // outage this feature caused the first time round was precisely a phase that
+  // one start path could answer and another could not.
+  //
+  // Armed unconditionally rather than behind a "does this format have preview"
+  // test: the timer's own gate reads the simulator's `requestState` when it
+  // fires, which is a fact rather than a prediction, and a format WITHOUT
+  // preview simply produces a timer that finds "move" and does nothing.
+  armTeamPreviewLock(room, sendToUser);
 }
 
 // ─── The AFK / timeout watchdog ──────────────────────────────────────
@@ -834,6 +1055,11 @@ function recordSideChunk(room: BattleRoom, which: BattleSide, chunk: string): vo
   if (sawRequest) {
     which.requestSeq = (which.requestSeq ?? 0) + 1;
     room.lastChoiceAt = Date.now();
+    // The Team Preview request re-anchors the FIVE-MINUTE clock exactly like
+    // any other, so the AFK watchdog is not the thing resolving the phase — the
+    // twenty-second auto-lock is, and this call is what retires that short
+    // deadline the moment the simulator moves on to real turns.
+    syncTeamPreviewPhase(room);
   }
 }
 
@@ -846,14 +1072,29 @@ async function pumpPlayerStream(
 ): Promise<void> {
   const which = sideAt(room, side);
   try {
-    for await (const chunk of stream) {
+    for await (const raw of stream) {
+      // REDACT ONCE, BEFORE ANYTHING ELSE SEES IT.
+      //
+      // recordSideChunk writes this side's replay log and pumpPlayerStream
+      // ships it down the socket, and BattleSide.log's entire security argument
+      // is that it is byte-equal to what this client was already sent. So the
+      // redaction has to happen upstream of both or a rejoin would replay the
+      // unredacted line the live stream never carried.
+      //
+      // What it removes is the held-item flag on `|poke|` lines — the one thing
+      // in the Team Preview payload that goes beyond species. It is stripped
+      // from BOTH sides' lines so the two player streams stay byte-identical
+      // outside |request|, which is the invariant tests/pvpRejoinLeak.test.ts
+      // enforces and the reason a log replay is provably safe. See
+      // lib/pvpTeamPreview.ts.
+      const chunk = redactPreviewItems(raw);
       recordSideChunk(room, which, chunk);
       sendToUser(which.userId, "battle:state", {
         battleId: room.id,
         side,
         chunk,
         request: which.request,
-        turnDeadlineAt: room.lastChoiceAt + turnTimeoutFor(room),
+        turnDeadlineAt: turnDeadlineFor(room),
       });
     }
   } catch (e) {
@@ -879,7 +1120,12 @@ async function pumpBotStream(
 ): Promise<void> {
   const which = sideAt(room, side);
   try {
-    for await (const chunk of stream) {
+    for await (const raw of stream) {
+      // Same redaction as the human pump, and for the same reason rather than
+      // for symmetry alone: the AI seat's log is a BattleSide.log like any
+      // other, and lib/pvpBotBrain.ts's trackLine does not read `|poke|` at
+      // all, so the brain loses nothing it was using.
+      const chunk = redactPreviewItems(raw);
       recordSideChunk(room, which, chunk);
       (which.botQueue ??= []).push(chunk);
       scheduleBotTurn(room, which, sendToUser);
@@ -1004,7 +1250,26 @@ async function pumpOmniLog(
   sendToUser?: (userId: string, event: string, payload: unknown) => void,
 ): Promise<void> {
   try {
-    for await (const chunk of stream) {
+    for await (const raw of stream) {
+      // The held-item flag is stripped here TOO, and this one is not symmetry —
+      // it closes a hole the per-side redaction opens on its own.
+      //
+      // room.log is persisted as PvpMatch.battleLog and fanned out live to
+      // spectators. For a COMPLETED match that is harmless: the row carries
+      // both teams' full JSON anyway, so nothing in a `|poke|` line is news.
+      // For a VOIDED one it is not — a cancelled row deliberately blanks both
+      // teams (`userATeam: "[]"`) precisely because the bracket reads it as dead
+      // and RE-RUNS the pairing, and the log would then be the one place a
+      // re-matched opponent could read which of their Pokémon are holding
+      // something. That is strictly more than the live Team Preview showed
+      // either player. Spectators are the same argument by a different door: a
+      // spectator relaying to a participant is a real channel, and there is no
+      // reason an observer should learn something the two people playing were
+      // not told.
+      //
+      // The result is one rule with no exceptions to reason about: the item
+      // flag never leaves the simulator.
+      const chunk = redactPreviewItems(raw);
       for (const line of chunk.split("\n")) {
         if (line) room.log.push(line);
         // Detect end-of-battle protocol lines so we can finalize.
@@ -1098,8 +1363,59 @@ async function pumpOmniLog(
 
 // ─── Choice handling ─────────────────────────────────────────────────
 // Player sends `>p1 move 1` / `>p2 switch 3` / `>p1 default` etc.
-// We trust @pkmn/sim's own validation — illegal choices come back as
-// `|error|` lines on the player's stream which the client surfaces.
+// We trust @pkmn/sim's own validation for everything INSIDE a phase —
+// illegal targets, fainted switch-ins and the rest come back as `|error|`
+// lines on the player's stream which the client surfaces.
+//
+// The one thing we do NOT delegate is WHICH PHASE the choice is for; see
+// choiceFitsPhase.
+
+/**
+ * Is this choice the kind of answer the request currently outstanding for this
+ * side is asking for?
+ *
+ * ─── WHY THIS IS OURS AND NOT THE SIMULATOR'S ────────────────────────────
+ *
+ * The simulator's refusal is ASYNCHRONOUS. `applyChoice(room, uA, "move 1")`
+ * during Team Preview wrote the line, returned `{ok: true}` to the socket ack,
+ * and only ~300 ms later did
+ *
+ *     |error|[Invalid choice] Can't move: You need a teampreview response
+ *
+ * arrive on that player's own stream. Measured. So the client was handed a
+ * positive acknowledgement for a choice that had been discarded, with no way
+ * to correlate the late `|error|` with the request that caused it. The mirror
+ * case — a `team N` sent after the phase closed — behaves identically.
+ *
+ * The server already holds the answer synchronously: `side.request` is the
+ * exact payload the client is rendering from, parsed in recordSideChunk before
+ * the chunk is even forwarded, so the server's copy is never BEHIND the
+ * client's. That makes a same-call verdict both possible and correct.
+ *
+ * Deliberately only the phase split, not a re-implementation of the
+ * simulator's validator: `team 9` on a three-Pokemon team, a move on a
+ * trapped slot, a switch to a fainted mon are all still the simulator's to
+ * refuse, because duplicating those rules here is how a guard drifts out of
+ * agreement with the engine it is guarding.
+ *
+ * `undo` passes in both phases — it is a retraction, not an answer, and the
+ * simulator accepts it against a team order as readily as against a move.
+ */
+function choiceFitsPhase(
+  side: BattleSide,
+  choice: string,
+): { ok: true } | { ok: false; error: string } {
+  const preview = isTeamPreviewRequest(side.request);
+  const isTeamOrder = choice.startsWith("team ");
+  if (preview && (choice.startsWith("move ") || choice.startsWith("switch ") || choice === "pass")) {
+    return { ok: false, error: "team preview: pick a lead first" };
+  }
+  if (!preview && isTeamOrder) {
+    return { ok: false, error: "team preview is over" };
+  }
+  return { ok: true };
+}
+
 export function applyChoice(
   room: BattleRoom,
   userId: string,
@@ -1114,8 +1430,15 @@ export function applyChoice(
   if (!room.stream) return { ok: false, error: "battle not started" };
   // Whitelist allowed choice prefixes — prevents clients from
   // injecting other commands like `>start` into the simulator.
+  //
+  // Stays the OUTER guard: it is the injection boundary, and a string that is
+  // not a choice at all must be refused for that reason rather than for being
+  // off-phase.
   const safe = /^(move\s|switch\s|team\s|default$|undo$|pass$)/.test(choice);
   if (!safe) return { ok: false, error: "invalid choice format" };
+  const which = sideAt(room, side);
+  const phase = choiceFitsPhase(which, choice);
+  if (!phase.ok) return { ok: false, error: phase.error };
   // The two checks above are NOT sufficient: a destroyed-but-not-nulled
   // stream passes both `status === "active"` and `room.stream != null`, and
   // the write then throws "Push after end of read stream" straight out of a
@@ -1133,7 +1456,10 @@ export function applyChoice(
     });
     return { ok: false, error: "battle stream closed" };
   }
-  creditChoice(room, sideAt(room, side));
+  // A team order is an ANSWER but not a MOVE — see creditChoice's second
+  // parameter. `default` during the phase is the same thing by another name,
+  // so the test is the phase, not the string.
+  creditChoice(room, which, isTeamPreviewRequest(which.request) ? "answer" : "move");
   return { ok: true };
 }
 
@@ -1145,14 +1471,41 @@ export function applyChoice(
  *  simulated minutes of re-sent choices into a frozen board left the room
  *  "active" — holding a simulator and both players' battle slot forever. A
  *  re-send is still accepted (the client is allowed to retry) but it buys no
- *  time, so the watchdog still reclaims a board nothing can advance. */
-function creditChoice(room: BattleRoom, side: BattleSide): void {
+ *  time, so the watchdog still reclaims a board nothing can advance.
+ *
+ *  ─── WHY `kind` EXISTS ──────────────────────────────────────────────────
+ *
+ *  The two stamps answer different questions and Team Preview split them apart.
+ *
+ *  `room.lastChoiceAt` is "did anybody interact?" — it feeds the 5-minute AFK
+ *  watchdog, and a player who picked a lead has plainly interacted, so every
+ *  accepted choice re-anchors it.
+ *
+ *  `side.movedAt` is "who moved most recently?" — it feeds runTurnWatchdog's
+ *  LAST-RESORT tiebreak for a turn nobody answered, and its own comment states
+ *  the invariant it depends on: "never moved" must lose, and a genuine double
+ *  no-show must resolve with NO winner so the tournament runner decides it by
+ *  seed rather than the simulator inventing one. Stamping it for a `team`
+ *  choice broke exactly that: two players who both picked a lead and then both
+ *  walked away on turn 1 were separated by who had touched the PICKER more
+ *  recently — a turn-zero ritual, not a move. Measured, and pinned by
+ *  tests/pvpChoicePhase.test.ts.
+ *
+ *  The AI seat's onChoose passes no kind and therefore stamps as a move, which
+ *  is right: RandomPlayerAI answers the preview through chooseTeamPreview on
+ *  the same path, but a bot is never the AFK side in the case the tiebreak
+ *  exists for, and its brain also answers every real turn. */
+function creditChoice(
+  room: BattleRoom,
+  side: BattleSide,
+  kind: "move" | "answer" = "move",
+): void {
   const seq = side.requestSeq ?? 0;
   if ((side.answeredSeq ?? -1) === seq) return;
   side.answeredSeq = seq;
   const now = Date.now();
   room.lastChoiceAt = now;
-  side.movedAt = now;
+  if (kind === "move") side.movedAt = now;
 }
 
 // ─── Reconnect grace ─────────────────────────────────────────────────
@@ -1383,8 +1736,23 @@ export function snapshotForSide(room: BattleRoom, userId: string): BattleSnapsho
     levelCap: levelCapForFormat(room.format as BattleFormat, room),
     request: me.request,
     log: [...(me.log ?? [])],
-    turnDeadlineAt: room.lastChoiceAt + turnTimeoutFor(room),
+    // The preview clock when the room is in that phase, the turn clock
+    // otherwise — see turnDeadlineFor. A reload landing mid-Team-Preview used
+    // to be impossible; now it is a real case, and answering it with the
+    // five-minute turn deadline would show a countdown four and a half minutes
+    // longer than the auto-lock about to run.
+    turnDeadlineAt: turnDeadlineFor(room),
   };
+}
+
+/** Is this side still owed a Team Preview answer? Exported because it is the
+ *  one question a caller outside this module (or a test) can ask about the
+ *  phase without reaching into the simulator, and because "the phase is over"
+ *  is what the client's picker keys off. */
+export function isAwaitingTeamPreview(room: BattleRoom, userId: string): boolean {
+  const side = sideOf(room, userId);
+  if (!side) return false;
+  return isTeamPreviewRequest(sideAt(room, side).request);
 }
 
 /** The ONLY client-supplied input either resolver takes (`side` is derived from
@@ -1543,6 +1911,14 @@ export async function endBattle(
     side.bot = null;
     side.botQueue = null;
   }
+  // Same class of hazard as the think timer above, and the same fix: the Team
+  // Preview auto-lock writes into room.stream, and that write throws
+  // SYNCHRONOUSLY once the stream below is destroyed. Out of a setTimeout
+  // callback that is an uncaught exception, i.e. process death taking every
+  // other live battle with it. A battle that ends inside its first twenty
+  // seconds — a forfeit, a decline, a drain — is not exotic.
+  if (room.previewTimer) { clearTimeout(room.previewTimer); room.previewTimer = null; }
+  room.previewDeadlineAt = null;
   if (room.stream) {
     try { room.stream.destroy(); } catch { /* swallowed: see pumpOmniLog's status guard */ }
     room.stream = null;
@@ -1602,10 +1978,22 @@ export async function endBattle(
   // JSON — species, nickname, item, ability, moves, IVs, EVs, including
   // Pokémon that never took the field — which GET /pvp/match/:id/replay hands
   // to either participant. A cancelled row is read as dead by the bracket, so
-  // the pairing is RE-RUN: the same two players meet again with one side's
-  // team known, in a format that deliberately disables Team Preview. The LOG
-  // is kept: every line in it was already delivered to both players live, and
-  // it is the only diagnostic a void leaves behind.
+  // the pairing is RE-RUN: the same two players meet again with one side's team
+  // known.
+  //
+  // TEAM PREVIEW NARROWED THIS BUT DID NOT CLOSE IT, and the distinction is the
+  // whole reason the blanking stays. The phase now publishes both sides' SPECIES
+  // before turn 1, so a re-matched opponent learning the six species costs
+  // nothing they were not about to be shown anyway. What the row would ALSO
+  // publish is the part Team Preview deliberately does not: nicknames, held
+  // items, abilities, movepools and EV/IV spreads, for Pokemon that never took
+  // the field. That is a build reveal, not a species reveal, and it is worth
+  // more in a rematch than the species ever were.
+  //
+  // The LOG is kept: every line in it was already delivered to both players
+  // live, and it is the only diagnostic a void leaves behind. It carries the
+  // `|poke|` lines, which is fine for the same reason — species, and the
+  // held-item marker is stripped from that channel too (see pumpOmniLog).
   const voided = outcome.status === "cancelled";
 
   // TWO INDEPENDENT KEYS, on both guards.

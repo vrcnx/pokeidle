@@ -80,6 +80,7 @@ import {
   type BattleRoom,
   type GraceDeps,
 } from "../src/pvp.js";
+import { passTeamPreview, passTeamPreviewFake } from "./support/teamPreview.js";
 
 // ── Harness ───────────────────────────────────────────────────────────────
 
@@ -408,6 +409,10 @@ describe("AFK watchdog yields to the reconnect grace", () => {
   async function startAndSettle(room: BattleRoom, h: ReturnType<typeof makeHarness>) {
     room.status = "invited";              // startBattle upgrades it
     await startBattle(null as never, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreviewFake(room, (ms) => vi.advanceTimersByTimeAsync(ms));
     for (let i = 0; i < 500; i++) {
       if (room.log.some((l) => l.startsWith("|turn|1")) && room.a.request && room.b.request) break;
       await Promise.resolve();
@@ -736,6 +741,10 @@ describe("rejoin snapshot leaks nothing about the opponent", () => {
     const room = makeSecretRoom("anything-goes");
     const h = makeHarness(["uA", "uB"]);
     await startBattle(null as never, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await waitFor(() => room.log.some((l) => l.startsWith("|turn|1")));
 
     // Exact equality with the delivered stream is the security argument: a
@@ -760,6 +769,10 @@ describe("rejoin snapshot leaks nothing about the opponent", () => {
     const room = makeSecretRoom("random50");
     const h = makeHarness(["uA", "uB"]);
     await startBattle(null as never, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await waitFor(() =>
       room.log.some((l) => l.startsWith("|turn|1"))
       && room.a.request != null && room.b.request != null

@@ -75,6 +75,7 @@ import {
   beginDrain, isDraining, resetDrainForTests,
 } from "../src/pvp.js";
 import { bstOf } from "../src/lib/pvpBotRoster.js";
+import { isTeamPreviewRequest } from "../src/lib/pvpTeamPreview.js";
 
 // ── minimal Socket.IO v4 client over a raw WebSocket ──────────────────────
 class Sio {
@@ -208,6 +209,42 @@ async function connect(uid: string): Promise<Sio> {
   const c = await Sio.connect(port, uid);
   open.push(c);
   return c;
+}
+
+/**
+ * Answer Team Preview for both seats, over the real socket, and return once the
+ * simulator has replaced the preview request with turn 1's.
+ *
+ * WHY EVERY TEST THAT SENDS A `move` NEEDS THIS. Team Preview is on, so the
+ * first |request| both sides hold is `{"teamPreview":true}` and a move choice
+ * against it is not a legal answer. It used to be ACCEPTED anyway — applyChoice
+ * wrote it and returned ok, and the simulator's refusal arrived later on the
+ * player's own stream as `|error|[Invalid choice] Can't move: You need a
+ * teampreview response`. Two tests in this file were asserting `{ok: true}` for
+ * a choice that was in fact discarded, and passing on the strength of the very
+ * defect that pvp.ts's choiceFitsPhase now closes. Answering the phase first is
+ * what makes those assertions mean what they say.
+ *
+ * `default` is the identity order — the same string the server's own auto-lock
+ * writes — so the lead is each fixture's slot 1, unchanged.
+ */
+async function leavePreview(a: Sio, b: Sio, battleId: string): Promise<void> {
+  const room = battleRooms.get(battleId)!;
+  const answer = async (c: Sio, side: "a" | "b") => {
+    if (!isTeamPreviewRequest(room[side].request)) return;
+    await c.emitAck("battle:choose", { battleId, choice: "default" }).catch(() => {});
+  };
+  for (let i = 0; i < 100; i++) {
+    if (room.status !== "active") return;
+    await answer(a, "a");
+    await answer(b, "b");
+    // Both sides holding a request that is NOT a preview request — "no preview
+    // request" alone is also true in the split second before the first request
+    // of any kind arrives.
+    if (room.a.request && room.b.request
+      && !isTeamPreviewRequest(room.a.request) && !isTeamPreviewRequest(room.b.request)) return;
+    await sleep(20);
+  }
 }
 
 // ═══ queue still pairs, and queue:update now broadcasts ═══════════════════
@@ -360,6 +397,9 @@ describe("E2E reconnect probe limiter", () => {
     await B.emitAck("battle:queue", { team: team("m20") });
     const start = await A.waitFor("battle:start");
     await A.waitFor("battle:state");
+    // Out of Team Preview first, so the `move 1` at the end of this test is a
+    // real turn-1 choice rather than one the simulator would discard.
+    await leavePreview(A, B, start.battleId);
 
     // Walk past the 120/min bucket so both regimes are exercised. A refused
     // call is detected by the ack never arriving, so the over-budget tail is
@@ -445,6 +485,10 @@ describe("E2E choose during grace", () => {
     await B.emitAck("battle:queue", { team: team("m22") });
     const start = await B.waitFor("battle:start");
     await B.waitFor("battle:state");
+    // Both leads locked in BEFORE A vanishes: a seat that disconnects mid-phase
+    // leaves the battle on the 20-second auto-lock, and the point of this test
+    // is the grace window, not the phase.
+    await leavePreview(A, B, start.battleId);
     A.close();
     await B.waitFor("battle:opponent-away", 3_000);
     const r = await B.emitAck("battle:choose", { battleId: start.battleId, choice: "move 1" });

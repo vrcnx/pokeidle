@@ -69,12 +69,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   usePvpState,
   chooseBattleAction,
+  lockTeamPreview,
+  unlockTeamPreview,
   cancelBattle,
   clearBattleRoom,
   isBotBattle,
   type BattleRoom,
 } from "../state/pvp";
-import type { ActiveMon, BenchMon, NarrationLine, SideView } from "../state/pvpBattleView";
+import type { ActiveMon, BenchMon, NarrationLine, PreviewMon, SideView } from "../state/pvpBattleView";
 import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { moves as movesTable } from "../data/moves";
@@ -85,6 +87,7 @@ import { useDamageFlash } from "../hooks/useDamageFlash";
 import { effectForNarration, bannerForNarration, type PvpMoveEffect } from "../utils/pvpMoveEffects";
 import { displayNarration } from "../utils/pvpNarrationText";
 import { NarrationPacer } from "../utils/pvpNarrationPacer";
+import { NO_PVP, type PvpMobileView, type PvpNavSignals } from "../utils/pvpMobileNav";
 import { MoveEffectVisual } from "./MoveEffectVisual";
 import { PvpResultDialog } from "./PvpResultDialog";
 import { openPublicTrainerCard } from "./TrainerCardModal";
@@ -135,144 +138,255 @@ export function PvpCenter() {
   return <PvpBattleWindow room={room} />;
 }
 
+/**
+ * Everything every action surface is derived from, in one place.
+ *
+ * This used to be six `const`s at the top of PvpBattleWindow, which was fine
+ * while the arena had exactly one layout. It has two now — the desktop centre
+ * column and the phone's four tabs — and `forceSwitch` in particular is a
+ * two-source expression (`request.forceSwitch[]` OR `active[0].forceSwitch`,
+ * because the simulator uses both spellings). A second hand-copied version of
+ * that in the mobile shell is a second thing that can silently disagree with
+ * the console about whether the player is allowed to pick a move.
+ */
+interface BattleControls {
+  active: ActiveSlot | null;
+  pokemon: SidePokemon[];
+  isWaiting: boolean;
+  forceSwitch: boolean;
+  trapped: boolean;
+  over: boolean;
+  /** Team Preview owns the screen. TWO SOURCES, and they answer different
+   *  questions — see canPickLead. This one is "is the phase on", read from the
+   *  shared protocol (`|teampreview` … `|start`), so it stays true while I wait
+   *  for the opponent after locking in. */
+  previewing: boolean;
+  /**
+   * Do I still OWE a lead? This is the "you have a decision to make" signal —
+   * the one the phone's always-visible status strip shows and the one the
+   * picker arms its button on.
+   *
+   * It is NOT `request.teamPreview`, and that distinction was measured rather
+   * than reasoned about: the simulator sends no acknowledgement when a side
+   * answers Team Preview, so the request stays a preview request after this
+   * player has locked in and keeps saying so until `|start`. Reading it alone
+   * left the arena telling somebody who had already chosen to choose. The
+   * client's own record of the lock (room.previewLead) is the missing half.
+   */
+  canPickLead: boolean;
+}
+
+function battleControls(room: BattleRoom): BattleControls {
+  const active = (room.request?.active?.[0] ?? null) as ActiveSlot | null;
+  const over = !!room.result || room.voided;
+  return {
+    active,
+    pokemon: (room.request?.side?.pokemon ?? []) as SidePokemon[],
+    isWaiting: !!room.request?.wait,
+    forceSwitch: room.request?.forceSwitch?.some(Boolean) ?? !!active?.forceSwitch,
+    trapped: !!active?.trapped,
+    over,
+    // `!over` on both: a battle voided by a restart during Team Preview would
+    // otherwise leave the picker up over a dead room, with a countdown running
+    // toward an auto-lock nothing is going to perform.
+    previewing: !over && room.view.teamPreview,
+    canPickLead: !over && !!room.request?.teamPreview && room.previewLead == null,
+  };
+}
+
+/** The three facts the phone's tab router navigates on, read through the same
+ *  derivation the console uses. See utils/pvpMobileNav.ts for the rule. */
+export function pvpBattleSignals(room: BattleRoom | null): PvpNavSignals {
+  if (!room) return NO_PVP;
+  const c = battleControls(room);
+  return { battleId: room.battleId, forceSwitch: c.forceSwitch, over: c.over };
+}
+
+/** The format line, shared by the desktop rail head and the phone's status
+ *  strip. "bot" needs its own branch, not the fallback: this chain ends in
+ *  "Friendly", which for an unrated AI practice battle would be a lie about who
+ *  you are fighting — and the one thing this feature must never do is let the
+ *  player think an AI was a person. */
+function formatLabel(room: BattleRoom, t: (k: string) => string): string {
+  return room.format === "random50" ? t("Ranked · Lv 50")
+    : room.format === "tournament" ? t("Tournament")
+    : room.format === "bot" ? t("AI Practice · Not rated")
+    : t("Friendly");
+}
+
 function PvpBattleWindow({ room }: { room: BattleRoom }) {
+  const over = battleControls(room).over;
+  return (
+    <div className="pvp2-center">
+      <PvpScene room={room} />
+
+      {/* ── Action area ── */}
+      {over ? <PvpResultDialog room={room} /> : <PvpConsoleFor room={room} />}
+    </div>
+  );
+}
+
+/**
+ * The battle window itself — the 16/9 frame, its fighters and its message box.
+ *
+ * Split out of PvpBattleWindow when the phone layout landed. On a phone the
+ * frame lives in the shell's arena row and the console lives in the tab body
+ * below it, which are two different grid rows of `.mobile-shell` and therefore
+ * cannot be one component. Nothing about the scene changed in the split; it is
+ * the same markup, and both layouts render this exact component so the two can
+ * not drift.
+ */
+function PvpScene({ room }: { room: BattleRoom }) {
   const t = useT();
   const you = room.view.you;
   const foe = room.view.foe;
-
-  const myActive = (room.request?.active?.[0] ?? null) as ActiveSlot | null;
-  const mySidePoke = (room.request?.side?.pokemon ?? []) as SidePokemon[];
-  const isWaiting = !!room.request?.wait;
-  const forceSwitch = room.request?.forceSwitch?.some(Boolean) ?? !!myActive?.forceSwitch;
-  const trapped = !!myActive?.trapped;
-  const over = !!room.result || room.voided;
-  const onChoose = (choice: string) => chooseBattleAction(room.battleId, choice);
-
+  const { isWaiting, forceSwitch, over, previewing } = battleControls(room);
   const stage = usePvpNarrationStage(room);
 
   return (
-    <div className="pvp2-center">
-      <div className="pvp2-scene">
-        {/* Everything that should rattle on an Earthquake-class move goes
-            inside `.scene-content` — app.css's own wrapper, reused verbatim
-            (`position: absolute; inset: 0`, so the scene's geometry is
-            unchanged). The message box is deliberately OUTSIDE it: the idle
-            game shakes its typewriter along with the scene, but this is a
-            timed competitive battle and text you cannot read during the one
-            second you most need it is a worse trade here. */}
-        <div className="scene-content">
-          <img
-            className="battle-bg"
-            src={ARENA_BG}
-            alt=""
-            aria-hidden
-            draggable={false}
-            onError={(e) => {
-              const el = e.target as HTMLImageElement;
-              const abs = window.location.origin + ARENA_BG_FALLBACK;
-              if (el.src !== abs) el.src = ARENA_BG_FALLBACK;
-            }}
-          />
+    <div className={`pvp2-scene${previewing ? " is-preview" : ""}`}>
+      {/* Everything that should rattle on an Earthquake-class move goes
+          inside `.scene-content` — app.css's own wrapper, reused verbatim
+          (`position: absolute; inset: 0`, so the scene's geometry is
+          unchanged). The message box is deliberately OUTSIDE it: the idle
+          game shakes its typewriter along with the scene, but this is a
+          timed competitive battle and text you cannot read during the one
+          second you most need it is a worse trade here. */}
+      <div className="scene-content">
+        <img
+          className="battle-bg"
+          src={ARENA_BG}
+          alt=""
+          aria-hidden
+          draggable={false}
+          onError={(e) => {
+            const el = e.target as HTMLImageElement;
+            const abs = window.location.origin + ARENA_BG_FALLBACK;
+            if (el.src !== abs) el.src = ARENA_BG_FALLBACK;
+          }}
+        />
 
-          {/* Field conditions sit above the arena so weather and hazards are
-              readable at a glance — they change how a turn should be played
-              and were previously invisible entirely. */}
-          <FieldStrip room={room} />
+        {/* Field conditions sit above the arena so weather and hazards are
+            readable at a glance — they change how a turn should be played
+            and were previously invisible entirely. */}
+        <FieldStrip room={room} />
 
-          {/* The four fighters' pieces are laid out EXACTLY as the idle battle
-              scene lays out its own: enemy card + trainer tag top-left, enemy
-              sprite top-right, your back sprite bottom-left, your card
-              bottom-right. That is not decoration — `.enemy-card-stack` and
-              `.player-card` are `position: absolute` in app.css, so they need
-              a full-bleed containing block. Nesting them inside a positioned
-              per-side wrapper (which is what this used to be) made that wrapper
-              the containing block instead: it shrink-wrapped to the only
-              in-flow child it had left, the sprite, and both cards then sized
-              to min-content and hung ~50-70px outside the frame, where
-              `overflow: hidden` cut them in half — the "RAI Lv.100" and the
-              sliced "304/ 304" in the bug report — while covering the sprites
-              they sat on top of. `.scene-content` is `inset: 0` so it is that
-              same full-bleed box. */}
-          <div className="enemy-card-stack">
-            {foe.active
-              ? <PvpFighterCard mon={foe.active} className="enemy-card" />
+        {/* The four fighters' pieces are laid out EXACTLY as the idle battle
+            scene lays out its own: enemy card + trainer tag top-left, enemy
+            sprite top-right, your back sprite bottom-left, your card
+            bottom-right. That is not decoration — `.enemy-card-stack` and
+            `.player-card` are `position: absolute` in app.css, so they need
+            a full-bleed containing block. Nesting them inside a positioned
+            per-side wrapper (which is what this used to be) made that wrapper
+            the containing block instead: it shrink-wrapped to the only
+            in-flow child it had left, the sprite, and both cards then sized
+            to min-content and hung ~50-70px outside the frame, where
+            `overflow: hidden` cut them in half — the "RAI Lv.100" and the
+            sliced "304/ 304" in the bug report — while covering the sprites
+            they sat on top of. `.scene-content` is `inset: 0` so it is that
+            same full-bleed box. */}
+        <div className="enemy-card-stack">
+          {foe.active
+            ? <PvpFighterCard mon={foe.active} className="enemy-card" />
+            : previewing
+              ? null
               : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
-            <div className="trainer-tag">
-              <OpponentName room={room} />
-              <TeamBalls side={foe} />
-            </div>
+          <div className="trainer-tag">
+            <OpponentName room={room} />
+            <TeamBalls side={foe} />
           </div>
-          {foe.active && (
-            <PvpSprite key={`foe-${foe.active.ident}-${foe.active.speciesKey}`} mon={foe.active} facing="foe" />
-          )}
+        </div>
+        {foe.active && (
+          <PvpSprite key={`foe-${foe.active.ident}-${foe.active.speciesKey}`} mon={foe.active} facing="foe" />
+        )}
 
-          {you.active
-            ? (
-              <>
-                <PvpSprite key={`you-${you.active.ident}-${you.active.speciesKey}`} mon={you.active} facing="you" />
-                <PvpFighterCard mon={you.active} className="player-card" />
-              </>
-            )
+        {you.active
+          ? (
+            <>
+              <PvpSprite key={`you-${you.active.ident}-${you.active.speciesKey}`} mon={you.active} facing="you" />
+              <PvpFighterCard mon={you.active} className="player-card" />
+            </>
+          )
+          : previewing
+            ? null
             : <div className="pvp2-slot-empty player-card dim small">{t("Sending out…")}</div>}
 
-          {room.view.turn > 0 && (
-            <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
-          )}
+        {/* THE PREVIEW STAGE, inside `.scene-content` and inside the same
+            16/9 frame the battle uses — this is the arena's own window, not a
+            modal over it. It replaces the two "Waiting for opponent…" /
+            "Sending out…" placeholders above rather than sitting beside them:
+            during Team Preview neither side HAS an active Pokémon yet, so those
+            two strings are describing a state that is not the one the player is
+            in. */}
+        {previewing && <PvpPreviewStage room={room} />}
 
-          {/* Floating "-42" / "+18" over the slot whose HP moved, and the
-              super-effective / critical banner. Both reuse app.css's
-              `.damage-flash` and `.effectiveness-flash`, which are generic
-              absolutely-positioned rules — no new CSS, and identical to what
-              the idle battle shows. */}
-          {foe.active && <PvpHpFloat mon={foe.active} side="enemy" />}
-          {you.active && <PvpHpFloat mon={you.active} side="player" />}
+        {room.view.turn > 0 && (
+          <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
+        )}
 
-          {stage.effect && (
-            <MoveEffectVisual
-              archetype={stage.effect.archetype}
-              target={stage.effect.target}
-              shake={stage.effect.shake}
-              typeColor={stage.effect.typeColor}
-              animKey={stage.seq}
-            />
-          )}
-          {stage.banner && (
-            <div
-              key={`banner-${stage.seq}`}
-              className={`effectiveness-flash effectiveness-${stage.banner.kind}`}
-              aria-hidden
-            >
-              {t(stage.banner.text)}
-            </div>
-          )}
-        </div>
+        {/* Floating "-42" / "+18" over the slot whose HP moved, and the
+            super-effective / critical banner. Both reuse app.css's
+            `.damage-flash` and `.effectiveness-flash`, which are generic
+            absolutely-positioned rules — no new CSS, and identical to what
+            the idle battle shows. */}
+        {foe.active && <PvpHpFloat mon={foe.active} side="enemy" />}
+        {you.active && <PvpHpFloat mon={you.active} side="player" />}
 
-        {/* ── The battle message box ── */}
-        <PvpMessageBox
-          line={stage.line}
-          text={stage.text}
-          fallback={messagePrompt(room, { isWaiting, forceSwitch, over }, t)}
-        />
+        {stage.effect && (
+          <MoveEffectVisual
+            archetype={stage.effect.archetype}
+            target={stage.effect.target}
+            shake={stage.effect.shake}
+            typeColor={stage.effect.typeColor}
+            animKey={stage.seq}
+          />
+        )}
+        {stage.banner && (
+          <div
+            key={`banner-${stage.seq}`}
+            className={`effectiveness-flash effectiveness-${stage.banner.kind}`}
+            aria-hidden
+          >
+            {t(stage.banner.text)}
+          </div>
+        )}
       </div>
 
-      {/* ── Action area ── */}
-      {over ? (
-        <PvpResultDialog room={room} />
-      ) : (
-        <PvpConsole
-          room={room}
-          active={myActive}
-          pokemon={mySidePoke}
-          bench={you.bench}
-          isWaiting={isWaiting}
-          forceSwitch={forceSwitch}
-          trapped={trapped}
-          foeTypes={foe.active ? (pokemonTable[foe.active.speciesKey]?.types ?? []) : []}
-          onMove={(i) => onChoose(`move ${i + 1}`)}
-          onSwitch={(slot) => onChoose(`switch ${slot + 1}`)}
-        />
-      )}
+      {/* ── The battle message box ── */}
+      <PvpMessageBox
+        line={stage.line}
+        text={stage.text}
+        fallback={messagePrompt(room, { isWaiting, forceSwitch, over }, t)}
+      />
     </div>
+  );
+}
+
+/** The console with its props read off the room. One call site on desktop, one
+ *  on the phone's battle tab — the derivation lives in `battleControls` so
+ *  neither can invent its own. */
+function PvpConsoleFor({ room }: { room: BattleRoom }) {
+  const c = battleControls(room);
+  const foe = room.view.foe;
+  // ONE seam for both layouts. The desktop centre column and the phone's
+  // battle tab both render this component and nothing else, so putting Team
+  // Preview here is what makes it reachable on a phone without a second
+  // implementation — and what stops the two from disagreeing about whether the
+  // phase is still on.
+  if (c.previewing) return <PvpTeamPreview room={room} canPick={c.canPickLead} />;
+  return (
+    <PvpConsole
+      room={room}
+      active={c.active}
+      pokemon={c.pokemon}
+      bench={room.view.you.bench}
+      isWaiting={c.isWaiting}
+      forceSwitch={c.forceSwitch}
+      trapped={c.trapped}
+      foeTypes={foe.active ? (pokemonTable[foe.active.speciesKey]?.types ?? []) : []}
+      onMove={(i) => chooseBattleAction(room.battleId, `move ${i + 1}`)}
+      onSwitch={(slot) => chooseBattleAction(room.battleId, `switch ${slot + 1}`)}
+    />
   );
 }
 
@@ -438,6 +552,19 @@ function messagePrompt(
   if (room.voided) return t("The battle was voided by a server restart.");
   if (s.over) return t("The battle is over.");
   if (room.opponentAway) return t("Waiting for your opponent to reconnect…");
+  // Above forceSwitch/isWaiting on purpose. A preview request carries neither
+  // `active` nor `forceSwitch`, and "Waiting for the opponent's move…" is a lie
+  // during a phase where no move has been possible yet.
+  //
+  // `previewLead` and not `request.teamPreview`: the request stays a preview
+  // request after this player answers (the simulator acknowledges nothing), so
+  // reading it here left the box telling somebody who had already locked in to
+  // choose. Measured in the browser.
+  if (room.view.teamPreview) {
+    return room.previewLead == null
+      ? t("Team Preview — choose who leads.")
+      : t("Locked in. Waiting for your opponent…");
+  }
   if (s.forceSwitch) return t("Choose your next Pokémon!");
   if (s.isWaiting) return t("Waiting for the opponent's move…");
   const mine = room.view.you.active;
@@ -973,6 +1100,267 @@ function SwitchGrid({
   );
 }
 
+// ─── Team Preview ───────────────────────────────────────────────────
+//
+// The defining pre-battle ritual of competitive Pokémon, and the reason PvP
+// was broken once: Custom Game ships Team Preview ON, the first |request| is
+// `{"teamPreview":true}` with no active slot and no moves, and with nothing
+// able to answer it every battle sat until the AFK watchdog forfeited it. The
+// server side of the fix is in server/src/pvp.ts (a 20-second auto-lock armed
+// inside startBattle, which every start path passes through). This is the other
+// half — the thing that makes answering possible.
+//
+// ─── WHY PICKING A LEAD IS THE WHOLE DECISION ────────────────────────
+//
+// The protocol's `team <order>` takes a full permutation, and a first pass at
+// this screen let you build one. It was removed, because in SINGLES the order
+// beyond the lead decides NOTHING: every Pokémon after the first enters through
+// a switch the player chooses explicitly at the time, either voluntarily or from
+// the forced-switch grid after a faint. The tail of the permutation is
+// unobservable. Shipping a six-slot reorder would have been twenty seconds of
+// dragging to set a value the battle never reads — in front of the rarest event
+// in the game, on a population of ~34 active players an hour, with a countdown
+// running.
+//
+// So the picker is "tap the Pokémon you want to lead, then lock in", which maps
+// one-to-one onto a choice string measured against the real simulator:
+// `team 3` on a six-Pokémon team produces the final order [3,1,2,4,5,6] and
+// leads slot 3. Nothing is derived, nothing is reordered client-side, and there
+// is no local order model that could disagree with the server's.
+//
+// ─── WHAT IT MAY SHOW ────────────────────────────────────────────────
+//
+// The foe's roster is rendered from `view.foe.preview`, which the decoder
+// builds from the shared `|poke|` lines and nothing else: SPECIES, LEVEL,
+// GENDER. Not moves, not items, not abilities, not stats, not nicknames — the
+// |request| payload that carries all of that is one-sided and the server strips
+// the one extra bit `|poke|` used to carry (the held-item flag). See
+// server/src/lib/pvpTeamPreview.ts for the measurement.
+//
+// The consequence for THIS file is a rule rather than a note: render only what
+// is on `PreviewMon`. Do not reach into `pokemonTable` for anything but the
+// display name and the sprite — a type badge would be fine (typing is public
+// knowledge, given the species) but a base-stat or movepool readout would turn
+// a species reveal into a build reveal for anyone who does not know the dex by
+// heart, which is a competitive advantage handed to the client that happens to
+// render more.
+
+/**
+ * The preview rosters, inside the arena's own 16/9 battle window.
+ *
+ * Deliberately NOT a modal, and deliberately inside `.scene-content`: the arena
+ * is a battle window with a background, a message box and a field strip, and a
+ * dialog floating over it would read as "the app interrupted you" rather than
+ * "the battle has a phase". The two rows sit where the two fighters will be —
+ * foe up top, yours at the bottom — so when the phase ends and the real sprites
+ * come out, they come out where their team already was.
+ */
+function PvpPreviewStage({ room }: { room: BattleRoom }) {
+  const t = useT();
+  const foe = room.view.foe.preview;
+  const you = room.view.you.preview;
+  return (
+    <div className="pvp2-preview-stage" aria-label={t("Team Preview")}>
+      <PvpPreviewRow
+        who={room.opponent.username}
+        mons={foe}
+        side="foe"
+        empty={t("Waiting for the opponent's team…")}
+      />
+      <PvpPreviewRow who={t("Your team")} mons={you} side="you" empty={t("Loading your team…")} />
+    </div>
+  );
+}
+
+function PvpPreviewRow({
+  who, mons, side, empty,
+}: {
+  who: string;
+  mons: PreviewMon[];
+  side: "you" | "foe";
+  empty: string;
+}) {
+  const t = useT();
+  return (
+    <div className={`pvp2-preview-row is-${side}`}>
+      <span className="pvp2-preview-who">{who}</span>
+      {mons.length === 0 ? (
+        <span className="pvp2-preview-empty dim small">{empty}</span>
+      ) : (
+        <ul className="pvp2-preview-list">
+          {mons.map((m) => (
+            <li key={m.slot} className="pvp2-preview-mon">
+              <PokemonSprite
+                speciesKey={m.speciesKey}
+                alt=""
+                width={40}
+                height={40}
+                style={{ imageRendering: "pixelated" }}
+              />
+              <span className="pvp2-preview-name">
+                {pokemonTable[m.speciesKey]?.name ?? m.speciesKey}
+              </span>
+              <span className="pvp2-preview-lv dim">{t("Lv")}{m.level}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The picker, in the console's slot.
+ *
+ * It emits `.pvp2-console` and its header/body classes, so it inherits the
+ * panel the moves and bench already live in — same size, same chrome, same
+ * place on desktop and on the phone's battle tab. That matters beyond looks:
+ * `.pvp2-console` is what gives the surface a fixed height, and a preview
+ * screen that was a different size from the console it turns into would make
+ * the whole layout jump at the exact moment turn 1 opens.
+ *
+ * ─── THE COUNTDOWN IS NOT DECORATION ─────────────────────────────────
+ *
+ * `room.turnDeadlineAt` carries the PREVIEW deadline during this phase and the
+ * turn deadline afterwards (server-side, one function — see turnDeadlineFor in
+ * server/src/pvp.ts), so the same `TurnTimer` the rail already renders is
+ * counting down the real auto-lock. Telling the player it is going to lock, and
+ * what it will lock, is the difference between a deadline and an ambush — and
+ * the honest message is reassuring rather than threatening, because `default`
+ * is the order they already built in the Team Builder.
+ */
+function PvpTeamPreview({ room, canPick }: { room: BattleRoom; canPick: boolean }) {
+  const t = useT();
+  const mons = room.view.you.preview;
+  // SELECTION is local — a decision that has not been sent, which nothing
+  // outside this panel needs, and which the remount on a new battle resets for
+  // free. THE LOCK is not local: it lives on the room (state/pvp.ts's
+  // previewLead) because the message box is a sibling component and, on a
+  // phone, the status strip is on a DIFFERENT TAB. See that field's comment for
+  // what was measured in the browser.
+  const [lead, setLead] = useState<number | null>(null);
+  const sent = room.previewLead;
+  const locked = sent !== null;
+  // The SERVER will still accept a change — a second `team` overwrites the
+  // first until both sides have answered — so this is a separate question from
+  // `canPick`, which goes false the moment we lock.
+  const phaseOpen = !!room.request?.teamPreview && !room.result;
+
+  const nameOfSlot = (slot: number | null) =>
+    slot == null ? "" : (pokemonTable[mons.find((m) => m.slot === slot)?.speciesKey ?? ""]?.name ?? "");
+  const chosenName = nameOfSlot(lead);
+  const sentName = sent ? nameOfSlot(sent) : nameOfSlot(mons[0]?.slot ?? null);
+
+  return (
+    <section className={`pvp2-console mode-preview${locked ? " is-locked" : ""}`} aria-label={t("Team Preview")}>
+      <header className="pvp2-console-head">
+        <h4 className="pvp2-console-title">
+          {canPick ? t("Choose your lead") : t("Locked in")}
+        </h4>
+        {!room.result && room.turnDeadlineAt && (
+          <span className="pvp2-preview-clock">
+            <span className="dim small">{t("Auto-locks in")}</span>
+            <TurnTimer deadline={room.turnDeadlineAt} />
+          </span>
+        )}
+      </header>
+
+      <div className="pvp2-console-body is-preview">
+        <div className="pvp2-preview-pick">
+          {mons.length === 0 ? (
+            <p className="pvp2-waiting dim">{t("Getting the battle ready…")}</p>
+          ) : (
+            <div className="pvp2-switch-grid as-wide pvp2-preview-grid">
+              {mons.map((m) => {
+                const picked = (sent ?? lead) === m.slot || (sent === 0 && m.slot === 1 && lead == null);
+                return (
+                  <button
+                    key={m.slot}
+                    type="button"
+                    className={`pvp2-switch-card pvp2-preview-card ${picked ? "picked" : ""}`}
+                    // Frozen once locked, and re-armed by "Change lead" rather
+                    // than by tapping a card. Tapping only SELECTS — the send
+                    // is the button — so leaving the cards live after a lock
+                    // would let a stray tap silently disagree with the choice
+                    // the server is holding.
+                    disabled={!canPick}
+                    aria-pressed={picked}
+                    onClick={() => setLead(m.slot)}
+                    title={`${t("Lead with")} ${pokemonTable[m.speciesKey]?.name ?? m.speciesKey}`}
+                  >
+                    <span className="pvp2-switch-pic">
+                      <PokemonSprite
+                        speciesKey={m.speciesKey}
+                        alt=""
+                        width={40}
+                        height={40}
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    </span>
+                    <span className="pvp2-switch-name">
+                      {pokemonTable[m.speciesKey]?.name ?? m.speciesKey}
+                    </span>
+                    <span className="pvp2-preview-slot dim small">
+                      {t("Lv")}{m.level}
+                    </span>
+                    {picked && <span className="pvp2-switch-tag">{t("Lead")}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="pvp2-preview-actions">
+          {canPick ? (
+            <>
+              <button
+                type="button"
+                className="g-btn-primary pvp2-preview-lock"
+                onClick={() => lockTeamPreview(room.battleId, lead)}
+                disabled={mons.length === 0}
+              >
+                {lead == null
+                  ? t("Lock in my order")
+                  : `${t("Lead with")} ${chosenName}`}
+              </button>
+              <p className="dim small pvp2-preview-hint">
+                {t("You only see each other's species. If the clock runs out, your current order is used.")}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="pvp2-preview-locked" role="status">
+                <strong>{t("Locked in.")}</strong>
+                <span>{sentName ? `${t("Leading with")} ${sentName}.` : ""}</span>
+                <span>{t("Waiting for your opponent…")}</span>
+              </p>
+              {/* Changing your mind is LEGAL until both sides have answered —
+                  a second `team` choice overwrites the first, measured against
+                  the real simulator — so the affordance exists rather than the
+                  screen pretending the decision is final. It disappears the
+                  moment the phase does, because this whole component unmounts
+                  on |start. */}
+              {phaseOpen && (
+                <button
+                  type="button"
+                  className="g-btn-ghost g-btn-small pvp2-preview-change"
+                  onClick={() => unlockTeamPreview(room.battleId)}
+                >
+                  {t("Change lead")}
+                </button>
+              )}
+              <p className="dim small pvp2-preview-hint">
+                {t("The battle starts the moment they choose.")}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Field conditions ───────────────────────────────────────────────
 
 function FieldStrip({ room }: { room: BattleRoom }) {
@@ -1037,16 +1425,7 @@ export function PvpRail() {
     <div className="party-column control-column pvp2-rail">
       <header className="pvp2-rail-head">
         <span className="pvp2-rail-title">{t("PvP Battle")}</span>
-        {/* "bot" needs its own branch, not the fallback. This chain ends in
-            "Friendly", which for an unrated AI practice battle would be a lie
-            about who you are fighting — and the one thing this feature must
-            never do is let the player think an AI was a person. */}
-        <span className="pvp2-rail-format">
-          {room.format === "random50" ? t("Ranked · Lv 50")
-            : room.format === "tournament" ? t("Tournament")
-            : room.format === "bot" ? t("AI Practice · Not rated")
-            : t("Friendly")}
-        </span>
+        <span className="pvp2-rail-format">{formatLabel(room, t)}</span>
         {!room.result && room.turnDeadlineAt && <TurnTimer deadline={room.turnDeadlineAt} />}
       </header>
 
@@ -1063,11 +1442,41 @@ export function PvpRail() {
 
 function TeamPanel({ title, side, own = false }: { title: string; side: SideView; own?: boolean }) {
   const t = useT();
-  const hidden = Math.max(0, (side.teamSize || 0) - side.bench.length);
+  // "Not yet revealed" counts species you have not SEEN. During Team Preview
+  // you have seen all of them, so the count is zero however empty `bench` is —
+  // it measured `teamSize - bench.length` and printed "+6 not yet revealed"
+  // directly underneath a list of all six. Measured in the browser.
+  const showingPreview = side.bench.length === 0 && side.preview.length > 0;
+  const hidden = showingPreview ? 0 : Math.max(0, (side.teamSize || 0) - side.bench.length);
   return (
     <section className="ctx-section pvp2-team-card">
       <h4>{title}</h4>
-      {side.bench.length === 0 ? (
+      {showingPreview ? (
+        // TEAM PREVIEW. `bench` only ever holds Pokémon that have actually
+        // taken the field, so during the preview phase it is empty for both
+        // sides and this panel used to say "Nothing revealed yet." over a
+        // screen that was, at that moment, revealing exactly this. The roster
+        // is shown WITHOUT hp bars or status badges — not for tidiness, but
+        // because `PreviewMon` genuinely has neither and rendering a full green
+        // bar would be inventing a fact the server never sent.
+        <ul className="pvp2-team-list is-preview">
+          {side.preview.map((p) => (
+            <li key={p.slot} className="pvp2-team-row">
+              <PokemonSprite
+                speciesKey={p.speciesKey}
+                alt=""
+                width={32}
+                height={32}
+                style={{ imageRendering: "pixelated" }}
+              />
+              <span className="pvp2-team-name">
+                {pokemonTable[p.speciesKey]?.name ?? p.speciesKey}
+              </span>
+              <span className="pvp2-team-lv dim">{t("Lv")}{p.level}</span>
+            </li>
+          ))}
+        </ul>
+      ) : side.bench.length === 0 ? (
         <p className="dim small">{t("Nothing revealed yet.")}</p>
       ) : (
         <ul className="pvp2-team-list">
@@ -1159,5 +1568,138 @@ function TurnTimer({ deadline }: { deadline: number }) {
     <span className={`pvp2-timer ${ms < 30_000 ? "urgent" : ""}`}>
       {Math.floor(secs / 60)}:{(secs % 60).toString().padStart(2, "0")}
     </span>
+  );
+}
+
+// ─── The phone ───────────────────────────────────────────────────────
+//
+// THE GAP THIS CLOSES. At 390×760 with a live battle in the store, the arena
+// did not mount AT ALL: `.pvp2-center` and `.pvp2-scene` were absent and the
+// phone showed the frozen IDLE battle scene instead. MobileShell was
+// byte-identical to the commit before the arena shipped, so it simply never
+// routed to it. What a phone player actually had was the rail — and only under
+// the "Party" tab, because PartyColumn swaps itself for PvpRail. So they could
+// read the transcript and both teams, and could not pick a move, could not
+// switch, could not forfeit, and never saw the result dialog.
+//
+// WHY THIS IS NOT THE DESKTOP LAYOUT SQUEEZED. Desktop is a centre column
+// (scene + console) PLUS a right rail (timer, both teams, transcript). There is
+// no second column at 374px, and stacking all five surfaces would be ~1,100px
+// of scroll in front of a battle with a turn clock — the one situation where
+// "scroll down to find your moves" is a lost match rather than an annoyance.
+//
+// SO THE PHONE SPLITS IT BY TIME INSTEAD OF BY SPACE:
+//
+//   ALWAYS ON SCREEN — the battle window (the same `PvpScene` desktop renders,
+//   so the sprites, cards, field chips, move effects and the message box are
+//   literally the same component) plus a status strip carrying the two facts a
+//   player must never have to go looking for: the turn clock, and whether the
+//   battle is waiting on THEM.
+//
+//   ONE TAB AT A TIME — the console (moves + bench + forfeit), the two teams,
+//   the transcript, and chat. They take over the shell's bottom bar for the
+//   duration of the battle, which is deliberate: the idle game is PARKED while
+//   a room exists (App.tsx passes `useIsPvpBattle()` into `useBattleLoop`), so
+//   the six idle tabs lead to a frozen game, and the bar is the most valuable
+//   real estate on a phone. Chat keeps a slot because desktop keeps its chat
+//   rail during a battle and "gg" is part of PvP.
+//
+// The tab is chosen by the player except at the three moments where the clock
+// would punish that — see utils/pvpMobileNav.ts, which owns that rule and is
+// tested.
+
+/**
+ * The always-visible half: the battle window plus the status strip.
+ *
+ * The strip is the mobile answer to a desktop fact — that the console, with its
+ * "Your move" / "Opponent is choosing" / "Choose your next Pokémon" title, is
+ * on screen at all times. On a phone it is one of four tabs, so the state it
+ * announces is republished here where it cannot be tabbed away from, next to
+ * the countdown that enforces it.
+ */
+export function PvpMobileStage() {
+  const { room } = usePvpState();
+  const t = useT();
+  if (!room) return null;
+  const c = battleControls(room);
+  // Ordered by what BLOCKS the battle, not by what is interesting. Team Preview
+  // splits in two because the phase outlives your answer to it: once you have
+  // locked in, the same screen is a wait, and telling a player to pick a lead
+  // they have already picked is how you get them tapping a dead surface with an
+  // auto-lock counting down.
+  const state = c.over ? { cls: "over", label: t("Battle over") }
+    : room.opponentAway ? { cls: "away", label: t("Opponent away") }
+    // Team Preview above forceSwitch/isWaiting: none of the labels below
+    // describes a phase in which no move has been possible yet. This strip is
+    // the phone's ALWAYS-VISIBLE row while the picker is one tab away, so it is
+    // the only thing that can tell a player they still owe a decision.
+    : c.previewing ? (c.canPickLead
+        ? { cls: "act", label: t("Pick your lead") }
+        : { cls: "wait", label: t("Locked in — waiting") })
+    : c.forceSwitch ? { cls: "act", label: t("Send out a Pokémon") }
+    : c.isWaiting ? { cls: "wait", label: t("Opponent choosing") }
+    : c.active ? { cls: "act", label: t("Your turn") }
+    : { cls: "wait", label: t("Getting ready…") };
+  return (
+    <div className="pvp2-m-stage">
+      <PvpScene room={room} />
+      <div className="pvp2-m-status">
+        <span className="pvp2-m-format">{formatLabel(room, t)}</span>
+        <span className={`pvp2-m-state is-${state.cls}`} role="status">{state.label}</span>
+        {/* Same condition the rail uses: a finished battle's deadline is stale
+            and a counter still ticking toward it would imply a forfeit that
+            cannot happen. */}
+        {!room.result && room.turnDeadlineAt && <TurnTimer deadline={room.turnDeadlineAt} />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The tabbed half.
+ *
+ * Every branch renders a component the desktop layout already renders — the
+ * console via `PvpConsoleFor`, the rail's `TeamPanel` twice, the rail's
+ * `NarrationLog` — so there is no second implementation of any battle surface
+ * to keep in step. Only the hosting boxes are new, and they exist to give the
+ * phone's tab body the right scroll behaviour per view (see pvpArena.css:
+ * the console tab must never scroll, the log tab scrolls INSIDE the log so its
+ * heading stays put, the teams tab is free to grow).
+ */
+export function PvpMobilePanel({ view }: { view: Exclude<PvpMobileView, "chat"> }) {
+  const { room } = usePvpState();
+  const t = useT();
+  if (!room) return null;
+
+  if (view === "team") {
+    return (
+      <div className="pvp2-m-panel view-team">
+        <TeamPanel title={t("Your team")} side={room.view.you} own />
+        <TeamPanel title={`${room.opponent.username}${t("'s team")}`} side={room.view.foe} />
+      </div>
+    );
+  }
+
+  if (view === "log") {
+    return (
+      <div className="pvp2-m-panel view-log">
+        <section className="ctx-section pvp2-log-card">
+          <h4>{t("Battle log")}</h4>
+          <NarrationLog lines={room.narration} mySide={room.side} view={room.view} />
+        </section>
+      </div>
+    );
+  }
+
+  // The battle tab, and the same branch desktop takes: a finished battle
+  // replaces the console with the result dialog, which renders its own summary
+  // bar here AND a fixed overlay above everything. `nextPvpMobileView` forces
+  // this tab the moment a result lands, so the dialog can never be mounted on a
+  // tab the player is not looking at.
+  const over = battleControls(room).over;
+  return (
+    <div className="pvp2-m-panel view-battle">
+      {over ? <PvpResultDialog room={room} /> : <PvpConsoleFor room={room} />}
+    </div>
   );
 }

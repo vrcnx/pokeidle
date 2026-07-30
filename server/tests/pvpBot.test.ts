@@ -82,6 +82,7 @@ import {
   BOT_TURN_TIMEOUT_MS,
   BOT_WATCHDOG_POLL_MS,
   WATCHDOG_POLL_MS,
+  TEAM_PREVIEW_LOCK_MS,
   RECONNECT_GRACE_MS,
   type BattleRoom,
   type GraceDeps,
@@ -160,7 +161,16 @@ function botRoom(opts: {
 
 /** Start it for real. Fake timers are already installed by beforeEach; the
  *  0-tick lets the simulator's own promise chain deliver the preamble. */
-async function liveBotBattle(h: Harness, opts?: Parameters<typeof botRoom>[0]) {
+async function liveBotBattle(
+  h: Harness,
+  opts?: Parameters<typeof botRoom>[0] & {
+    /** Leave the human silent through Team Preview as well as through the
+     *  battle. For the watchdog tests whose whole premise is "this player never
+     *  chose ANYTHING" — with the phase on, answering it would stamp movedAt
+     *  and quietly turn them into a player who chose once. */
+    humanSilent?: boolean;
+  },
+) {
   const made = botRoom(opts);
   await startBattle(io, made.room, h.send, () => {
     h.send(HUMAN_ID, "battle:start", {
@@ -169,14 +179,44 @@ async function liveBotBattle(h: Harness, opts?: Parameters<typeof botRoom>[0]) {
     });
   });
   await vi.advanceTimersByTimeAsync(0);
+
+  // ─── TEAM PREVIEW, AND THE BOT'S HALF OF IT ─────────────────────────
+  //
+  // The AI answers this phase entirely on its own: pvp.ts hands its chunks to
+  // the brain, and RandomPlayerAI.chooseTeamPreview returns `default` — so the
+  // bot seat needs no code here and locks in on its ordinary 600-1200 ms think
+  // timer. That is the whole justification for leaving Team Preview ON in
+  // practice battles rather than skipping it: the phase a player rehearses
+  // against the AI is the phase they will meet on the ladder, and the
+  // "opponent" never keeps them waiting.
+  //
+  // The HUMAN half is this loop. Advancing time is what lets the bot's think
+  // timer fire, so both halves resolve together.
+  for (let i = 0; i < 20; i++) {
+    const req = made.room.a.request as { teamPreview?: boolean } | null;
+    if (!req?.teamPreview && made.room.a.request) break;
+    if (req?.teamPreview && !opts?.humanSilent) applyChoice(made.room, HUMAN_ID, "default");
+    await vi.advanceTimersByTimeAsync(200);
+    // A silent human is left in the phase on purpose; the server's own
+    // 20-second auto-lock is what gets that battle to turn 1, and the tests
+    // that ask for this are the ones measuring what happens next.
+    if (opts?.humanSilent) break;
+  }
   return made;
 }
 
-/** Does the human have a decision to make right now? */
+/** Does the human have a decision to make right now?
+ *
+ *  Team Preview counts. Its request carries neither `active` nor `forceSwitch`
+ *  — those are the two fields this used to test — so before this line every
+ *  driver in the file silently decided the human had nothing to do, never
+ *  answered the phase, and sat there until the 20-second auto-lock (or, on fake
+ *  timers, forever). `default` is a legal answer to it, which is why the
+ *  drivers below need no second branch. */
 function humanMustChoose(room: BattleRoom): boolean {
   const req = room.a.request as any;
   if (!req || req.wait) return false;
-  return !!(req.active || req.forceSwitch);
+  return !!(req.active || req.forceSwitch || req.teamPreview);
 }
 
 /** Drive the HUMAN with `default` and let the bot answer on its own think
@@ -408,10 +448,22 @@ describe("the AFK watchdog and the AI seat", () => {
     // winnerId UNSET — a winnerless "completed" battle, which is the state the
     // tournament runner can never advance past.
     const h = makeHarness();
-    const { room, botId } = await liveBotBattle(h, { levels: [25] });
+    // Silent from the FIRST request, which since Team Preview is the preview
+    // request itself. That makes this the end-to-end version of the same story:
+    // the phase's own 20-second auto-lock writes `default` for the missing
+    // human and the battle reaches turn 1 anyway, the bot keeps playing, and
+    // the turn watchdog then resolves it — with the AI named, because the AI is
+    // the only side that ever stamped movedAt.
+    const { room, botId } = await liveBotBattle(h, { levels: [25], humanSilent: true });
     await vi.advanceTimersByTimeAsync(2_000);
     expect(room.a.movedAt ?? 0).toBe(0);
     expect(room.b.movedAt).toBeGreaterThan(0);
+    // Still in Team Preview at 2 s, and out of it once the auto-lock has run.
+    expect((room.a.request as any)?.teamPreview).toBe(true);
+    await vi.advanceTimersByTimeAsync(TEAM_PREVIEW_LOCK_MS + 2_000);
+    expect((room.a.request as any)?.teamPreview ?? false).toBe(false);
+    expect(room.log.some((l) => l === "|start")).toBe(true);
+    expect(room.a.movedAt ?? 0).toBe(0);   // the auto-lock is NOT a choice by them
     await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_MS + WATCHDOG_POLL_MS * 2);
     expect(room.endReason).toBe("timeout");
     expect(room.winnerId).toBe(botId);
@@ -634,17 +686,34 @@ describe("battle:rejoin works unchanged, and still hides the AI's bench", () => 
     expect(snap.opponent).toEqual({ id: botId, username: botLabel });
     expect(snap.levelCap).toBeNull();
     const blob = JSON.stringify(snap);
-    // Every one of the bot's species the protocol has NOT revealed must be
-    // absent from what the human is handed. The omniscient log knows them all.
-    const revealed = new Set(
-      room.log
-        .filter((l) => l.startsWith("|switch|p2a") || l.startsWith("|drag|p2a"))
-        .map((l) => toID((l.split("|")[3] ?? "").split(",")[0] ?? "")),
+    // ─── WHAT TEAM PREVIEW MOVED HERE ───────────────────────────────
+    //
+    // This used to assert that every one of the AI's species which had NOT yet
+    // switched in was absent from the human's snapshot. Team Preview publishes
+    // all of them — `|poke|p2|Ekans, L25, M|` — to the human before turn 1, on
+    // the shared channel, by design, so that assertion now only measures
+    // whether the phase failed to happen. It is inverted rather than deleted:
+    // every species must be PRESENT, which is a claim the old version could
+    // never have made and which fails loudly if the phase regresses.
+    const all = room.b.team.map((m: any) => toID(m.speciesKey));
+    for (const k of all) {
+      expect(blob.toLowerCase(), `preview should have revealed ${k}`).toContain(k);
+    }
+    // The line that did NOT move: the AI's own |request| payload, which carries
+    // its stats, its EV/IV spread and its full movepool for all three. That is
+    // the private channel, and the human's replay must contain only their own.
+    const requestSides = new Set(
+      snap.log
+        .filter((l) => l.startsWith("|request|"))
+        .map((l) => {
+          try { return (JSON.parse(l.slice("|request|".length)) as any)?.side?.id ?? "-"; }
+          catch { return "?"; }
+        }),
     );
-    const hidden = room.b.team
-      .map((m: any) => toID(m.speciesKey))
-      .filter((k: string) => !revealed.has(k));
-    for (const k of hidden) expect(blob.toLowerCase()).not.toContain(k);
+    expect(requestSides).toEqual(new Set(["p1"]));
+    // …and the held-item marker on the preview lines, which the server strips
+    // on every channel.
+    expect(blob).not.toContain("|item");
     // A stranger gets nothing at all.
     expect(snapshotForSide(room, "uSomeoneElse")).toBeNull();
     if (room.status === "active") await endBattle(room, h.send, "cancelled");
@@ -1218,6 +1287,13 @@ describe("applyChoice is guarded and its clock credit is bounded", () => {
     // non-null stream pass both of applyChoice's checks.
     expect(room.status).toBe("active");
     expect(room.stream).not.toBeNull();
+    // Captured rather than assumed null: the human has already made one real
+    // choice by now — the Team Preview answer — so `answeredSeq` is legitimately
+    // set before the poisoned write. The property under test is that the FAILED
+    // write does not advance it, and a before/after comparison states that
+    // directly instead of relying on the player never having chosen.
+    const creditedBefore = room.a.answeredSeq ?? null;
+    const clockBefore = room.lastChoiceAt;
     let threw: unknown = null;
     let result: { ok: boolean; error?: string } | null = null;
     try {
@@ -1228,7 +1304,8 @@ describe("applyChoice is guarded and its clock credit is bounded", () => {
     expect(threw).toBeNull();
     expect(result?.ok).toBe(false);
     // The clock is NOT credited for a write that never landed.
-    expect(room.a.answeredSeq ?? null).toBeNull();
+    expect(room.a.answeredSeq ?? null).toBe(creditedBefore);
+    expect(room.lastChoiceAt).toBe(clockBefore);
     await endBattle(room, h.send, "cancelled");
   });
 

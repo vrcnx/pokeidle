@@ -86,6 +86,11 @@ async function runBattle(): Promise<{
   void (async () => { for await (const _c of ps.omniscient) { /* drain */ } })();
   void (async () => { for await (const _c of ps.p2) { /* drain */ } })();
 
+  // `!Team Preview` DELIBERATELY, even though production now ships the phase
+  // ON: this battle exists to test the mid-battle decoder over twelve scripted
+  // turns, and starting it on turn 1 keeps the script's indices meaningful. The
+  // phase itself has its own describe block at the bottom of this file, driven
+  // on the production format string.
   omni.write([
     `>start {"formatid":"gen5customgame@@@!Team Preview","seed":[1,2,3,4]}`,
     `>player p1 {"name":"Alice","team":${JSON.stringify(Teams.pack(P1 as never))}}`,
@@ -348,4 +353,137 @@ describe("pvpBattleView — parsers", () => {
     // or an effect name from being read as paralysis.
     expect(parseCondition("100/100 [from] Sparkling Aria").status).toBeNull();
   });
+});
+
+// ══ Team Preview, decoded from a real battle ══════════════════════════════
+//
+// The three tags that used to be in the decoder's deliberately-silent list —
+// |clearpoke|, |poke| and |teampreview| — because the shipped format removed
+// the phase with `!Team Preview` and they could never arrive. The phase is on
+// now, and these lines are the ENTIRE channel through which one side learns
+// anything about the other's team, so what the decoder does with them is a
+// security surface and not only a rendering one.
+//
+// Driven off the same real simulator as the rest of this file, on the format
+// string production actually ships.
+
+describe("pvpBattleView — Team Preview", () => {
+  const preview = async () => {
+    const omni = new BattleStreams.BattleStream();
+    const ps = BattleStreams.getPlayerStreams(omni);
+    let view = initialBattleView("Alice", "Bob");
+    const lines: NarrationLine[] = [];
+    const scratch = { pendingMove: null as NarrationLine | null };
+    const raw: string[] = [];
+    void (async () => {
+      for await (const chunk of ps.p1) {
+        raw.push(chunk);
+        const r = applyChunk(view, chunk, "a", scratch);
+        view = r.view;
+        lines.push(...r.lines);
+      }
+    })();
+    void (async () => { for await (const _c of ps.omniscient) { /* drain */ } })();
+    void (async () => { for await (const _c of ps.p2) { /* drain */ } })();
+    // simFormatId(true) — Team Preview ON, i.e. what production ships.
+    omni.write([
+      `>start {"formatid":"gen5customgame@@@Sleep Clause Mod,Endless Battle Clause","seed":[5,6,7,8]}`,
+      `>player p1 {"name":"Alice","team":${JSON.stringify(Teams.pack(P1 as never))}}`,
+      `>player p2 {"name":"Bob","team":${JSON.stringify(Teams.pack(P2 as never))}}`,
+    ].join("\n"));
+    await new Promise((r) => setTimeout(r, 250));
+    return {
+      get view() { return view; },
+      lines,
+      raw,
+      lock: async (a: string, b: string) => {
+        omni.write(`>p1 ${a}\n>p2 ${b}`);
+        await new Promise((r) => setTimeout(r, 300));
+      },
+      destroy: () => { try { omni.destroy(); } catch { /* already gone */ } },
+    };
+  };
+
+  it("builds both rosters from |poke| and flags the phase", async () => {
+    const p = await preview();
+    expect(p.view.teamPreview).toBe(true);
+    // Own side and foe side, in the order the protocol sent them, with the
+    // 1-based slot the `team N` choice takes.
+    // Gender is part of what the phase reveals and comes straight off the
+    // `details` field, so it is asserted with the value the seeded battle
+    // actually produced rather than an assumed blank.
+    expect(p.view.you.preview).toEqual([
+      { slot: 1, speciesKey: "blastoise", level: 50, gender: "F" },
+      { slot: 2, speciesKey: "forretress", level: 50, gender: "F" },
+    ]);
+    expect(p.view.foe.preview.map((m) => m.speciesKey)).toEqual(["charizard", "machamp"]);
+    // `|teamsize|` does not arrive until both sides lock, so the roster IS the
+    // count — without this the preview screen could not say how many the foe
+    // has while listing them.
+    expect(p.view.foe.teamSize).toBe(2);
+    p.destroy();
+  }, 20_000);
+
+  it("narrates NOTHING for the phase — a roster is not a battle log", async () => {
+    const p = await preview();
+    // The preamble really did arrive (twelve-ish lines including four |poke|),
+    // so "no narration" is a decision rather than an empty stream.
+    expect(p.raw.join("\n").split("\n").filter((l) => l.startsWith("|poke|"))).toHaveLength(4);
+    expect(p.lines).toEqual([]);
+    p.destroy();
+  }, 20_000);
+
+  it("decodes species, level and gender — and nothing else, because nothing else is sent", async () => {
+    const p = await preview();
+    const foe = p.view.foe.preview[0];
+    // The shape is the boundary: PreviewMon has four fields and no HP, no
+    // status, no ident, no moves. A `hpPct: 100` here would be the client
+    // inventing a fact the server never sent.
+    expect(Object.keys(foe).sort()).toEqual(["gender", "level", "slot", "speciesKey"]);
+    // P2's Charizard holds a Life Orb and P1's Blastoise holds Leftovers, so
+    // the raw |poke| lines carry the held-item marker. The decoder does not
+    // read it, and the SERVER strips it before it ever reaches a client —
+    // this asserts the client half, which is what stops a future edit from
+    // rendering it if the server ever regressed.
+    expect(JSON.stringify(p.view.foe.preview)).not.toContain("item");
+    expect(JSON.stringify(p.view.you.preview)).not.toContain("item");
+    p.destroy();
+  }, 20_000);
+
+  it("clears the phase at |start and puts the chosen lead on the field", async () => {
+    const p = await preview();
+    await p.lock("team 2", "team 2");
+    expect(p.view.teamPreview).toBe(false);
+    // Slot 2 on both sides, which is what `team 2` means.
+    expect(p.view.you.active?.speciesKey).toBe("forretress");
+    expect(p.view.foe.active?.speciesKey).toBe("machamp");
+    // The rosters are KEPT, not cleared: the |poke| lines arrive once and the
+    // rail's "+N not yet revealed" reads against them for the rest of the
+    // battle.
+    expect(p.view.you.preview).toHaveLength(2);
+    expect(p.view.foe.preview).toHaveLength(2);
+    // And the battle narrates normally from here.
+    expect(p.lines.some((l) => l.kind === "turn" && l.text === "Turn 1")).toBe(true);
+    p.destroy();
+  }, 20_000);
+
+  it("rebuilds one roster, not two, when a rejoin replays the whole log", async () => {
+    // A reload mid-preview replays every delivered line through the same
+    // decoder. |clearpoke| RESETS rather than appends, which is the only reason
+    // that produces two Pokemon a side instead of four.
+    const p = await preview();
+    const replayed = applyChunk(
+      initialBattleView("Alice", "Bob"),
+      p.raw.join("\n"),
+      "a",
+      { pendingMove: null as NarrationLine | null },
+    );
+    expect(replayed.view.you.preview).toEqual(p.view.you.preview);
+    expect(replayed.view.foe.preview).toEqual(p.view.foe.preview);
+    expect(replayed.view.teamPreview).toBe(true);
+    // Twice through, still two a side.
+    const twice = applyChunk(replayed.view, p.raw.join("\n"), "a", { pendingMove: null as NarrationLine | null });
+    expect(twice.view.foe.preview).toHaveLength(2);
+    p.destroy();
+  }, 20_000);
 });

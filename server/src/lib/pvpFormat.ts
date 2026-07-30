@@ -157,12 +157,30 @@ const BATTLE_CLAUSES = [
  * Build the simulator format id.
  *
  * @param teamPreview whether the pre-battle Team Preview phase is on. Passing
- *   false appends Showdown's own `!Team Preview` removal syntax. Custom Game
- *   ships Team Preview ON, and with it the first request a player receives is
- *   `{"teamPreview":true}` — no active slot, no moves. A client with no
- *   team-order picker cannot answer that, so every battle sits until the
- *   watchdog. Only pass true once a picker exists on BOTH the normal and the
- *   tournament start paths.
+ *   false appends Showdown's own `!Team Preview` removal syntax.
+ *
+ * PRODUCTION PASSES TRUE. Custom Game ships Team Preview ON, and with it the
+ * first request a player receives is `{"teamPreview":true}` — no active slot,
+ * no moves. That is why this parameter exists at all: a client with no
+ * team-order picker could not answer it, so every battle sat until the
+ * five-minute AFK watchdog forfeited it, and `false` was the shipped value for
+ * the whole life of PvP.
+ *
+ * The two things that had to exist before it could be flipped both do now, and
+ * neither of them lives in this file:
+ *
+ *   * a PICKER, in the arena's own centre window (game/src/components/
+ *     PvpArena.tsx), reachable on desktop and on a phone through the one
+ *     console seam both layouts share;
+ *   * an AUTO-LOCK, armed inside pvp.ts's startBattle — the single choke point
+ *     that matchmaking, friend invites, the tournament bracket ticker and the
+ *     admin start-match route all pass through, so no start path can be missing
+ *     it. After 20 seconds the server writes `default` for any side that has
+ *     not answered, and ONLY for those sides.
+ *
+ * The false branch is kept rather than deleted: tests/pvpFormatWiring.test.ts
+ * measures both, and "what happens with the phase off" is the control that
+ * makes the on-case's assertions mean something.
  */
 export function simFormatId(teamPreview: boolean): string {
   const rules = [...BATTLE_CLAUSES];

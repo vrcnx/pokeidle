@@ -41,7 +41,7 @@ import path from "node:path";
 import { BattleStreams, Teams } from "@pkmn/sim";
 import { simFormatId, SIM_BASE_FORMAT_ID } from "../src/lib/pvpFormat.js";
 
-const PROD_FORMAT = simFormatId(false);
+const PROD_FORMAT = simFormatId(true);
 /** The string that shipped before this fix, kept verbatim as the control. */
 const OLD_FORMAT = `${SIM_BASE_FORMAT_ID}@@@Sleep Clause Mod,Endless Battle Clause,HP Percentage Mod,!Team Preview`;
 
@@ -83,6 +83,13 @@ async function run(formatid: string, turns = 3): Promise<Streams> {
     `>player p2 {"name":"Bob","team":${JSON.stringify(Teams.pack(TEAM_B))}}`,
   ].join("\n"));
   await settle(150);
+  // Team Preview first, or nothing below ever reaches turn 1. `default` is the
+  // identity order, so the fixture's single Pokémon leads either way — and the
+  // OLD_FORMAT control carries `!Team Preview`, where these two writes are
+  // simply refused with an |error| and the battle proceeds exactly as it did
+  // before. One helper, both formats.
+  try { stream.write(">p1 default"); stream.write(">p2 default"); } catch { /* no phase */ }
+  await settle(120);
   for (let t = 0; t < turns; t++) {
     try { stream.write(">p1 move 1"); stream.write(">p2 move 1"); }
     catch { break; }   // battle already over
@@ -151,16 +158,18 @@ describe("no rule in the shipped format contradicts the battle it introduces", (
     // Removing the inert rule must not have removed the format's teeth.
     expect(PROD_FORMAT).toContain("Sleep Clause Mod");
     expect(PROD_FORMAT).toContain("Endless Battle Clause");
-    expect(PROD_FORMAT).toContain("!Team Preview");
+    // Team Preview is ON: the removal clause is GONE, which is a change to the
+    // shipped format string and therefore this file's business.
+    expect(PROD_FORMAT).not.toContain("!Team Preview");
     expect(r.omni.some((l) => l.startsWith("|turn|"))).toBe(true);
   }, 20_000);
 
   it("is the format pvp.ts actually starts battles on", () => {
-    // simFormatId(false) is only "the shipped format" while pvp.ts is the thing
+    // simFormatId(true) is only "the shipped format" while pvp.ts is the thing
     // calling it. Source-level pin rather than a new export: this file must not
     // widen the module's API to test it.
     const src = fs.readFileSync(path.join(process.cwd(), "src", "pvp.ts"), "utf8");
-    expect(src).toContain("const SIM_FORMAT_ID = simFormatId(false)");
+    expect(src).toContain("const SIM_FORMAT_ID = simFormatId(true)");
     expect(src).toContain('`>start {"formatid":${JSON.stringify(SIM_FORMAT_ID)}}`');
   });
 });
@@ -241,7 +250,15 @@ describe("the removed rule was not a cosmetic worry", () => {
     // gone, both player streams and the omniscient stream are byte-identical
     // apart from the two lines that NAME the rule (its own |rule| line, and the
     // custom-rules infobox that counts them).
-    const before = await run(OLD_FORMAT);
+    // THE CONTROL IS THE SHIPPED FORMAT PLUS THE REMOVED RULE, not the historic
+    // string. OLD_FORMAT also carries `!Team Preview`, and Team Preview is now
+    // ON — so comparing against it would be measuring TWO format changes at
+    // once and reporting the difference as though it were the rule's doing. It
+    // did exactly that on the first run after the flag flipped: 29 lines
+    // against 24, every one of the five extra being |clearpoke| / |poke| /
+    // |teampreview|. A control that differs in two variables is not a control.
+    const PROD_PLUS_INERT = `${PROD_FORMAT},HP Percentage Mod`;
+    const before = await run(PROD_PLUS_INERT);
     const after = await run(PROD_FORMAT);
     // `|t:|<epoch seconds>` is wall-clock and differs between two runs that
     // straddle a second boundary; `|raw|` is the custom-rules infobox, which

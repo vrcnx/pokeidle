@@ -82,6 +82,7 @@ import {
   type BattleRoom,
   type GraceDeps,
 } from "../src/pvp.js";
+import { passTeamPreview, passTeamPreviewFake } from "./support/teamPreview.js";
 
 // ── Harness ───────────────────────────────────────────────────────────────
 
@@ -182,6 +183,10 @@ describe("a buffered |win| cannot rename the winner of a finished battle", () =>
     const h = makeHarness(["uA", "uB"]);
     const room = makeRoom("random50", killerTeam, doomedTeam);
     await startBattle(io, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(150);
 
     // Reproduce the one condition the old code depended on and does not
@@ -240,6 +245,10 @@ describe("a buffered |win| cannot rename the winner of a finished battle", () =>
     const h = makeHarness(["uA", "uB"]);
     const room = makeRoom("random50", killerTeam, doomedTeam);
     await startBattle(io, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(150);
     applyChoice(room, "uB", "move 1");
     applyChoice(room, "uA", "move 1");
@@ -340,6 +349,10 @@ describe("the clamp did not reopen the watchdog deadlock", () => {
       { speciesKey: "bulbasaur", name: "B2", level: 50, moves: [{ id: "tackle" }] },
     ]);
     await startBattle(io, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreviewFake(room, (ms) => vi.advanceTimersByTimeAsync(ms));
     await vi.advanceTimersByTimeAsync(0);
 
     // Phase 1: A flaps to dodge every watchdog poll, and B submits a choice at
@@ -402,6 +415,10 @@ describe("a voided battle's row publishes nothing the battle did not reveal", ()
     const h = makeHarness(["uA", "uB"]);
     const room = makeRoom("random50", killerTeam, bTeamWithCanary);
     await startBattle(io, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(150);
 
     // Exactly what the shutdown drain does to every live room.
@@ -418,10 +435,32 @@ describe("a voided battle's row publishes nothing the battle did not reveal", ()
     expect(h.of("battle:complete")).toHaveLength(2);
     // Unrated.
     expect(eloUpdates()).toHaveLength(0);
-    // The teams are gone. The canary never took the field — proved against the
-    // log — so the row was publishing strictly more than the battle revealed,
-    // to a pairing that gets RE-RUN.
-    expect(row.battleLog).not.toContain("Skarmory");
+    // ─── WHAT THE LOG MAY AND MAY NOT CONTAIN, since Team Preview ───────
+    //
+    // This assertion used to read `expect(row.battleLog).not.toContain
+    // ("Skarmory")`, and the reasoning was that the canary never took the
+    // field, so its SPECIES appearing in a kept log was strictly more than the
+    // battle revealed — to a pairing the bracket then re-runs.
+    //
+    // Half of that is now false and half is more important than ever. Team
+    // Preview publishes `|poke|p2|Skarmory, L50, M|` to BOTH players before
+    // turn 1, by design: revealing the six species is the entire phase. So the
+    // species in the log is no longer a leak — it is a record of something both
+    // players read on screen.
+    //
+    // Everything else still is, and the re-run argument is unchanged for it.
+    // The canary is built to make that measurable: a nickname, an ability, a
+    // held item, two moves and a full non-default IV/EV spread, none of which
+    // Team Preview shows and none of which may reach the log. `shedShell` is
+    // the sharpest of them — the simulator's own `|poke|` line carries a
+    // held-item MARKER (`|poke|p2|Skarmory, L50, M|item`), which the server
+    // strips on every channel including this one, so a re-matched opponent
+    // cannot even learn that the Skarmory is holding something.
+    expect(row.battleLog).toContain("Skarmory");   // the phase revealed it, live
+    expect(row.battleLog).toContain("|teampreview");
+    for (const secret of ["BCANARY", "shedShell", "Shed Shell", "keenEye", "Keen Eye", "whirlwind", "Whirlwind", "braveBird", "|item"]) {
+      expect(String(row.battleLog), `voided log leaked "${secret}"`).not.toContain(secret);
+    }
     expect(row.userATeam).toBe("[]");
     expect(row.userBTeam).toBe("[]");
     for (const token of ["BCANARY", "skarmory", "shedShell", "keenEye", "whirlwind", "SLUGGER", "machamp"]) {
@@ -436,6 +475,10 @@ describe("a voided battle's row publishes nothing the battle did not reveal", ()
     const h = makeHarness(["uA", "uB"]);
     const room = makeRoom("random50", killerTeam, bTeamWithCanary);
     await startBattle(io, room, h.deps.sendToUser!);
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(150);
     room.winnerId = "uA";
     room.loserId = "uB";

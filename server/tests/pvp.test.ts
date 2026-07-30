@@ -29,6 +29,7 @@ import {
   battleRooms,
   type BattleRoom,
 } from "../src/pvp.js";
+import { answerTeamPreview, passTeamPreview } from "./support/teamPreview.js";
 
 describe("battleEndFromLine — the |tie / |tier| parse", () => {
   it("does NOT treat the |tier| preamble line as a tie", () => {
@@ -162,6 +163,12 @@ describe("startBattle (real simulator)", () => {
 
     await startBattle(null as never, room, sendToUser, onReady);
     expect(onReady).toHaveBeenCalledTimes(1);
+
+    // Turn 1 is now on the far side of Team Preview: the first |request| both
+    // sides get is `{"teamPreview":true}`, and nothing reaches |turn|1 until
+    // both have answered it. Production answers with the picker or, after
+    // twenty seconds, with the auto-lock; a driver answers it here.
+    await passTeamPreview(room);
 
     // Wait until the omniscient log has drained the preamble AND both
     // players have received their first |request| (turn 1 is live).

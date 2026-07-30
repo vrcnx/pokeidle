@@ -43,13 +43,22 @@ import {
   startBattle,
   type BattleRoom,
 } from "../src/pvp.js";
+import { answerTeamPreview, passTeamPreview } from "./support/teamPreview.js";
 
 const io = { to: () => ({ emit: () => {} }) } as never;
 const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The format string production ships. Read through simFormatId rather than
- *  copied, so this file cannot drift from the thing it is guarding. */
-const PROD_FORMAT = simFormatId(false);
+ *  copied, so this file cannot drift from the thing it is guarding — which is
+ *  exactly what it did the day Team Preview was turned on and this constant
+ *  still said `false`: every assertion below kept passing against a format
+ *  string nothing shipped any more. */
+const PROD_FORMAT = simFormatId(true);
+/** The same rule list WITH the Team Preview removal, i.e. what shipped before
+ *  the picker existed. Kept as the CONTROL for section 2 rather than deleted:
+ *  "the phase does not start a battle on its own" is only meaningful next to a
+ *  format where turn 1 opens immediately. */
+const NO_PREVIEW_FORMAT = simFormatId(false);
 
 // ── A battle driven straight at the simulator ─────────────────────────────
 // Bypasses pvp.ts entirely: the question in this half of the file is what the
@@ -96,6 +105,14 @@ async function probe(formatid: string, turns = 0): Promise<Probe> {
     ].join("\n"));
   } catch (e) { out.throws.push(e instanceof Error ? e.message : String(e)); }
   await settle(120);
+  // Answer Team Preview before trying to move. `default` is the identity order,
+  // so the one-Pokemon fixture leads with the same mon either way — and on a
+  // format that REMOVED the phase these two writes are refused with an |error|
+  // on the player stream and nothing else changes, which is what lets one probe
+  // serve both halves of section 2.
+  try { omniStream.write(">p1 default"); omniStream.write(">p2 default"); }
+  catch (e) { out.throws.push(e instanceof Error ? e.message : String(e)); }
+  await settle(100);
   for (let t = 0; t < turns; t++) {
     try { omniStream.write(">p1 move 1"); omniStream.write(">p2 move 1"); }
     catch (e) { out.throws.push(e instanceof Error ? e.message : String(e)); break; }
@@ -121,14 +138,14 @@ describe("the format string production ships is accepted by the real simulator",
 
   it("starts on each declared rule INDIVIDUALLY, so a bad one cannot hide behind a good one", async () => {
     const declared = PROD_FORMAT.slice(`${SIM_BASE_FORMAT_ID}@@@`.length).split(",");
-    // `!`-prefixed entries are REMOVALS, not clauses, and re-declaring one
-    // alongside itself is its own error ("Multiple \"!teampreview\" rules"), so
-    // they are excluded here and covered by the Team Preview section instead.
-    const clauses = declared.filter((r) => !r.startsWith("!"));
-    expect(declared).toContain("!Team Preview");
-    expect(clauses.length).toBeGreaterThan(1);
-    for (const rule of clauses) {
-      const r = await probe(`${SIM_BASE_FORMAT_ID}@@@${rule},!Team Preview`);
+    // No `!`-prefixed entries any more: the only one there ever was is
+    // `!Team Preview`, and the phase is on. If a future removal is added, it
+    // belongs in its own section — re-declaring one alongside itself is its own
+    // error ("Multiple \"!teampreview\" rules").
+    expect(declared.filter((r) => r.startsWith("!"))).toEqual([]);
+    expect(declared.length).toBeGreaterThan(1);
+    for (const rule of declared) {
+      const r = await probe(`${SIM_BASE_FORMAT_ID}@@@${rule}`);
       expect(r.throws, `rule "${rule}" was rejected by the simulator`).toEqual([]);
       expect(r.started, `rule "${rule}" prevented |start`).toBe(true);
     }
@@ -146,42 +163,90 @@ describe("the format string production ships is accepted by the real simulator",
     // The real id IS declared.
     expect(PROD_FORMAT).toContain("Sleep Clause Mod");
 
-    const wrongSleep = await probe(`${SIM_BASE_FORMAT_ID}@@@Sleep Clause,!Team Preview`);
+    const wrongSleep = await probe(`${SIM_BASE_FORMAT_ID}@@@Sleep Clause`);
     expect(wrongSleep.started).toBe(false);
     expect(wrongSleep.throws.join(" ")).toContain('Unrecognized rule "Sleep Clause"');
 
-    const dupeCancel = await probe(`${SIM_BASE_FORMAT_ID}@@@Cancel Mod,!Team Preview`);
+    const dupeCancel = await probe(`${SIM_BASE_FORMAT_ID}@@@Cancel Mod`);
     expect(dupeCancel.started).toBe(false);
     expect(dupeCancel.throws.join(" ")).toContain("already exists");
   }, 30_000);
 });
 
-// ══ 2 · Team Preview stays OFF until a picker exists ══════════════════════
+// ══ 2 · Team Preview is ON, and it is answerable ══════════════════════════
+//
+// This section said the opposite for the whole life of PvP: "Team Preview is
+// off, and that is load-bearing rather than tidy". It was true — a phase with
+// nothing able to answer it stranded every battle until the AFK watchdog — and
+// what changed is not the measurement but the client and the auto-lock. So the
+// old assertion is KEPT, as the control: the same probe that now reaches turn 1
+// on the production format is run against a format string with no answer, and
+// it still fails to start. That is the difference between "the phase is
+// harmless" and "the phase is answered".
 
-describe("Team Preview is off, and that is load-bearing rather than tidy", () => {
-  it("opens on turn 1 with a real action request", async () => {
-    expect(PROD_FORMAT).toContain("!Team Preview");
+describe("Team Preview is on, and the phase is answerable", () => {
+  it("opens on the preview request, then on turn 1 once both sides answer", async () => {
+    expect(PROD_FORMAT).not.toContain("!Team Preview");
     const r = await probe(PROD_FORMAT);
-    const first = r.p1.find((l) => l.startsWith("|request|"))!;
-    expect(first).toBeDefined();
-    const rq = JSON.parse(first.slice("|request|".length));
-    expect(rq.teamPreview).toBeUndefined();
-    expect(rq.active?.[0]?.moves?.length).toBeGreaterThan(0);
+    // FIRST request: the phase. No active slot, no moves — exactly the payload
+    // that used to strand a battle.
+    const first = JSON.parse(r.p1.find((l) => l.startsWith("|request|"))!.slice("|request|".length));
+    expect(first.teamPreview).toBe(true);
+    expect(first.active).toBeUndefined();
+    // The preamble that drives the picker, on BOTH streams.
+    expect(r.p1).toContain("|clearpoke");
+    expect(r.p1).toContain("|teampreview");
+    expect(r.p1.filter((l) => l.startsWith("|poke|"))).toHaveLength(2);
+    expect(r.p2.filter((l) => l.startsWith("|poke|"))).toEqual(r.p1.filter((l) => l.startsWith("|poke|")));
+    // …and the probe's `default` answers really did resolve it: the battle
+    // started and the NEXT request is a real action request.
+    expect(r.started).toBe(true);
+    const last = JSON.parse(r.p1.filter((l) => l.startsWith("|request|")).pop()!.slice("|request|".length));
+    expect(last.teamPreview).toBeUndefined();
+    expect(last.active?.[0]?.moves?.length).toBeGreaterThan(0);
   }, 20_000);
 
-  it("would strand every battle with it left on — measured, not assumed", async () => {
-    // simFormatId(true) is the same rule list WITHOUT the removal, i.e. Custom
-    // Game's own default. The first request has no active slot and no moves, no
-    // client can answer it, and the battle sits until the AFK watchdog
-    // forfeits it. This is the outage the `!Team Preview` removal exists for,
-    // and it is why simFormatId takes the flag at all.
-    const r = await probe(simFormatId(true), 1);
+  it("CONTROL: unanswered, the phase really does strand the battle", async () => {
+    // The outage, still reproducible — this is what the auto-lock in pvp.ts's
+    // startBattle exists to prevent, and without it here the test above would
+    // only prove that answering works, not that answering is REQUIRED.
+    const omniStream = new BattleStreams.BattleStream();
+    const ps = BattleStreams.getPlayerStreams(omniStream);
+    const p1: string[] = [];
+    const omni: string[] = [];
+    const pump = async (s: AsyncIterable<string>, into: string[]) => {
+      try { for await (const c of s) for (const l of c.split("\n")) if (l) into.push(l); }
+      catch { /* destroyed below */ }
+    };
+    void pump(ps.p1, p1);
+    void pump(ps.p2, []);
+    void pump(ps.omniscient, omni);
+    omniStream.write([
+      `>start {"formatid":${JSON.stringify(PROD_FORMAT)},"seed":[9,8,7,6]}`,
+      `>player p1 {"name":"Alice","team":${JSON.stringify(packed(oneOnOne.a))}}`,
+      `>player p2 {"name":"Bob","team":${JSON.stringify(packed(oneOnOne.b))}}`,
+    ].join("\n"));
+    await settle(150);
+    // A move choice against a preview request is refused, verbatim.
+    omniStream.write(">p1 move 1");
+    omniStream.write(">p2 move 1");
+    await settle(200);
+    expect(omni.some((l) => l.startsWith("|start"))).toBe(false);
+    expect(omni.some((l) => l.startsWith("|turn|"))).toBe(false);
+    expect(p1.some((l) => l.includes("You need a teampreview response"))).toBe(true);
+    try { omniStream.destroy(); } catch { /* already gone */ }
+  }, 20_000);
+
+  it("CONTROL: the removal clause still works, so the flag is a real switch", async () => {
+    // simFormatId(false) is what shipped before the picker. Turn 1 opens
+    // immediately with a real action request and no |poke| lines at all.
+    const r = await probe(NO_PREVIEW_FORMAT);
     expect(r.throws).toEqual([]);
-    expect(r.started).toBe(false);
-    const rq = JSON.parse(r.p1.find((l) => l.startsWith("|request|"))!.slice("|request|".length));
-    expect(rq.teamPreview).toBe(true);
-    expect(rq.active).toBeUndefined();
-    expect(r.p1.some((l) => l.includes("You need a teampreview response"))).toBe(true);
+    expect(r.started).toBe(true);
+    expect(r.p1.filter((l) => l.startsWith("|poke|"))).toEqual([]);
+    const first = JSON.parse(r.p1.find((l) => l.startsWith("|request|"))!.slice("|request|".length));
+    expect(first.teamPreview).toBeUndefined();
+    expect(first.active?.[0]?.moves?.length).toBeGreaterThan(0);
   }, 20_000);
 });
 
@@ -251,6 +316,10 @@ describe("a format level normalises up as well as down", () => {
     const room = makeRoom("random50", under, over);
     expect(levelCapForFormat("random50")).toBe(50);
     await startBattle(io, room, () => {});
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(250);
     expect(room.log.some((l) => l.startsWith("|switch|p1a: UNDERSIZED|Caterpie, L50"))).toBe(true);
     expect(room.log.some((l) => l.startsWith("|switch|p2a: OVERSIZED|Snorlax, L50"))).toBe(true);
@@ -269,6 +338,10 @@ describe("a format level normalises up as well as down", () => {
     // switch line would give it away.
     const room = makeRoom("random50", under, over);
     await startBattle(io, room, () => {});
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(250);
     const line = room.log.find((l) => l.startsWith("|switch|p1a: UNDERSIZED"))!;
     const hp = Number(line.split("|").pop()!.split("/")[1]);
@@ -285,6 +358,10 @@ describe("a format level normalises up as well as down", () => {
     expect(levelCapForFormat("tournament", { levelCap: undefined } as never)).toBeNull();
     const room = makeRoom("anything-goes", under, over);
     await startBattle(io, room, () => {});
+    // Team Preview is ON, so the first |request| both sides get is
+    // `{"teamPreview":true}` and nothing below happens until it is answered.
+    // See tests/support/teamPreview.ts.
+    await passTeamPreview(room);
     await settle(250);
     expect(room.log.some((l) => l.startsWith("|switch|p1a: UNDERSIZED|Caterpie, L9"))).toBe(true);
     // Showdown omits the level from `details` when it is 100, because 100 is
