@@ -1,0 +1,149 @@
+/* Release affordances — the inline confirmation strip in the Pokémon detail
+   modal, and the PC's multi-select toggle.
+
+   A NEW scoped sheet imported by the components that use it, following the
+   pvpArena.css / giveaways.css pattern. NOT app.css: that file is ~600KB of
+   rules from several eras already fighting each other via !important, and
+   nothing here needs to win a specificity war — every class below is new.
+
+   No !important anywhere. The one place a longer selector is used
+   (.pc-tool.pc-tool-icon.pc-select-toggle) is to out-specify app.css's own
+   two-class rule without reaching for it. */
+
+/* ── The inline release confirmation ──────────────────────────────────────
+   Rendered as a SIBLING of .g-modal-foot, never a child of it: at <=480px
+   app.css turns that footer into a two-column grid and this strip would land
+   in one cell. As its own row above the footer it is also simply the right
+   shape — a warning band directly over the buttons it is about. */
+.rel-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.10);
+  flex-shrink: 0;
+}
+
+.rel-confirm-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text, #f5f5f5);
+}
+
+/* The second line — only present when this Pokémon is an exception the
+   "skip confirmation" toggle deliberately does not cover. */
+.rel-confirm-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted, #9c9c9c);
+}
+
+.rel-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rel-confirm-actions button {
+  min-height: 44px;
+  min-width: 88px;
+  padding: 0 14px;
+  border-radius: var(--r-md, 8px);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Keep is the safe option, so it is the visually heavier one and the one
+   that takes focus when the strip opens. A stray Enter keeps the Pokémon. */
+.rel-confirm-keep {
+  border: 1px solid var(--border-bright, #3a3a3c);
+  background: var(--panel-3, #242426);
+  color: var(--text, #f5f5f5);
+}
+.rel-confirm-keep:hover {
+  background: var(--panel-4, #2f2f31);
+}
+
+.rel-confirm-go {
+  border: 1px solid var(--bad, #f87171);
+  background: var(--bad, #f87171);
+  color: #1a0a0a;
+}
+.rel-confirm-go:hover {
+  filter: brightness(1.08);
+}
+
+.rel-confirm-keep:focus-visible,
+.rel-confirm-go:focus-visible {
+  outline: 2px solid var(--accent, #f5f5f5);
+  outline-offset: 2px;
+}
+
+/* Touch floor for the modal's own footer, at EVERY width. app.css already
+   gives these buttons height:40px under 480px; above it they were 32px, which
+   is a mouse-only size on the one row that contains a permanent deletion — and
+   a desktop-width touchscreen is a real machine. Scoped to this modal so no
+   other footer moves, and min-height (not height) so the <=480px grid rule
+   still owns its own layout. */
+.pokemon-detail-v2 .g-modal-foot > button {
+  min-height: 40px;
+}
+
+/* Why the footer's Release is disabled, said in the modal rather than only in
+   a hover title — hover does not exist on a touchscreen. */
+.rel-blocked-note {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 8px 18px 0;
+  font-size: 11px;
+  color: var(--text-muted, #9c9c9c);
+}
+
+/* ── PC multi-select toggle ───────────────────────────────────────────────
+   Was 31x29 on desktop and 40x40 on mobile — both under the 44px minimum
+   target — with its only wording in a hover title, which a touchscreen never
+   shows. Floors the target on every screen and lets the word through when
+   the toolbar has room for it. */
+/* Four classes deep on purpose, and measured: app.css's mobile rule
+   `.mobile-shell .pc-tab .pc-tool-icon { min-width: 40px }` is also three
+   classes, so a three-class selector here ties and loses on source order. One
+   more class wins it outright — which is the whole reason not to reach for
+   !important in a file that already has hundreds of them. */
+.pc-toolbar .pc-tool.pc-tool-icon.pc-select-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* The WORD is what survives a narrow toolbar, not the glyph.
+   This used to be the other way round, and on a phone it left bulk release as
+   a bare "☑" sitting between two other unlabelled glyph buttons, with its only
+   wording in a `title` — a tooltip a touchscreen cannot show. The measured cost
+   that made the button icon-only in the first place was the glyph AND the word
+   together; "Select" on its own is ~5px wider than the icon-only button, which
+   the row absorbs at 320px. Re-measured at 320/360/390/480: no wrap, no
+   scrollWidth overflow, toolbar height unchanged. */
+.pc-select-toggle-label {
+  display: inline;
+}
+
+@media (max-width: 899px) {
+  .pc-toolbar .pc-tool.pc-tool-icon.pc-select-toggle .pc-select-toggle-icon {
+    display: none;
+  }
+}
+
+/* The bulk bar is the other end of the release path and was 29px tall at
+   desktop widths. Same reasoning as the modal footer above. */
+.pc-bulk-bar .pc-tool {
+  min-height: 40px;
+}

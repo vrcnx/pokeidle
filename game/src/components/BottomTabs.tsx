@@ -32,10 +32,13 @@ import { openContextMenu } from "./ContextMenu";
 import { useDraggable, useDropTarget } from "../hooks/useDrag";
 import { useT } from "../i18n/useT";
 import {
-  bulkReleaseConfirmMessage, isBulkReleasable, needsReleaseConfirm,
+  bulkReleaseConfirmMessage, duplicateIdSet, isBulkReleasable,
+  releaseBlockedReason,
 } from "../utils/releaseConfirm";
-import type { Pokemon, PokemonType } from "../types";
-import type { ReactNode } from "react";
+import { decideRelease } from "../utils/releaseAtClick";
+import "./releaseControls.css";
+import type { GameState, Pokemon, PokemonType } from "../types";
+import type { MutableRefObject, ReactNode } from "react";
 
 // Bottom of the center column — used to be just the Town Map. Now it's a
 // tab strip that hosts the five "always-available" surfaces:
@@ -825,16 +828,29 @@ export function PCTab() {
   // Everything the CURRENT filter shows that is legal to bulk-release. Derived
   // from `view`/`box` rather than from the rendered window, so "Select all"
   // means the whole match set, not just the ~40 cells on screen.
+  // Ids that appear twice in the box. RELEASE_MANY releases by a Set of ids, so
+  // one tick on a duplicated id takes BOTH Pokémon — computed once here rather
+  // than per cell, and handed down. See duplicateIdSet.
+  const duplicateIds = useMemo(() => duplicateIdSet(box), [box]);
+
+  // The live state, for a cell's frozen menu closures to read at CLICK time.
+  // Held HERE and not in the cell: a cell unmounts when the box shrinks under
+  // it or the window scrolls past it, which would freeze its own ref at the
+  // last state in which the subject was still in the box — exactly the answer
+  // that must not be trusted. This component outlives every cell in it.
+  const liveRef = useRef(state);
+  useEffect(() => { liveRef.current = state; });
+
   const selectableIds = useMemo(() => {
     const listed = state.listedPokemonIds ?? [];
     const out: string[] = [];
     const push = (p: Pokemon | undefined) => {
-      if (p && isBulkReleasable(p, listed)) out.push(p.id);
+      if (p && isBulkReleasable(p, listed, duplicateIds)) out.push(p.id);
     };
     if (view) for (const entry of view) push(entry.p);
     else for (const p of box) push(p);
     return out;
-  }, [view, box, state.listedPokemonIds]);
+  }, [view, box, state.listedPokemonIds, duplicateIds]);
 
   // Selection is pruned against what still EXISTS and is still selectable.
   // A release, an auction settling or a cloud reconcile can remove a selected
@@ -846,9 +862,16 @@ export function PCTab() {
     return [...selected].filter((id) => allowed.has(id));
   }, [selected, selectableIds]);
 
-  // How many of the currently-visible Pokémon are shiny or auction-listed, and
-  // so cannot be bulk-released. `shown` counts the filtered view.
+  // How many of the currently-visible Pokémon cannot be bulk-released, and
+  // whether a DUPLICATE ID is among the reasons — the note used to say "shiny,
+  // or listed at the auction house" unconditionally, which became a lie the
+  // moment a third reason existed. `shown` counts the filtered view.
   const blockedCount = Math.max(0, shown - selectableIds.length);
+  const anyAmbiguous = useMemo(() => {
+    if (duplicateIds.size === 0) return false;
+    if (view) return view.some((e) => duplicateIds.has(e.p.id));
+    return box.some((p) => p && duplicateIds.has(p.id));
+  }, [view, box, duplicateIds]);
 
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
@@ -930,15 +953,17 @@ export function PCTab() {
               which read as a speck of dust in the toolbar. */}
           {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
         </button>
-        {/* Icon-only, like the filter and density buttons either side of it. A
-            text label pushed this row past a 320px pane and wrapping it cost
-            grid height at 360px (both measured) — and the PC is already the
-            subject of a small-monitor report. The bulk bar that drops in on
-            click is what makes the mode legible; this button only has to be
-            reachable and to show whether it is on. */}
+        {/* Named in words at every width — the ONE thing in this toolbar that
+            leads to an irreversible action must not be an unlabelled glyph.
+            Under 900px the "☑" is dropped and the word kept, rather than the
+            other way round: the measured cost that made this icon-only was the
+            glyph AND the word together (35px past a 320px pane), and "Select"
+            alone is 5px wider than the icon-only button it replaces. Measured
+            again at 320/360/390/480 — the toolbar still does not wrap and
+            still costs the grid nothing. */}
         <button
           type="button"
-          className={`pc-tool pc-tool-icon ${selectMode ? "on" : ""}`}
+          className={`pc-tool pc-tool-icon pc-select-toggle ${selectMode ? "on" : ""}`}
           onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
           title={
             selectMode
@@ -952,7 +977,14 @@ export function PCTab() {
           }
           aria-pressed={selectMode}
         >
-          <span aria-hidden>☑</span>
+          <span className="pc-select-toggle-icon" aria-hidden>☑</span>
+          {/* The word. Never hidden — a hover title is not wording a
+              touchscreen can ever read, and this was the only place the mode
+              was named, so on a phone bulk release was an unlabelled "☑"
+              between two other unlabelled glyphs. releaseControls.css drops the
+              ICON under 900px instead. The target is floored at 44px on every
+              screen. */}
+          <span className="pc-select-toggle-label">{t("Select")}</span>
         </button>
         <span className="pc-count" title={filtering ? t("Matches / stored") : t("Stored")}>
           {filtering ? `${shown} / ${box.length}` : box.length}
@@ -1010,9 +1042,11 @@ export function PCTab() {
           small-monitor complaint (br_50f99cbac7f106d571). */}
       {selectMode && blockedCount > 0 && (
         <p className="pc-bulk-note">
-          {blockedCount === 1
-            ? t("1 Pokémon here can't be selected — it's shiny, or listed at the auction house.")
-            : `${blockedCount} ${t("Pokémon here can't be selected — they're shiny, or listed at the auction house.")}`}
+          {anyAmbiguous
+            ? `${blockedCount} ${t("Pokémon here can't be selected — they're shiny, listed at the auction house, or share an ID with another Pokémon.")}`
+            : blockedCount === 1
+              ? t("1 Pokémon here can't be selected — it's shiny, or listed at the auction house.")
+              : `${blockedCount} ${t("Pokémon here can't be selected — they're shiny, or listed at the auction house.")}`}
         </p>
       )}
 
@@ -1070,6 +1104,8 @@ export function PCTab() {
                   selectMode={selectMode}
                   selected={!!cell.p && selected.has(cell.p.id)}
                   onToggleSelect={toggleSelected}
+                  duplicateIds={duplicateIds}
+                  live={liveRef}
                 />
               ))}
             </div>
@@ -1088,6 +1124,8 @@ function BoxSlot({
   selectMode = false,
   selected = false,
   onToggleSelect,
+  duplicateIds,
+  live,
 }: {
   pokemon: Pokemon | undefined;
   index: number;
@@ -1095,12 +1133,16 @@ function BoxSlot({
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
+  duplicateIds?: ReadonlySet<string>;
+  /** Owned by PCTab — see the comment there. */
+  live?: MutableRefObject<GameState>;
 }) {
   const { state, dispatch } = useGame();
   const t = useT();
   const listedIds = state.listedPokemonIds ?? [];
   const isListed = !!p && listedIds.includes(p.id);
-  const bulkOk = !!p && isBulkReleasable(p, listedIds);
+  const bulkOk = !!p && isBulkReleasable(p, listedIds, duplicateIds);
+
 
   // The slot div is a drop target whether or not it holds a Pokémon —
   // empty cells accept party deposits, occupied cells swap.
@@ -1152,6 +1194,62 @@ function BoxSlot({
   // The inner button only exists when the cell has a Pokémon — that's the
   // drag source. Has its own ref because the controller needs a stable
   // element to attach pointerdown to.
+  // Why RELEASE_POKEMON would refuse this cell, if it would. The menu already
+  // disabled a listed mon; routing it through the shared predicate keeps this
+  // surface, the party row and the detail modal from drifting apart.
+  const releaseBlocked = p
+    ? releaseBlockedReason(p, "box", {
+        listedPokemonIds: listedIds,
+        party: state.party,
+        duplicateIds,
+      })
+    : null;
+
+  // One menu, two ways in: right-click and the ContextMenu key / Shift+F10.
+  // Built once so the keyboard route can never drift from the pointer one.
+  const openCellMenu = (at: { clientX: number; clientY: number }) => {
+    if (!p || selectMode) return;
+    const partyFull = state.party.length >= 6;
+    openContextMenu(at, [
+      {
+        label: t("View details"),
+        // `pokemonId`, not just the frozen index: a menu that went stale used
+        // to open the sheet on whoever had taken the slot.
+        onClick: () => openPokemonDetail({ type: "box", index: real, pokemonId: p.id }),
+      },
+      {
+        label: partyFull ? t("Send to party (full)") : t("Send to party"),
+        disabled: partyFull,
+        onClick: () =>
+          dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: real } }),
+      },
+      {
+        label: t("Release"),
+        danger: true,
+        disabled: !!releaseBlocked,
+        // A greyed row with no reason reads as a bug. Say which guard it is.
+        hint: releaseBlocked ? t(releaseBlocked) : undefined,
+        onClick: () => {
+          // Decided against the state as it is NOW, not as it was when this
+          // closure was frozen. decideRelease looks the subject up by id,
+          // re-runs the guards, and only then asks — so a menu left open while
+          // the mon was deposited, sold or listed no longer takes a "yes" for
+          // a deletion the reducer will then correctly refuse.
+          const d = decideRelease(p.id, "box", live?.current ?? state);
+          if (d.act === "skip") { pushToast({ kind: "warn", text: t(d.note) }); return; }
+          if (d.act !== "release") return;
+          // `pokemonId` alongside the index: this closure was frozen
+          // when the menu opened, and an auction settling or a cloud
+          // reconcile in between shifts `real` onto another Pokémon.
+          dispatch({
+            type: "RELEASE_POKEMON",
+            payload: { source: "box", index: real, pokemonId: p.id },
+          });
+        },
+      },
+    ]);
+  };
+
   const cellRef = useDraggable<HTMLButtonElement>({
     payload: () => ({ kind: "box", data: { index: real } }),
     // Dragging is disabled in selection mode. A long-press that starts a drag
@@ -1178,6 +1276,10 @@ function BoxSlot({
             selected ? " selected" : ""
           }${selectMode && !bulkOk ? " unselectable" : ""}${isListed ? " listed" : ""}`}
           aria-pressed={selectMode ? selected : undefined}
+          // Says what activating the cell does. The detail sheet is where
+          // Release lives, and a screen-reader or voice-control user has no
+          // other cue that a plain cell opens one.
+          aria-haspopup={selectMode ? undefined : "dialog"}
           disabled={selectMode && !bulkOk}
           onClick={() => {
             // In selection mode a tap ticks the cell instead of opening the
@@ -1188,51 +1290,31 @@ function BoxSlot({
               if (bulkOk && p) onToggleSelect?.(p.id);
               return;
             }
-            openPokemonDetail({ type: "box", index: real });
+            openPokemonDetail({ type: "box", index: real, pokemonId: p.id });
           }}
           onContextMenu={(e) => {
             e.preventDefault();
-            if (selectMode) return;
-            const partyFull = state.party.length >= 6;
-            openContextMenu(e, [
-              {
-                label: t("View details"),
-                onClick: () => openPokemonDetail({ type: "box", index: real }),
-              },
-              {
-                label: partyFull ? t("Send to party (full)") : t("Send to party"),
-                disabled: partyFull,
-                onClick: () =>
-                  dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: real } }),
-              },
-              {
-                label: t("Release"),
-                danger: true,
-                disabled: isListed,
-                onClick: () => {
-                  // needsReleaseConfirm, not the raw setting: a SHINY always
-                  // asks even with "skip confirmation" on. See
-                  // utils/releaseConfirm.ts.
-                  if (
-                    needsReleaseConfirm(p, state.skipReleaseConfirm) &&
-                    !window.confirm(`Release ${p.nickname ?? p.name}? This cannot be undone.`)
-                  ) {
-                    return;
-                  }
-                  // `pokemonId` alongside the index: this closure was frozen
-                  // when the menu opened, and an auction settling or a cloud
-                  // reconcile in between shifts `real` onto another Pokémon.
-                  dispatch({
-                    type: "RELEASE_POKEMON",
-                    payload: { source: "box", index: real, pokemonId: p.id },
-                  });
-                },
-              },
-            ]);
+            openCellMenu(e);
           }}
+          onKeyDown={(e) => {
+            // The keyboard's own context-menu gesture. The cell was already a
+            // real <button>, so Enter/Space reached the detail modal — but the
+            // actions menu had no keyboard route at all.
+            if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              openCellMenu({ clientX: r.left + 8, clientY: r.bottom - 4 });
+            }
+          }}
+          // A real accessible name. `title` alone is a tooltip, and a tooltip
+          // you have to hover is not a name a screen reader announces reliably
+          // — nor anything a touchscreen can show at all.
+          aria-label={`${p.nickname ?? p.name} · ${t("Lv")}${p.level}${
+            p.isShiny ? ` · ${t("shiny")}` : ""
+          }${isListed ? ` · ${t("listed at the auction house")}` : ""}`}
           title={`${p.nickname ?? p.name} · Lv.${p.level} · IV ${Math.round(
             (ivTotal(p) / IV_MAX_TOTAL) * 100
-          )}% · tap for details · hold-and-drag to move · right-click for actions`}
+          )}% · tap for details · hold-and-drag to move · right-click (or the menu key) for actions`}
         >
           {/* Square plate. It, not the cell, is what the sprite is measured
               against — the cell used to be 1:0.85 in one layout and 1:1.87 in

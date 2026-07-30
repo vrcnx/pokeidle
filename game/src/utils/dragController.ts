@@ -19,6 +19,9 @@
 //   - Drop targets matching `accept(payload)` light up via the
 //     `.drop-target-active` class while the pointer is over them.
 //   - Releasing over a target fires onDrop. Anywhere else cancels.
+//   - A press released within CLICK_SLOP_PX of where it went down,
+//     over no target, is a TAP: the click is allowed through so the
+//     element's own onClick runs.
 //   - Cancel via Escape key.
 //
 // Smoothness wins:
@@ -37,6 +40,13 @@
 const LONG_PRESS_MS = 180;
 const MOUSE_MOVE_THRESHOLD_PX = 4;
 const TOUCH_MOVE_THRESHOLD_PX = 8;
+/** How far a press may wander and still be released as a CLICK rather than
+ *  swallowed as a drag. Deliberately looser than the two thresholds above:
+ *  starting a drag that goes nowhere is a free, invisible mistake, whereas
+ *  eating the click is the bug this constant exists to stop. A trackpad click
+ *  or a thumb tap routinely drifts 5–10px, and at 4px every one of them used
+ *  to land on a Pokémon and do nothing at all. */
+const CLICK_SLOP_PX = 10;
 
 export interface DraggablePayload {
   /** Free-form identifier — drop targets read this to decide
@@ -85,6 +95,11 @@ class DragController {
   private rafScheduled = false;
   private lastX = 0;
   private lastY = 0;
+  // Has this gesture ever left the press point by more than the pointer
+  // type's threshold? Drives drag initiation, and is endDrag's fallback for
+  // telling a real drag from a press that merely lingered when there is no
+  // release point to measure (Escape-cancel). See the comment there.
+  private moved = false;
   private dragging: {
     source: RegisteredSource;
     payload: DraggablePayload;
@@ -146,18 +161,34 @@ class DragController {
     this.startPointerType = e.pointerType || "mouse";
     this.startPointerId = e.pointerId;
     this.startSource = source;
+    this.moved = false;
     // Capture the pointer on the source element so move/up keep
     // firing even if the pointer leaves the element (or the ghost
     // intercepts events). Without this, fast drags can drop the
     // gesture mid-flight.
     try { source.el.setPointerCapture(e.pointerId); } catch { /* */ }
-    // Long-press timer: only relevant for touch / pen. On mouse the
-    // threshold check fires almost immediately so the long-press
-    // path is rarely taken.
-    this.pressTimer = window.setTimeout(() => {
-      this.pressTimer = null;
-      if (this.startSource) this.beginDrag(this.startSource, this.startX, this.startY);
-    }, LONG_PRESS_MS);
+    // Long-press timer — TOUCH AND PEN ONLY.
+    //
+    // The header of this file has always documented mouse as "drag starts
+    // after MOVE_THRESHOLD_PX of motion (instant)", and the comment that used
+    // to sit here said the timer was "only relevant for touch / pen" — but
+    // nothing branched on pointerType, so it armed on every press. That is the
+    // whole of the reported bug "clicking a Pokémon does nothing": a mouse
+    // press held past 180 ms (a trackpad click, a slow click, anything but a
+    // flick) promoted itself to a drag over the cell the pointer was already
+    // on, found no valid target — a slot refuses a drop onto itself — and
+    // endDrag then swallowed the click pointerup synthesises. No detail modal,
+    // no menu, no feedback at all. Releasing a Pokémon lives behind that
+    // modal, which is why the owner reported the release as broken.
+    //
+    // Touch keeps the timer: hold-to-drag is the only way to start a drag with
+    // a finger, and it must keep working exactly as it does today.
+    if (this.startPointerType !== "mouse") {
+      this.pressTimer = window.setTimeout(() => {
+        this.pressTimer = null;
+        if (this.startSource) this.beginDrag(this.startSource, this.startX, this.startY);
+      }, LONG_PRESS_MS);
+    }
     // Listen for movement / release globally so we capture the whole
     // gesture even if the pointer leaves the source element.
     window.addEventListener("pointermove", this.onPointerMove, { passive: false });
@@ -166,6 +197,14 @@ class DragController {
   };
 
   private onPointerMove = (e: PointerEvent) => {
+    // Measured from the PRESS point, not the previous move, and tracked while
+    // dragging as well as before it — endDrag needs to know whether the whole
+    // gesture ever went anywhere.
+    if (!this.moved) {
+      const ddx = e.clientX - this.startX;
+      const ddy = e.clientY - this.startY;
+      if (Math.hypot(ddx, ddy) > this.moveThreshold()) this.moved = true;
+    }
     if (this.dragging) {
       // Stop the browser interpreting the gesture as a scroll/select.
       // touch-action: none on body (added at drag start) handles most
@@ -177,10 +216,8 @@ class DragController {
       this.scheduleFrame();
       return;
     }
-    // Pre-drag: check if movement crossed the threshold to start.
-    const dx = e.clientX - this.startX;
-    const dy = e.clientY - this.startY;
-    if (Math.hypot(dx, dy) > this.moveThreshold()) {
+    // Pre-drag: movement past the threshold (recorded just above) starts it.
+    if (this.moved) {
       if (this.pressTimer !== null) {
         window.clearTimeout(this.pressTimer);
         this.pressTimer = null;
@@ -308,7 +345,7 @@ class DragController {
     }
   }
 
-  private endDrag(commit: boolean, _x?: number, _y?: number) {
+  private endDrag(commit: boolean, upX?: number, upY?: number) {
     if (!this.dragging) return;
     const { source, payload, ghost, target } = this.dragging;
     document.removeEventListener("keydown", this.boundEscape);
@@ -321,10 +358,28 @@ class DragController {
     ghost.remove();
     this.dragging = null;
     source.onDragEnd?.();
-    // Pointerup synthesises a click on the source after a drag —
-    // without this the detail modal would pop every time you finish
-    // moving a party row. Swallow exactly one click.
-    this.suppressNextClick();
+    // Pointerup synthesises a click on the source after a drag — without this
+    // the detail modal would pop every time you finish moving a party row.
+    // Swallow exactly one click, but ONLY when the gesture really was a drag:
+    // it is either committing a drop, or the pointer was let go somewhere
+    // other than where it went down.
+    //
+    // It used to swallow unconditionally, and that is the second half of
+    // "clicking a Pokémon does nothing". A press that came back to rest where
+    // it started and landed on no target is a TAP — the player put a finger
+    // (or the cursor) on a Pokémon and let go of it in the same spot — and
+    // eating that click is what made the detail modal, and with it the only
+    // touch-reachable Release, impossible to open.
+    //
+    // Measured press-point to RELEASE-point rather than "did it ever move":
+    // 4px of trackpad wobble is enough to start a drag, and a gesture that
+    // wandered and came back is still a click as far as the player is
+    // concerned. Escape-cancel has no release point and falls back to `moved`.
+    const draggedAway =
+      upX === undefined || upY === undefined
+        ? this.moved
+        : Math.hypot(upX - this.startX, upY - this.startY) > CLICK_SLOP_PX;
+    if (draggedAway || (commit && target)) this.suppressNextClick();
     if (commit && target) {
       target.onDrop(payload);
     }

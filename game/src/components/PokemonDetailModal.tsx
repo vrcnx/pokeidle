@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Pokemon, EvolutionTrigger, PokemonType } from "../types";
 import { useGame } from "../state/GameContext";
 import { pokemonTable } from "../data/pokemon";
@@ -19,11 +19,13 @@ import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { expForLevel } from "../utils/stats";
 import { displayName } from "../utils/pokemon";
-import { needsReleaseConfirm } from "../utils/releaseConfirm";
+import { resolveAnchoredIndex } from "../utils/pokemonAnchor";
+import { duplicateIdSet, releaseBlockedReason, releaseConfirmMessage } from "../utils/releaseConfirm";
 import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
+import "./releaseControls.css";
 
 // Stat keys for Silver Bottle Cap hyper-training buttons.
 const HYPER_STATS: { key: "hp" | "attack" | "defense" | "spAttack" | "spDefense" | "speed"; label: string }[] = [
@@ -142,7 +144,16 @@ const CATEGORY_ICON: Record<string, string> = {
 
 // Tiny event-bus so any component can open the detail modal. View-state
 // only, kept out of the global reducer.
-type Source = { type: "party"; index: number } | { type: "box"; index: number };
+//
+// `pokemonId` is the anchor and `index` is only a hint. The modal used to hold
+// an index alone, and it re-read `state.box[index]` on every render — so an
+// auction settling or a cloud reconcile landing while the sheet was OPEN slid a
+// different Pokémon into the slot and silently re-aimed the header, the sprite,
+// the stats and every button in the footer at it, including Release. See
+// resolveAnchoredIndex. Optional so an index-only caller is unchanged.
+type Source =
+  | { type: "party"; index: number; pokemonId?: string }
+  | { type: "box"; index: number; pokemonId?: string };
 let _selected: Source | null = null;
 const _listeners = new Set<(s: Source | null) => void>();
 
@@ -179,9 +190,21 @@ export function PokemonDetailModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
 
+  // The list this sheet is a view of. Computed before the early return so the
+  // duplicate-id scan below is a hook that always runs; with no selection it
+  // reads the box and nothing uses the answer.
+  const list = selected?.type === "party" ? state.party : state.box;
+  // Ids sharing a slot in `list`. Blocks Release rather than letting the
+  // reducer's first-match re-anchor destroy a bystander — see duplicateIdSet.
+  const duplicateIds = useMemo(() => duplicateIdSet(list), [list]);
+
   if (!selected) return null;
-  const p: Pokemon | undefined =
-    selected.type === "party" ? state.party[selected.index] : state.box[selected.index];
+  // ANCHORED, not indexed. `index` is where the subject is right now; if it
+  // left the list the sheet renders nothing rather than re-aiming at whoever
+  // took the slot. Every index-addressed dispatch below uses this, not the
+  // frozen `selected.index`.
+  const index = resolveAnchoredIndex(list, selected);
+  const p: Pokemon | undefined = index < 0 ? undefined : list[index];
   if (!p) return null;
 
   const sp = pokemonTable[p.speciesKey];
@@ -192,7 +215,7 @@ export function PokemonDetailModal() {
   const expPct = Math.max(0, Math.min(100, (expIntoLevel / expSpan) * 100));
 
   const isActive =
-    selected.type === "party" && state.activePlayerPokemonIndex === selected.index;
+    selected.type === "party" && state.activePlayerPokemonIndex === index;
   // Evolution is the one phase where we lock the modal — the animation is
   // already running and stacking another evolve dispatch breaks the queue.
   // Other phases (battle, healing, idle) all permit menu actions; the
@@ -221,7 +244,7 @@ export function PokemonDetailModal() {
   ];
   const monEvs = p.evs ?? { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 };
   function useEvBerry(itemId: string) {
-    dispatch({ type: "USE_EV_BERRY", payload: { itemId, source: selected!.type, index: selected!.index } });
+    dispatch({ type: "USE_EV_BERRY", payload: { itemId, source: selected!.type, index } });
   }
 
   function hyperTrain(kind: "gold" | "silver", stat?: keyof typeof ivs) {
@@ -230,7 +253,7 @@ export function PokemonDetailModal() {
       payload: {
         itemId: kind === "gold" ? "goldbottlecap" : "silverbottlecap",
         source: selected!.type,
-        index: selected!.index,
+        index,
         stat,
       },
     });
@@ -301,6 +324,18 @@ export function PokemonDetailModal() {
   }
   const isPartySelection = selected.type === "party";
 
+  // Why RELEASE_POKEMON would refuse this one, if it would. The modal used to
+  // offer Release unconditionally: on an auction-listed Pokémon it asked "this
+  // cannot be undone", took the confirmation, and then nothing happened,
+  // because the reducer refuses a listed mon. Same for the last party member
+  // and the last HEALTHY party member. Confirming a permanent deletion and
+  // watching nothing happen is its own kind of broken.
+  const releaseBlocked = releaseBlockedReason(p, selected.type, {
+    listedPokemonIds: state.listedPokemonIds ?? [],
+    party: state.party,
+    duplicateIds,
+  });
+
   // The evolve lock is only meaningful for a species that has a LEVEL
   // evolution — it gates automatic evolving, and nothing is ever automated for
   // a stone or a Link Cable. Offering it on a Pidgeot would be a switch that
@@ -316,7 +351,7 @@ export function PokemonDetailModal() {
     // consuming the cable, stripping the held catalyst (for trade+item
     // variants), and starting the evolution flow atomically.
     if ("trade" in trigger) {
-      dispatch({ type: "USE_LINK_CABLE", payload: { partyIndex: selected.index } });
+      dispatch({ type: "USE_LINK_CABLE", payload: { partyIndex: index } });
       closePokemonDetail();
       return;
     }
@@ -325,13 +360,13 @@ export function PokemonDetailModal() {
     // evolution atomically (no free-evolve if the stone count is 0), the
     // same path the Bag's item-first flow uses.
     if ("item" in trigger) {
-      dispatch({ type: "USE_STONE", payload: { itemId: trigger.item, partyIndex: selected.index } });
+      dispatch({ type: "USE_STONE", payload: { itemId: trigger.item, partyIndex: index } });
       closePokemonDetail();
       return;
     }
     dispatch({
       type: "START_EVOLUTION",
-      payload: { partyIndex: selected.index, toSpeciesKey: trigger.into },
+      payload: { partyIndex: index, toSpeciesKey: trigger.into },
     });
     closePokemonDetail();
   }
@@ -356,7 +391,9 @@ export function PokemonDetailModal() {
             payload: { pokemonId: p.id, locked: !evolveLocked },
           })
         }
-        selected={selected}
+        // The RESOLVED position, not the frozen one the sheet was opened with.
+        // The dialog reads `.type`, and hands `.index` to openManageMoves.
+        selected={{ type: selected.type, index }}
         evBerries={EV_BERRIES.map((b) => ({ ...b, owned: state.inventory[b.id] ?? 0, ev: (monEvs as unknown as Record<string, number>)[b.stat] ?? 0 }))}
         useEvBerry={useEvBerry}
         goldCaps={goldCaps}
@@ -371,40 +408,47 @@ export function PokemonDetailModal() {
         onSwitch={() => {
           dispatch({
             type: "SWITCH_PLAYER_POKEMON",
-            payload: { partyIndex: selected.index },
+            payload: { partyIndex: index },
           });
           closePokemonDetail();
         }}
         onPartyToBox={() => {
-          dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: selected.index } });
+          dispatch({ type: "PARTY_TO_BOX", payload: { partyIndex: index } });
           closePokemonDetail();
         }}
         onBoxToParty={() => {
-          dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: selected.index } });
+          dispatch({ type: "BOX_TO_PARTY", payload: { boxIndex: index } });
           closePokemonDetail();
         }}
         onSwapWithParty={(partyIndex: number) => {
           dispatch({
             type: "SWAP_PARTY_BOX",
-            payload: { partyIndex, boxIndex: selected.index },
+            payload: { partyIndex, boxIndex: index },
           });
           closePokemonDetail();
         }}
-        onRelease={() => {
-          // needsReleaseConfirm, not the raw setting — a shiny always asks even
-          // with "skip confirmation" on (utils/releaseConfirm.ts).
-          if (
-            needsReleaseConfirm(p, state.skipReleaseConfirm) &&
-            !confirm(`Release ${displayName(p)}? This cannot be undone.`)
-          ) {
-            return;
-          }
+        releaseBlocked={releaseBlocked}
+        skipReleaseConfirm={state.skipReleaseConfirm}
+        onRelease={(pokemonId: string) => {
+          // The inline strip above the footer IS the confirmation on this
+          // surface, and it is unconditional — so the modal now asks in
+          // strictly MORE cases than the window.confirm it replaces did. A
+          // shiny still always asks; with "skip confirmation" on, everything
+          // else asks too, just in the short form. needsReleaseConfirm still
+          // governs the two context menus and still decides the wording (see
+          // releaseConfirmMessage). Nothing about it was loosened.
+          //
+          // Both guards re-checked HERE, at the moment of the dispatch: an
+          // auction settling or a cloud reconcile can land between arming the
+          // strip and pressing it.
+          if (releaseBlocked) return;
+          if (pokemonId !== p.id) return;
           // `selected` lives in a module-level store and outlives any number
           // of box mutations; `p.id` is what the player is actually looking
           // at. See the reducer case.
           dispatch({
             type: "RELEASE_POKEMON",
-            payload: { source: selected.type, index: selected.index, pokemonId: p.id },
+            payload: { source: selected.type, index, pokemonId },
           });
           closePokemonDetail();
         }}
@@ -445,9 +489,23 @@ function PokemonDetailDialog({
   onBoxToParty,
   onSwapWithParty,
   onRelease,
+  releaseBlocked,
+  skipReleaseConfirm,
 }: any) {
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const t = useT();
+  // Release is two deliberate presses, always. This modal is where a player
+  // who tapped a Pokémon expecting to act on it lands — which is exactly why
+  // it is the discoverable place to put Release, and exactly why a single tap
+  // on a button sitting next to "Close" must not be able to destroy anything.
+  //
+  // Armed by POKÉMON ID, not by a boolean: the modal addresses its subject by
+  // index, so an auction settling or a cloud reconcile can slide a different
+  // Pokémon into the slot while the strip is open. Binding to the id makes the
+  // strip disappear by itself if that happens, instead of re-aiming.
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const armed = armedId !== null && armedId === p.id;
+  useEffect(() => { setArmedId(null); }, [p.id]);
   // Box → Party swap picker. Opens an inline list of party slots so the
   // player can pick which mon to swap out without leaving the detail
   // sheet. Especially useful on mobile where drag-and-drop swaps are
@@ -789,8 +847,72 @@ function PokemonDetailDialog({
         </div>
       )}
 
+      {/* Sibling of the footer, never a child: at <=480px app.css turns
+          .g-modal-foot into a two-column grid and this strip would land in a
+          cell. Above the footer it is also just the right shape. */}
+      {/* aria-describedby, not just the group label: focus lands on Keep the
+          moment this opens, and a screen reader announces the focused button
+          plus the group's NAME — it does not read arbitrary sibling text.
+          Without it the whole warning (the "cannot be undone" sentence, and
+          the shiny exception under it) was on screen and silent, so the one
+          surface that exists to make an irreversible action deliberate
+          announced only "Confirm release, Keep button". */}
+      {armed && !releaseBlocked && (
+        <div
+          className="rel-confirm"
+          role="group"
+          aria-label={t("Confirm release")}
+          aria-describedby="rel-confirm-text"
+        >
+          <p className="rel-confirm-text" id="rel-confirm-text">
+            {releaseConfirmMessage(p, skipReleaseConfirm)}
+            {p.isShiny && (
+              <span className="rel-confirm-why">
+                {t("Shiny Pokémon always ask, even with confirmations turned off.")}
+              </span>
+            )}
+          </p>
+          <div className="rel-confirm-actions">
+            {/* Keep takes focus, so a stray Enter or a mis-hit keeps the
+                Pokémon. The destructive button is never the default. */}
+            <button
+              type="button"
+              className="rel-confirm-keep"
+              autoFocus
+              onClick={() => setArmedId(null)}
+            >
+              {t("Keep")}
+            </button>
+            {/* Named apart from the footer button that armed it. Both read
+                "Release" from their text, and two identically-named buttons in
+                one dialog is ambiguous for a screen reader and unusable for
+                voice control ("click Release" — which one?). */}
+            <button
+              type="button"
+              className="rel-confirm-go"
+              aria-label={`${t("Release")} ${displayName(p)} — ${t("this cannot be undone")}`}
+              onClick={() => { setArmedId(null); onRelease(p.id); }}
+            >
+              {t("Release")}
+            </button>
+          </div>
+        </div>
+      )}
+      {releaseBlocked && (
+        <p className="rel-blocked-note">{t(releaseBlocked)}</p>
+      )}
+
       <footer className="g-modal-foot">
-        <button className="g-btn-danger-ghost" onClick={onRelease}>{t("Release")}</button>
+        <button
+          type="button"
+          className="g-btn-danger-ghost"
+          disabled={!!releaseBlocked}
+          aria-expanded={armed}
+          title={releaseBlocked ? t(releaseBlocked) : t("Release this Pokémon permanently")}
+          onClick={() => setArmedId(armed ? null : p.id)}
+        >
+          {t("Release")}
+        </button>
         <span style={{ flex: 1 }} />
         {selected.type === "party" && !isActive && p.currentHp > 0 && !inBattle && (
           <button className="g-btn-ghost g-btn-small" onClick={onSwitch}>{t("Make active")}</button>
