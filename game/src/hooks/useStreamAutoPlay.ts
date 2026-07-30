@@ -358,7 +358,11 @@ function fingerprint(s: GameState): string {
     s.enemyPokemon?.currentHp ?? -1,
     s.playerPokemon?.currentHp ?? -1,
     s.pendingEvents.length,
-    s.battleLog.length,
+    // battleLogSeq, not battleLog.length: the log is trimmed to 50 lines, so
+    // its length stops moving after a few battles and the watchdog's own
+    // promise below — "one log line stands it down" — quietly stopped holding.
+    // A false stall dispatches HEAL_PARTY, which bails out of a live battle.
+    s.battleLogSeq,
     s.bossQueue.length,
     s.healingState?.step ?? -1,
     s.evolutionState?.step ?? -1,
@@ -877,7 +881,7 @@ export function useStreamAutoPlay(): void {
 
       // 0.1 Unpause. `useBattleLoop` returns without rescheduling while paused
       //     and NOTHING in the app ever unpauses itself; the only dispatcher is
-      //     the button in BattlePanel, which stream mode does not hide. One
+      //     the manual Heal button, which stream mode does not hide. One
       //     stray click on a leaked stream URL is otherwise a dead broadcast
       //     until the next deploy. There is no admin `pause` command in the
       //     StreamCommand union, so this can never fight the operator.

@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { IconPlus } from "./Icon";
 import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
@@ -11,6 +13,7 @@ import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
 import { displayName } from "../utils/pokemon";
+import { needsReleaseConfirm } from "../utils/releaseConfirm";
 import {
   evolutionLocked,
   levelEvolutionBranches,
@@ -134,7 +137,16 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
           the dock actions move to the left rail under the trainer card. */}
       {wide ? <BottomTabs /> : <MetaDock />}
       <section className="ctx-section party-card">
-        <h4>{t("Party")}</h4>
+        {/* Heal moved here from the moves toolbar at the bottom of the centre
+            column (br_27cfd612ddd30485fc). It is a PARTY action — it restores
+            HP and PP for these six rows — and it was sitting in a row of
+            battle controls next to speed and Manage Moves, three panels away
+            from the thing it acts on. Top-right of the party header is where
+            the player looks for it. */}
+        <div className="party-card-head">
+          <h4>{t("Party")}</h4>
+          <PartyHealButton />
+        </div>
         <ul className="party-list">
           {state.party.map((p, idx) => (
             <PartyRow key={p.id} pokemon={p} index={idx} />
@@ -151,6 +163,47 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
       {showProfileStrip && <UnlockHint />}
       {showProfileStrip && <InventoryRibbon />}
     </div>
+  );
+}
+
+/** The manual Heal, at the top-right of the Party card (br_27cfd612ddd30485fc).
+ *
+ *  Dispatches START_HEALING, not HEAL_PARTY: that is the animated route the
+ *  moves toolbar used, and it plays the Centre sequence before COMPLETE_HEALING
+ *  actually restores the party. Disabled only while a heal is already running,
+ *  so it stays usable mid-battle as the panic button it has always been. */
+function PartyHealButton() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const disabled = state.phase === "healing" || !state.playerPokemon;
+  // Nothing to restore — every member is at full HP with full PP. Kept as a
+  // hint rather than a disable: a player who clicks it should learn why it did
+  // nothing, and `disabled` here would also swallow the mid-battle retreat use.
+  const alreadyFull = state.party.every(
+    (p) => p.currentHp >= p.maxHp && p.moves.every((m) => m.pp >= m.maxPp),
+  );
+  return (
+    <button
+      ref={btnRef}
+      type="button"
+      className={`party-heal-btn${alreadyFull ? " full" : ""}`}
+      disabled={disabled}
+      onClick={() => {
+        if (btnRef.current) animatePop(btnRef.current, 1.15);
+        dispatch({ type: "START_HEALING" });
+      }}
+      title={
+        disabled
+          ? t("Cannot heal right now")
+          : alreadyFull
+            ? t("Your party is already at full health.")
+            : t("Fully heal your party. Retreats from any active battle or raid.")
+      }
+    >
+      <IconPlus size={13} strokeWidth={2.5} />
+      <span>{t("Heal")}</span>
+    </button>
   );
 }
 
@@ -333,12 +386,19 @@ function PartyRow({ pokemon: p, index: idx }: { pokemon: Pokemon; index: number 
             danger: true,
             disabled: partySize <= 1,
             onClick: () => {
-              if (window.confirm(`Release ${displayName(p)}? This cannot be undone.`)) {
-                dispatch({
-                  type: "RELEASE_POKEMON",
-                  payload: { source: "party", index: idx },
-                });
+              // needsReleaseConfirm, not the raw setting — a shiny always asks
+              // even with "skip confirmation" on (utils/releaseConfirm.ts).
+              if (
+                needsReleaseConfirm(p, state.skipReleaseConfirm) &&
+                !window.confirm(`Release ${displayName(p)}? This cannot be undone.`)
+              ) {
+                return;
               }
+              // See the reducer case: this menu froze `idx` when it opened.
+              dispatch({
+                type: "RELEASE_POKEMON",
+                payload: { source: "party", index: idx, pokemonId: p.id },
+              });
             },
           },
         ]);

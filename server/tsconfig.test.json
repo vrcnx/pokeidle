@@ -1,0 +1,84 @@
+// Typecheck configuration for the test suite.
+//
+// ─── Why this file exists ──────────────────────────────────────────────
+//
+// tsconfig.json is the PRODUCTION build (`rootDir: src`, `include:
+// ["src/**/*"]`), so `tsc --noEmit` compiled 58 files from src/ and exactly
+// ZERO from tests/. Measured, not assumed:
+//
+//     npx tsc --noEmit --listFiles | grep -c server.tests   →  0
+//     npx tsc --noEmit --listFiles | grep -c server.src     →  58
+//
+// That gap is not cosmetic, and vitest does not cover it either. vitest
+// transforms a test file with Vite's SSR pipeline, which rewrites
+// `import { foo } from "../src/pvp.js"` into a property read on the module
+// namespace — so an export that no longer exists arrives as `undefined`
+// instead of failing to link, and the test only fails if something happens to
+// CALL it. Both halves measured on this repo's own src/pvp.ts:
+//
+//   vite-node (the transform vitest uses)
+//       import { startBattle, thisExportDoesNotExist } from ".../src/pvp.ts"
+//       → startBattle: function, thisExportDoesNotExist: undefined,
+//         module linked with NO error
+//   real Node ESM (tsx), same file
+//       → SyntaxError: The requested module does not provide an export named
+//         'thisExportDoesNotExist'
+//
+// So "tsc is clean and the suite is green" did NOT prove that everything the
+// tests import still exists — which is exactly the class of defect a rebuild
+// of src/pvp.ts risks. This config closes the type half.
+// tests/pvpExportSurface.test.ts closes the runtime half inside the suite
+// itself, because a test run must not depend on somebody having run tsc.
+//
+// `npm run typecheck` runs the production config AND this one.
+// This config never emits.
+//
+// ─── The exclusions are a ratchet, not a shrug ─────────────────────────
+//
+// Five test files carry pre-existing type errors (12 in total). They are
+// excluded BY NAME so that this config is green today and any NEW type error
+// in any of the other 18 test files — including five of the six PvP spec
+// files — fails the typecheck immediately. Verbatim, so removing an
+// exclusion is a known, bounded job rather than an exploration:
+//
+//   tests/pvpBadgeTierDrift.test.ts(106,40) TS2367 comparison between
+//       'PvpBadgeTierId' and '"master"' has no overlap
+//   tests/pvpBot.test.ts(646,44)  TS2345 'string' not assignable to 'ID'
+//   tests/pvpBot.test.ts(917,20)  TS2345 'BotPokemon' not assignable to
+//       '{ evs: Record<string, number> }' (GameEvs lacks an index signature)
+//   tests/pvpBot.test.ts(921,20)  TS2345 as above
+//   tests/pvpLadderSettle.test.ts(609,48)  TS2493 tuple '[]' has no index 0
+//   tests/pvpLadderSettle.test.ts(1073,41) TS2493 as above
+//   tests/saveGainGuard.test.ts(1199,12 / 1223,12 / 1244,12) TS2571 object
+//       is of type 'unknown'
+//   tests/savesRoute.test.ts(367,12 / 368,12 / 369,12) TS18046 'json' is of
+//       type 'unknown'
+//
+// None of the five is editable from here: pvpBot.test.ts is one of the six PvP
+// spec files, and saveGainGuard.test.ts / savesRoute.test.ts belong to the
+// separate unshipped save-guard workstream. pvpBadgeTierDrift.test.ts and
+// pvpLadderSettle.test.ts belong to the ladder/badge workstream. Each is a
+// test-local annotation problem, not a production-type problem.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The base sets rootDir to ./src, which cannot contain tests/. The repo
+    // root is used rather than `server/` because tests/pvpBattleView.test.ts
+    // deliberately imports the CLIENT decoder (game/src/state/pvpBattleView.ts)
+    // to test both halves of the protocol against one another; with
+    // `rootDir: "."` that is TS6059 "not under rootDir".
+    "rootDir": "..",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/pvpBadgeTierDrift.test.ts",
+    "tests/pvpBot.test.ts",
+    "tests/pvpLadderSettle.test.ts",
+    "tests/saveGainGuard.test.ts",
+    "tests/savesRoute.test.ts"
+  ]
+}

@@ -19,6 +19,7 @@ export const initialState: GameState = {
   speed: 1,
   paused: false,
   battleLog: [],
+  battleLogSeq: 0,
   levelUpNotification: null,
   wildBattlesWon: 0,
   trainerBattlesWon: 0,
@@ -58,6 +59,18 @@ export const initialState: GameState = {
   // into a worse outcome, so a mandatory click was pure friction. Players who
   // want a specific mon left alone use its per-Pokémon lock (Pokemon.noEvolve).
   autoEvolve: true,
+  // OFF by default. Releasing is the only irreversible action in the game, so
+  // the prompt has to be opted OUT of, never opted into by accident. Even on, a
+  // shiny still asks and the bulk confirmation is never skippable.
+  skipReleaseConfirm: false,
+  listedPokemonIds: [],
+  // OFF by default. Healing is free, so this is not about cost — it changes the
+  // PACE of play (you stop ever seeing a worn-down party), and a setting that
+  // silently rewrites how every existing save plays is worse than one the player
+  // turns on. The trigger is idle-only and never fires in a raid; see
+  // useBattleLoop.
+  autoHeal: false,
+  autoHealThreshold: 35,
   raidCooldownEnd: null,
   raidCooldowns: {},
   raidLegendary: null,

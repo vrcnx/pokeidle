@@ -25,7 +25,7 @@ function timeLeft(endsAt: string): string {
 // server-side (see server/src/lib/auctionSettlement.ts) — a listing
 // resolves whether or not either party is online when it ends.
 export function AuctionBoard() {
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const t = useT();
   const [view, setView] = useState<BoardView>("browse");
   const [auctions, setAuctions] = useState<PublicAuction[]>([]);
@@ -44,7 +44,24 @@ export function AuctionBoard() {
   // refetches the BROWSE list instead, so the player's own bid never showed
   // until they manually refreshed the page (reported by RaQaR).
   const loadMine = () => {
-    api.myAuctions().then(setMine).catch(() => undefined);
+    api.myAuctions().then((res) => {
+      setMine(res);
+      // The authoritative refresh of the escrow guard. The server escrows a
+      // listed Pokémon but the client keeps it in the box, so without this it
+      // stays releasable, depositable and sweepable by a bulk release while it
+      // is already sold. GET /mine returns listings of ANY status, so only
+      // "active" ones are still escrowed — a sold or cancelled one must drop off
+      // the list or the mon would stay locked forever.
+      dispatch({
+        type: "SET_LISTED_POKEMON_IDS",
+        payload: {
+          ids: res.selling
+            .filter((a) => a.status === "active")
+            .map((a) => (a.pokemon as Pokemon | null)?.id)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
+        },
+      });
+    }).catch(() => undefined);
   };
   useEffect(load, []);
   useEffect(() => {
@@ -244,7 +261,7 @@ function ListPokemonForm({
   party, box, onDone, onCancel,
 }: { party: Pokemon[]; box: Pokemon[]; onDone: () => void; onCancel: () => void }) {
   const t = useT();
-  const { syncNow } = useGame();
+  const { syncNow, dispatch } = useGame();
   const [picked, setPicked] = useState<Pokemon | null>(null);
   const [startingBid, setStartingBid] = useState(100);
   const [durationMinutes, setDurationMinutes] = useState(60);
@@ -264,6 +281,10 @@ function ListPokemonForm({
       // fail the "you don't own that Pokemon" ownership check.
       await syncNow();
       await api.createAuction({ pokemonId: picked.id, startingBid, durationMinutes });
+      // Optimistic half of the escrow guard, so the mon is protected the instant
+      // it is listed rather than whenever the player next opens the "mine" tab.
+      // loadMine's SET_LISTED_POKEMON_IDS is the authoritative correction.
+      dispatch({ type: "MARK_POKEMON_LISTED", payload: { pokemonId: picked.id } });
       pushToast({ kind: "success", text: t("Listed!") });
       onDone();
     } catch (e: any) {

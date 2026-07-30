@@ -225,7 +225,10 @@ export function computeDamage(
   };
 }
 
-// Expected damage (used by the AI to pick its best move).
+// Expected damage (used by the AI to pick its best move). `roll` is where in
+// computeDamage's 85–100% band to sit: 0.925 is the average, which is what a
+// move-ranking wants. Callers deciding whether a hit is SAFE want the top of
+// the band instead — see maxSingleHitDamage.
 function expectedDamage(
   attackerLevel: number,
   attackerStat: number,
@@ -234,7 +237,8 @@ function expectedDamage(
   attackerTypes: PokemonType[],
   defenderTypes: PokemonType[],
   attackerStage = 0,
-  defenderStage = 0
+  defenderStage = 0,
+  roll = 0.925
 ): number {
   if (move.power === 0) return 0;
   const atk = Math.floor(attackerStat * statStageMultiplier(attackerStage));
@@ -244,7 +248,45 @@ function expectedDamage(
   );
   const stab = attackerTypes.includes(move.type) ? 1.5 : 1;
   const eff = typeEffectiveness(move.type, defenderTypes);
-  return Math.floor(base * stab * eff * 0.925);
+  return Math.floor(base * stab * eff * roll);
+}
+
+/**
+ * Worst case (for the defender) damage from the attacker's best available move,
+ * at the TOP of the damage roll. Crits are deliberately not modelled: a 1/16
+ * doubling would put almost every matchup over the line and make any caller
+ * gating on this useless.
+ *
+ * Exists so the auto-catch loop can ask "will the weakening hit I am about to
+ * throw kill the thing I am trying to catch?" — `weakenFirst` chips a wild
+ * Pokémon down to 30% of max HP before throwing a ball, and against a
+ * high-level lead a level-3 Pidgey's 15 HP is one hit from zero, so it fainted
+ * instead of ever being caught. Same arithmetic pickSmartMove ranks moves with,
+ * so the estimate tracks the move the loop will actually pick.
+ */
+export function maxSingleHitDamage(attacker: BattleSide, defender: BattleSide): number {
+  const aTypes = attacker.types ?? [];
+  const dTypes = defender.types ?? [];
+  let best = 0;
+  for (const slot of attacker.moves) {
+    if (slot.pp <= 0) continue;              // spent slots cannot be picked
+    const def = movesTable[slot.id];
+    if (!def || def.power === 0) continue;
+    const physical = def.category === "physical";
+    const dmg = expectedDamage(
+      attacker.level,
+      physical ? attacker.attack : attacker.spAttack,
+      physical ? defender.defense : defender.spDefense,
+      def,
+      aTypes,
+      dTypes,
+      getStage(attacker, physical ? "attack" : "spAttack"),
+      getStage(defender, physical ? "defense" : "spDefense"),
+      1,
+    );
+    if (dmg > best) best = dmg;
+  }
+  return best;
 }
 
 // The fallback every side uses when its whole moveset is spent. Nothing

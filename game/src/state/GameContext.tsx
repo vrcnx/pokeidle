@@ -27,6 +27,7 @@ import { settleAwayProgress } from "./awayProgress";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
 import { grandfatherShinyCharm } from "../utils/shinyCharm";
+import { repairLoadedSave } from "../utils/dexRepair";
 import { isStreamMode } from "./streamMode";
 import { executeStreamCommand } from "../utils/streamCommands";
 
@@ -216,7 +217,13 @@ function loadSaved(): GameState {
     const mergedClaimedRegionStarters = parsed.claimedRegionStarters ?? initialState.claimedRegionStarters;
     const hasPendingRegionStarter = !!pendingRegionStarter(mergedClaimedRegionStarters, mergedLocation);
 
-    return grandfatherShinyCharm({
+    // repairLoadedSave runs on the OTHER entry point too (the reducer's
+    // LOAD_SAVE), and has to run on both: this boot path never touches the
+    // reducer, so a purely-local player would otherwise keep a dex that is
+    // missing species they hold. It clamps nextPokemonId above every live id and
+    // registers every owned mon (species + shiny). Additive and idempotent —
+    // see utils/dexRepair.ts for why that is safe to do unconditionally.
+    return grandfatherShinyCharm(repairLoadedSave({
       ...initialState,
       ...parsed,
       playerPokemon: activeFromParty,
@@ -252,7 +259,7 @@ function loadSaved(): GameState {
       // written under the old rule have no item to read, so anyone who was
       // already getting the doubled rate is handed the real charm here rather
       // than silently losing it. Idempotent — a no-op once the item is held.
-    });
+    }));
   } catch {
     return initialState;
   }
@@ -450,6 +457,15 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "victoryTokens",
   "autoProceed",
   "autoEvolve",
+  "skipReleaseConfirm",
+  "autoHeal",
+  "autoHealThreshold",
+  // Deliberately persisted even though the SERVER is authoritative for it: a
+  // reload would otherwise un-guard every listed Pokémon until the player
+  // happened to open the auction board's "mine" tab, and the whole point is
+  // that the box cannot delete something already sold. A stale id whose mon is
+  // gone is harmless — the guards look the id up in party/box first.
+  "listedPokemonIds",
   "raidCooldownEnd",
   "raidCooldowns",
   "raidLegendary",

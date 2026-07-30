@@ -14,11 +14,31 @@ import {
 } from "../src/utils/shinyCharm";
 import { obtainableSpecies, isDexComplete } from "../src/utils/obtainable";
 import { reducer } from "../src/state/reducer";
-import { makeState } from "./helpers";
+import { makeMon, makeState } from "./helpers";
 
 const allObtainable = () => [...obtainableSpecies()];
 
-describe("completion grant — exactly once, through markCaught", () => {
+/** Register one species through the REAL acquisition funnel.
+ *
+ *  These three cases used to dispatch MARK_CAUGHT, a species-key action with no
+ *  dispatchers in the app. It has been deleted — it could not carry shininess,
+ *  which made it a way to silently reintroduce br_2f7754077bfd6e9629 — so the
+ *  charm grant is now driven the way the game drives it: a Pokémon arrives,
+ *  registerAcquired runs, markCaught fires, and grantShinyCharmOnCompletion sees
+ *  the completed dex. Strictly stronger than before, because it proves the grant
+ *  hangs off a path that actually exists in production. */
+function acquire(state: Parameters<typeof reducer>[0], speciesKey: string) {
+  return reducer(state, {
+    type: "RECEIVE_GIFT",
+    payload: {
+      prizes: [
+        { kind: "pokemon", mon: { ...makeMon({ speciesKey }) }, assignedId: `gift-${speciesKey}` },
+      ],
+    },
+  } as Parameters<typeof reducer>[1]);
+}
+
+describe("completion grant — exactly once, through the acquisition funnel", () => {
   it("catching the LAST obtainable species grants the charm, with a log line", () => {
     const all = allObtainable();
     const last = all[all.length - 1];
@@ -29,7 +49,8 @@ describe("completion grant — exactly once, through markCaught", () => {
     });
     expect(isDexComplete(state.pokedexCaught)).toBe(false);
 
-    const next = reducer(state, { type: "MARK_CAUGHT", payload: { speciesKey: last } });
+    const next = acquire(state, last);
+    expect(next.pokedexCaught).toContain(last);
     expect(next.inventory[SHINY_CHARM_ITEM]).toBe(1);
     expect(hasShinyCharm(next)).toBe(true);
     expect(next.battleLog.some((l) => l.includes("Pokédex complete"))).toBe(true);
@@ -44,13 +65,13 @@ describe("completion grant — exactly once, through markCaught", () => {
     });
     // Registering anything further (even an unobtainable oddity) is a no-op
     // for the charm.
-    const next = reducer(state, { type: "MARK_CAUGHT", payload: { speciesKey: "someLegacyKey" } });
+    const next = acquire(state, "someLegacyKey");
     expect(next.inventory[SHINY_CHARM_ITEM]).toBe(1);
   });
 
   it("an incomplete dex grants nothing", () => {
     const state = makeState({ pokedexCaught: allObtainable().slice(0, 10), inventory: {} });
-    const next = reducer(state, { type: "MARK_CAUGHT", payload: { speciesKey: "pikachu" } });
+    const next = acquire(state, "pikachu");
     expect(next.inventory[SHINY_CHARM_ITEM]).toBeUndefined();
   });
 

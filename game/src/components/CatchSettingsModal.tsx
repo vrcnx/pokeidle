@@ -6,6 +6,7 @@ import { pokemonTable } from "../data/pokemon";
 import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { CATCH_MODE_OPTIONS, resolveCatchSettings } from "../utils/catchSettings";
+import { autoCatchOutlook } from "../utils/catching";
 import { BALL_ORDER } from "../utils/items";
 import { pokeballs } from "../data/pokeballs";
 import { useModalEnter } from "../utils/animate";
@@ -32,6 +33,34 @@ function useRouteKey(): string | null {
   return r;
 }
 
+
+// Per-species badge wording, keyed off autoCatchOutlook. "⊘ NO MATCH" is the
+// state that did not exist before and is the reason this modal was lying: on,
+// but the mode's own condition can never be true for this species again, so no
+// ball will ever be thrown at it. The hints name the fix (change the Mode
+// above) rather than the symptom, because the row's own toggle is not it.
+const OUTLOOK_LABEL = {
+  on:    "✓ CATCH",
+  inert: "⊘ NO MATCH",
+  off:   "✗ SKIP",
+} as const;
+
+const OUTLOOK_HINT = {
+  on: "Auto-catch is ON for this species. Click to skip.",
+  off: "Auto-catch is OFF for this species. Click to enable.",
+  no_balls: "Auto-catch is on, but no ball is selected above — nothing can be thrown.",
+  already_registered:
+    "Auto-catch is on, but Mode is \"Not registered\" and this species is already in your Pokédex — nothing will be thrown. Change the Mode above to catch it again.",
+  already_owned:
+    "Auto-catch is on, but Mode is \"Not owned\" and you are already holding one — nothing will be thrown. Change the Mode above to catch more.",
+} as const;
+
+// Appended whenever autoCatchOutlook reports shinyOverride on a row that is
+// otherwise throwing nothing. "Always catch shinies" is checked ABOVE `enabled`,
+// above the ball list and above the mode, so every hint above overstates its
+// case for a shiny encounter — the row really does still throw at one.
+const SHINY_NET_HINT =
+  "A SHINY of this species is still caught, though — \"Always catch shinies\" overrides every rule on this screen.";
 
 // Catch Settings — opens from the "Catch" button on the Wild Pokemon header.
 // Layout matches the original: shiny toggle → mode radios → ball selector
@@ -232,6 +261,8 @@ function CatchSettingsDialog({
               {encList.map((e) => {
                 const sp = pokemonTable[e.speciesKey];
                 const rule = resolveCatchSettings(state, routeKey, e.speciesKey);
+                const outlook = autoCatchOutlook(state, routeKey, e.speciesKey);
+                const hintKey = outlook.verdict === "inert" ? outlook.reason : outlook.verdict;
                 const seen = state.pokedexSeen.includes(e.speciesKey);
                 return (
                   <li key={e.speciesKey}>
@@ -266,16 +297,31 @@ function CatchSettingsDialog({
                         </label>
                       )}
                     </div>
+                    {/* The badge reports the RESOLVED decision, not `enabled`.
+                        Reading it off the checkbox is br_6fcb7c411f3c317ccc:
+                        a "Not registered" rule on an already-registered species
+                        showed a green ✓ CATCH and a tooltip promising auto-catch
+                        was on, while the engine correctly threw nothing. The
+                        click target is still `enabled` — that is the only field
+                        this row owns — so an inert row explains itself instead
+                        of pretending the toggle is the problem. */}
                     <button
-                      className={`catch-toggle ${rule.enabled ? "on" : "off"}`}
-                      title={rule.enabled
-                        ? t("Auto-catch is ON for this species. Click to skip.")
-                        : t("Auto-catch is OFF for this species. Click to enable.")}
+                      className={`catch-toggle ${outlook.verdict}${
+                        outlook.shinyOverride && outlook.verdict !== "on" ? " shiny-net" : ""
+                      }`}
+                      title={
+                        t(OUTLOOK_HINT[hintKey]) +
+                        (outlook.shinyOverride && outlook.verdict !== "on"
+                          ? " " + t(SHINY_NET_HINT)
+                          : "")
+                      }
                       onClick={() =>
                         setRule(e.speciesKey, { ...rule, enabled: !rule.enabled })
                       }
                     >
-                      {rule.enabled ? t("✓ CATCH") : t("✗ SKIP")}
+                      {outlook.shinyOverride && outlook.verdict !== "on"
+                        ? t("★ SHINY ONLY")
+                        : t(OUTLOOK_LABEL[outlook.verdict])}
                     </button>
                   </li>
                 );

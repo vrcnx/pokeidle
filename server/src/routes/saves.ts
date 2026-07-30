@@ -16,6 +16,8 @@ import { describePrizes } from "../lib/giveaway.js";
 import { recordError } from "../lib/errorReporting.js";
 import { noteSaveReject } from "../lib/alerting.js";
 import { milestoneSig, milestoneRegressed, destructiveLosses } from "../lib/saveRegression.js";
+import { evaluateGainForAccount, shouldRefuse, gainSignature } from "../lib/saveGainGuard.js";
+import { shouldLogGain } from "../lib/saveGainBudget.js";
 
 const app = new Hono();
 
@@ -209,9 +211,13 @@ app.post("/", requireUser, async (c) => {
   // advanced past it (someone else wrote between this client's last
   // pull and now, or the client is rolling back). The client `__savedAt`
   // is still echoed for diagnostics but no longer the gate.
+  // `saveUpdatedAt` is read here for the gain guard in 2d and for nothing
+  // else. It is the server's own `new Date()` from the last accepted write
+  // (see commitSave), which is what makes the elapsed term unforgeable —
+  // the same "THE CLOCK IS OURS" rule lib/awayProgress.ts relies on.
   const existing = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { saveVersion: true, saveData: true, saveAdoptSeq: true },
+    select: { saveVersion: true, saveData: true, saveAdoptSeq: true, saveUpdatedAt: true },
   });
   const expected = parsed.data.expectedSaveVersion;
   if (existing && expected !== undefined && expected < existing.saveVersion) {
@@ -297,8 +303,8 @@ app.post("/", requireUser, async (c) => {
   // unconditionally and loses nothing — and recovers completely on reload.
   // The report is also the telemetry that says when SAVES_REQUIRE_VERSION can
   // be flipped.
+  let prior: Record<string, unknown> | null = null;
   if (existing?.saveData) {
-    let prior: Record<string, unknown> | null = null;
     try {
       prior = JSON.parse(existing.saveData) as Record<string, unknown>;
     } catch {
@@ -307,39 +313,188 @@ app.post("/", requireUser, async (c) => {
       // recovery path.
       prior = null;
     }
-    if (prior) {
-      const before = milestoneSig(prior);
-      const after  = milestoneSig(save as Record<string, unknown>);
-      if (milestoneRegressed(before, after)) {
-        noteSaveReject("regression_blocked");
+  }
+  if (prior && existing) {
+    const before = milestoneSig(prior);
+    const after  = milestoneSig(save as Record<string, unknown>);
+    if (milestoneRegressed(before, after)) {
+      noteSaveReject("regression_blocked");
+      return c.json({
+        error: "regression_blocked",
+        reason: "incoming save erases milestone progress — refusing to clobber the cloud copy",
+        before,
+        after,
+      }, 409);
+    }
+    if (blind) {
+      const losses = destructiveLosses(prior, save as Record<string, unknown>);
+      if (losses.length > 0) {
+        noteSaveReject("versionless_regression");
         return c.json({
-          error: "regression_blocked",
-          reason: "incoming save erases milestone progress — refusing to clobber the cloud copy",
-          before,
-          after,
-        }, 409);
-      }
-      if (blind) {
-        const losses = destructiveLosses(prior, save as Record<string, unknown>);
-        if (losses.length > 0) {
-          noteSaveReject("versionless_regression");
-          return c.json({
-            error: "versionless_regression",
-            reason:
-              "a save sent without expectedSaveVersion may not reduce money, items or Pokémon — "
-              + "reload the page so this client can sync properly",
-            // Capped: a blob that disagrees about a thousand item keys should
-            // not turn a 409 body into a payload of its own.
-            losses: losses.slice(0, 20),
-            lossCount: losses.length,
-            // Same rule as every other rejection here: the version never
-            // travels without the adopt seq that goes with it.
-            serverSaveVersion: existing.saveVersion,
-            serverSaveAdoptSeq: existing.saveAdoptSeq,
-          }, 400);
-        }
+          error: "versionless_regression",
+          reason:
+            "a save sent without expectedSaveVersion may not reduce money, items or Pokémon — "
+            + "reload the page so this client can sync properly",
+          // Capped: a blob that disagrees about a thousand item keys should
+          // not turn a 409 body into a payload of its own.
+          losses: losses.slice(0, 20),
+          lossCount: losses.length,
+          // Same rule as every other rejection here: the version never
+          // travels without the adopt seq that goes with it.
+          serverSaveVersion: existing.saveVersion,
+          serverSaveAdoptSeq: existing.saveAdoptSeq,
+        }, 400);
       }
     }
+  }
+
+  // ── 2d ─────────────────────────────────────────────────────────────
+  // 2d) RATE-OF-GAIN guard — lib/saveGainGuard.ts. 2b/2c ask "does this
+  // upload DESTROY something?"; this asks "could play have PRODUCED it?".
+  // Nothing in the save path asked that before, which is how one account
+  // uploaded $100,000,000 and 100,000 Exp Shares — both under
+  // saveValidation's parser ceilings — and had it stored.
+  //
+  // WHY HERE, and this is the load-bearing part: the comparison is the
+  // STORED blob (`prior`) against the CLIENT'S BYTES (`save`), evaluated
+  // BEFORE commitSave and therefore before foldOwedGrants. Every
+  // server-issued payment — a PendingGrant fold, an away-progress payout,
+  // a PvP win bonus — is applied ON TOP of `save` afterwards, so it is
+  // not in `next` when this runs and CANNOT be flagged. Auction
+  // settlement, escrow and admin patches never enter this route at all,
+  // and because they bump saveVersion a client holding a pre-write
+  // version 409s above rather than arriving here. "The guard flags the
+  // server's own money" is the obvious way to get this wrong, and the
+  // placement makes it impossible by construction rather than by
+  // threshold tuning. Move this below commitSave and that property is
+  // gone.
+  //
+  // Runs on BLIND writes too. 2c does not cover this: an old tab's blob
+  // with inflated money ADDS, and destructiveLosses only looks at what
+  // shrinks. Exempting blind writes would leave "just omit
+  // expectedSaveVersion" as the whole bypass.
+  //
+  // AND IT RUNS WITH NO PRIOR. This used to sit inside the
+  // `if (existing?.saveData)` block that wraps 2b/2c, so a brand-new
+  // account's FIRST upload was not guarded at all: measured through this
+  // handler, saveData=null plus `{money: 999_999_999, inventory: {...}}`
+  // returned 200 and stored every value verbatim, with zero log rows.
+  // Registration is open, so that was the cheapest path to arbitrary money
+  // and it needed no drip. It is DETECTION on that path and never a refusal
+  // — a first upload legitimately carries an established localStorage save
+  // (a guest, or a browser that never synced), and there is nothing to
+  // compare it against. A row is not a guess; a 400 would be.
+  //
+  // ENFORCEMENT IS PER RULE, not one global switch. `shouldRefuse` refuses
+  // only when a violation whose own rule was measured FP-free at zero across
+  // all of production is present; everything else is a log row. See the
+  // PER-RULE ENFORCEMENT table in lib/saveGainGuard.ts.
+  const elapsedMs = existing?.saveUpdatedAt instanceof Date
+    ? Date.now() - existing.saveUpdatedAt.getTime()
+    : 0;
+  // A stored blob that is not a plain object (a scalar, an array, a string)
+  // is the migration/corruption path: the same tolerance 2b/2c have, and it
+  // makes the guard detection-only rather than comparing against zeroes.
+  const priorObj = prior && typeof prior === "object" && !Array.isArray(prior)
+    ? prior
+    : null;
+  const nowMs = Date.now();
+  const gain = evaluateGainForAccount(
+    user.id,
+    priorObj,
+    save as Record<string, unknown>,
+    elapsedMs,
+    { firstSave: priorObj === null, nowMs },
+  );
+  const refuse = shouldRefuse(gain);
+  // THROTTLED, and only the LOG. A refusal is a refusal every time; but
+  // koruem2 made 430 uploads in 30 minutes and once a cumulative budget is
+  // exhausted every one of them violates, which would bury ErrorLog and
+  // drown the new-fingerprint alert in lib/alerting.ts. Keyed on the
+  // violation SHAPE, so the first row of any new shape is always written.
+  const loggable = shouldLogGain(user.id, gainSignature(gain), nowMs);
+  const context = {
+    blind,
+    firstSave: priorObj === null,
+    elapsedMs,
+    elapsedHoursUsed: gain.elapsedHours,
+    moneyAllowance: gain.moneyAllowance,
+    saveVersion: existing?.saveVersion ?? 0,
+  };
+  if (gain.violations.length > 0 && loggable) {
+    // `.catch()` because an unhandled rejection from the logging path is
+    // not free: recordError writes to the database, and a database that is
+    // refusing writes is exactly when this fires. It cannot affect the
+    // response either way — proved by executing a rejecting recordError
+    // through this handler — but an unhandledRejection can take the process
+    // down under Node's default policy, and the save path must not be the
+    // thing that does that.
+    void recordError({
+      kind: "server",
+      // "error" only when this actually refused something. A detection-only
+      // row must not page anyone through the new-fingerprint path in
+      // lib/alerting.ts, which fires for level "error".
+      level: refuse ? "error" : "warn",
+      message: "save_gain_implausible",
+      source: "POST /api/saves",
+      userId: user.id,
+      username: user.username,
+      meta: {
+        enforced: refuse,
+        ...context,
+        // Capped for the same reason 2c caps `losses`: a blob that
+        // disagrees about a thousand item keys should not turn one log
+        // row into a payload of its own.
+        violations: gain.violations.slice(0, 20),
+        violationCount: gain.violations.length,
+      },
+    }).catch(() => undefined);
+  }
+  if (refuse) {
+    noteSaveReject("gain_implausible");
+    // 400, not 409, for the same reason as versionless_regression: a
+    // 409 hands the sender a fresh saveVersion it can immediately pass
+    // the CAS with, so the refusal would be theatre. 400 is the status
+    // the shipping client treats as a contract violation — it stops
+    // uploading for the session and files a report — and localStorage
+    // is written unconditionally, so the player loses nothing but the
+    // cloud copy until an operator looks.
+    return c.json({
+      error: "gain_implausible",
+      reason:
+        "this upload increases money or items by more than play can produce in the "
+        + "elapsed time — refusing to store it",
+      violations: gain.violations.filter((v) => v.enforce).slice(0, 20),
+      violationCount: gain.violations.length,
+      serverSaveVersion: existing?.saveVersion ?? 0,
+      serverSaveAdoptSeq: existing?.saveAdoptSeq ?? 0,
+    }, 400);
+  }
+  if (gain.violations.length === 0 && (gain.notable.length > 0 || gain.stateNotes.length > 0) && loggable) {
+    // DETECTION, never rejection, and two different things:
+    //
+    //   `notable`    — accepted, but only because of an allowance: a money
+    //                  gain over MONEY_BURST that the elapsed term covered,
+    //                  or a restricted-item rise above anything real players
+    //                  are observed to receive.
+    //   `stateNotes` — the STORED row is already over an absolute ceiling and
+    //                  this upload did not move it. Every refusing rule fires
+    //                  only on a RAISE (an absolute bound applied to a value
+    //                  already in the row would brick the account forever),
+    //                  so without this an account that has ALREADY minted its
+    //                  cheat and is quietly re-uploading it produces nothing
+    //                  at all — which is precisely why koruem2 sat in the
+    //                  corpus unflagged, and why "the log has been quiet" was
+    //                  a broken criterion for turning enforcement on.
+    void recordError({
+      kind: "server",
+      level: "warn",
+      message: gain.stateNotes.length > 0 ? "save_gain_state_over_ceiling" : "save_gain_elapsed_allowance",
+      source: "POST /api/saves",
+      userId: user.id,
+      username: user.username,
+      meta: { ...context, notable: gain.notable, stateNotes: gain.stateNotes },
+    }).catch(() => undefined);
   }
 
   // 3) THE DELIVERY POINT for server-owed prizes.

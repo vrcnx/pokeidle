@@ -35,7 +35,6 @@ import { PublicTrainerCardMount } from "./TrainerCardModal";
 import { TradeInviteToast } from "./TradeInviteToast";
 import { TradeRoomModal } from "./TradeRoomModal";
 import { BattleInviteToast } from "./BattleInviteToast";
-import { PvpBattleModal } from "./PvpBattleModal";
 import { TeamBuilderModal } from "./TeamBuilderModal";
 import { RandomBattleQueueToast } from "./RandomBattleQueueToast";
 import { PvpHubModal } from "./PvpHubModal";
@@ -120,7 +119,10 @@ export function GameShell() {
       <TradeRoomModal />
       <TradeInviteToast />
       <AuctionNotifyToast />
-      <PvpBattleModal />
+      {/* PvpBattleModal is retired: the arena (CenterColumn + PartyColumn)
+          renders a PvP battle in place now. Leaving it mounted meant BOTH
+          rendered during a battle, and since it is a .modal-overlay it sat on
+          top and hid the arena completely. */}
       <BattleInviteToast />
       <TeamBuilderModal />
       <RandomBattleQueueToast />

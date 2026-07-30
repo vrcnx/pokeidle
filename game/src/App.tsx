@@ -32,7 +32,7 @@ export function App() {
   useBattleLoop(pvpBattle);
   useEventDriver();
   useAutoProceed();
-  useAutoEvolve();
+  useAutoEvolve(pvpBattle);
   useCatchAnimation();
   useStreamStartRoute();
   useStreamAutoPlay();

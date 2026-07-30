@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useT } from "../i18n/useT";
+import { linesSince } from "../utils/battleLogCursor";
 
 // Battle juice — picks up "grew to Lv N", "X was caught!", and "earned
 // $N" messages from the battle log and overlays a transient celebratory
@@ -19,18 +20,17 @@ type Burst =
 export function BattleJuice() {
   const { state } = useGame();
   const t = useT();
-  const prevLen = useRef(state.battleLog.length);
+  const seenSeq = useRef(state.battleLogSeq);
   const [burst, setBurst] = useState<Burst | null>(null);
 
   useEffect(() => {
-    const start = prevLen.current;
-    const end = state.battleLog.length;
-    prevLen.current = end;
-    if (end <= start) return;
+    const fresh = linesSince(state.battleLog, state.battleLogSeq, seenSeq.current);
+    seenSeq.current = state.battleLogSeq;
+    if (fresh.length === 0) return;
 
     let next: Burst | null = null;
-    for (let i = start; i < end; i++) {
-      const line = state.battleLog[i] ?? "";
+    for (let i = 0; i < fresh.length; i++) {
+      const line = fresh[i] ?? "";
 
       // Catch wins highest priority (rarest + most celebratory).
       const catchMatch = /^(.+?) was caught!$/.exec(line);
@@ -59,7 +59,7 @@ export function BattleJuice() {
     const dwell = state.speed >= 5 ? 900 : state.speed >= 2 ? 1200 : 1500;
     const timer = setTimeout(() => setBurst(null), dwell);
     return () => clearTimeout(timer);
-  }, [state.battleLog, state.speed]);
+  }, [state.battleLog, state.battleLogSeq, state.speed]);
 
   if (!burst) return null;
   return (

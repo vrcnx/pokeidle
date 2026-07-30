@@ -16,7 +16,7 @@ import { openDailyReward } from "../state/dailies";
 import { useDailyStatus } from "../state/dailies";
 import { openGiveaways } from "./GiveawayModal";
 import { CURRENT_VERSION } from "../data/changelog";
-import { IconSettings, IconChat, IconHeart, IconSwords } from "./Icon";
+import { IconSettings, IconChat, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useLayoutMode, setLayoutMode, type LayoutMode } from "../state/layoutMode";
@@ -50,22 +50,6 @@ function useOpen(): [PopupId, (o: PopupId) => void] {
     return () => openListeners.delete(setO);
   });
   return [o, setOpenState];
-}
-
-// Left dock — only Heal lives here now.
-export function GameplayDock() {
-  const { dispatch } = useGame();
-  const t = useT();
-  return (
-    <div className="dock dock-gameplay" role="toolbar" aria-label={t("Gameplay actions")}>
-      <DockButton
-        icon={<IconHeart size={18} />}
-        label={t("Heal")}
-        title={t("Fully heal party. Bails out of any active battle / raid.")}
-        onClick={() => dispatch({ type: "HEAL_PARTY" })}
-      />
-    </div>
-  );
 }
 
 // Right dock — Settings + Social + PvP. Mounts the modals/panels that those buttons open.
@@ -120,10 +104,14 @@ export function MetaDock() {
   );
 }
 
-// Back-compat: legacy GlobalDock = both halves rendered in sequence (mobile uses this).
-export function GlobalDock() {
-  return <><GameplayDock /><MetaDock /></>;
-}
+// GameplayDock and the legacy GlobalDock wrapper lived here and are gone.
+// Both were unmounted — nothing imported them — and both carried their own
+// HEAL_PARTY button. The manual Heal is now a single PartyHealButton at the
+// top-right of the party card (br_27cfd612ddd30485fc), deliberately NOT also
+// in the moves toolbar, so re-mounting either of those docks would have
+// silently reintroduced the duplicate that consolidation removed. MetaDock
+// above is the only live export; LocationColumn, MobileShell and PartyColumn
+// import it by name.
 
 interface DockBtnProps {
   icon: ReactNode;
@@ -296,6 +284,111 @@ function AutoEvolvePrefsCard() {
           onClick={() => dispatch({ type: "SET_AUTO_EVOLVE", payload: { value: !on } })}
         >
           {on ? t("Evolve manually instead") : t("Evolve automatically")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// Auto-Heal (br_27cfd612ddd30485fc). The player asked for "Auto-Heal settings",
+// which is two decisions, not one: whether it runs at all, and how worn-down the
+// party has to get first.
+//
+// The help text names the two things it will NOT do, because both are cases
+// where an automatic heal would cost the player something real: HEAL_PARTY
+// doubles as a retreat, so firing it mid-battle would abandon the fight, and
+// firing it in a raid would end the raid AND stamp that tier's cooldown. The
+// predicate in utils/autoHeal.ts refuses both.
+function AutoHealPrefsCard() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  const on = state.autoHeal;
+  return (
+    <section className="g-card">
+      <h3>{t("Auto-heal")}</h3>
+      <div className="g-row">
+        <span>{t("Heal between battles")}</span>
+        <strong className={on ? "g-tag on" : "g-tag off"}>
+          {on ? t("Automatic") : t("Manual")}
+        </strong>
+      </div>
+      <p className="g-help" style={{ marginTop: 4 }}>
+        {on
+          ? t("Your party is healed between encounters once it drops to the level below, or as soon as anything faints.")
+          : t("Use the Heal button at the top of your party to restore everyone. Turn this on to have it happen on its own.")}
+      </p>
+      {on && (
+        <label className="g-row auto-heal-threshold">
+          <span>{t("Heal at or below")}</span>
+          <span className="auto-heal-threshold-ctl">
+            <input
+              type="range"
+              min={5}
+              max={95}
+              step={5}
+              value={state.autoHealThreshold}
+              onChange={(e) =>
+                dispatch({ type: "SET_AUTO_HEAL", payload: { threshold: Number(e.target.value) } })
+              }
+              aria-label={t("Auto-heal threshold")}
+            />
+            <strong>{state.autoHealThreshold}%</strong>
+          </span>
+        </label>
+      )}
+      <p className="g-help">
+        {t("Never during a battle, and never during a raid — healing retreats from a fight, and leaving a raid early would spend its cooldown for nothing.")}
+      </p>
+      <div className="settings-legal-links">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() => dispatch({ type: "SET_AUTO_HEAL", payload: { enabled: !on } })}
+        >
+          {on ? t("Heal manually instead") : t("Heal automatically")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// The release-confirmation toggle, requested alongside bulk release
+// (br_ff6112fc5180462b81) by a player clearing 500 Magikarp one prompt at a time.
+//
+// The card is explicit about what the toggle does NOT cover, because those two
+// carve-outs are the only reason it is safe to offer at all: a shiny still asks,
+// and the bulk confirmation is never skippable and always names the count.
+function ReleasePrefsCard() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  const skip = state.skipReleaseConfirm;
+  return (
+    <section className="g-card">
+      <h3>{t("Releasing")}</h3>
+      <div className="g-row">
+        <span>{t("Confirm each release")}</span>
+        <strong className={skip ? "g-tag off" : "g-tag on"}>
+          {skip ? t("Off") : t("On")}
+        </strong>
+      </div>
+      <p className="g-help" style={{ marginTop: 4 }}>
+        {skip
+          ? t("Releasing one Pokémon happens immediately, with no prompt.")
+          : t("Releasing one Pokémon asks first. Turn this off if you are clearing out a lot of them.")}
+      </p>
+      <p className="g-help">
+        {t("Shiny Pokémon always ask, whatever this is set to — and releasing several at once always asks and always tells you exactly how many.")}
+      </p>
+      <p className="g-help">
+        {t("To clear out many at once, open the PC and use Select.")}
+      </p>
+      <div className="settings-legal-links">
+        <button
+          className="g-btn-ghost g-btn-small"
+          onClick={() =>
+            dispatch({ type: "SET_SKIP_RELEASE_CONFIRM", payload: { value: !skip } })
+          }
+        >
+          {skip ? t("Ask before releasing") : t("Release without asking")}
         </button>
       </div>
     </section>
@@ -569,7 +662,13 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               </>
             )}
 
-            {tab === "game" && <AutoEvolvePrefsCard />}
+            {tab === "game" && (
+              <>
+                <AutoEvolvePrefsCard />
+                <AutoHealPrefsCard />
+                <ReleasePrefsCard />
+              </>
+            )}
             {tab === "display" && <LayoutPrefsCard />}
             {tab === "audio" && <AudioPrefsCard />}
             {tab === "chat" && <ChatPrefsCard />}

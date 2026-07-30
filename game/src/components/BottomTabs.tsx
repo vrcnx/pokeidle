@@ -31,6 +31,9 @@ import { animatePop, useModalEnter } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { useDraggable, useDropTarget } from "../hooks/useDrag";
 import { useT } from "../i18n/useT";
+import {
+  bulkReleaseConfirmMessage, isBulkReleasable, needsReleaseConfirm,
+} from "../utils/releaseConfirm";
 import type { Pokemon, PokemonType } from "../types";
 import type { ReactNode } from "react";
 
@@ -640,6 +643,14 @@ export function PCTab() {
   const [ivTier, setIvTier] = useState<IvTier>("any");
   const [density, setDensity] = useState<Density>(readDensity);
 
+  // Bulk release (br_ff6112fc5180462b81 — two players asked, one with 500
+  // Magikarp to clear). Selection is a set of POKÉMON IDS, never indices: the
+  // grid is filtered, sorted and windowed, an index means nothing once any of
+  // those move, and the reducer's RELEASE_MANY is id-addressed for the same
+  // reason (a loop over ascending indices provably deletes the wrong mon).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+
   const box = state.box;
   const filtering = query.trim() !== "" || shinyOnly || ivTier !== "any";
 
@@ -810,6 +821,63 @@ export function PCTab() {
     });
   };
 
+  // ---- Bulk release ------------------------------------------------------
+  // Everything the CURRENT filter shows that is legal to bulk-release. Derived
+  // from `view`/`box` rather than from the rendered window, so "Select all"
+  // means the whole match set, not just the ~40 cells on screen.
+  const selectableIds = useMemo(() => {
+    const listed = state.listedPokemonIds ?? [];
+    const out: string[] = [];
+    const push = (p: Pokemon | undefined) => {
+      if (p && isBulkReleasable(p, listed)) out.push(p.id);
+    };
+    if (view) for (const entry of view) push(entry.p);
+    else for (const p of box) push(p);
+    return out;
+  }, [view, box, state.listedPokemonIds]);
+
+  // Selection is pruned against what still EXISTS and is still selectable.
+  // A release, an auction settling or a cloud reconcile can remove a selected
+  // mon while the bar is open, and a count that includes ghosts would make the
+  // confirmation lie about how many are about to be destroyed.
+  const liveSelected = useMemo(() => {
+    if (selected.size === 0) return [] as string[];
+    const allowed = new Set(selectableIds);
+    return [...selected].filter((id) => allowed.has(id));
+  }, [selected, selectableIds]);
+
+  // How many of the currently-visible Pokémon are shiny or auction-listed, and
+  // so cannot be bulk-released. `shown` counts the filtered view.
+  const blockedCount = Math.max(0, shown - selectableIds.length);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, []);
+
+  const releaseSelected = () => {
+    const count = liveSelected.length;
+    if (count === 0) return;
+    // NEVER skippable, and it names the exact number. `skipReleaseConfirm` is
+    // not consulted here by design — see utils/releaseConfirm.ts.
+    if (!window.confirm(bulkReleaseConfirmMessage(count))) return;
+    dispatch({ type: "RELEASE_MANY", payload: { source: "box", pokemonIds: liveSelected } });
+    exitSelectMode();
+  };
+
+  // Leaving the filter behind would leave a selection the player can no longer
+  // see. Drop it rather than release something off-screen later.
+  useEffect(() => { setSelected(new Set()); }, [query, shinyOnly, ivTier]);
+
   return (
     <div className="tab-pane pc-tab">
       {/* One row, not three. The title, the sort trio, the pager, the two
@@ -862,10 +930,91 @@ export function PCTab() {
               which read as a speck of dust in the toolbar. */}
           {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
         </button>
+        {/* Icon-only, like the filter and density buttons either side of it. A
+            text label pushed this row past a 320px pane and wrapping it cost
+            grid height at 360px (both measured) — and the PC is already the
+            subject of a small-monitor report. The bulk bar that drops in on
+            click is what makes the mode legible; this button only has to be
+            reachable and to show whether it is on. */}
+        <button
+          type="button"
+          className={`pc-tool pc-tool-icon ${selectMode ? "on" : ""}`}
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          title={
+            selectMode
+              ? t("Leave selection mode")
+              : t("Select several Pokémon to release at once")
+          }
+          aria-label={
+            selectMode
+              ? t("Leave selection mode")
+              : t("Select several Pokémon to release at once")
+          }
+          aria-pressed={selectMode}
+        >
+          <span aria-hidden>☑</span>
+        </button>
         <span className="pc-count" title={filtering ? t("Matches / stored") : t("Stored")}>
           {filtering ? `${shown} / ${box.length}` : box.length}
         </span>
       </div>
+
+      {/* Bulk release bar. Only mounted in selection mode, and it is the ONLY
+          route to RELEASE_MANY — there is no keyboard shortcut and no context
+          menu entry, so the count in the confirmation is always something the
+          player built by hand. Shinies and auction-listed Pokémon are not
+          selectable (isBulkReleasable) and the reducer refuses them again. */}
+      {selectMode && (
+        <div className="pc-bulk-bar">
+          <span className="pc-bulk-count">
+            {liveSelected.length === 0
+              ? t("Tap Pokémon to select them")
+              : `${liveSelected.length} ${t("selected")}`}
+          </span>
+          <button
+            type="button"
+            className="pc-tool"
+            onClick={() => setSelected(new Set(selectableIds))}
+            disabled={selectableIds.length === 0}
+            title={
+              filtering
+                ? t("Select every Pokémon matching the current filters")
+                : t("Select every Pokémon in the box")
+            }
+          >
+            {t("Select all")}
+            {filtering ? ` (${selectableIds.length})` : ""}
+          </button>
+          <button
+            type="button"
+            className="pc-tool"
+            onClick={() => setSelected(new Set())}
+            disabled={liveSelected.length === 0}
+          >
+            {t("Clear")}
+          </button>
+          <button
+            type="button"
+            className="pc-tool pc-bulk-release"
+            onClick={releaseSelected}
+            disabled={liveSelected.length === 0}
+          >
+            {t("Release")} {liveSelected.length > 0 ? liveSelected.length : ""}
+          </button>
+        </div>
+      )}
+      {/* Only when something in view actually IS blocked, and it says how many.
+          As an unconditional row it cost 13px of the grid's height on every
+          selection (26px at 320px wide) to explain a rule that usually applies
+          to nothing on screen — and this pane is already the subject of a
+          small-monitor complaint (br_50f99cbac7f106d571). */}
+      {selectMode && blockedCount > 0 && (
+        <p className="pc-bulk-note">
+          {blockedCount === 1
+            ? t("1 Pokémon here can't be selected — it's shiny, or listed at the auction house.")
+            : `${blockedCount} ${t("Pokémon here can't be selected — they're shiny, or listed at the auction house.")}`}
+        </p>
+      )}
 
       <div className="pc-box-scroll" ref={scrollRef} onScroll={onScroll}>
         {total === 0 ? (
@@ -918,6 +1067,9 @@ export function PCTab() {
                   pokemon={cell.p}
                   index={cell.index}
                   showName={metrics.name > 0}
+                  selectMode={selectMode}
+                  selected={!!cell.p && selected.has(cell.p.id)}
+                  onToggleSelect={toggleSelected}
                 />
               ))}
             </div>
@@ -933,13 +1085,22 @@ function BoxSlot({
   pokemon: p,
   index: real,
   showName,
+  selectMode = false,
+  selected = false,
+  onToggleSelect,
 }: {
   pokemon: Pokemon | undefined;
   index: number;
   showName: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const { state, dispatch } = useGame();
   const t = useT();
+  const listedIds = state.listedPokemonIds ?? [];
+  const isListed = !!p && listedIds.includes(p.id);
+  const bulkOk = !!p && isBulkReleasable(p, listedIds);
 
   // The slot div is a drop target whether or not it holds a Pokémon —
   // empty cells accept party deposits, occupied cells swap.
@@ -993,7 +1154,11 @@ function BoxSlot({
   // element to attach pointerdown to.
   const cellRef = useDraggable<HTMLButtonElement>({
     payload: () => ({ kind: "box", data: { index: real } }),
-    enabled: !!p,
+    // Dragging is disabled in selection mode. A long-press that starts a drag
+    // and a tap that toggles a checkbox are the same gesture on a touchscreen,
+    // and the one that loses that race would be a mon dragged into the party
+    // while the player thought they were ticking it for release.
+    enabled: !!p && !selectMode,
   });
 
   return (
@@ -1009,10 +1174,25 @@ function BoxSlot({
       {p && (
         <button
           ref={cellRef}
-          className="pc-cell"
-          onClick={() => openPokemonDetail({ type: "box", index: real })}
+          className={`pc-cell${selectMode ? " selecting" : ""}${
+            selected ? " selected" : ""
+          }${selectMode && !bulkOk ? " unselectable" : ""}${isListed ? " listed" : ""}`}
+          aria-pressed={selectMode ? selected : undefined}
+          disabled={selectMode && !bulkOk}
+          onClick={() => {
+            // In selection mode a tap ticks the cell instead of opening the
+            // detail modal. `bulkOk` already gates shinies and auction-listed
+            // mons, and the button is disabled for them, so this cannot select
+            // something RELEASE_MANY would then refuse.
+            if (selectMode) {
+              if (bulkOk && p) onToggleSelect?.(p.id);
+              return;
+            }
+            openPokemonDetail({ type: "box", index: real });
+          }}
           onContextMenu={(e) => {
             e.preventDefault();
+            if (selectMode) return;
             const partyFull = state.party.length >= 6;
             openContextMenu(e, [
               {
@@ -1028,13 +1208,24 @@ function BoxSlot({
               {
                 label: t("Release"),
                 danger: true,
+                disabled: isListed,
                 onClick: () => {
-                  if (window.confirm(`Release ${p.name}? This cannot be undone.`)) {
-                    dispatch({
-                      type: "RELEASE_POKEMON",
-                      payload: { source: "box", index: real },
-                    });
+                  // needsReleaseConfirm, not the raw setting: a SHINY always
+                  // asks even with "skip confirmation" on. See
+                  // utils/releaseConfirm.ts.
+                  if (
+                    needsReleaseConfirm(p, state.skipReleaseConfirm) &&
+                    !window.confirm(`Release ${p.nickname ?? p.name}? This cannot be undone.`)
+                  ) {
+                    return;
                   }
+                  // `pokemonId` alongside the index: this closure was frozen
+                  // when the menu opened, and an auction settling or a cloud
+                  // reconcile in between shifts `real` onto another Pokémon.
+                  dispatch({
+                    type: "RELEASE_POKEMON",
+                    payload: { source: "box", index: real, pokemonId: p.id },
+                  });
                 },
               },
             ]);
@@ -1066,6 +1257,21 @@ function BoxSlot({
                 whole job is showing a Pokémon. */}
             <span className="pc-cell-lv">{p.level}</span>
             {p.isShiny && <span className="pc-cell-shiny" aria-hidden>✦</span>}
+            {/* Selection tick. Rendered inside the plate so it scales with the
+                cell at both densities. A cell that cannot be bulk-released
+                shows a lock rather than an empty box, so "why won't this one
+                tick" answers itself. */}
+            {selectMode && (
+              <span
+                className={`pc-cell-check${selected ? " on" : ""}${!bulkOk ? " locked" : ""}`}
+                aria-hidden
+              >
+                {!bulkOk ? "🔒" : selected ? "✓" : ""}
+              </span>
+            )}
+            {isListed && !selectMode && (
+              <span className="pc-cell-listed" title={t("Listed at the auction house")} aria-hidden>⚖</span>
+            )}
             {p.heldItem && itemsCatalog[p.heldItem] && (
               <img
                 className="held-item-badge"

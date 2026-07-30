@@ -19,6 +19,7 @@ import { itemSpriteUrl } from "../utils/sprites";
 import { PokemonSprite } from "./Sprite";
 import { expForLevel } from "../utils/stats";
 import { displayName } from "../utils/pokemon";
+import { needsReleaseConfirm } from "../utils/releaseConfirm";
 import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
@@ -390,13 +391,22 @@ export function PokemonDetailModal() {
           closePokemonDetail();
         }}
         onRelease={() => {
-          if (confirm(`Release ${displayName(p)}?`)) {
-            dispatch({
-              type: "RELEASE_POKEMON",
-              payload: { source: selected.type, index: selected.index },
-            });
-            closePokemonDetail();
+          // needsReleaseConfirm, not the raw setting — a shiny always asks even
+          // with "skip confirmation" on (utils/releaseConfirm.ts).
+          if (
+            needsReleaseConfirm(p, state.skipReleaseConfirm) &&
+            !confirm(`Release ${displayName(p)}? This cannot be undone.`)
+          ) {
+            return;
           }
+          // `selected` lives in a module-level store and outlives any number
+          // of box mutations; `p.id` is what the player is actually looking
+          // at. See the reducer case.
+          dispatch({
+            type: "RELEASE_POKEMON",
+            payload: { source: selected.type, index: selected.index, pokemonId: p.id },
+          });
+          closePokemonDetail();
         }}
       />
     </div>

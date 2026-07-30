@@ -322,12 +322,25 @@ export interface ActiveEffect {
   // useful for Exp Share, which is a temporary buff the player may want
   // to pause when grinding a single Pokémon.
   paused?: boolean;
+  // Set by applyExp the moment this effect actually pays out, cleared when the
+  // charge is billed at the end of the battle. It exists because payout and
+  // billing are decided at different times: Exp Share paid on every KO but was
+  // only charged once, at battle end, and `paused` effects were skipped there —
+  // so pausing after the last KO of a trainer battle banked six payouts for
+  // zero charges, forever (br_e84825db52e3431dc9). A billed effect ticks down
+  // even while paused; nothing else does.
+  billedThisBattle?: boolean;
 }
 
 export interface EvolutionState {
   partyIndex: number;
   toSpeciesKey: string;
   step: number;
+  /** Id of the Pokémon being evolved. The cinematic runs for ~3.7s while
+   *  `partyIndex` sits in state, so COMPLETE_EVOLUTION re-anchors on this and
+   *  bails if the id is gone — see the reducer case. Optional so a save
+   *  written mid-evolution before the field existed still completes by index. */
+  pokemonId?: string;
 }
 
 export interface HealingState {
@@ -374,6 +387,13 @@ export interface GameState {
   battleWeather?: WeatherState | null;
   paused: boolean;
   battleLog: string[];
+  // Total lines ever pushed into `battleLog`, never trimmed. `battleLog`
+  // itself keeps only the last 50, so its LENGTH saturates at 50 and stops
+  // being usable as a "what's new since I last looked" cursor — three float
+  // layers (+EXP, effectiveness, BattleJuice) each used length as one and all
+  // three went permanently silent after ~8 battles (br_15040fe48311121a4a).
+  // Read it through utils/battleLogCursor.ts, never by hand.
+  battleLogSeq: number;
   levelUpNotification: LevelUpNotification | null;
   wildBattlesWon: number;
   trainerBattlesWon: number;
@@ -433,6 +453,23 @@ export interface GameState {
    * they stay a real choice and are never automated by this.
    */
   autoEvolve: boolean;
+  /** Skip the "Release X? This cannot be undone." prompt for SINGLE releases.
+   *  Off by default. It deliberately does NOT apply to two cases, both enforced
+   *  at the call sites: a shiny always asks, and the BULK confirmation is never
+   *  skippable and always names the exact count. Requested alongside bulk
+   *  release in br_ff6112fc5180462b81 by a player clearing 500 Magikarp. */
+  skipReleaseConfirm: boolean;
+  /** Ids currently escrowed in a live auction listing. The server escrows on
+   *  createAuction but the client keeps the Pokémon in the box, so without this
+   *  it could be released, deposited or bulk-swept while already sold. Refreshed
+   *  authoritatively whenever the auction board's "mine" tab loads. */
+  listedPokemonIds: string[];
+  /** Auto-Heal (br_27cfd612ddd30485fc). When on, the idle loop walks the player
+   *  to a heal once the party's total HP falls to `autoHealThreshold` percent or
+   *  a member has fainted. */
+  autoHeal: boolean;
+  /** Percent of party HP at or below which Auto-Heal triggers (1–99). */
+  autoHealThreshold: number;
   raidCooldownEnd: number | null;
   /** Per-tier raid cooldowns (epoch ms when each tier becomes
    *  available again). Replaces the single global raidCooldownEnd
@@ -558,16 +595,33 @@ export type Action =
   | { type: "BUY_ITEM"; payload: { itemId: string; quantity: number } }
   | { type: "CONSUME_ITEM"; payload: { itemId: string; quantity?: number } }
   | { type: "USE_POKEBALL"; payload: { ballId: string } }
-  | { type: "MARK_SEEN"; payload: { speciesKey: string } }
-  | { type: "MARK_CAUGHT"; payload: { speciesKey: string } }
-  | { type: "MARK_SHINY_CAUGHT"; payload: { speciesKey: string } }
-  | { type: "MARK_SHINY_SEEN"; payload: { speciesKey: string } }
+  // No MARK_CAUGHT / MARK_SHINY_CAUGHT / MARK_SHINY_SEEN / MARK_SEEN. They had
+  // zero dispatchers and MARK_CAUGHT registered by species KEY, which cannot
+  // carry shininess — the exact shape of br_2f7754077bfd6e9629. Dex writes go
+  // through registerAcquired(state, mon) inside the reducer; see that helper.
   | { type: "START_HEALING" }
   | { type: "HEALING_STEP" }
   | { type: "COMPLETE_HEALING" }
   | { type: "REORDER_BOX"; payload: { from: number; to: number } }
   | { type: "SORT_BOX"; payload: { mode: string } }
-  | { type: "RELEASE_POKEMON"; payload: { source: "party" | "box"; index: number } }
+  // `pokemonId` is optional and advisory-overriding: when present the reducer
+  // re-anchors `index` by id and DROPS the action if that id is gone. Every
+  // caller that snapshots an index before the user confirms should pass it —
+  // see the comment on the reducer case.
+  | {
+      type: "RELEASE_POKEMON";
+      payload: { source: "party" | "box"; index: number; pokemonId?: string };
+    }
+  // Bulk release, addressed ONLY by id — a loop of the index-addressed
+  // RELEASE_POKEMON over a selection provably deletes the wrong Pokémon, since
+  // ascending indices shift under each other. See the reducer case for the
+  // shiny / auction-listed / last-healthy guards, all of which are enforced
+  // there rather than in the UI.
+  | { type: "RELEASE_MANY"; payload: { source: "party" | "box"; pokemonIds: string[] } }
+  | { type: "SET_SKIP_RELEASE_CONFIRM"; payload: { value: boolean } }
+  | { type: "MARK_POKEMON_LISTED"; payload: { pokemonId: string } }
+  | { type: "SET_LISTED_POKEMON_IDS"; payload: { ids: string[] } }
+  | { type: "SET_AUTO_HEAL"; payload: { enabled?: boolean; threshold?: number } }
   | { type: "TRADE_COMPLETE"; payload: { sentMonId: string; received: Pokemon } }
   | {
       type: "AUCTION_SETTLED";

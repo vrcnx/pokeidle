@@ -244,9 +244,41 @@ export function sanitizeSave(save: unknown): boolean {
       else if (m.currentHp < 0) { m.currentHp = 0; changed = true; }
     }
   };
-  const s = save as { party?: unknown; box?: unknown; grantReceipts?: unknown };
+  const s = save as { party?: unknown; box?: unknown; grantReceipts?: unknown; inventory?: unknown };
   if (Array.isArray(s.party)) s.party.forEach(clampMon);
   if (Array.isArray(s.box)) s.box.forEach(clampMon);
+
+  // An over-cap item stack is CLAMPED DOWN, not rejected. Same reasoning as
+  // currentHp above: clamping a quantity down can never be a cheat, and
+  // rejecting it costs the player their whole cloud backup.
+  //
+  // This is a REAL outage, not a hypothetical. The mart's quantity stepper has
+  // a "Max" button (game/src/components/BottomTabs.tsx:258) whose quantity is
+  // `Math.floor(state.money / price)` with no cap, and the cheapest mart item is
+  // honey at $100 — so any wallet above $99,999,900 turns one click into a stack
+  // over MAX_INVENTORY_STACK. Three production accounts are already past that
+  // threshold (tokyofuck $113,046,237, phoenix $106,905,278, and koruem2), and
+  // today that click 400s every subsequent upload for the rest of the session
+  // with no client-side recovery: the refusal stores nothing, the client keeps
+  // the balls in localStorage, and it re-sends them until it reloads. The player
+  // paid for the units, so keeping MAX_INVENTORY_STACK of them is the closest
+  // honest outcome available here.
+  //
+  // Not a hole in the gain guard's item rules: they compare the CLAMPED value
+  // (sanitizeSave runs first, in step 0), so a fabricated 10^9 stack still
+  // presents as a rise to 999,999 and is still flagged. Only NUMBERS above the
+  // cap are touched — a negative, a fraction or a non-number is left exactly as
+  // it is, so validateSave still refuses those rather than silently repairing a
+  // shape nothing legitimate produces.
+  if (s.inventory && typeof s.inventory === "object" && !Array.isArray(s.inventory)) {
+    const inv = s.inventory as Record<string, unknown>;
+    for (const [k, v] of Object.entries(inv)) {
+      if (typeof v === "number" && Number.isInteger(v) && v > MAX_INVENTORY_STACK) {
+        inv[k] = MAX_INVENTORY_STACK;
+        changed = true;
+      }
+    }
+  }
   // Purge a dead field from a removed design. `grantReceipts` was a list of
   // delivered grant ids that the fold consulted before paying — i.e. a
   // DELIVERY GATE THE CLIENT SUPPLIED. Stripping it in localStorage re-paid

@@ -1,9 +1,11 @@
 import { catchRates } from "../data/catchRates";
 import { pokeballs } from "../data/pokeballs";
+import { pokemonTable } from "../data/pokemon";
 import { BALL_ORDER } from "./items";
 import { resolveCatchSettings } from "./catchSettings";
 import { ownsSpecies } from "./pokemon";
-import type { GameState } from "../types";
+import { maxSingleHitDamage } from "./battle";
+import type { GameState, Pokemon } from "../types";
 
 export function speciesCatchRate(speciesKey: string): number {
   return catchRates[speciesKey] ?? 255;
@@ -107,4 +109,137 @@ export function ballForAutoCatch(
     return null;
   }
   return pickAutoBall(speciesKey, settings.enabledBalls, state.inventory);
+}
+
+// Weaken-before-catch: keep attacking until the wild Pokémon is at or below
+// this fraction of max HP, then throw. 0.30 is deep enough into the HP window
+// to earn most of the low-HP catch bonus (hpCatchFactor) while, for an
+// even-levelled fight, leaving room above fainting.
+export const WEAKEN_HP_THRESHOLD = 0.30;
+
+/**
+ * Should the auto-catch loop spend this turn ATTACKING instead of throwing?
+ *
+ * Lives here rather than inline in useBattleLoop because the fraction test
+ * alone is wrong and was shipping: a Route 1 Pidgey has 15 max HP, so "chip it
+ * to 30%" means "get it to 4 HP", and one hit from a level-100 lead does 15+.
+ * The mon fainted every time and was never caught — which is what auto-catch
+ * looking broken on a starter route actually feels like. So the last question
+ * is whether the hit we are about to throw would kill the thing we are trying
+ * to catch; if it would, throw the ball now and take the full-HP odds.
+ *
+ * Shinies never weaken at all — one wasted hit on a 1/8192 encounter is not a
+ * trade worth making, and hpCatchFactor is pure upside rather than a
+ * requirement.
+ */
+export function shouldWeakenBeforeCatch(
+  state: GameState,
+  routeKey: string,
+  player: Pokemon,
+  enemy: Pokemon,
+): boolean {
+  const settings = resolveCatchSettings(state, routeKey, enemy.speciesKey);
+  if (!settings.weakenFirst) return false;
+  if (enemy.isShiny) return false;
+  const hpFrac = enemy.maxHp > 0 ? enemy.currentHp / enemy.maxHp : 1;
+  if (hpFrac <= WEAKEN_HP_THRESHOLD) return false;
+  const incoming = maxSingleHitDamage(
+    {
+      ...player,
+      types: pokemonTable[player.speciesKey]?.types ?? [],
+      // The live Attack/Sp. Atk stages, which is the whole point of asking.
+      // `player` is a Pokemon and Pokemon has no stat stages — they live in
+      // state.playerVolatile, and EXECUTE_TURN merges them onto its BattleSide
+      // (reducer.ts `Object.assign(player, state.playerVolatile ?? {})`) before
+      // computing real damage. Estimating at neutral while the turn resolves at
+      // +4 is how the guard cleared a hit that then killed the catch target:
+      // machop L20 vs geodude L20 (47 HP) estimates 45 unboosted and lands 129
+      // boosted. 144 such pairs exist in a small species/level grid.
+      // The defender has no persisted volatile in game state, so there is no
+      // enemy-side stage to read.
+      statStages: state.playerVolatile?.statStages,
+    },
+    { ...enemy, types: pokemonTable[enemy.speciesKey]?.types ?? [] },
+  );
+  // A zero estimate does NOT mean "a harmless hit". It means we found no
+  // usable damaging move, and both ways that happens argue for throwing now:
+  //   - every slot at 0 PP: the turn resolves as Struggle, which is typeless
+  //     and unmodelled here, so the loop would keep swinging and could faint
+  //     the very Pokemon it is trying to catch;
+  //   - a status-only moveset: the target's HP never falls, so the fraction
+  //     test never clears and no ball is EVER thrown for the encounter.
+  // Comparing `0 < currentHp` answered "true" to both.
+  if (incoming <= 0) return false;
+  return incoming < enemy.currentHp;
+}
+
+/**
+ * What the Catch Settings badge should say for a species on a route.
+ *
+ * `enabled` is NOT the answer, and printing it as if it were is the whole of
+ * br_6fcb7c411f3c317ccc: the reporter's Route 1 rules were all "Not registered"
+ * with all five species already registered, so shouldAutoCatch correctly
+ * declined every one — while the screen that exists to explain auto-catch
+ * showed a green "✓ CATCH" on all five and a tooltip saying auto-catch was ON.
+ * 769 real saves have at least one badge lying this way. The engine was right;
+ * only the label was wrong, so this reports the RESOLVED decision.
+ *
+ * `inert` means on-but-nothing-will-be-thrown, and is only ever claimed for the
+ * two modes whose condition is fixed for the species — the level and shiny
+ * modes genuinely depend on the encounter, so they stay "on". The verdict is
+ * delegated to shouldAutoCatch rather than re-deriving it; a second copy of
+ * that predicate is exactly how the two drifted apart in the first place.
+ *
+ * `shinyOverride` is the other half, and the first version of this badge got it
+ * wrong in the opposite direction to the bug it fixed. alwaysCatchShinies is ON
+ * by default and its check sits at the very TOP of shouldAutoCatch — above
+ * `enabled`, above the ball list, above the mode — so for a shiny encounter
+ * NONE of the reasons below apply. A row reading "⊘ NO MATCH" with a tooltip
+ * promising "nothing will be thrown" was therefore still lying, just more
+ * quietly: a shiny of that species gets a ball every time. The flag is reported
+ * separately from `verdict` because both facts are true at once — nothing for an
+ * ordinary encounter, a ball for a shiny one — and collapsing them into one
+ * label is what made the first version wrong.
+ */
+export type AutoCatchOutlook =
+  | { verdict: "on"; shinyOverride: boolean }
+  | { verdict: "off"; shinyOverride: boolean }
+  | {
+      verdict: "inert";
+      reason: "no_balls" | "already_registered" | "already_owned";
+      shinyOverride: boolean;
+    };
+
+export function autoCatchOutlook(
+  state: GameState,
+  routeKey: string,
+  speciesKey: string,
+): AutoCatchOutlook {
+  const settings = resolveCatchSettings(state, routeKey, speciesKey);
+  // Asked via ballForAutoCatch rather than the raw flag: the override only
+  // actually throws if a ball can be found, and for a shiny that search falls
+  // back to ANY owned ball, so neither an empty enabledBalls list nor a
+  // disabled row can stop it. An empty BAG can.
+  const shinyOverride =
+    state.alwaysCatchShinies &&
+    ballForAutoCatch(state, routeKey, speciesKey, true) !== null;
+  if (!settings.enabled) return { verdict: "off", shinyOverride };
+  if (settings.enabledBalls.length === 0) {
+    return { verdict: "inert", reason: "no_balls", shinyOverride };
+  }
+  if (settings.mode !== "pokedex_new" && settings.mode !== "not_owned") {
+    return { verdict: "on", shinyOverride };
+  }
+  // Level and shininess are the encounter's, not the species'. Level is
+  // irrelevant to these two modes so the extreme makes that explicit; shininess
+  // is NOT irrelevant, which is why it is reported as shinyOverride above
+  // instead of being folded into this call.
+  if (shouldAutoCatch(state, routeKey, speciesKey, 100, false)) {
+    return { verdict: "on", shinyOverride };
+  }
+  return {
+    verdict: "inert",
+    reason: settings.mode === "pokedex_new" ? "already_registered" : "already_owned",
+    shinyOverride,
+  };
 }

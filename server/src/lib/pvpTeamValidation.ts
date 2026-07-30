@@ -15,10 +15,19 @@
 // unconditionally for random50.
 //
 // Scope of what was actually forgeable, measured rather than assumed:
-//   - level     : NOT forgeable past 50 in the rated queue. applyLevelCap
-//                 (pvp.ts) clamps every mon to levelCapForFormat, and
-//                 random50 returns 50. Friend invites (anything-goes)
-//                 have no cap, but they are not rated.
+//   - level     : NOT forgeable in the rated queue, in either direction.
+//                 startBattle (pvp.ts) runs normalizeTeamLevel from
+//                 lib/pvpFormat.ts over both teams with
+//                 levelCapForFormat(format), and random50 returns 50, so a
+//                 forged level is overwritten with exactly 50 before the
+//                 team reaches the simulator. (This used to read
+//                 "applyLevelCap … clamps": that function no longer exists,
+//                 and clamping was the DEFECT — a lowering-only cap left
+//                 ~94% of accounts entering a "Lv 50" queue undersized.
+//                 Normalising raises as well as lowers, which happens to
+//                 close the forgery direction the old wording claimed.)
+//                 Friend invites (anything-goes) normalise nothing, but
+//                 they are not rated.
 //   - species   : forgeable. Any Showdown-known species, owned or not.
 //   - ivs/evs   : forgeable. pokemonToShowdownSet defaults absent IVs to
 //                 31, so simply OMITTING ivs yields a perfect spread.

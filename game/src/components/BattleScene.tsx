@@ -13,6 +13,7 @@ import { HealOverlay } from "./HealOverlay";
 import { BattleJuice } from "./BattleJuice";
 import { displayName } from "../utils/pokemon";
 import { trainerIntroMs, trainerIntroPokemonDelayMs } from "../utils/battleTiming";
+import { linesSince } from "../utils/battleLogCursor";
 import type { Pokemon, RouteType } from "../types";
 
 // Aspect-ratio-locked battle arena that always shows the current scene.
@@ -259,19 +260,17 @@ function DamageFlash({ side }: { side: "player" | "enemy" }) {
 function ExpGainFlash() {
   const { state } = useGame();
   const t = useT();
-  const prevLen = useRef(state.battleLog.length);
+  const seenSeq = useRef(state.battleLogSeq);
   const [pop, setPop] = useState<{ key: number; amount: number; share: boolean } | null>(null);
   useEffect(() => {
-    const start = prevLen.current;
-    const end = state.battleLog.length;
-    prevLen.current = end;
-    if (end <= start) return;
+    const fresh = linesSince(state.battleLog, state.battleLogSeq, seenSeq.current);
+    seenSeq.current = state.battleLogSeq;
+    if (fresh.length === 0) return;
     // Find the *active mon's* EXP line in the new slice. Lines marked
     // "from Exp Share" are quieter; the headline is the active gain.
     let active: { amount: number } | null = null;
     let share: { amount: number } | null = null;
-    for (let i = start; i < end; i++) {
-      const line = state.battleLog[i] ?? "";
+    for (const line of fresh) {
       const m = /gained (\d+) EXP/.exec(line);
       if (!m) continue;
       const amount = parseInt(m[1], 10);
@@ -288,7 +287,7 @@ function ExpGainFlash() {
     const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
     const t = setTimeout(() => setPop(null), ms);
     return () => clearTimeout(t);
-  }, [state.battleLog, state.speed]);
+  }, [state.battleLog, state.battleLogSeq, state.speed]);
   if (!pop) return null;
   // Scale the CSS animation duration to the game's speed so the
   // pop's keyframes finish in the same window the JS unmount timer
@@ -324,19 +323,17 @@ type EffPop =
 function EffectivenessFlash() {
   const { state } = useGame();
   const t = useT();
-  const prevLen = useRef(state.battleLog.length);
+  const seenSeq = useRef(state.battleLogSeq);
   const [pop, setPop] = useState<EffPop | null>(null);
   useEffect(() => {
-    const start = prevLen.current;
-    const end = state.battleLog.length;
-    prevLen.current = end;
-    if (end <= start) return;
+    const fresh = linesSince(state.battleLog, state.battleLogSeq, seenSeq.current);
+    seenSeq.current = state.battleLogSeq;
+    if (fresh.length === 0) return;
     // Crits and effectiveness can both fire in the same turn — crit
     // wins the headline since it's the rarer / louder event.
     let crit = false;
     let eff: { kind: "se" | "nve" | "none"; text: string } | null = null;
-    for (let i = start; i < end; i++) {
-      const line = state.battleLog[i] ?? "";
+    for (const line of fresh) {
       if (line === "A critical hit!") crit = true;
       else if (line === "It's super effective!")     eff = { kind: "se",   text: t("Super effective!") };
       else if (line === "It's not very effective...") eff = { kind: "nve",  text: t("Not very effective") };
@@ -350,7 +347,7 @@ function EffectivenessFlash() {
     const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
     const timer = setTimeout(() => setPop(null), ms);
     return () => clearTimeout(timer);
-  }, [state.battleLog, state.speed]);
+  }, [state.battleLog, state.battleLogSeq, state.speed]);
   if (!pop) return null;
   const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
   return (

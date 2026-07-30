@@ -1957,6 +1957,13 @@ header.tab-pane-head.v2 .mart-wallet {
   gap: 6px;
   flex-shrink: 0;
   min-height: 32px;
+  /* Deliberately NOT flex-wrap. The bulk-release "Select" button is icon-only
+     for this reason: as a text button it pushed the row 35px past a 320px pane
+     and wrapping it to a second line cost 20px of grid height at 360px too.
+     Measured in-browser at 320/360/400/480/768 — icon-only holds this row at
+     exactly the 32px it was before the button existed, at every one of them.
+     This pane is already the subject of a small-monitor report
+     (br_50f99cbac7f106d571), so it must not grow. */
 }
 .pc-tool {
   display: inline-flex;
@@ -2002,6 +2009,95 @@ header.tab-pane-head.v2 .mart-wallet {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   opacity: 0.75;
+}
+
+/* ---- Bulk release (br_ff6112fc5180462b81) -------------------------------
+   Its own row rather than more buttons in the toolbar: it only exists in
+   selection mode, and the one destructive control in the PC should not sit
+   one pixel away from "Sort". */
+.pc-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+}
+.pc-bulk-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+  white-space: nowrap;
+}
+.pc-bulk-release {
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fecaca !important;
+  font-weight: 600;
+}
+.pc-bulk-release:hover:not(:disabled) {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+.pc-bulk-bar .pc-tool:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pc-bulk-note {
+  flex-shrink: 0;
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.3;
+  opacity: 0.6;
+}
+/* Selection mode. The plate dims so a ticked cell is obvious at a glance
+   across a 40-cell window, and an unselectable one (shiny, or listed at the
+   auction house) is visibly out of play rather than just unresponsive. */
+.pc-cell.selecting { cursor: pointer; }
+.pc-cell.selecting .pc-cell-plate { opacity: 0.55; transition: opacity 120ms; }
+.pc-cell.selected .pc-cell-plate {
+  opacity: 1;
+  outline: 2px solid #ef4444;
+  outline-offset: -2px;
+}
+.pc-cell.unselectable { cursor: not-allowed; }
+.pc-cell.unselectable .pc-cell-plate { opacity: 0.3; }
+.pc-cell-check {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 9px;
+  line-height: 1;
+  color: #fff;
+  pointer-events: none;
+}
+.pc-cell-check.on { background: #ef4444; border-color: #ef4444; }
+.pc-cell-check.locked { border-style: dashed; background: rgba(0, 0, 0, 0.35); }
+/* Escrowed in a live auction listing. The server has it; the box must not
+   pretend it is free to release or deposit. */
+.pc-cell-listed {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  z-index: 2;
+  font-size: 9px;
+  line-height: 11px;
+  color: var(--gold);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
 }
 .pc-search-wrap {
   position: relative;
@@ -4722,6 +4818,23 @@ body.dnd-active {
   animation-delay: var(--trainer-intro-delay, 1100ms);
   animation-fill-mode: backwards;
 }
+.sprite-slot.trainer-delayed::after {
+  /* The floor shadow is the THIRD thing in this slot, and it was left out when
+     the other two were delayed: shadowPulse started at mount while the sprite
+     was still held off-screen, so a shadow sat on empty ground for the whole
+     trainer intro and again on every send-next — br_ff2d76689ef6c5281d. The
+     slot's React key is the enemy id, so it remounts per swap, which is why
+     the reporter saw it both times.
+
+     NOTE the missing `animation-fill-mode: backwards` that the two rules above
+     need. It would do the opposite here: shadowPulse's 0% keyframe is
+     opacity 0.85, so filling backwards would hold the shadow VISIBLE through
+     the delay. With fill-mode at its default `none` the element's own
+     opacity: 0 applies until the animation starts, then the keyframes take
+     over on the same frame the pokeball pop begins. */
+  opacity: 0;
+  animation-delay: var(--trainer-intro-delay, 1100ms);
+}
 
 /* ---------- Damage / attack animations ----------
    When HP drops, the parent slot's `bump-*` key changes, restarting the
@@ -4800,7 +4913,23 @@ body.dnd-active {
   z-index: 1;
   animation: shadowPulse 2.4s ease-in-out infinite;
 }
-.sprite-slot.fainted::after { opacity: 0; }
+/* Hide the floor shadow once the Pokemon has fainted.
+   `opacity: 0` ALONE WAS DEAD CODE. shadowPulse above is `infinite` and sets
+   opacity in every one of its keyframes, and declarations from the animation
+   origin outrank normal author declarations — so the shadow went on pulsing on
+   empty ground after spriteFaint had faded the sprite out. Same visual defect as
+   br_ff2d76689ef6c5281d (a shadow with no Pokemon over it), at the other end of
+   the sprite's life. Cancelling the animation is what lets the opacity apply.
+
+   Note this is NOT interchangeable with .sprite-slot.trainer-delayed::after
+   just above, which looks identical and must NOT cancel the animation — that
+   one relies on the animation still being scheduled and merely delayed, and
+   works because fill-mode `none` means the keyframes contribute nothing during
+   the delay window. */
+.sprite-slot.fainted::after {
+  animation: none;
+  opacity: 0;
+}
 @keyframes shadowPulse {
   0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.85; }
   50%      { transform: translateX(-50%) scaleX(0.94); opacity: 0.7; }
@@ -5468,6 +5597,18 @@ body.dnd-active {
 }
 .catch-toggle.on { background: #22c55e; color: #fff; border-color: #16a34a; }
 .catch-toggle.off { background: rgba(0,0,0,0.2); color: var(--ink-soft); }
+/* "On, but nothing will be thrown" — amber, deliberately NOT the green of
+   `.on`. Sharing green is what let a rule that catches nothing read as a rule
+   that catches everything (br_6fcb7c411f3c317ccc). */
+.catch-toggle.inert { background: #b45309; color: #fff; border-color: #92400e; }
+/* "Nothing for an ordinary encounter, but a ball for a shiny one." Applies on
+   top of `.off` AND `.inert` — "Always catch shinies" is checked above both the
+   `enabled` flag and the mode, so either badge alone understates. Listed after
+   both so it wins at equal specificity. */
+.catch-toggle.shiny-net {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff; border-color: #6d28d9;
+}
 .catch-mystery {
   display: grid; place-items: center;
   width: 32px; height: 32px;
@@ -10789,6 +10930,57 @@ input:focus, textarea:focus, select:focus {
 .party-card {
   padding: 12px !important;
 }
+/* Party header row: title left, Heal right (br_27cfd612ddd30485fc). The h4 kept
+   its own margin:0 from .ctx-section h4, so this only has to lay the two out. */
+.party-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.party-heal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms, opacity 120ms;
+}
+.party-heal-btn:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.28);
+  border-color: rgba(74, 222, 128, 0.8);
+  color: #dcfce7;
+}
+.party-heal-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Nothing to restore. Deliberately NOT `disabled` — the button is also the
+   mid-battle retreat, and a full party can still want out of a fight. */
+.party-heal-btn.full { opacity: 0.5; }
+.party-heal-btn svg { display: block; }
+/* Auto-heal threshold slider (Settings → Game). */
+.auto-heal-threshold { align-items: center; }
+.auto-heal-threshold-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.auto-heal-threshold-ctl input[type="range"] { width: 110px; }
+.auto-heal-threshold-ctl strong {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .party-card .party-list {
   margin: 0;
   padding: 0;
@@ -14095,32 +14287,18 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
   background: rgba(255, 255, 255, 0.04);
   border-radius: var(--r-sm);
 }
-/* Custom hover tooltip (desktop) — the native title attribute is kept
-   as a fallback for touch/long-press, but it's slow and unstyled;
-   this shows the species name immediately, styled to match the UI. */
-.route-card-mon-tip {
-  position: absolute;
-  bottom: calc(100% + 5px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #14161c;
-  color: var(--text);
-  font-size: 10.5px;
-  white-space: nowrap;
-  padding: 3px 7px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-  z-index: 5;
-}
-.route-card-mon:hover .route-card-mon-tip {
-  opacity: 1;
-  visibility: visible;
-}
+/* There is deliberately no `.route-card-mon-tip` here any more. A styled hover
+   tooltip lived in this slot, duplicating the native `title` word for word, and
+   it could not work: it was absolutely positioned inside a 26px sprite cell
+   with white-space: nowrap, so a "Nidoran♂ · Lv4-6 · 15%" label overhung the
+   cell by ~52px on each side and was clipped by TWO ancestors — .route-card-grid
+   (overflow-y: auto also computes overflow-x to auto) and .bottom-tab-body
+   (overflow: hidden) — plus the top edge of the scroller for the first card,
+   since it opened upward. br_a3f10a15331c5ff80c / br_5406e95a33f579a605.
+   Escaping both scrollers means portalling to the body with fixed positioning,
+   which is a lot of machinery to re-print a string the browser already shows
+   uncroppable and long-press-accessible. Cost of the removal: hover latency
+   goes back to the OS tooltip delay. That is the trade, on purpose. */
 .route-card-progress { flex: 0 0 auto; white-space: nowrap; }
 .route-card button { flex: 0 0 auto; margin-left: auto; }
 /* One requirement per row. Side-by-side (flex, min-width:130px) squeezed two

@@ -23,7 +23,7 @@ import { evolutionLocked, levelEvolutionFor } from "../utils/evolution";
  * Gated on `state.autoEvolve` (global, default on) and on each Pokémon's own
  * `noEvolve` lock (per-mon opt-out — the Everstone).
  */
-export function useAutoEvolve(): void {
+export function useAutoEvolve(suspended = false): void {
   const { state, dispatch } = useGame();
   // Every `${pokemonId}:${targetSpecies}` this hook has already asked for.
   //
@@ -58,6 +58,14 @@ export function useAutoEvolve(): void {
     // healing / starter select on its own; the rest are things that can be
     // playing WHILE the phase is already back to "idle", each of which owns
     // the screen or the simulation for as long as it lasts.
+    // A PvP battle is a competitive match the player is actively playing.
+    // An evolution popping up mid-turn steals focus, and it sets
+    // phase:"evolution", which useBattleLoop early-returns on permanently —
+    // so an unresolved one would also leave the idle game dead once PvP ends.
+    // Checked FIRST, and before attemptedRef is touched, because that set is
+    // deliberately never cleared: a return placed after the add would kill
+    // that Pokemon's evolution forever.
+    if (suspended) return;
     if (state.phase !== "idle") return;
     if (state.paused) return;              // player stopped the sim; respect it
     if (state.evolutionState) return;      // one evolution at a time, always
@@ -100,6 +108,7 @@ export function useAutoEvolve(): void {
   }, [
     state.autoEvolve,
     state.phase,
+    suspended,
     state.paused,
     state.party,
     state.evolutionState,

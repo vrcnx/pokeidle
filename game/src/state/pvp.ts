@@ -13,7 +13,22 @@ import {
 // any component can render off the live battle without prop-drilling
 // through the dashboard.
 
-export type BattleFormat = "anything-goes" | "random50" | "tournament";
+// Mirrors server/src/pvp.ts's BattleFormat. "bot" is an AI practice battle:
+// never rated, never written to match history, and level-matched to the
+// player's own team rather than capped.
+export type BattleFormat = "anything-goes" | "random50" | "tournament" | "bot";
+
+/** Is this an AI practice battle?
+ *
+ *  Derived from the format rather than carried as a second boolean on the room,
+ *  deliberately. `format` already arrives on battle:start AND on the
+ *  battle:rejoin snapshot, so a reloaded page gets the right answer for free;
+ *  a separate `bot` flag would be a second source of truth that only one of
+ *  those two paths populated, and the failure mode is the arena telling a
+ *  player their practice battle was rated. */
+export function isBotBattle(room: { format: string } | null | undefined): boolean {
+  return room?.format === "bot";
+}
 
 export interface BattleInvite {
   battleId: string;
@@ -177,6 +192,60 @@ export function joinRandomQueue(
 
 export function leaveRandomQueue(ack?: (r: { ok: boolean }) => void) {
   getSocket().emit("battle:dequeue", {}, ack);
+}
+
+// ── AI practice ─────────────────────────────────────────────────────
+// The matchmaking queue is pure FIFO and needs two people in it at the same
+// instant, so "nobody is there" is the ordinary outcome rather than the edge
+// case. This is the answer to an empty queue, NOT a replacement for it: the
+// real queue stays exactly as it was, and the offer only appears once the
+// player is demonstrably alone (see PvpHubModal).
+//
+// The server picks the trainer and level-matches its team to yours. It answers
+// with the label it will show, which always contains " AI" — the player must
+// never be able to mistake this for a human.
+export interface BotBattleAck {
+  ok: boolean;
+  error?: string;
+  battleId?: string;
+  opponent?: string;
+  tier?: BotTier;
+}
+export type BotTier = "rookie" | "trainer";
+
+export function startBotBattle(
+  team: Pokemon[],
+  opts: { tier?: BotTier; trainer?: string } = {},
+  ack?: (r: BotBattleAck) => void,
+) {
+  getSocket().emit("battle:bot", { team, tier: opts.tier, trainer: opts.trainer }, ack);
+}
+
+/** One entry of the AI opponent list.
+ *
+ *  `fit` and `matched` come from the SERVER's matcher, which is the only thing
+ *  that knows how a trainer's pool would be filled against this party — the
+ *  same code path battle:bot runs. `fit` is a mean per-slot build distance
+ *  (smaller = better matched) and `edge` is type advantage in log2 steps,
+ *  positive towards the AI. They exist so the picker can be honest about which
+ *  opponents are a fair fight instead of presenting eight identical-looking
+ *  choices, one of which used to be unwinnable. */
+export interface BotTrainerOption {
+  id: string;
+  label: string;
+  fit?: number;
+  edge?: number;
+  matched?: boolean;
+}
+
+/** `mons` is levels + species only, and only so the server can RANK the
+ *  trainers for this party. The real team goes with startBotBattle and is
+ *  bounds-validated there. */
+export function listBotTrainers(
+  mons: { level: number; speciesKey: string }[] | undefined,
+  ack: (r: { ok: boolean; trainers?: BotTrainerOption[]; recommended?: string | null }) => void,
+) {
+  getSocket().emit("battle:bot:trainers", mons && mons.length > 0 ? { mons } : {}, ack);
 }
 
 // ── Spectator helpers ──────────────────────────────────────────────

@@ -7,6 +7,9 @@ import { useT } from "../i18n/useT";
 import {
   joinRandomQueue,
   leaveRandomQueue,
+  startBotBattle,
+  listBotTrainers,
+  type BotTrainerOption,
   usePvpState,
   listLiveBattles,
   joinSpectator,
@@ -17,6 +20,10 @@ import { openReplay } from "./PvpReplayModal";
 import { IconSwords, IconCrown, IconClose } from "./Icon";
 import { PokemonSprite } from "./Sprite";
 import { PVP_TIERS, tierFor, tierProgress, ratingToNextTier } from "../state/pvpTiers";
+// The offer below reuses .pvp-queue-overlay / .pvp-slab / .pvp-mode-chip from
+// app.css and adds only two new rules, which live in pvpArena.css. Vite dedupes
+// this against PvpArena.tsx's own import of the same file.
+import "../pvpArena.css";
 
 // ──────────────────────────────────────────────────────────────────
 //  Arena Card v2 — denser trainer-card lobby
@@ -27,7 +34,15 @@ import { PVP_TIERS, tierFor, tierProgress, ratingToNextTier } from "../state/pvp
 // v2 packs the same data into a horizontal trainer-card with team
 // strip + stats grid, then a 2-col bottom row for match tape + top 3.
 
-type Mode = "ranked" | "casual" | "tournament";
+type Mode = "ranked" | "casual" | "tournament" | "practice";
+
+/** How long a player has to be alone in the queue before the AI is offered.
+ *
+ *  ~7 passes of the 3-second server-side matchmaking ticker. Short enough that
+ *  a 3 a.m. player is not abandoned, long enough that it never appears in front
+ *  of someone who was about to be matched — which is the thing that would make
+ *  the real queue feel worse rather than better. */
+const LONELY_QUEUE_MS = 20_000;
 
 let _open = false;
 const _listeners = new Set<(o: boolean) => void>();
@@ -67,6 +82,19 @@ export function PvpHubModal() {
   const [mode, setMode] = useState<Mode>("ranked");
   const [tickerOpen, setTickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Wall clock, ticked only while queued, so the "you are alone" offer below
+  // can appear on its own after LONELY_QUEUE_MS instead of needing the player
+  // to cause a re-render.
+  const [now, setNow] = useState(() => Date.now());
+  // "Keep waiting" is honoured for THIS wait only — it resets when they
+  // requeue, because the next wait is a new decision.
+  const [offerDismissed, setOfferDismissed] = useState(false);
+  const [botTrainers, setBotTrainers] = useState<BotTrainerOption[]>([]);
+  // Who the SERVER says is the fair fight for this party, and who the player
+  // has chosen instead. null = "use the recommendation", which is what the
+  // permanent PRACTICE slab sends.
+  const [botRecommended, setBotRecommended] = useState<string | null>(null);
+  const [botPick, setBotPick] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) { setLoaded(false); return; }
@@ -82,6 +110,23 @@ export function PvpHubModal() {
       if (l.status === "fulfilled") setLeaderboard(l.value.leaderboard);
       if (t.status === "fulfilled") setTournaments(t.value.tournaments);
       setLoaded(true);
+    });
+    // Who the AI can be, and which of them is a FAIR fight for this party.
+    //
+    // The party summary (levels + species only) is what lets the server rank
+    // them, and ranking is the fix for a real defect rather than decoration:
+    // the trainer used to be rolled uniformly at random, and measured against
+    // 2,309 production parties one of the eight won 100% of low-level battles
+    // while another won 6% of high-level ones. Now the offer names the
+    // recommended opponent and the picker says which choices are matched.
+    const summary = game.state.party
+      .slice(0, 6)
+      .map((m) => ({ level: m.level, speciesKey: m.speciesKey }));
+    listBotTrainers(summary, (res) => {
+      if (!res.ok) return;
+      setBotTrainers(res.trainers ?? []);
+      setBotRecommended(res.recommended ?? null);
+      setBotPick(null);
     });
     const refreshLive = () => {
       listLiveBattles((res) => { if (res.ok) setLiveBattles(res.battles ?? []); });
@@ -100,6 +145,15 @@ export function PvpHubModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen]);
 
+  const queuedAt = pvp.queue?.joinedAt ?? null;
+  useEffect(() => {
+    setOfferDismissed(false);
+    if (!isOpen || queuedAt == null) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [isOpen, queuedAt]);
+
   const myRank = useMemo(() => {
     if (!me) return null;
     const idx = leaderboard.findIndex((r) => r.userId === me.id);
@@ -107,6 +161,21 @@ export function PvpHubModal() {
   }, [leaderboard, me]);
 
   const streak = useMemo(() => computeStreak(history), [history]);
+
+  // The trainer named in the queue offer, and the one actually passed to the
+  // server, so the name in the offer is the name you fight.
+  //
+  // This used to be `botTrainers[Math.floor(Math.random() * length)]`, and the
+  // uniform roll was the defect: the eight rosters were fixed early-game teams,
+  // so at max party level <=10 the roll decided the battle (Ace Trainer AI won
+  // 100% of measured battles, Bug Catcher AI 38%) and at Lv 60+ seven of the
+  // eight were a punching bag. The server now ranks them for THIS party and the
+  // offer takes its recommendation — the variety comes from the server picking
+  // among the trainers that genuinely fit, not from a die roll here.
+  const offerTrainer = useMemo(
+    () => botTrainers.find((t) => t.id === botRecommended) ?? botTrainers[0] ?? null,
+    [botTrainers, botRecommended],
+  );
 
   // ── End of hooks. Derived values + render below. ────────────────
   if (!isOpen) return null;
@@ -136,6 +205,49 @@ export function PvpHubModal() {
     });
   };
   const cancelQueue = () => leaveRandomQueue();
+
+  /** What to say about an AI opponent in the picker.
+   *
+   *  `matched` is the SERVER's own verdict — the same two thresholds pickTrainer
+   *  applies when it chooses for you — so this never claims a fight is fair that
+   *  the server would not itself have offered. `edge` is only used to explain
+   *  WHY an unmatched one is unmatched, and every entry gets a note: an opponent
+   *  the matcher could not fit to your team with no explanation attached is the
+   *  silent version of the problem this picker exists to fix. */
+  const trainerNote = (tr: BotTrainerOption): string => {
+    if (tr.id === botRecommended) return t("matched to your team");
+    if (tr.matched) return t("fair fight");
+    if ((tr.edge ?? 0) > 0.5) return t("type advantage to the AI");
+    if ((tr.edge ?? 0) < -0.5) return t("type advantage to you");
+    return t("not matched to your team");
+  };
+
+  // AI practice. Deliberately NO levelCap on the picker: the server matches the
+  // bot to your team slot-for-slot, so there is nothing to normalise and
+  // showing a "Lv 50 cap" hint would be wrong for the 87% of players whose
+  // whole party is under 50.
+  const startPractice = (trainer?: string) => {
+    if (noTeam) return;
+    closePvpHub();
+    openTeamBuilder({
+      mode: "queue",
+      onConfirm: (team) => {
+        startBotBattle(team, { trainer }, (res) => {
+          if (!res.ok) {
+            window.alert(res.error ? `Couldn't start practice: ${res.error}` : t("Couldn't start practice."));
+          }
+        });
+      },
+    });
+  };
+
+  // "Nobody is there" is the NORMAL outcome of joining a FIFO queue in a game
+  // with ~34 active players an hour, so the offer is gated on being able to
+  // PROVE it rather than on a hunch: the server broadcasts the live queue size
+  // on every mutation (battle:queue:update), and joinedAt is when we arrived.
+  const aloneInQueue =
+    inQueue && !offerDismissed && (pvp.queue?.queueSize ?? 1) <= 1
+    && now - (pvp.queue?.joinedAt ?? now) > LONELY_QUEUE_MS;
 
   const liveOnly = liveBattles.length > 0;
   const openTournaments = tournaments.filter((t) => t.status === "open" || t.status === "live");
@@ -265,7 +377,7 @@ export function PvpHubModal() {
         {/* MODE CHIPS + READY UP — tighter row, less hero space */}
         <section className="pvp2-cta">
           <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
-            {(["ranked", "casual", "tournament"] as Mode[]).map((m) => (
+            {(["ranked", "casual", "tournament", "practice"] as Mode[]).map((m) => (
               <button
                 key={m}
                 role="tab"
@@ -285,9 +397,35 @@ export function PvpHubModal() {
             inQueue={inQueue}
             noTeam={noTeam}
             mode={mode}
-            onReady={startMatch}
+            onReady={
+              mode === "practice"
+                ? () => startPractice(botPick ?? botRecommended ?? undefined)
+                : startMatch
+            }
             onCancel={cancelQueue}
           />
+          {/* WHO you fight, and how fair it is — the finding this closes is that
+              the player was told which trainer was being proposed but had no way
+              to pick one, while the trainers were not equally strong. */}
+          {mode === "practice" && !inBattle && !inQueue && botTrainers.length > 0 && (
+            <div className="pvp2-bot-picker">
+              <label htmlFor="pvp-bot-trainer">{t("Opponent")}</label>
+              <select
+                id="pvp-bot-trainer"
+                value={botPick ?? botRecommended ?? ""}
+                onChange={(e) => setBotPick(e.target.value || null)}
+              >
+                {botTrainers.map((tr) => (
+                  <option key={tr.id} value={tr.id}>
+                    {tr.label} — {trainerNote(tr)}
+                  </option>
+                ))}
+              </select>
+              <span className="dim small">
+                {t("Their Pokémon are matched to your team's levels and power. Never rated.")}
+              </span>
+            </div>
+          )}
         </section>
 
         {/* 2-COL: LAST 10 + TOP 3 */}
@@ -409,10 +547,48 @@ export function PvpHubModal() {
           )}
         </section>
 
-        {/* QUEUE OVERLAY */}
+        {/* QUEUE OVERLAY
+            The scan keeps running underneath. The AI offer is an ADDITION to a
+            wait that is still live, never a replacement for it — "Keep waiting"
+            does nothing at all because nothing was ever cancelled. */}
         {inQueue && (
           <div className="pvp-queue-overlay">
             <div className="pvp-queue-heartbeat">{t("SCANNING FOR OPPONENT…")}</div>
+            {aloneInQueue && (
+              <div className="pvp2-lonely-offer" role="status">
+                <strong>{t("No one else is in the queue right now.")}</strong>
+                <span className="dim small">
+                  {offerTrainer
+                    ? <>{t("Fight")} <strong>{offerTrainer.label}</strong> {t("instead?")}</>
+                    : t("Fight a computer opponent instead?")}
+                  {/* "levels" alone was true and incomplete, which made the
+                      offer read as fairer than it was: the trainer used to be
+                      rolled at random over fixed early-game teams, so a
+                      level-matched Gyarados could turn up against a Lv 7 party.
+                      The server now matches the opponent's POWER as well and
+                      picks a trainer that fits, so the offer can say so. */}
+                  {" "}{t("Their Pokémon are matched to your team's levels and power.")}
+                </span>
+                <span className="dim small">{t("AI practice battle — not rated, no rank change.")}</span>
+                <div className="pvp2-lonely-actions">
+                  {/* Deliberately does NOT dequeue first. battle:bot dequeues
+                      server-side only once it has actually started the battle,
+                      so backing out of the team picker leaves the player exactly
+                      where they were — still queued — instead of costing them
+                      their slot for changing their mind. And if a human turns up
+                      while the picker is open, they get the human. */}
+                  <button
+                    className="g-btn-primary g-btn-small"
+                    onClick={() => startPractice(offerTrainer?.id)}
+                  >
+                    {t("Fight the AI")}
+                  </button>
+                  <button className="g-btn-ghost g-btn-small" onClick={() => setOfferDismissed(true)}>
+                    {t("Keep waiting")}
+                  </button>
+                </div>
+              </div>
+            )}
             <button className="g-btn-ghost g-btn-small" onClick={cancelQueue}>{t("Stand Down")}</button>
           </div>
         )}
@@ -462,6 +638,18 @@ function ReadyUpSlab({
       <button className="pvp-slab pvp-slab-secondary" disabled>
         <span className="pvp-slab-title">{t("PICK A TOURNAMENT")}</span>
         <span className="pvp-slab-sub">{t("Open the tournament list below")}</span>
+      </button>
+    );
+  }
+  // The permanent door to the AI, next to the real modes rather than hidden
+  // behind a 20-second wait. Someone playing at 3 a.m. already knows the queue
+  // is empty and should not have to prove it first — but the offer stays a
+  // deliberate choice, so RANKED remains the default chip.
+  if (mode === "practice") {
+    return (
+      <button className="pvp-slab pvp-slab-secondary" onClick={onReady}>
+        <span className="pvp-slab-title">{t("PRACTICE VS AI")}</span>
+        <span className="pvp-slab-sub">{t("Not rated · matched to your team")}</span>
       </button>
     );
   }

@@ -170,6 +170,17 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
                 const label = seen
                   ? `${sp?.name ?? e.speciesKey} · Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`
                   : t("Not yet seen");
+                // `title` only — this cell used to carry a styled tooltip span
+                // as well, with the same `label` text in both. The custom one
+                // was absolutely positioned inside a 26px flex cell with
+                // white-space: nowrap, so a ~130px label overhung ~52px each
+                // side and got clipped by .route-card-grid's overflow-y (which
+                // computes overflow-x to auto too) and by .bottom-tab-body's
+                // overflow: hidden — br_a3f10a15331c5ff80c / br_5406e95a33f579a605,
+                // whose reporter also spotted that it duplicated the native
+                // tooltip. The native one cannot be clipped and works on touch
+                // long-press; a styled tip would have to be portalled to the
+                // body to escape those two scrollers, for the same words.
                 return (
                   <span key={e.speciesKey} className="route-card-mon" title={label}>
                     {seen ? (
@@ -184,7 +195,6 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
                     ) : (
                       <span className="route-card-mon-mystery">?</span>
                     )}
-                    <span className="route-card-mon-tip">{label}</span>
                   </span>
                 );
               })}

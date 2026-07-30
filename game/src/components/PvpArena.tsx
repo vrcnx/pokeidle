@@ -33,6 +33,7 @@ import {
   chooseBattleAction,
   cancelBattle,
   clearBattleRoom,
+  isBotBattle,
   type BattleRoom,
 } from "../state/pvp";
 import type { ActiveMon, BenchMon, NarrationLine, SideView } from "../state/pvpBattleView";
@@ -131,14 +132,7 @@ function PvpBattleWindow({ room }: { room: BattleRoom }) {
               ? <PvpFighterCard mon={foe.active} className="enemy-card" />
               : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
             <div className="trainer-tag">
-              <button
-                type="button"
-                className="pvp2-name-link"
-                onClick={() => openPublicTrainerCard(room.opponent.username)}
-                title={t("View trainer card")}
-              >
-                <strong>{room.opponent.username}</strong>
-              </button>
+              <OpponentName room={room} />
               <TeamBalls side={foe} />
             </div>
           </div>
@@ -223,6 +217,43 @@ function PvpBattleWindow({ room }: { room: BattleRoom }) {
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * The foe's name plate.
+ *
+ * Two things change for an AI practice battle, and neither is decoration:
+ *
+ *  1. The name stops being a button. openPublicTrainerCard fetches
+ *     GET /api/profile/<name>, which 404s for a seat that has no account — so
+ *     the link is a dead end that looks like a real player's profile.
+ *  2. A permanent AI chip sits next to it. The label already ends in " AI"
+ *     (and a space is impossible in a real username, so it cannot be
+ *     impersonating anyone), but the chip is what makes it unmissable at a
+ *     glance in the middle of a battle rather than something you have to read.
+ */
+function OpponentName({ room }: { room: BattleRoom }) {
+  const t = useT();
+  if (isBotBattle(room)) {
+    return (
+      <span className="pvp2-foe-name">
+        <strong>{room.opponent.username}</strong>
+        <span className="pvp2-ai-chip" title={t("A computer opponent — this battle is not rated.")}>
+          {t("AI")}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="pvp2-name-link"
+      onClick={() => openPublicTrainerCard(room.opponent.username)}
+      title={t("View trainer card")}
+    >
+      <strong>{room.opponent.username}</strong>
+    </button>
   );
 }
 
@@ -578,6 +609,12 @@ function ResultBar({ room }: { room: BattleRoom }) {
       </strong>
       {room.result?.reason === "forfeit" && <span className="dim small">({t("forfeit")})</span>}
       {room.result?.reason === "timeout" && <span className="dim small">({t("timeout")})</span>}
+      {/* Explain the MISSING rating delta rather than just omitting it. A win
+          with no number next to it otherwise reads as "the rating update
+          failed", which is the bug report this line prevents. */}
+      {isBotBattle(room) && (
+        <span className="dim small">{t("Practice vs AI — not rated")}</span>
+      )}
       {myDelta != null && (
         <span className={`pvp2-result-delta ${myDelta >= 0 ? "up" : "down"}`}>
           {myDelta >= 0 ? "+" : ""}{myDelta}
@@ -604,9 +641,14 @@ export function PvpRail() {
     <div className="party-column control-column pvp2-rail">
       <header className="pvp2-rail-head">
         <span className="pvp2-rail-title">{t("PvP Battle")}</span>
+        {/* "bot" needs its own branch, not the fallback. This chain ends in
+            "Friendly", which for an unrated AI practice battle would be a lie
+            about who you are fighting — and the one thing this feature must
+            never do is let the player think an AI was a person. */}
         <span className="pvp2-rail-format">
           {room.format === "random50" ? t("Ranked · Lv 50")
             : room.format === "tournament" ? t("Tournament")
+            : room.format === "bot" ? t("AI Practice · Not rated")
             : t("Friendly")}
         </span>
         {!room.result && room.turnDeadlineAt && <TurnTimer deadline={room.turnDeadlineAt} />}

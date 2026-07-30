@@ -1,11 +1,9 @@
-import { useRef } from "react";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { openManageMoves } from "./ManageMovesModal";
 import { ControlsPopover } from "./ControlsPopover";
 import { openCatchSettings } from "./CatchSettingsModal";
-import { IconPlus, IconEdit, IconTarget } from "./Icon";
-import { animatePop } from "../utils/animate";
+import { IconEdit, IconTarget } from "./Icon";
 import { STRUGGLE_ID, isOutOfPP } from "../utils/battle";
 import { typeEffectiveness } from "../utils/typing";
 import { pokemonTable } from "../data/pokemon";
@@ -120,11 +118,6 @@ export function MovesToolbar() {
   const t = useT();
   const player = state.playerPokemon;
   const activeIdx = state.activePlayerPokemonIndex;
-  const healBtnRef = useRef<HTMLButtonElement | null>(null);
-
-  // Heal is allowed any time you have a party — even mid-battle. The only
-  // gate is "already healing" so we don't double-fire the animation.
-  const healDisabled = state.phase === "healing" || !player;
 
   return (
     <div className="moves-toolbar" role="toolbar" aria-label={t("Game controls")}>
@@ -142,20 +135,13 @@ export function MovesToolbar() {
           </button>
         ))}
       </div>
+      {/* Heal MOVED to the top-right of the Party card (br_27cfd612ddd30485fc).
+          It acted on the party but lived in a row of battle controls between
+          the speed segment and Manage Moves, in a different column from the six
+          rows it heals. Deliberately not left here as a duplicate: two Heal
+          buttons in one screen is how a player ends up unsure which one
+          retreats from the battle. See PartyHealButton in PartyColumn.tsx. */}
       <div className="moves-toolbar-group">
-        <button
-          ref={healBtnRef}
-          className="toolbar-btn heal-quick-btn"
-          disabled={healDisabled}
-          onClick={() => {
-            if (healBtnRef.current) animatePop(healBtnRef.current, 1.15);
-            dispatch({ type: "START_HEALING" });
-          }}
-          title={healDisabled ? t("Cannot heal right now") : t("Heal your party")}
-        >
-          <IconPlus size={14} strokeWidth={2.5} />
-          <span>{t("Heal")}</span>
-        </button>
         <button
           className="toolbar-btn manage-moves-btn"
           disabled={!player}

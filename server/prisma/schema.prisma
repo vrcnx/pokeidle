@@ -149,6 +149,16 @@ model User {
   bids              Bid[]         @relation("Bidder")
   pollVotes         PollVote[]
   streamKey         StreamKey?
+  /// PvP ladder rewards (lib/pvpLadder.ts). Relation fields only — they
+  /// generate no DDL, so the hand-written migration
+  /// 20260730120000_add_pvp_ladder stays the complete description of the
+  /// tables. Two lists for PvpLadderEarn because it carries TWO foreign keys
+  /// to User, and that second one ("opponentUserId") is the constraint that
+  /// makes a synthetic AI/bot opponent unable to be paid.
+  pvpLadderEarns     PvpLadderEarn[]     @relation("PvpLadderEarner")
+  pvpLadderAgainst   PvpLadderEarn[]     @relation("PvpLadderOpponent")
+  pvpWinBonusClaim   PvpWinBonusClaim?
+  pvpBadgeMilestones PvpBadgeMilestone[]
 }
 
 /// Per-account constant secret that lets an OBS/24-7 stream auto-login via
@@ -864,4 +874,192 @@ model Bid {
 
   @@index([auctionId, createdAt])
   @@index([bidderId, createdAt])
+}
+
+// ── PvP ladder rewards ───────────────────────────────────────────────────
+// Policy + payment: server/src/lib/pvpLadder.ts. Cosmetic tiers + the
+// tier-priced cash table: server/src/lib/pvpBadge.ts. DDL: the hand-written
+// migration 20260730120000_add_pvp_ladder/migration.sql, which carries the full
+// reasoning — these models mirror it so Prisma's view of the database stays
+// accurate, and they add nothing of their own.
+//
+// NOTHING in this block touches User, PlayerRating, PvpMatch or PendingGrant
+// beyond back-relation fields (which generate no DDL). PlayerRating in
+// particular is left completely alone so there is no schema conflict with the
+// concurrent PvP work, and the rating-derived badge tier needs no storage at
+// all.
+//
+// The reward itself is NEVER written into saveData. Each row here is paired
+// with a PendingGrant created in the same transaction; POST /api/saves folds
+// that grant on top of the bytes the client uploads, inside the CAS
+// transaction that accepts the upload. See lib/prizeGrant.ts.
+//
+// ┌──────────────────────────────────────────────────────────────────────┐
+// │ RAW-SQL-ONLY OBJECTS — present in the database, INVISIBLE to Prisma. │
+// └──────────────────────────────────────────────────────────────────────┘
+// Prisma has no syntax for CHECK constraints, so it neither creates nor DROPs
+// these; they live only in the migration, and this list is the only place a
+// reader of the schema can learn they exist.
+// tests/pvpLadderSchemaDrift.test.ts asserts every line below is still present
+// in the migration SQL and that this list is still present here, so the two
+// cannot silently diverge.
+//
+//   CHECK PvpLadderEarn_not_self          ("userId" <> "opponentUserId")
+//   CHECK PvpLadderEarn_nonneg            ("bp" >= 0 AND "milestoneBp" >= 0 AND "moneyAwarded" >= 0)
+//   CHECK PvpLadderEarn_money_needs_bonus ("moneyAwarded" = 0 OR "winBonusPaid")
+//   CHECK PvpWinBonusClaim_nonneg         ("money" >= 0)
+//   CHECK PvpBadgeMilestone_nonneg        ("bp" >= 0)
+//   CHECK PvpBadgeMilestone_crossed       ("ratingBefore" < "threshold")
+//
+// There is deliberately NO partial unique index anywhere in this feature.
+// Prisma DOES introspect indexes and cannot express a WHERE clause, so a
+// partial index is exactly the object `prisma migrate dev` would generate a
+// DROP for — the additive-only policy is a convention, not a mechanism. The
+// invariant an earlier version guarded that way (at most one cash bonus per
+// account per period) is now held by PvpWinBonusClaim's single-row conditional
+// upsert plus PvpLadderEarn_money_needs_bonus, neither of which Prisma can
+// touch.
+
+/// One row per (battle, participant). Append-only audit of what the ladder
+/// MINTED — never a second authoritative balance. The spendable Battle Point
+/// balance lives in the player's own save (`inventory.battlepoint`).
+model PvpLadderEarn {
+  id String @id
+
+  /// Battle room id. With `userId` this is the exactly-once key: endBattle has
+  /// many callers, and a replayed settle inserts zero rows and rolls back
+  /// before any grant exists. Deliberately NOT a relation to PvpMatch — that
+  /// insert is fire-and-forget and allowed to be dropped.
+  matchId String
+
+  userId         String
+  opponentUserId String
+
+  /// UTC calendar day. REPORTING ONLY — nothing gates on it. The cap and the
+  /// decay window are both ROLLING and measured from `createdAt`, because a
+  /// calendar boundary is straddleable: two matches 61 seconds apart across
+  /// 00:00Z were measured paying one account $50,000, twice the advertised
+  /// daily maximum.
+  day DateTime @db.Date
+
+  /// 'queue' | 'invite' — the human pairing path that built the room, asserted
+  /// at construction time. THE BOT GATE'S APPLICATION HALF: a bot, tournament
+  /// or admin room carries none and is refused with no code of its own.
+  provenance String
+
+  result    String /// "win" | "loss" | "tie"
+  endReason String /// "ko" | "tie" — the payable allowlist
+
+  /// Captured at payout because they are unrecoverable afterwards:
+  /// PvpMatch.createdAt is stamped inside endBattle (so finishedAt - createdAt
+  /// is 0 for every existing row), and the turn count exists only in room.log.
+  /// `durationMs` is also the data that re-tunes LADDER_MIN_DURATION_MS from
+  /// measurement instead of guesswork.
+  turns      Int
+  durationMs Int
+
+  /// Both ends of the Elo move. `ratingBefore` is load-bearing: a milestone
+  /// bonus is only paid on the match that CROSSES a threshold, and this is the
+  /// audit of that claim.
+  ratingBefore Int
+  ratingAfter  Int
+  ratingDelta  Int
+
+  /// What was ACTUALLY paid, given the ledger state at that instant.
+  meetingIndex  Int
+  bpBeforeDecay Int
+  /// The badge tier that priced the cash bonus. Cash scales with rating
+  /// because Elo is zero-sum, so a collusion ring cannot manufacture it.
+  tier          String
+
+  /// CAPPED BP — battle + the once-per-cooldown bonus. The rolling cap read is
+  /// SUM(bp) over the window, so this column and only this column is what the
+  /// cap can see.
+  bp           Int     @default(0)
+  /// UNCAPPED, once-ever milestone BP, in its own column ON PURPOSE. Booking it
+  /// into `bp` made a 98-BP rank-up match exhaust the 25-BP cap for every
+  /// legitimate battle for the rest of that day.
+  milestoneBp  Int     @default(0)
+  moneyAwarded Int     @default(0)
+  winBonusPaid Boolean @default(false)
+
+  /// The PendingGrant this earn was paid through, so ops can follow an earn
+  /// into `deliveredAt`. Null when the row legitimately earned zero.
+  grantId String?
+
+  createdAt DateTime @default(now())
+
+  earner   User @relation("PvpLadderEarner", fields: [userId], references: [id], onDelete: Cascade)
+  /// THE BOT GATE. A synthetic bot id violates this foreign key, Postgres
+  /// raises 23503, and the whole payout transaction — both sides' rows and both
+  /// grants — rolls back. A constraint rather than an if-statement, so no
+  /// refactor can forget it.
+  opponent User @relation("PvpLadderOpponent", fields: [opponentUserId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+  @@index([userId, createdAt])
+  @@index([userId, opponentUserId, createdAt])
+  @@index([day])
+}
+
+/// THE ATOMIC GATE for the once-per-cooldown cash bonus. ONE ROW PER ACCOUNT,
+/// holding the timestamp of its last claim; the settle claims with
+/// `ON CONFLICT ("userId") DO UPDATE … WHERE "claimedAt" <= now - cooldown`,
+/// which takes a row lock on the existing row and so serialises concurrent
+/// claims while staying exception-free (a lost race is 0 affected rows, not a
+/// 23505 that would poison the transaction and cost the whole match reward).
+///
+/// It replaced a (userId, day) primary key, which was measured to be
+/// straddleable: a calendar key is satisfiable twice by two different day
+/// values, and two matches 61 seconds apart across midnight paid one account
+/// $50,000. A cooldown has no boundary to sit on.
+///
+/// The row is overwritten on each claim: this is an arbiter, not a history. The
+/// history is PvpLadderEarn.winBonusPaid + moneyAwarded, which is append-only.
+model PvpWinBonusClaim {
+  userId String @id
+  /// The gate, compared against (now - LADDER_WIN_BONUS_COOLDOWN_MS).
+  claimedAt DateTime
+  /// Ops/audit only: which day and battle claimed it, and what it was priced at.
+  day     DateTime @db.Date
+  matchId String
+  rating  Int
+  tier    String
+  money   Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([claimedAt])
+}
+
+/// One row per (account, rating threshold) ever crossed. NOT derivable from
+/// PlayerRating: peakRating is a high-water mark, not a payment record, so an
+/// oscillating rating would be paid on every crossing.
+///
+/// The composite id is HALF the gate. The other half is in code: a milestone is
+/// paid only on the match that CROSSES the threshold
+/// (`ratingBefore < threshold <= ratingAfter`, pvpBadge.milestonesCrossed).
+/// Without it, rewards defaulting OFF meant the day the switch is flipped every
+/// account already above a threshold would collect its whole back-catalogue —
+/// the exact thing this table exists to prevent, defeated by keying on the live
+/// rating instead of on the movement.
+model PvpBadgeMilestone {
+  userId    String
+  threshold Int
+  /// The rating held BEFORE the crossing match. Proof the threshold was
+  /// crossed rather than merely stood above; CHECK-constrained to be below it.
+  ratingBefore  Int
+  ratingAtAward Int
+  bp            Int
+  /// Reserved; NULL for every row the current code writes. A milestone is paid
+  /// inside the SAME grant as the battle that triggered it (one grant per side
+  /// per battle), and that id is on the PvpLadderEarn row. Kept nullable so a
+  /// future out-of-band milestone payment has somewhere to record itself
+  /// without a migration.
+  grantId   String?
+  awardedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, threshold])
 }

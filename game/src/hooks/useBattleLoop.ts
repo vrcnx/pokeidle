@@ -5,20 +5,15 @@ import { createPokemon } from "../utils/pokemon";
 import { rollShiny } from "../utils/pokemon";
 import { hasShinyCharm } from "../utils/shinyCharm";
 import { pushToast } from "../components/Toast";
-import { ballForAutoCatch, shouldAutoCatch } from "../utils/catching";
+import { ballForAutoCatch, shouldAutoCatch, shouldWeakenBeforeCatch } from "../utils/catching";
 import { resolveCatchSettings } from "../utils/catchSettings";
 import { pokeballs } from "../data/pokeballs";
 import { getStreamConfig, isStreamMode } from "../state/streamMode";
 import { routes } from "../data/routes";
 import { getRouteTrainers, buildTeam, trainerSprite } from "../utils/trainerFactory";
 import { enemySettleMs, tickIntervalFor } from "../utils/battleTiming";
+import { shouldAutoHeal } from "../utils/autoHeal";
 import type { GameState } from "../types";
-
-// Weaken-before-catch: keep attacking until the wild Pokémon is at or below
-// this fraction of max HP, then throw. 0.30 leaves a comfortable buffer above
-// fainting while still deep enough into the HP window to earn most of the
-// low-HP catch bonus.
-const WEAKEN_HP_THRESHOLD = 0.30;
 
 // The simulation tick. While the phase is "idle" the loop kicks off encounters
 // on the current route. While the phase is "battle" it ticks turns until one
@@ -138,6 +133,18 @@ export function useBattleLoop(suspended = false): void {
         }
       }
 
+      // Auto-Heal (br_27cfd612ddd30485fc). Sits AFTER the two defensive heals
+      // above so it can never race them for the same transition, and BEFORE the
+      // encounter spawn below so a worn party is topped up rather than sent into
+      // one more fight. The predicate is in utils/autoHeal.ts — every rule that
+      // matters is a case where it must not fire (mid-battle, mid-raid, mid
+      // animation), and those are only testable outside the hook.
+      if (shouldAutoHeal(cur)) {
+        dispatch({ type: "HEAL_PARTY" });
+        repoll(400);
+        return;
+      }
+
       // New opponent? Hold off until the appear animation finishes.
       //
       // SCALED BY GAME SPEED (br_7362030de4444c8da8). These were flat 1800 /
@@ -226,16 +233,11 @@ export function useBattleLoop(suspended = false): void {
         ) {
           // Weaken-before-catch: if the rule for this encounter has it on,
           // keep attacking until the wild Pokémon is at/below the low-HP
-          // window, so the HP catch bonus kicks in — then throw. Shinies are
-          // exempt: they're caught immediately so a weakening hit can never
-          // faint one.
-          const rule = resolveCatchSettings(cur, cur.currentRoute, enemy.speciesKey);
-          const hpFrac = enemy.maxHp > 0 ? enemy.currentHp / enemy.maxHp : 1;
-          const wantWeaken =
-            !!rule.weakenFirst && !enemy.isShiny &&
-            !(enemy.isShiny && cur.alwaysCatchShinies) &&
-            hpFrac > WEAKEN_HP_THRESHOLD;
-          if (wantWeaken) {
+          // window, so the HP catch bonus kicks in — then throw. The predicate
+          // lives in utils/catching.ts because it has to refuse a hit that
+          // would KO (a starter-route mon dies to one hit from a grown lead
+          // long before it reaches 30% HP), and that is testable there.
+          if (shouldWeakenBeforeCatch(cur, cur.currentRoute, cur.playerPokemon, enemy)) {
             // Not weak enough yet — attack this turn instead of catching.
             if (manualWaiting(cur)) { repoll(); return; }
             dispatch({ type: "EXECUTE_TURN" });

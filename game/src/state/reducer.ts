@@ -30,6 +30,7 @@ import { executeTurn, type BattleSide } from "../utils/battle";
 import { rollCatch } from "../utils/catching";
 import { REPEL_IDS, weightFamily } from "../utils/encounters";
 import { unlockedFromProgress, pendingRegionStarter } from "../utils/unlocks";
+import { repairLoadedSave } from "../utils/dexRepair";
 import {
   pickRandomLegendary,
   pickRandomLegendaryForTier,
@@ -40,10 +41,21 @@ import {
 } from "../data/raidLegendaries";
 import { itemsCatalog } from "../data/itemsCatalog";
 
+// The ONLY writer of battleLog. `battleLogSeq` counts every line ever pushed
+// and is never trimmed, because the visible log is capped at 50: once it fills,
+// `battleLog.length` is pinned at 50 and any consumer diffing on length sees
+// "nothing new" for the rest of the session. That is precisely how the +EXP,
+// effectiveness and level-up/catch floats died after ~8 battles
+// (br_15040fe48311121a4a) — the cap is fine, using it as a clock was not.
+// Anything appending to battleLog must come through here or the counter lies.
 function pushLog(state: GameState, ...lines: string[]): GameState {
   if (lines.length === 0) return state;
   const log = [...state.battleLog, ...lines];
-  return { ...state, battleLog: log.slice(-50) };
+  return {
+    ...state,
+    battleLog: log.slice(-50),
+    battleLogSeq: state.battleLogSeq + lines.length,
+  };
 }
 
 function withTypes(p: Pokemon): BattleSide {
@@ -215,6 +227,37 @@ function applyExp(
   if (hasExpShare && state.party.length > 1) {
     const shared = Math.floor(exp * 0.25);
     if (shared > 0 || evYield) {
+      // Bill the charge HERE, at the payout, not at battle end. The charge is
+      // still spent once per battle by decrementEffects — economics unchanged —
+      // but stamping the effect the moment it actually pays means a pause can no
+      // longer un-bill EXP the player already banked. Without this, pausing
+      // between the last KO of a trainer battle and the battle ending gave six
+      // payouts for zero charges, repeatable forever (br_e84825db52e3431dc9).
+      //
+      // Guarded by `.some` so the array keeps its identity once stamped. This
+      // runs on EVERY KO — a six-mon trainer battle calls it six times — and
+      // re-allocating an identical array on five of those six is pointless
+      // churn that every `activeEffects`-keyed memo and effect downstream has
+      // to re-run for.
+      //
+      // It is NOT load-bearing for cloud saves, despite what this comment used
+      // to claim: the upload in GameContext is a THROTTLE keyed on [state]
+      // whose timer is deliberately never cleared ("already armed — never
+      // re-arm, never clear"), so array churn cannot postpone it. Don't remove
+      // the guard, but don't fear allocating here either.
+      const owes = next.activeEffects.some(
+        (e) => e.itemId === "expShare" && !e.paused && !e.billedThisBattle,
+      );
+      if (owes) {
+        next = {
+          ...next,
+          activeEffects: next.activeEffects.map((e) =>
+            e.itemId === "expShare" && !e.paused && !e.billedThisBattle
+              ? { ...e, billedThisBattle: true }
+              : e,
+          ),
+        };
+      }
       const party = next.party.map((p, idx) => {
         if (idx === next.activePlayerPokemonIndex) return p;
         if (p.currentHp <= 0) return p;
@@ -281,11 +324,26 @@ function decrementEffects(effects: ActiveEffect[]): ActiveEffect[] {
   // so the debounce was reset forever and the cloud save NEVER fired —
   // the save indicator sat on "Unsaved" and players reported coming back
   // to lost progress. Measured: 30s of idling = 37 resets, 0 saves.
+  //
+  // `billedThisBattle` overrides `paused`: an effect that already paid out this
+  // battle owes a charge whatever its pause flag says now. Pausing is meant to
+  // stop FUTURE battles consuming the counter, not to retroactively refund one
+  // that has already delivered — which is how pausing after the last KO of a
+  // trainer battle bought an unlimited Exp Share (br_e84825db52e3431dc9).
   if (effects.length === 0) return effects;
-  if (effects.every((e) => e.paused)) return effects;
+  if (effects.every((e) => e.paused && !e.billedThisBattle)) return effects;
   return effects
-    .map((e) => (e.paused ? e : { ...e, battlesRemaining: e.battlesRemaining - 1 }))
+    .map((e) => (e.paused && !e.billedThisBattle ? e : tickEffect(e)))
     .filter((e) => e.battlesRemaining > 0);
+}
+
+// Spend one charge and clear the payout stamp, so the next battle starts owing
+// nothing. The stamp is dropped rather than set false because ActiveEffect is
+// persisted: leaving dead flags in every save's activeEffects is noise the
+// cloud blob then carries around forever.
+function tickEffect(e: ActiveEffect): ActiveEffect {
+  const { billedThisBattle: _billed, ...rest } = e;
+  return { ...rest, battlesRemaining: e.battlesRemaining - 1 };
 }
 
 function appendUnlocks(state: GameState): GameState {
@@ -311,22 +369,42 @@ function markCaught(state: GameState, key: string): GameState {
 }
 
 /**
- * Register a Pokémon that ARRIVED rather than being caught — a trade, an
- * auction win, or a gift/prize.
+ * THE registration funnel: "this Pokémon is now mine" → dex + shiny dex.
+ * Every path that hands the player a Pokémon must call this and nothing else —
+ * catch, starter, trade, auction win, gift/prize, and evolution.
  *
- * Catching funnels through markCaught, but these three paths only pushed the
- * mon into party/box, so a species you owned could be absent from your dex.
- * That is wrong on its face (you have it), and it matters more since dex
- * completion grants the Shiny Charm: a player finishing their dex by trading —
- * which is exactly what trading is for — could never complete it.
+ * It takes the MON, not a species key, because the shiny half is the half that
+ * gets forgotten. markCaught only knows about pokedexCaught/pokedexSeen, so a
+ * caller holding a species string has no way to register the shiny entry and
+ * the omission is invisible at the call site. Three paths (trade, auction,
+ * gift) shipped without it and were fixed by adding this helper; a fourth,
+ * COMPLETE_EVOLUTION, called markCaught and was missed — so evolving a shiny
+ * registered the evolved form as an ordinary one (br_2f7754077bfd6e9629,
+ * 160 lost entries across 68 real saves). Since pokedexCaught is append-only,
+ * nothing later repairs it: the shiny dex entry is gone for good.
+ *
+ * shinySeen is written alongside shinyCaught deliberately. Caught-without-seen
+ * is a contradiction the UI displays — the dock and Trainer Card print both
+ * counts side by side — and only START_ENCOUNTER ever sets shinySeen, so an
+ * evolution or a trade has no earlier moment where it could have been set.
  */
 function registerAcquired(state: GameState, mon: Pokemon): GameState {
   let next = markCaught(state, mon.speciesKey);
-  if (mon.isShiny && !next.shinyCaught.includes(mon.speciesKey)) {
+  if (!mon.isShiny) return next;
+  if (!next.shinyCaught.includes(mon.speciesKey)) {
     next = { ...next, shinyCaught: [...next.shinyCaught, mon.speciesKey] };
+  }
+  if (!next.shinySeen.includes(mon.speciesKey)) {
+    next = { ...next, shinySeen: [...next.shinySeen, mon.speciesKey] };
   }
   return next;
 }
+
+// repairLoadedSave (utils/dexRepair.ts) holds the two load-time save repairs —
+// the nextPokemonId clamp and the register-what-you-own dex reconcile. They live
+// outside this file because the OTHER way a save enters the app, the
+// localStorage boot in GameContext, does not go through this reducer at all, and
+// a repair wired into only one entry point silently skips half the players.
 
 // Completing the Pokédex hands over the Shiny Charm — as an item, with a line
 // in the log. Every dex registration in the game funnels through markCaught,
@@ -457,10 +535,7 @@ function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean)
   } else {
     next = { ...next, box: [...next.box, caught] };
   }
-  next = markCaught(next, caught.speciesKey);
-  if (caught.isShiny && !next.shinyCaught.includes(caught.speciesKey)) {
-    next = { ...next, shinyCaught: [...next.shinyCaught, caught.speciesKey] };
-  }
+  next = registerAcquired(next, caught);
   next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
   next = maybeRaidBottleCapDrop(next, wasInRaid);
   next = applyCatchExp(next, enemy);
@@ -500,18 +575,7 @@ export function reducer(state: GameState, action: Action): GameState {
         currentRoute: "route1",
         activePlayerPokemonIndex: 0,
       };
-      next = markCaught(next, speciesKey);
-      if (isShiny) {
-        next = {
-          ...next,
-          shinyCaught: next.shinyCaught.includes(speciesKey)
-            ? next.shinyCaught
-            : [...next.shinyCaught, speciesKey],
-          shinySeen: next.shinySeen.includes(speciesKey)
-            ? next.shinySeen
-            : [...next.shinySeen, speciesKey],
-        };
-      }
+      next = registerAcquired(next, starter);
       return pushLog(next, `You chose ${starter.name}!`);
     }
 
@@ -535,18 +599,7 @@ export function reducer(state: GameState, action: Action): GameState {
         box: roomInParty ? state.box : [...state.box, starter],
       };
       if (roomInParty) next = rederiveActive(next);
-      next = markCaught(next, speciesKey);
-      if (isShiny) {
-        next = {
-          ...next,
-          shinyCaught: next.shinyCaught.includes(speciesKey)
-            ? next.shinyCaught
-            : [...next.shinyCaught, speciesKey],
-          shinySeen: next.shinySeen.includes(speciesKey)
-            ? next.shinySeen
-            : [...next.shinySeen, speciesKey],
-        };
-      }
+      next = registerAcquired(next, starter);
       return pushLog(
         next,
         roomInParty
@@ -564,22 +617,24 @@ export function reducer(state: GameState, action: Action): GameState {
       // Battle starts with whoever is currently first healthy in the party.
       // This consumes any "queued" reorder the player did between battles.
       const idx = firstHealthyIndex(next.party);
-      return {
-        ...next,
-        phase: "battle",
-        enemyPokemon: enemy,
-        pendingEvents: [],
-        battleWeather: null,
-        activePlayerPokemonIndex: idx,
-        playerPokemon: next.party[idx] ?? next.playerPokemon,
-        battleLog: [...next.battleLog, `A wild ${enemy.name}${enemy.isShiny ? " ✨" : ""} appeared!`],
-        playerVolatile: {
-          statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
-          mustRecharge: false,
-          lockedMove: null,
-          lockTurnsRemaining: 0,
+      return pushLog(
+        {
+          ...next,
+          phase: "battle",
+          enemyPokemon: enemy,
+          pendingEvents: [],
+          battleWeather: null,
+          activePlayerPokemonIndex: idx,
+          playerPokemon: next.party[idx] ?? next.playerPokemon,
+          playerVolatile: {
+            statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
+            mustRecharge: false,
+            lockedMove: null,
+            lockTurnsRemaining: 0,
+          },
         },
-      };
+        `A wild ${enemy.name}${enemy.isShiny ? " ✨" : ""} appeared!`,
+      );
     }
 
     case "EXECUTE_TURN": {
@@ -990,6 +1045,7 @@ export function reducer(state: GameState, action: Action): GameState {
           partyIndex,
           toSpeciesKey,
           step: 0,
+          pokemonId: evolving?.id,
         },
       };
     }
@@ -1003,7 +1059,30 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "COMPLETE_EVOLUTION": {
       if (!state.evolutionState) return state;
-      const { partyIndex, toSpeciesKey } = state.evolutionState;
+      const { toSpeciesKey, pokemonId } = state.evolutionState;
+      // Re-anchor by id, exactly as START_EVOLUTION does. That comment names
+      // "a release landing in between" as the hazard for the ~3.7s window
+      // between START and COMPLETE; the same window ends here, and this half
+      // was still index-only. A party mutation inside it (a swap, a reorder, a
+      // release, a mid-cinematic reconcile) makes `partyIndex` address a
+      // DIFFERENT Pokémon — proven by probe: a SWAP_PARTY between the two
+      // dispatches turned a plain Bulbasaur into an Arcanine, registered
+      // "arcanine" as non-shiny, and left the shiny Growlithe untransformed.
+      // That is the shiny-dex loss of br_2f7754077bfd6e9629 all over again,
+      // plus a destroyed bystander, so it is worth closing even though no
+      // reachable dispatcher was found — the UI's modal overlay and the stream
+      // bot's `blocked()` gate are both a component render away from changing.
+      //
+      // If the id has gone (traded, released, or the box/party replaced by a
+      // cloud adopt) there is nothing to evolve: clear and idle, never fall
+      // back to the index.
+      const anchored = pokemonId
+        ? state.party.findIndex((p) => p.id === pokemonId)
+        : state.evolutionState.partyIndex;
+      if (pokemonId && anchored < 0) {
+        return { ...state, evolutionState: null, phase: "idle" };
+      }
+      const partyIndex = anchored;
       const party = [...state.party];
       const old = party[partyIndex];
       if (!old) return { ...state, evolutionState: null, phase: "idle" };
@@ -1045,7 +1124,12 @@ export function reducer(state: GameState, action: Action): GameState {
         evolutionState: null,
         phase: "idle",
       };
-      next = markCaught(next, toSpeciesKey);
+      // registerAcquired, NOT markCaught: `evolved` inherits isShiny from `old`,
+      // and this is the single point every evolution converges on — the level-up
+      // hook, the party/detail menus, USE_STONE, USE_LINK_CABLE and the
+      // post-trade evolution rider all end here. Registering by species key
+      // instead lost the shiny dex entry on all five at once.
+      next = registerAcquired(next, evolved);
       return pushLog(next, `${old.name} evolved into ${evolved.name}!`);
     }
 
@@ -1121,18 +1205,18 @@ export function reducer(state: GameState, action: Action): GameState {
       };
     }
 
-    case "MARK_SEEN":
-      return markSeen(state, action.payload.speciesKey);
-    case "MARK_CAUGHT":
-      return markCaught(state, action.payload.speciesKey);
-    case "MARK_SHINY_CAUGHT":
-      return state.shinyCaught.includes(action.payload.speciesKey)
-        ? state
-        : { ...state, shinyCaught: [...state.shinyCaught, action.payload.speciesKey] };
-    case "MARK_SHINY_SEEN":
-      return state.shinySeen.includes(action.payload.speciesKey)
-        ? state
-        : { ...state, shinySeen: [...state.shinySeen, action.payload.speciesKey] };
+    // MARK_SEEN / MARK_CAUGHT / MARK_SHINY_CAUGHT / MARK_SHINY_SEEN used to
+    // live here with zero dispatchers anywhere in the repo. They are DELETED,
+    // not kept "just in case", because MARK_CAUGHT was a loaded gun: it took a
+    // species KEY, wrote pokedexCaught, and had no way to know whether the mon
+    // was shiny — so wiring it into any acquisition path would have silently
+    // recreated br_2f7754077bfd6e9629 (evolving a shiny registered the evolved
+    // form as ordinary; 163 lost dex entries across 70 real saves). The lesson
+    // of that bug is that species-key registration is unsafe by construction,
+    // and the fix does not hold if the unsafe entry point is left lying around
+    // for the next person to reach for. registerAcquired(state, mon) is the only
+    // way in, and it takes the MON precisely so the shiny half cannot be
+    // forgotten. markSeen stays as an internal helper for START_ENCOUNTER.
 
     case "BUY_ITEM": {
       const { itemId, quantity } = action.payload;
@@ -1279,6 +1363,7 @@ export function reducer(state: GameState, action: Action): GameState {
             partyIndex,
             toSpeciesKey: (tradeEvo as any).into,
             step: 0,
+            pokemonId: target.id,
           },
         },
         `Used a Link Cable on ${target.name}!`
@@ -1315,7 +1400,9 @@ export function reducer(state: GameState, action: Action): GameState {
         {
           ...cleared,
           phase: "evolution",
-          evolutionState: { partyIndex, toSpeciesKey: match.into, step: 0 },
+          evolutionState: {
+            partyIndex, toSpeciesKey: match.into, step: 0, pokemonId: target.id,
+          },
         },
         `Used a ${stoneName} on ${target.name}!`,
       );
@@ -1575,6 +1662,7 @@ export function reducer(state: GameState, action: Action): GameState {
               partyIndex: idx,
               toSpeciesKey: tradeEvo.into,
               step: 0,
+              pokemonId: fresh.id,
             },
           };
         }
@@ -1591,6 +1679,18 @@ export function reducer(state: GameState, action: Action): GameState {
       const { payload } = action;
       let next: GameState = { ...state, money: payload.money };
       if (payload.role === "seller") {
+        // The escrow lock ends with the listing. Dropped here as well as on the
+        // auction board's refresh so a mon whose listing was cancelled or
+        // expired stops being un-releasable even if the player never opens that
+        // tab again.
+        if ((next.listedPokemonIds ?? []).includes(payload.removedPokemonId)) {
+          next = {
+            ...next,
+            listedPokemonIds: next.listedPokemonIds.filter(
+              (id) => id !== payload.removedPokemonId,
+            ),
+          };
+        }
         const pIdx = next.party.findIndex((p) => p.id === payload.removedPokemonId);
         if (pIdx >= 0) {
           const party = next.party.filter((_, i) => i !== pIdx);
@@ -1639,15 +1739,32 @@ export function reducer(state: GameState, action: Action): GameState {
       let next: GameState = state;
       let nextPokemonId = next.nextPokemonId;
       let box = next.box;
-      let inventory = next.inventory;
       let money = next.money;
+      // NOT a local. `inventory` used to be snapshotted here and written back
+      // wholesale at the end of the case, which silently ate the Shiny Charm:
+      // registerAcquired (below) → markCaught → grantShinyCharmOnCompletion puts
+      // the charm into next.inventory, and the final `{...next, inventory}`
+      // then overwrote it with this pre-grant copy. A gift or prize Pokémon
+      // that COMPLETED the Pokédex therefore logged "✨ Pokédex complete! The
+      // Shiny Charm was added to your Bag" and added nothing — the one grant in
+      // the game you cannot re-trigger, since pokedexCaught is append-only.
+      // Verified by execution against the same scenario on AUCTION_SETTLED
+      // (buyer), which threads inventory through `next` and grants correctly.
+      // money/box/nextPokemonId stay local: nothing in the dex funnel touches
+      // them, so they cannot collide the same way.
       const labels: string[] = [];
       for (const p of action.payload.prizes) {
         if (p.kind === "money") {
           money = Math.min(999_999_999, money + p.amount);
           labels.push(`$${p.amount.toLocaleString()}`);
         } else if (p.kind === "item") {
-          inventory = { ...inventory, [p.itemId]: Math.min(999_999, (inventory[p.itemId] ?? 0) + p.quantity) };
+          next = {
+            ...next,
+            inventory: {
+              ...next.inventory,
+              [p.itemId]: Math.min(999_999, (next.inventory[p.itemId] ?? 0) + p.quantity),
+            },
+          };
           labels.push(`${p.quantity}× ${p.itemId}`);
         } else if (p.kind === "pokemon" && p.mon && typeof p.mon === "object") {
           const assigned = typeof p.assignedId === "string" && p.assignedId ? p.assignedId : null;
@@ -1670,7 +1787,7 @@ export function reducer(state: GameState, action: Action): GameState {
           labels.push(p.label ?? mon.name ?? "a Pokémon");
         }
       }
-      next = { ...next, money, inventory, box, nextPokemonId };
+      next = { ...next, money, box, nextPokemonId };
       // Nothing to announce (an empty or fully-deduped prize list). Say
       // nothing rather than logging "You received a gift: !".
       if (labels.length === 0) return next;
@@ -1678,9 +1795,53 @@ export function reducer(state: GameState, action: Action): GameState {
     }
 
     case "RELEASE_POKEMON": {
-      const { source, index } = action.payload;
+      const { source, pokemonId } = action.payload;
+      // `pokemonId` re-anchors the slot, for exactly the reason START_EVOLUTION
+      // does it — that comment already names "a release landing in between" as
+      // the hazard, and this is the other half of it.
+      //
+      // Every menu offering Release snapshots its index when it OPENS, not when
+      // it is clicked: openContextMenu freezes the item array with its onClick
+      // closures inside it, and the detail modal keeps its `{type, index}` in a
+      // module-level store. The box can move underneath that snapshot without
+      // any input from the player — AUCTION_SETTLED filters a sold box mon out
+      // by id and shifts every later index down by one, and a mid-session
+      // LOAD_SAVE cloud reconcile replaces the box outright. The index then
+      // addresses a DIFFERENT Pokémon, and releasing is irreversible, so acting
+      // on it is not recoverable the way a mis-sort or a mis-swap would be.
+      //
+      // An id that is no longer in the list means the mon already left, so the
+      // action is dropped rather than applied to a bystander. Index-only
+      // callers keep their old behaviour exactly: the stream director orders
+      // its burst descending behind a render sentinel and needs no id.
+      const list = source === "party" ? state.party : state.box;
+      const index = pokemonId
+        ? list.findIndex((p) => p.id === pokemonId)
+        : action.payload.index;
+      if (pokemonId && index < 0) return state;
+      const target = list[index];
+      // Committed to a live auction. The client never removes a listed mon from
+      // the box — createAuction only escrows SERVER-side — so it stays visible
+      // and, until now, releasable. Releasing it deleted the local copy of
+      // something already sold, and AUCTION_SETTLED(seller) then found no id to
+      // remove. See listedPokemonIds.
+      if (target && (state.listedPokemonIds ?? []).includes(target.id)) {
+        return pushLog(state, `${target.nickname ?? target.name} is listed at the auction house — cancel the listing first.`);
+      }
       if (source === "party") {
         if (state.party.length <= 1) return pushLog(state, "Cannot release your last Pokemon!");
+        // The last HEALTHY member is its own guard. `party.length <= 1` let a
+        // player release the only mon that could still battle and keep a
+        // fainted one, leaving playerPokemon at 0 HP and every encounter
+        // unwinnable until they walked to a Center. Report br_ff6112fc5180462b81
+        // asked for this explicitly. Only fires when there IS a healthy member
+        // to protect — an all-fainted party can still be pruned.
+        if (
+          target && target.currentHp > 0 &&
+          !state.party.some((p, i) => i !== index && p.currentHp > 0)
+        ) {
+          return pushLog(state, "Cannot release your last healthy Pokemon!");
+        }
         const cleared = bailFromBattle(state);
         const party = cleared.party.filter((_, i) => i !== index);
         const active = Math.min(cleared.activePlayerPokemonIndex, party.length - 1);
@@ -1688,6 +1849,146 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       const box = state.box.filter((_, i) => i !== index);
       return { ...state, box };
+    }
+
+    /**
+     * Bulk release. Two players asked for it (pani, and gshow twice, with 500
+     * Magikarp to clear) — br_ff6112fc5180462b81.
+     *
+     * Addressed by ID, never by index, and that is the whole design. A loop of
+     * the index-addressed RELEASE_POKEMON over the player's selection is the
+     * obvious implementation and it is WRONG: ascending indices shift under
+     * each other, so releasing [0,1,2] of a ten-mon box provably destroys
+     * r0, r2 and r4 while sparing two of the three the player picked. A Set of
+     * ids has no ordering to get wrong and is immune to a concurrent
+     * AUCTION_SETTLED or cloud reconcile landing mid-confirm.
+     *
+     * Three hard guards, in the reducer rather than the UI, because releasing is
+     * the one irreversible action in the game and a filter-driven multi-select
+     * is exactly the shape of mistake that sweeps up something precious:
+     *   - a SHINY is never bulk-released, full stop. Not a confirmation, not an
+     *     override — bulk release is a "clear 500 Magikarp" tool and a 1/8192
+     *     encounter should cost a deliberate single release. The UI cannot
+     *     select them either, so this is defence in depth.
+     *   - an auction-listed mon is never released (see RELEASE_POKEMON above).
+     *   - the party keeps at least one member, and at least one HEALTHY member
+     *     if it had one.
+     * Everything skipped is reported in the log, so a batch that quietly did
+     * less than asked says so.
+     */
+    case "RELEASE_MANY": {
+      const { source } = action.payload;
+      const requested = new Set(action.payload.pokemonIds);
+      if (requested.size === 0) return state;
+      const list = source === "party" ? state.party : state.box;
+      const listed = new Set(state.listedPokemonIds ?? []);
+
+      let shinySkipped = 0;
+      let listedSkipped = 0;
+      const releasing = new Set<string>();
+      for (const mon of list) {
+        if (!requested.has(mon.id)) continue;
+        if (mon.isShiny) { shinySkipped++; continue; }
+        if (listed.has(mon.id)) { listedSkipped++; continue; }
+        releasing.add(mon.id);
+      }
+
+      let keptForParty = 0;
+      if (source === "party") {
+        const hadHealthy = list.some((p) => p.currentHp > 0);
+        // Never empty the party. Prefer keeping a healthy mon over a fainted one.
+        if (list.every((p) => releasing.has(p.id))) {
+          const keep =
+            list.find((p) => releasing.has(p.id) && p.currentHp > 0) ??
+            list.find((p) => releasing.has(p.id));
+          if (keep) { releasing.delete(keep.id); keptForParty++; }
+        }
+        // Never leave a party that can't battle when it could before.
+        if (hadHealthy && !list.some((p) => !releasing.has(p.id) && p.currentHp > 0)) {
+          const keep = list.find((p) => releasing.has(p.id) && p.currentHp > 0);
+          if (keep) { releasing.delete(keep.id); keptForParty++; }
+        }
+      }
+
+      const notes: string[] = [];
+      if (shinySkipped > 0) {
+        notes.push(`${shinySkipped} shiny Pokémon were kept — release a shiny one at a time.`);
+      }
+      if (listedSkipped > 0) {
+        notes.push(`${listedSkipped} were kept because they are listed at the auction house.`);
+      }
+      if (keptForParty > 0) {
+        notes.push("Your last healthy Pokémon was kept.");
+      }
+      if (releasing.size === 0) {
+        return notes.length > 0 ? pushLog(state, ...notes) : state;
+      }
+      const releasedLine =
+        releasing.size === 1
+          ? "Released 1 Pokémon."
+          : `Released ${releasing.size} Pokémon.`;
+
+      if (source === "party") {
+        const cleared = bailFromBattle(state);
+        const party = cleared.party.filter((p) => !releasing.has(p.id));
+        const active = Math.min(cleared.activePlayerPokemonIndex, party.length - 1);
+        return pushLog(
+          {
+            ...cleared,
+            party,
+            activePlayerPokemonIndex: Math.max(0, active),
+            playerPokemon: party[Math.max(0, active)] ?? null,
+          },
+          releasedLine, ...notes,
+        );
+      }
+      return pushLog(
+        { ...state, box: state.box.filter((p) => !releasing.has(p.id)) },
+        releasedLine, ...notes,
+      );
+    }
+
+    case "SET_SKIP_RELEASE_CONFIRM":
+      return { ...state, skipReleaseConfirm: action.payload.value };
+
+    // Auto-Heal (br_27cfd612ddd30485fc). Both fields in one action so the
+    // settings row can change either without a second dispatch. The threshold is
+    // clamped here rather than trusted from the input: a 0 would mean "heal only
+    // when the whole party is already down", which the defensive heal in
+    // useBattleLoop already covers, and a 100 would heal after every single hit.
+    case "SET_AUTO_HEAL": {
+      const { enabled, threshold } = action.payload;
+      const next = {
+        ...state,
+        autoHeal: enabled ?? state.autoHeal,
+        autoHealThreshold:
+          threshold === undefined
+            ? state.autoHealThreshold
+            : Math.max(1, Math.min(99, Math.round(threshold))),
+      };
+      if (next.autoHeal === state.autoHeal && next.autoHealThreshold === state.autoHealThreshold) {
+        return state;
+      }
+      return next;
+    }
+
+    // Auction escrow, mirrored client-side. The server escrows a listed mon but
+    // the client kept showing it in the box, so it could be released, deposited
+    // or bulk-swept while already sold. MARK_POKEMON_LISTED is the optimistic
+    // write right after createAuction resolves (so the guard is live without
+    // waiting for a refetch); SET_LISTED_POKEMON_IDS is the authoritative
+    // replace from the server's own "my listings" response.
+    case "MARK_POKEMON_LISTED": {
+      const ids = state.listedPokemonIds ?? [];
+      if (ids.includes(action.payload.pokemonId)) return state;
+      return { ...state, listedPokemonIds: [...ids, action.payload.pokemonId] };
+    }
+
+    case "SET_LISTED_POKEMON_IDS": {
+      const next = action.payload.ids;
+      const cur = state.listedPokemonIds ?? [];
+      if (cur.length === next.length && cur.every((id, i) => id === next[i])) return state;
+      return { ...state, listedPokemonIds: [...next] };
     }
 
     case "SET_ALWAYS_CATCH_SHINIES":
@@ -2207,28 +2508,30 @@ export function reducer(state: GameState, action: Action): GameState {
         moves: p.moves.map((m) => ({ ...m, pp: m.maxPp })),
       }));
       const playerPokemon = party[state.activePlayerPokemonIndex] ?? state.playerPokemon;
-      return {
-        ...state,
-        party,
-        playerPokemon,
-        inRaid: true,
-        raidLegendary: { speciesKey, level, tier: tier?.id },
-        raidLevel: level,
-        preRaidLocation: state.currentLocation,
-        currentLocation: "raidIsland",
-        currentRoute: "raidIsland",
-        phase: "battle",
-        enemyPokemon: enemy,
-        pendingEvents: [],
-        nextPokemonId: state.nextPokemonId + 1,
-        playerVolatile: {
-          statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
-          mustRecharge: false,
-          lockedMove: null,
-          lockTurnsRemaining: 0,
+      return pushLog(
+        {
+          ...state,
+          party,
+          playerPokemon,
+          inRaid: true,
+          raidLegendary: { speciesKey, level, tier: tier?.id },
+          raidLevel: level,
+          preRaidLocation: state.currentLocation,
+          currentLocation: "raidIsland",
+          currentRoute: "raidIsland",
+          phase: "battle",
+          enemyPokemon: enemy,
+          pendingEvents: [],
+          nextPokemonId: state.nextPokemonId + 1,
+          playerVolatile: {
+            statStages: { attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
+            mustRecharge: false,
+            lockedMove: null,
+            lockTurnsRemaining: 0,
+          },
         },
-        battleLog: [...state.battleLog, `A wild ${pokemonTable[speciesKey]?.name ?? speciesKey} appeared!`],
-      };
+        `A wild ${pokemonTable[speciesKey]?.name ?? speciesKey} appeared!`,
+      );
     }
 
     case "END_RAID": {
@@ -2310,18 +2613,38 @@ export function reducer(state: GameState, action: Action): GameState {
       // or a cloud-lineage adopt a brand-new Pokemon can inherit an id a
       // listener still holds an opinion about. Deliberately NOT persisted —
       // it describes this tab's session, not the save.
+      const incoming = action.payload.state as Partial<GameState>;
       const merged = {
         ...state,
         ...(action.payload.state as object),
         saveGen: (state.saveGen ?? 0) + 1,
+        // battleLogSeq describes THIS TAB's log, like saveGen above, and the
+        // float layers hold cursors into it. A cloud reconcile mid-session
+        // brings a blob whose seq is 0 (it is never persisted), and letting
+        // that win would drop every cursor into the future — the floats would
+        // go silent until the counter climbed back past them, which is the
+        // exact bug the counter was added to kill. Only ever moves forward.
+        battleLogSeq: Math.max(state.battleLogSeq ?? 0, incoming.battleLogSeq ?? 0),
       } as GameState;
+      // Two load-time repairs, both additive, both in utils/dexRepair.ts:
+      //   - clamp nextPokemonId above every id the blob actually holds. The
+      //     comment above already says the counter RESTARTS at 1; that is
+      //     precisely why it cannot be taken from the blob unchecked. Like
+      //     battleLogSeq and saveGen, it only ever moves forward.
+      //   - register everything the save HOLDS. The server writes auction wins
+      //     and prize mons straight into a save and nothing here registered
+      //     them, so an owned Pokémon (legendaries included) could be
+      //     permanently missing from the dex. Also restores the shiny entries
+      //     the old evolution path lost.
+      // The charm grant is re-checked after, since a repair can complete the dex.
+      const loaded: GameState = grantShinyCharmOnCompletion(repairLoadedSave(merged));
       // Only promote out of "idle" — LOAD_SAVE fires mid-session for cloud
       // reconciliation too, and we don't want to steal a phase (battle,
       // evolution, etc.) that's genuinely in flight when it does.
-      if (merged.phase === "idle" && pendingRegionStarter(merged.claimedRegionStarters, merged.currentLocation)) {
-        return { ...merged, phase: "regionStarterSelect" };
+      if (loaded.phase === "idle" && pendingRegionStarter(loaded.claimedRegionStarters, loaded.currentLocation)) {
+        return { ...loaded, phase: "regionStarterSelect" };
       }
-      return merged;
+      return loaded;
     }
 
     default:

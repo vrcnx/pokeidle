@@ -27,11 +27,30 @@ import {
   leaveQueue,
   popQueuePair,
   queueIndexOf,
+  queuedUserIds,
+  cancelQueueGrace,
   matchmakingQueue,
   startMatchmakingTicker,
+  stopMatchmakingTicker,
+  beginDisconnectGrace,
+  endDisconnectGrace,
+  resolveRejoin,
+  resolveSync,
+  flushPvpPersists,
+  beginDrain,
+  isDraining,
+  isBotRoom,
+  releaseBotBattlesFor,
+  checkTeamForFormat,
+  type GraceDeps,
   type BattleRoom,
   type BattleFormat,
 } from "./pvp.js";
+import {
+  buildBotTeam, rankTrainers, BOT_TRAINERS, FIT_SLACK, MAX_TYPE_EDGE,
+} from "./lib/pvpBotRoster.js";
+import type { BotMatchTarget } from "./lib/pvpBotRoster.js";
+import type { BotTier } from "./lib/pvpBotBrain.js";
 
 // ── Rate limits ──────────────────────────────────────────────────────────
 // Per-user limits; values are deliberate bands, not optimisations:
@@ -47,6 +66,24 @@ const tradeActionLimiter = makeRateLimiter({ tokens: 60, windowMs: 60_000 });
 // can't flood the simulator.
 const battleInviteLimiter = makeRateLimiter({ tokens: 5, windowMs: 60_000 });
 const battleChoiceLimiter = makeRateLimiter({ tokens: 120, windowMs: 60_000 });
+// Reconnect probes get their OWN bucket. Sharing battleChoiceLimiter would
+// mean a client stuck in a reconnect loop eats its own per-turn move budget
+// and then can't submit a move in the battle it just fought to get back into.
+//
+// 30/min shared between the two probes was too tight, and the failure mode was
+// severe rather than cosmetic: the refusal used to be answered as
+// { ok: false, reason: "rate_limited" }, the client renders ANY ok:false as
+// "voided by a server restart" and hides the action bar, and >30 reconnects a
+// minute is precisely the flaky-mobile client this whole grace mechanism exists
+// to keep alive. Separate buckets, both generous — 120/min is one probe every
+// 500 ms sustained, far past any real reconnect storm — and a refusal now
+// answers nothing at all (see the handlers).
+const battleRejoinLimiter = makeRateLimiter({ tokens: 120, windowMs: 60_000 });
+const battleSyncLimiter = makeRateLimiter({ tokens: 120, windowMs: 60_000 });
+// One ErrorLog row per user per minute for refused probes. Without this the
+// "record the refusal so it isn't invisible" line is itself the amplifier: a
+// client hammering the handler would write a DB row per rejected call.
+const probeRefusalLogLimiter = makeRateLimiter({ tokens: 1, windowMs: 60_000 });
 
 // Parse FRONTEND_ORIGIN as a comma-separated allowlist (mirrors what
 // the Hono CORS in index.ts does). Socket.IO's `cors.origin` accepts
@@ -194,6 +231,35 @@ async function acceptPvpTeam(
     });
     return v;
   }
+  // COMPETITIVE CLAUSES, checked here rather than declared to the simulator.
+  //
+  // Evasion / OHKO / Moody / Species are team-COMPOSITION clauses: a simulator
+  // that owned them would refuse the team deep inside its own validation and
+  // the player would experience it as a battle that never starts — the exact
+  // failure Team Preview already caused once, where every match sat until the
+  // AFK watchdog forfeited it. So pvp.ts owns the check and this is the point
+  // where it can still be a sentence the player can act on. Intake is the right
+  // place rather than startBattle: the answer arrives when they press Queue,
+  // not two minutes later when a match is finally found. startBattle re-checks
+  // for the bracket ticker and the admin route, which never come through here.
+  //
+  // checkTeamForFormat is a no-op for the unrated formats (see pvp.ts), so a
+  // friend invite and a practice battle are unaffected.
+  const clauses = checkTeamForFormat(v.team, ctx.format);
+  if (!clauses.ok) {
+    void recordError({
+      kind: "server",
+      level: "warn",
+      message: "pvp_team_clause_violation",
+      source: "pvp.teamIntake",
+      meta: {
+        userId: who.id, username: who.username,
+        via: ctx.via, format: ctx.format,
+        codes: clauses.violations.map((x) => x.code),
+      },
+    });
+    return { ok: false, error: clauses.error };
+  }
   const auditCtx = { format: ctx.format, via: ctx.via, username: who.username };
   if (ENFORCE_OWNERSHIP) {
     const audit = await auditTeamOwnership(who.id, v.team, auditCtx);
@@ -300,6 +366,210 @@ export function getIo(): Server | null {
   return ioInstance;
 }
 
+// ── PvP reconnect grace + queue truth ───────────────────────────────────
+// pvp.ts owns the mechanism and takes its transport as a parameter (it must
+// not import this module — socket.ts imports pvp.js, so the reverse would be
+// a cycle). This is the one place that binds it to real sockets.
+//
+// sendToUserGlobal rather than a connection-scoped helper on purpose: a grace
+// timer fires up to 45 s after the socket that triggered it stopped existing.
+
+/** Tell every queued user how big the queue is.
+ *
+ *  battle:queue:joined is emitted exactly once, at join time, and never
+ *  again — so the client's "you are alone in the queue" was a permanent
+ *  snapshot taken the instant they arrived. This is the correction, and it
+ *  has to fire on EVERY mutation (join, dequeue, invite, respond, pair,
+ *  hold-expiry, drain) or it just moves the staleness around. */
+export function broadcastQueueUpdate(): void {
+  const queueSize = matchmakingQueue.length;
+  for (const userId of queuedUserIds()) {
+    sendToUserGlobal(userId, "battle:queue:update", { queueSize });
+  }
+}
+
+/** A reconnect probe the limiter turned away. Answers NOTHING, deliberately.
+ *
+ *  Both of these handlers take an ack callback, and every failure shape the
+ *  contract allows ("gone", "not_in_battle") means "your battle is over" — the
+ *  client renders any ok:false as "Battle ended by a server restart, not rated"
+ *  and removes the action bar. So a refusal cannot be expressed in the contract
+ *  without lying to a player whose rated battle is very much alive, and the lie
+ *  is not cosmetic: it locks them out of submitting choices, and the AFK
+ *  watchdog then forfeits them for real. That was measured over a real socket
+ *  (30 acks ok, the 31st "rate_limited", room still active).
+ *
+ *  Not acking is a true no-op for this client, which passes a callback rather
+ *  than using emitWithAck: the callback simply never fires and the board it is
+ *  already rendering stays correct. It retries on the next reconnect.
+ *
+ *  Logged so a client stuck in a probe loop is visible, but at most once per
+ *  user per minute — otherwise the log line is a bigger amplifier than the
+ *  handler it protects. */
+function refusedProbe(event: string, userId: string, battleId: unknown): void {
+  if (!probeRefusalLogLimiter.consume(userId)) return;
+  void recordError({
+    kind: "server",
+    level: "warn",
+    message: "pvp_reconnect_probe_rate_limited",
+    source: `socket.${event}`,
+    userId,
+    meta: { event, battleId: typeof battleId === "string" ? battleId : null },
+  });
+}
+
+/** Read a `{ mons: [{ level, speciesKey }] }` party summary off a socket
+ *  payload, or null if there isn't one.
+ *
+ *  Used ONLY to rank trainers for the hub's offer, so it is deliberately
+ *  narrow and total: 1..6 entries, a level clamped to 1..100, a species key that
+ *  looks like an id. Anything else is dropped rather than refused, because the
+ *  worst outcome of a bad summary is a differently-flavoured practice opponent.
+ *  The real team is validated by acceptPvpTeam when the battle starts. */
+function readMonSummary(payload: unknown): BotMatchTarget[] | null {
+  const raw = (payload as { mons?: unknown } | null | undefined)?.mons;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: BotMatchTarget[] = [];
+  for (const entry of raw.slice(0, 6)) {
+    const m = entry as { level?: unknown; speciesKey?: unknown } | null;
+    const level = Number(m?.level);
+    if (!Number.isFinite(level)) continue;
+    const speciesKey = typeof m?.speciesKey === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(m.speciesKey)
+      ? m.speciesKey
+      : undefined;
+    out.push({ level: Math.max(1, Math.min(100, Math.round(level))), speciesKey });
+  }
+  return out.length > 0 ? out : null;
+}
+
+const pvpGraceDeps: GraceDeps = {
+  sendToUser: sendToUserGlobal,
+  isPresent: isOnline,
+  onQueueDropped: (userId) => {
+    sendToUserGlobal(userId, "battle:queue:left", {});
+    broadcastQueueUpdate();
+  },
+};
+
+/** "This user has a socket again." Cancels any battle grace and then pushes
+ *  the queue truth, unconditionally in both directions.
+ *
+ *  The unconditional push is the only thing that can kill a stale
+ *  "Searching for opponent… 14m 32s" toast: the client has no way to tell us
+ *  what it believes, so a client whose queue hold expired while it was away
+ *  is only corrected if we volunteer it. A player who was never queued gets
+ *  a battle:queue:left that clears nothing, which is free. */
+function resumeUserPvp(userId: string): void {
+  const resumed = endDisconnectGrace(userId, pvpGraceDeps);
+  const idx = queueIndexOf(userId);
+  if (idx >= 0) {
+    sendToUserGlobal(userId, "battle:queue:joined", {
+      position: idx + 1,
+      queueSize: matchmakingQueue.length,
+    });
+  } else {
+    sendToUserGlobal(userId, "battle:queue:left", {});
+  }
+  if (resumed.battleIds.length > 0) {
+    console.log("[pvp] reconnected into live battle", { userId, battleIds: resumed.battleIds });
+  }
+}
+
+// ── Shutdown drain ──────────────────────────────────────────────────────
+// battleRooms is an in-process Map and the simulator streams hang off the
+// room, so a restart evaporates every live battle: no battle:complete, no
+// PvpMatch row, no ELO, and a client left holding a live-looking board whose
+// turn timer counts toward a deadline nobody enforces. Server-side recovery
+// is impossible — nothing about a mid-battle is persisted. So: leave a record
+// on the way out, and stop accepting battles we know we can't finish.
+//
+// The flag itself lives in pvp.ts (beginDrain / isDraining) rather than here.
+// It used to be a local `shuttingDown` plus an exported isShuttingDown() with
+// zero consumers anywhere in src/, and that shape could only ever guard the
+// four socket entry points below — while lib/tournamentRunner.ts's 15-second
+// bracket ticker and the admin "Start match" route call startBattle directly
+// and knew nothing about it. Owning the flag in pvp.ts lets startBattle itself
+// refuse, which covers all four callers including the two that cannot import
+// this module.
+//
+// The old isShuttingDown() export is gone rather than re-pointed at the new
+// latch: it had zero consumers anywhere in src/, and an alias with no callers
+// is what let the gap hide in the first place. Anything that needs to ask
+// imports isDraining from pvp.js, which is where the answer is enforced.
+let drainInstalled = false;
+const DRAIN_FLUSH_MS = 1_500;
+const DRAIN_HARD_DEADLINE_MS = 5_000;
+
+function installShutdownDrain(): void {
+  if (drainInstalled) return;
+  drainInstalled = true;
+  // vitest runs this module in-process; a handler that ends in process.exit
+  // would take the test runner with it.
+  if (process.env.NODE_ENV === "test") return;
+  process.once("SIGTERM", () => { void drainForShutdown("SIGTERM"); });
+  process.once("SIGINT", () => { void drainForShutdown("SIGINT"); });
+}
+
+async function drainForShutdown(signal: string): Promise<void> {
+  // A second signal means "I already asked" — go now.
+  if (isDraining()) process.exit(0);
+  // Latch BEFORE the sweep below, not after: the sweep ends every live room,
+  // and a battle started between the sweep and process.exit would be an orphan
+  // no drain is left to void.
+  beginDrain();
+  // Attaching a SIGTERM listener REPLACES node's default terminate-on-signal
+  // (src/index.ts installs none), so this function is now solely responsible
+  // for the process dying. A throw or a hung await below would leave Railway
+  // waiting out its ~30 s grace and then SIGKILLing us, turning every deploy
+  // into a half-minute outage. Hence: hard deadline, and process.exit in a
+  // finally.
+  const hardStop = setTimeout(() => process.exit(0), DRAIN_HARD_DEADLINE_MS);
+  const live = Array.from(battleRooms.values()).filter((r) => r.status === "active");
+  try {
+    stopMatchmakingTicker();
+    for (const userId of queuedUserIds()) sendToUserGlobal(userId, "battle:queue:left", {});
+    matchmakingQueue.length = 0;
+    // "cancelled" is load-bearing: it writes a PvpMatch row, moves no ELO
+    // (endBattle's rating guard requires reason !== "cancelled"), sends both
+    // clients a real battle:complete instead of leaving them on a dead board,
+    // and reads as `dead` to the tournament bracket so the pairing is re-run
+    // rather than advanced with a phantom winner.
+    for (const room of live) void endBattle(room, sendToUserGlobal, "cancelled");
+    if (live.length > 0) {
+      void recordError({
+        kind: "server",
+        level: "warn",
+        message: "pvp_drain_voided_battles",
+        source: "socket.drainForShutdown",
+        meta: { signal, count: live.length, battleIds: live.map((r) => r.id) },
+      });
+    }
+    // endBattle's row insert is fire-and-forget; without this wait the drain
+    // would end every battle and exit before a single row committed, which
+    // is the whole defect it exists to fix.
+    const flushed = await flushPvpPersists(DRAIN_FLUSH_MS);
+    if (!flushed) {
+      void recordError({
+        kind: "server",
+        message: "pvp_drain_persist_flush_timeout",
+        source: "socket.drainForShutdown",
+        meta: { signal, count: live.length, timeoutMs: DRAIN_FLUSH_MS },
+      });
+    }
+  } catch (e) {
+    void recordError({
+      kind: "server",
+      message: "pvp_drain_failed",
+      source: "socket.drainForShutdown",
+      stack: e instanceof Error ? e.stack ?? null : null,
+      meta: { signal, count: live.length, error: String(e) },
+    });
+  } finally {
+    clearTimeout(hardStop);
+    process.exit(0);
+  }
+}
+
 // Broadcast a "chat cleared" notification to every connected socket so
 // clients can wipe their cached message lists for the affected channels
 // without needing a refresh. Called by the admin clear-chat endpoint.
@@ -402,18 +672,30 @@ export function attachSocketServer(httpServer: HttpServer): Server {
   // doesn't strand both players staring at "Searching for opponent...").
   // Idempotent — no-ops when there aren't ≥2 queued.
   const tryPairAndSpawnRoom = async (): Promise<void> => {
+    // Don't start a battle we already know we can't finish — the drain is
+    // seconds away from voiding it.
+    if (isDraining()) return;
     const pair = popQueuePair();
     if (!pair) return;
     const [aEntry, bEntry] = pair;
+    // Both entries left the queue to get here, so everyone still waiting
+    // needs a fresh size.
+    broadcastQueueUpdate();
     // If either side dropped out between joining the queue and the
     // pair pop, requeue the survivor and bail. The next tick (or the
     // next join) re-attempts.
+    //
+    // popQueuePair only hands us entries that aren't inside a disconnect
+    // hold, so reaching here with an offline player means they went away in
+    // the last few milliseconds — not that the hold failed.
     if (!online.has(aEntry.userId)) {
       if (online.has(bEntry.userId)) joinQueue(bEntry);
+      broadcastQueueUpdate();
       return;
     }
     if (!online.has(bEntry.userId)) {
       joinQueue(aEntry);
+      broadcastQueueUpdate();
       return;
     }
     const battleId = newBattleId();
@@ -477,6 +759,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
   // a pair is available, this guarantees a battle starts even if the
   // join-time trigger was missed (race, transient socket hiccup, etc.).
   startMatchmakingTicker(() => { void tryPairAndSpawnRoom(); }, 3_000);
+  // index.ts owns process lifecycle but installs no signal handler, so the
+  // drain has to be installed from here. Guarded to once per process.
+  installShutdownDrain();
   io.on("connection", async (socket) => {
     const user = socket.data.user!;
     // The admin dashboard's Live Chat view opens a real, authenticated
@@ -499,6 +784,21 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     }
 
     if (!isAdminDashboard) {
+      // FIRST, and above the await below: cancel any reconnect grace this
+      // user's battles are sitting in, and correct their queue state. An
+      // await here would yield to the event loop, and a grace timer that
+      // fires in that gap forfeits a player who is demonstrably back.
+      //
+      // Inside the !isAdminDashboard gate on purpose: the dashboard socket
+      // skips addPresence, so resuming off it would clear awayAt for a user
+      // with zero sockets — every subsequent event silently dropped, nobody
+      // enforcing the turn clock, battle hangs forever. That trades a bad
+      // loss for a worse hang.
+      //
+      // This runs on EVERY connect, not just ones where the client bothers to
+      // emit battle:rejoin, so an old client build (or a bug in the new one)
+      // still can't be forfeited for coming back.
+      resumeUserPvp(user.id);
       // Mark last seen now.
       await prisma.user
         .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
@@ -1116,6 +1416,7 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (!battleInviteLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" }); return;
         }
+        if (isDraining()) { ack?.({ ok: false, error: "server_restarting" }); return; }
         // Whitelist formats — friend invites can be anything-goes or
         // random50, but never tournament (those are server-spawned by
         // the bracket runner). Default to anything-goes.
@@ -1123,6 +1424,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // Bounds-enforced, ownership shadow-logged. See acceptPvpTeam.
         const vInvite = await acceptPvpTeam(team, user, { format: fmt, via: "invite" });
         if (!vInvite.ok) { ack?.({ ok: false, error: vInvite.error }); return; }
+        // Same as battle:queue: inviting a human ends any practice battle rather
+        // than being refused by it.
+        releaseBotBattlesFor(user.id, sendToUser);
         // One outstanding battle per user — same heuristic as trades.
         for (const room of battleRooms.values()) {
           if (
@@ -1143,7 +1447,15 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // sending a friend invite implies they no longer want a
         // random match (and would also collide if both fired at
         // the same time).
-        leaveQueue(user.id);
+        //
+        // This used to be a bare leaveQueue() that emitted nothing: the
+        // client's "Searching for opponent… 14m 32s" toast then ticked
+        // forever on a player who was no longer queued. Same lie as the
+        // disconnect path, in a second place.
+        if (leaveQueue(user.id)) {
+          sendToUser(user.id, "battle:queue:left", {});
+          broadcastQueueUpdate();
+        }
         const id = newBattleId();
         const room: BattleRoom = {
           id,
@@ -1188,10 +1500,23 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         if (!battleInviteLimiter.consume(user.id)) {
           ack?.({ ok: false, error: "rate_limited" }); return;
         }
+        if (isDraining()) { ack?.({ ok: false, error: "server_restarting" }); return; }
         // The rated path — this is the one whose result moves ELO, so it
         // is the one team forgery mattered most on. See acceptPvpTeam.
         const vQueue = await acceptPvpTeam(team, user, { format: "random50", via: "queue" });
         if (!vQueue.ok) { ack?.({ ok: false, error: vQueue.error }); return; }
+        // A PRACTICE battle must never bench the rated queue. Wanting a real
+        // opponent is the clearest possible statement that the AI fight is over,
+        // so end it and carry on rather than answering "already in a battle" —
+        // which is what used to happen, for up to 5 m 45 s if a second tab kept
+        // the player present so no reconnect grace ever started. Runs AFTER team
+        // validation so a rejected team never costs them their practice battle.
+        const releasedForQueue = releaseBotBattlesFor(user.id, sendToUser);
+        if (releasedForQueue.length > 0) {
+          console.log("[pvp] practice battle ended to free the rated queue", {
+            user: user.username, battleIds: releasedForQueue,
+          });
+        }
         // Don't queue if already in a battle.
         for (const room of battleRooms.values()) {
           if (
@@ -1212,6 +1537,9 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           position: queueIndexOf(user.id) + 1,
           queueSize: matchmakingQueue.length,
         });
+        // …and tell everyone ALREADY waiting that the queue grew. Without
+        // this their "you are alone in the queue" never updates.
+        broadcastQueueUpdate();
         console.log("[pvp] queued", { user: user.username, queueSize: matchmakingQueue.length });
 
         // Try to pair via the shared helper (also called by the
@@ -1222,9 +1550,205 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       },
     );
 
+    // ── Practice against the server's AI ─────────────────────────
+    // The queue is pure FIFO and needs two people in it at the SAME INSTANT.
+    // With ~34 active players an hour, "nobody is there" is the normal case,
+    // not the edge case — so this is the answer to an EMPTY queue, not a
+    // replacement for matchmaking. The real queue is untouched; the client
+    // offers this after 20 s of a demonstrably empty queue, and from a
+    // permanent PRACTICE chip for anyone who does not want to wait first.
+    //
+    // Modelled on battle:queue and doing every one of the same six things,
+    // because each one exists for a reason found the hard way:
+    //   * the same limiter bucket (no new surface to abuse);
+    //   * refuse mid-drain, before a room exists;
+    //   * acceptPvpTeam — this is the FOURTH team intake site and must not be
+    //     the one that skips bounds validation;
+    //   * the "already in a battle" walk;
+    //   * emit on dequeue, or the client's "Searching for opponent… 14m 32s"
+    //     toast ticks forever on a player who is no longer queued;
+    //   * start the simulator BEFORE announcing, so a refusal is a message
+    //     rather than a battle screen that opens and vanishes.
+    socket.on(
+      "battle:bot",
+      async (
+        { team, tier, trainer }: { team: unknown[]; tier?: string; trainer?: string },
+        ack?: (r: any) => void,
+      ) => {
+        // The 24/7 stream account is unattended; a bot-vs-bot battle on stream
+        // is a loop nobody asked for, and it would hold the stream's single
+        // battle slot. Same gate the trade handlers use.
+        if (user.isStream) { ack?.({ ok: false, error: "stream_restricted" }); return; }
+        if (!battleInviteLimiter.consume(user.id)) {
+          ack?.({ ok: false, error: "rate_limited" }); return;
+        }
+        if (isDraining()) { ack?.({ ok: false, error: "server_restarting" }); return; }
+        const vBot = await acceptPvpTeam(team, user, { format: "bot", via: "bot" });
+        if (!vBot.ok) { ack?.({ ok: false, error: vBot.error }); return; }
+        for (const room of battleRooms.values()) {
+          if (
+            room.status !== "completed" && room.status !== "cancelled" &&
+            (room.a.userId === user.id || room.b.userId === user.id)
+          ) {
+            ack?.({ ok: false, error: "already in a battle" }); return;
+          }
+        }
+        // Starting a practice battle means they have stopped waiting for a
+        // human. Dequeue and SAY so — a silent leaveQueue is the bug
+        // battle:invite already had to fix.
+        if (leaveQueue(user.id)) {
+          sendToUser(user.id, "battle:queue:left", {});
+          broadcastQueueUpdate();
+        }
+        // Only two tiers ship, because only two are measurably different —
+        // see lib/pvpBotBrain.ts. Anything else collapses to the default
+        // rather than erroring: refusing a practice battle over a bad string
+        // is worse than fighting the wrong difficulty.
+        const botTier: BotTier = tier === "rookie" ? "rookie" : "trainer";
+        const plan = buildBotTeam(
+          vBot.team,
+          typeof trainer === "string" ? trainer : undefined,
+        );
+        const battleId = newBattleId();
+        const room: BattleRoom = {
+          id: battleId,
+          status: "invited",   // immediately upgraded to "active" by startBattle
+          format: "bot",
+          createdAt: Date.now(),
+          lastChoiceAt: Date.now(),
+          // The HUMAN is side a, always. snapshotForSide / resolveRejoin /
+          // pumpPlayerStream all work off "whichever side you are", so nothing
+          // breaks if that were reversed — but the human's replay log lives on
+          // the side that pumpPlayerStream drains, and pinning the human to `a`
+          // keeps every existing test's mental model intact.
+          a: {
+            userId: user.id, username: user.username, team: vBot.team as never,
+            stream: null, request: null, connected: true,
+          },
+          b: {
+            // Namespaced id: a colon cannot appear in a real handle
+            // (validateUsername allows only [A-Za-z0-9_]) and User.id is a
+            // cuid, so this can never collide with a player — which is what
+            // makes the "never grace the bot" and "never rate the bot" guards
+            // unreachable-by-construction rather than merely correct.
+            userId: `bot:${battleId}`,
+            // Always contains " AI". The player must never be able to mistake
+            // this for a human, and a space is impossible in a real username.
+            username: plan.label,
+            team: plan.team as never,
+            stream: null, request: null,
+            // connected/awayAt describe a socket this seat does not have.
+            // `connected: true` and `awayAt: null` are the states that make
+            // every presence-shaped check answer "present", which is correct:
+            // the AI is never away.
+            connected: true, awayAt: null,
+            isBot: true, botTier,
+          },
+          log: [],
+          stream: null,
+          expiryTimer: null,
+          spectators: new Set(),
+        };
+        battleRooms.set(battleId, room);
+        try {
+          await startBattle(io, room, sendToUser, () => {
+            // The human only. The bot has no socket, and sendToUser would
+            // swallow it silently — see endBattle for why that is not relied on.
+            sendToUser(user.id, "battle:start", {
+              battleId, format: room.format,
+              opponent: { id: room.b.userId, username: room.b.username },
+              you: "a",
+            });
+          });
+          console.log("[pvp] bot battle started", {
+            battleId, user: user.username, trainer: plan.trainerId, tier: botTier,
+            teamSize: { human: vBot.team.length, bot: plan.team.length },
+          });
+          ack?.({ ok: true, battleId, opponent: plan.label, tier: botTier });
+        } catch (e) {
+          room.status = "cancelled";
+          const detail = e instanceof Error ? e.message : String(e);
+          const reason = `Couldn't start the practice battle: ${detail}`;
+          sendToUser(user.id, "battle:cancelled", { battleId, reason });
+          battleRooms.delete(battleId);
+          void recordError({
+            kind: "server",
+            message: "pvp_bot_battle_start_failed",
+            source: "socket.battle:bot",
+            stack: e instanceof Error ? e.stack ?? null : null,
+            userId: user.id,
+            username: user.username,
+            meta: {
+              battleId, format: room.format, simulatorError: detail,
+              trainer: plan.trainerId, tier: botTier,
+              humanTeamSize: vBot.team.length, botTeamSize: plan.team.length,
+            },
+          });
+          ack?.({ ok: false, error: reason });
+        }
+      },
+    );
+
+    /**
+     * The trainer roster, so the client can NAME who it is offering — and, when
+     * the client sends a party summary, say which of them is a fair fight.
+     *
+     * `mons` is `[{ level, speciesKey }]` and nothing else: enough for the same
+     * matcher buildBotTeam runs, and no more. It is forgeable, and that is fine
+     * because forging it can only change which trainer is SUGGESTED for a battle
+     * that is unrated either way — the real team arrives with battle:bot and is
+     * bounds-validated there like every other intake.
+     *
+     * `recommended` is what makes the hub's offer honest: the player is told
+     * "Fight Hiker AI?", the client passes that id back, and pickTrainer honours
+     * a named trainer, so the fight is against the trainer they were promised.
+     */
+    socket.on("battle:bot:trainers", (payload: unknown, ack?: (r: any) => void) => {
+      const mons = readMonSummary(payload);
+      if (!mons) {
+        ack?.({
+          ok: true,
+          trainers: BOT_TRAINERS.map((t) => ({ id: t.id, label: t.label })),
+          recommended: null,
+        });
+        return;
+      }
+      const ranked = rankTrainers(mons);
+      // The MINIMUM fit, not ranked[0].fit: rankTrainers sorts the trainers that
+      // fit ahead of the ones that do not and then orders them by type
+      // neutrality, so the head of the list is the best OFFER and not necessarily
+      // the smallest error. Reading it as the smallest would loosen the threshold
+      // below and label an opponent "fair fight" that pickTrainer would refuse.
+      const best = Math.min(...ranked.map((r) => r.fit));
+      ack?.({
+        ok: true,
+        // Best fit first, each carrying the two numbers the picker labels with:
+        // `fit` (how well their team can be matched to yours — smaller is
+        // better) and `edge` (type advantage in log2 steps, + towards the AI).
+        trainers: ranked.map((r) => ({
+          id: r.trainer.id,
+          label: r.trainer.label,
+          fit: r.fit,
+          edge: r.edge,
+          // The SAME thresholds pickTrainer applies, imported rather than
+          // repeated: a picker that says "fair fight" about a trainer the server
+          // would not itself choose is worse than no label at all.
+          matched: r.fit <= best + FIT_SLACK && Math.abs(r.edge) <= MAX_TYPE_EDGE,
+        })),
+        recommended: ranked[0]?.trainer.id ?? null,
+      });
+    });
+
     socket.on("battle:dequeue", (_payload: unknown, ack?: (r: any) => void) => {
+      // Explicit dequeue also releases any disconnect hold — leaveQueue drops
+      // the timer, but a user who was held and never actually re-queued would
+      // otherwise leave awayAt set on nothing.
+      cancelQueueGrace(user.id);
       const removed = leaveQueue(user.id);
-      if (removed) sendToUser(user.id, "battle:queue:left", {});
+      if (removed) {
+        sendToUser(user.id, "battle:queue:left", {});
+        broadcastQueueUpdate();
+      }
       ack?.({ ok: removed });
     });
 
@@ -1235,7 +1759,15 @@ export function attachSocketServer(httpServer: HttpServer): Server {
     // via battle:spectate:join.
     socket.on("battle:list", (_payload: unknown, ack?: (r: any) => void) => {
       const list = Array.from(battleRooms.values())
-        .filter((r) => r.status === "active")
+        // AI practice battles are filtered OUT, not flagged. This payload
+        // publishes both seats' userId + username to every authenticated user
+        // and feeds the hub's "LIVE NOW" panel; a bot room would surface there
+        // as if it were a match between two players, and with ~34 active
+        // players an hour two practice battles would crowd the real ones out of
+        // a six-card panel. Nobody wants to watch somebody fight an AI, and
+        // filtering also removes the whole spectator surface (and the bot's
+        // synthetic userId) from public view at zero cost.
+        .filter((r) => r.status === "active" && !isBotRoom(r))
         .map((r) => ({
           battleId: r.id,
           format: r.format,
@@ -1257,6 +1789,18 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         const room = battleRooms.get(battleId);
         if (!room) { ack?.({ ok: false, error: "no such battle" }); return; }
         if (room.status !== "active") { ack?.({ ok: false, error: "battle not active" }); return; }
+        // A practice battle is not a spectator sport, and battle:list's filter
+        // does NOT close this door on its own — measured, because the comment
+        // there claimed it did. This handler takes a battleId straight off the
+        // payload and never consults the list, so `battle:spectate:join` on a
+        // bot room used to succeed: the third party got a
+        // battle:spectate:start carrying the synthetic `bot:<battleId>` seat and
+        // the " AI" label, the whole omniscient log of somebody's practice
+        // match, and finally a battle:spectate:end whose winnerId is a userId
+        // that resolves to no account. Nothing crashed — the AI seat survives a
+        // spectator from join to end — but "hidden from LIVE NOW" and "not
+        // reachable" are different claims, and only one of them was true.
+        if (isBotRoom(room)) { ack?.({ ok: false, error: "no such battle" }); return; }
         // Players can't spectate their own battles — they're already
         // participants. (Their UI shouldn't expose this option, but
         // guard server-side anyway.)
@@ -1312,13 +1856,24 @@ export function attachSocketServer(httpServer: HttpServer): Server {
           battleRooms.delete(battleId);
           ack?.({ ok: true }); return;
         }
+        // Declining above is always allowed; accepting is not, because the
+        // drain is about to void whatever we start.
+        if (isDraining()) { ack?.({ ok: false, error: "server_restarting" }); return; }
         const vRespond = await acceptPvpTeam(team, user, { format: room.format, via: "respond" });
         if (!vRespond.ok) { ack?.({ ok: false, error: vRespond.error }); return; }
+        // Accepting a human's invite ends any practice battle, for the same
+        // reason battle:queue does. A real opponent always wins.
+        releaseBotBattlesFor(user.id, sendToUser);
         // Drop them from the matchmaking queue if waiting — accepting
         // a friend invite implies they're no longer looking for a
         // random match. Without this, the queue could pair them with
-        // someone else mid-friend-battle.
-        leaveQueue(user.id);
+        // someone else mid-friend-battle. Emit, for the same reason
+        // battle:invite does: a silent dequeue leaves the client's search
+        // toast ticking forever.
+        if (leaveQueue(user.id)) {
+          sendToUser(user.id, "battle:queue:left", {});
+          broadcastQueueUpdate();
+        }
         room.b.team = vRespond.team as never;
         room.b.connected = true;
         // "battle:start" opens the battle screen, so it goes inside
@@ -1380,6 +1935,56 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       },
     );
 
+    // ── Reconnect ────────────────────────────────────────────────
+    // Two probes, deliberately different in what they can say.
+    //
+    // battle:rejoin rebuilds a battle the client lost (page reload, tab
+    // resume, new socket). It answers with the SIDE-FILTERED view only —
+    // never room.log, which is the simulator's omniscient channel and would
+    // hand a participant the opponent's full team and private request. See
+    // BattleSide.log and snapshotForSide in pvp.ts.
+    //
+    // battle:sync just asks "is my battle still real?" — the answer for a
+    // battle lost to a restart is "gone", which is the only recovery
+    // available: battleRooms is in-process and the simulator streams die with
+    // it, so there is nothing to restore, and the honest fix is telling the
+    // client to stop rendering a board whose choices silently no-op.
+    //
+    // Both resolvers live in pvp.ts because their ack shapes are a fixed
+    // contract with the client and no test may import this module.
+    socket.on(
+      "battle:rejoin",
+      (payload: { battleId?: unknown } | undefined, ack?: (r: any) => void) => {
+        if (!battleRejoinLimiter.consume(user.id)) {
+          refusedProbe("battle:rejoin", user.id, payload?.battleId);
+          return;
+        }
+        // Resume before snapshotting: cancelReconnectGrace is what credits
+        // the turn clock, so a snapshot built first would ship a
+        // turnDeadlineAt the server no longer intends to enforce. Normally
+        // the connection handler already did this; a rejoin on an existing
+        // socket (client-side state loss without a transport drop) is why
+        // it's here too, and it's idempotent.
+        //
+        // Same !isAdminDashboard gate as the connection hook: that socket
+        // never registered presence, so resuming off it would clear awayAt for
+        // a user with zero sockets and hang the battle instead of ending it.
+        if (!isAdminDashboard) resumeUserPvp(user.id);
+        ack?.(resolveRejoin(user.id, payload?.battleId, pvpGraceDeps));
+      },
+    );
+
+    socket.on(
+      "battle:sync",
+      (payload: { battleId?: unknown } | undefined, ack?: (r: any) => void) => {
+        if (!battleSyncLimiter.consume(user.id)) {
+          refusedProbe("battle:sync", user.id, payload?.battleId);
+          return;
+        }
+        ack?.(resolveSync(user.id, payload?.battleId, pvpGraceDeps));
+      },
+    );
+
     socket.on(
       "battle:cancel",
       ({ battleId }: { battleId: string }, ack?: (r: any) => void) => {
@@ -1417,32 +2022,51 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // Last connection for this user is gone — broadcast updated
         // total to everyone.
         broadcastOnlineCount();
-        // Flush from random matchmaking queue if waiting.
-        leaveQueue(user.id);
         // Drop from any spectator sets — no-op if they weren't
         // watching anything. Cheap O(rooms) walk.
         for (const room of battleRooms.values()) {
           room.spectators.delete(user.id);
         }
-        // Forfeit any active PvP battle. Disconnect = forfeit; the
-        // other side gets the win instead of staring at a frozen
-        // turn timer.
+        // Hold this user's seat instead of forfeiting it.
+        //
+        // This used to name the opponent winner and endBattle(…, "forfeit")
+        // right here, with zero grace, for every active room the user was in.
+        // Matches run several minutes, so a backgrounded phone, a wifi blip,
+        // a Cloudflare hiccup, a rolling deploy, or the player pressing
+        // Reload on the update prompt each produced an instant RATED loss and
+        // a `forfeits` increment. beginDisconnectGrace instead starts a
+        // 45-second window (pvp.ts), tells the surviving player their
+        // opponent is away with a deadline to render, and holds the
+        // matchmaking queue slot — a deploy otherwise empties the queue and
+        // everyone has to re-queue.
+        //
+        // Synchronous, and it must stay above the first await below: that is
+        // the only reason a disconnect can't interleave with a reconnect.
+        //
+        // Side effect worth knowing about: kickUser / kickSession
+        // force-disconnect through this same handler, so a banned or
+        // session-replaced player now gets the grace too before forfeiting.
+        const held = beginDisconnectGrace(user.id, pvpGraceDeps);
+        if (held.battleIds.length > 0 || held.queueHeld) {
+          console.log("[pvp] holding seat through disconnect", {
+            user: user.username, battleIds: held.battleIds, queueHeld: held.queueHeld,
+          });
+        }
+        // Pending invites are still cancelled outright, and deliberately so:
+        // an invite is unrated, writes no PvpMatch row and costs one click to
+        // re-send, whereas holding it would let the receiver accept an invite
+        // from an absent player — startBattle flips the room to active and the
+        // absent side lands straight in forfeit territory, turning a free
+        // re-invite into a rated-loss risk.
         for (const room of Array.from(battleRooms.values())) {
-          if (room.status !== "active" && room.status !== "invited") continue;
+          if (room.status !== "invited") continue;
           if (room.a.userId === user.id || room.b.userId === user.id) {
-            if (room.status === "active") {
-              room.winnerId = user.id === room.a.userId ? room.b.userId : room.a.userId;
-              room.loserId = user.id;
-              void endBattle(room, sendToUser, "forfeit");
-            } else {
-              // Pending invite — just cancel it.
-              room.status = "cancelled";
-              if (room.expiryTimer) clearTimeout(room.expiryTimer);
-              const reason = `${user.username} disconnected.`;
-              sendToUser(room.a.userId, "battle:cancelled", { battleId: room.id, reason });
-              sendToUser(room.b.userId, "battle:cancelled", { battleId: room.id, reason });
-              battleRooms.delete(room.id);
-            }
+            room.status = "cancelled";
+            if (room.expiryTimer) clearTimeout(room.expiryTimer);
+            const reason = `${user.username} disconnected.`;
+            sendToUser(room.a.userId, "battle:cancelled", { battleId: room.id, reason });
+            sendToUser(room.b.userId, "battle:cancelled", { battleId: room.id, reason });
+            battleRooms.delete(room.id);
           }
         }
         // If this user had an open trade, cancel it so the other side
