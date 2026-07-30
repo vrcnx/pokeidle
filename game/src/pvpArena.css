@@ -20,7 +20,32 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  min-width: 0;
   flex: 1 1 auto;
+}
+
+/* WIDE LAYOUT PLACEMENT — the one rule this file cannot do without.
+ *
+ * app.css turns `.center-column` into a TWO-column, three-row grid in the
+ * wide layout (`.dashboard-wide .center-column`) and then places the IDLE
+ * children explicitly: .battle-area / .moves-toolbar span `1 / -1`,
+ * .moves-panel takes column 1, .context-panel takes column 2. CenterColumn
+ * replaces all of them with the single child `.pvp2-center`, which matches
+ * none of those rules — so it auto-placed into row 1 / column 1 and the arena
+ * rendered at HALF the column's width with an empty track beside it and two
+ * empty rows below (measured 539px of a 1084px column, 545px of dead space to
+ * the right and 466px below). `flex: 1 1 auto` above is inert inside a grid
+ * parent, which is why nothing pushed back.
+ *
+ * Claiming every track is the arena's equivalent of `.battle-area`'s
+ * `grid-column: 1 / -1`, and it is what makes the right rail — a normal third
+ * dashboard track all along — sit next to real content again. */
+.dashboard-wide .center-column > .pvp2-center {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 /* The battle frame. Mirrors the idle .battle-scene proportions so the
@@ -34,7 +59,40 @@
   overflow: hidden;
   background: var(--panel);
   flex: 0 0 auto;
+  min-width: 0;
+
+  /* HP-card width, republished for the arena.
+   *
+   * app.css declares `--hp-card-w: clamp(150px, 38%, 224px)` on `.battle-scene`
+   * and NOT on the cards, deliberately: the 38% has to resolve against the
+   * arena the card floats over, so it is read at the use site
+   * (`.hp-card { width: var(--hp-card-w) }`, `.enemy-card-stack { width: … }`).
+   * The PvP frame is `.pvp2-scene`, not `.battle-scene`, so the property was
+   * simply undefined here — `width: var(--hp-card-w)` was invalid at computed
+   * value time, fell back to `width: auto`, and both cards sized to
+   * min-content (144px / 153.5px) inside a 63px / 97px slot and spilled out of
+   * the frame to be cut off by `overflow: hidden`. Declaring it on the frame
+   * that actually contains the cards is the whole fix, and it keeps the cards
+   * on app.css's sizing rule rather than forking one for PvP. */
+  --hp-card-w: clamp(150px, 38%, 224px);
+
+  /* Vertical room reserved at the scene's top-left for `.pvp2-turn-chip`.
+   * The idle scene has nothing there; the arena does, and the enemy card
+   * stack it now reuses is pinned to that same corner. */
+  --pvp2-chip-room: 30px;
+
+  /* Queried below, so the chrome responds to the ARENA's width rather than
+   * the viewport's — the same scene is 1084px wide in the wide dashboard and
+   * ~370px in a narrow one, and only the second needs the small treatment. */
+  container-type: inline-size;
+  container-name: pvp2arena;
 }
+
+/* The arena reuses the idle scene's `.enemy-card-stack` (top-left) verbatim.
+ * Only one thing differs: PvP puts the turn chip in that corner too, so the
+ * stack starts below it. Scoped to `.pvp2-scene` so the idle battle scene is
+ * untouched. */
+.pvp2-scene .enemy-card-stack { top: calc(6% + var(--pvp2-chip-room)); }
 
 .pvp2-scene .battle-bg {
   position: absolute;
@@ -48,48 +106,45 @@
   filter: brightness(0.82) saturate(1.05);
 }
 
-.pvp2-slot {
-  position: absolute;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  max-width: 58%;
-}
-
-.pvp2-slot-foe { top: 10px; right: 10px; flex-direction: row-reverse; }
-.pvp2-slot-you { bottom: 10px; left: 10px; align-items: flex-end; }
-
-.pvp2-you-card { display: flex; flex-direction: column; }
-
+/* Placeholder shown in place of a fighter card before a side has sent
+   anything out. The foe's sits inside `.enemy-card-stack`, which has a
+   definite width, so it must wrap rather than run past it. */
 .pvp2-slot-empty {
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid var(--border-strong);
-  white-space: nowrap;
+  box-sizing: border-box;
+  max-width: 100%;
 }
+/* Your side's placeholder borrows `.player-card` purely for its position
+   (bottom 18% / right 4%), so it needs its own box. */
+.pvp2-slot-empty.player-card { width: var(--hp-card-w); }
 
-/* ── Sprites ──────────────────────────────────────────────────────── */
+/* ── Sprites ──────────────────────────────────────────────────────────
+ *
+ * The sprite slots are the idle scene's own `.sprite-slot .player-slot` /
+ * `.sprite-slot .enemy-slot`, and the images its own `.player-sprite` /
+ * `.enemy-sprite` — so the arena inherits the whole battle-sprite system for
+ * free: percentage-of-arena slots, the intrinsic-size scaling that keeps a
+ * Ditto small next to an Onix, the floor shadow, the pokéball-pop entrance
+ * and the faint drop. The `pvp2-sprite*` classes below are identity hooks
+ * only and deliberately carry no layout of their own — the previous fixed
+ * `max-width: 96px * boost` box did not scale with the arena, and the slot it
+ * lived in was `position: absolute`, which made it the containing block for
+ * `.enemy-card-stack` / `.player-card` and is what shrank both cards onto
+ * their own sprite (measured: 90% of the foe sprite and 82% of yours covered
+ * by the card sitting on top of it, which is why neither appeared at all). */
 
-.pvp2-sprite {
-  display: grid;
-  place-items: end center;
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.pvp2-sprite img {
-  width: auto;
-  height: auto;
-  max-width: calc(96px * var(--sprite-boost, 1.3));
-  max-height: calc(96px * var(--sprite-boost, 1.3));
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
-}
-
-/* A fainted Pokémon drops and fades rather than vanishing, so the player
-   can see WHICH one went down. */
-.pvp2-sprite.fainted {
-  opacity: 0.25;
-  transform: translateY(14px) scaleY(0.72);
+/* If every source in <Sprite>'s chain fails — animated GIF, its cache-busting
+   retry, the static PNG, its retry — the component renders a `.sprite-missing`
+   glyph instead of an <img>. Give it the slot rather than letting it collapse
+   to its 16px minimum, so a species with no animated sprite degrades to
+   something the player can see and report. */
+.pvp2-sprite .sprite-missing {
+  width: 46%;
+  height: 46%;
+  font-size: 16px;
 }
 
 .pvp2-fainted { opacity: 0.55; }
@@ -107,18 +162,28 @@
   color: var(--ink);
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid var(--border-bright);
+  /* Above the fighter cards (z 3), which now share this corner. */
+  z-index: 4;
 }
 
+/* Field conditions move to the top-RIGHT, above the foe's sprite: the
+   top-left strip they used to span is where the enemy card stack lives now,
+   and a full-width strip underneath it would have been drawn behind the card
+   (cards are z 3, the strip was z 2). The sprite slot below starts at 18% of
+   the arena height and its Pokémon is bottom-aligned inside it, so nothing
+   here can cover a sprite. */
 .pvp2-field-strip {
   position: absolute;
-  top: 38px;
-  left: 10px;
+  top: 10px;
   right: 10px;
+  left: auto;
+  max-width: 56%;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
 
 .pvp2-field-chip {
@@ -129,6 +194,28 @@
   border: 1px solid var(--border-bright);
   color: var(--ink-soft);
   white-space: nowrap;
+}
+
+/* A phone-sized arena — ~420px wide, so ~236px tall — cannot fit the turn
+   chip, the enemy card AND the trainer tag stacked down its left edge; the
+   30px of chip room would push the tag through the bottom of the frame and
+   `overflow: hidden` would eat it. Below that width the chip takes the
+   top-right corner instead (the only part of the frame nothing else claims —
+   the foe's sprite slot starts 18% down) and the card stack goes back to the
+   idle scene's own 6% top. Keyed off the ARENA, not the viewport, so it fires
+   for a narrow dashboard column as well as for a phone. */
+@container pvp2arena (max-width: 420px) {
+  .pvp2-turn-chip {
+    top: 6px;
+    left: auto;
+    right: 6px;
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+  .pvp2-field-strip { top: 32px; right: 6px; max-width: 74%; }
+  /* Same selector as the rule it overrides — a container query adds no
+     specificity of its own, so it has to match it and win on source order. */
+  .pvp2-scene .enemy-card-stack { top: 6%; }
 }
 
 .pvp2-field-chip.weather { border-color: rgba(104, 144, 240, 0.7); color: #cfe0ff; }
@@ -199,11 +286,16 @@
 
 /* ── Action area ──────────────────────────────────────────────────── */
 
+/* The action bar takes whatever height the scene leaves, exactly as the idle
+   layout's third grid row does — otherwise the arena stopped halfway down the
+   column and the rest of it showed the page background through. */
 .pvp2-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .pvp2-action-title {
@@ -212,16 +304,41 @@
   color: var(--text-muted);
 }
 
+/* "Waiting for opponent's choice…" is not a transient — it is half of every
+   turn — so it takes the space the move grid would have had rather than
+   leaving the bottom of the column empty. */
 .pvp2-waiting {
   margin: 0;
   padding: 12px;
   text-align: center;
   border: 1px dashed var(--border-strong);
   border-radius: 8px;
+  flex: 1 1 auto;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* .moves-panel already lays out a 2x2 grid; only spacing differs here. */
-.pvp2-moves { margin: 0; }
+/* .moves-panel already lays out a 2x2 grid; only spacing differs here.
+   It absorbs the action bar's spare height the same way the idle moves panel
+   absorbs its grid row, so the tiles are big targets in a timed battle
+   instead of a short strip with empty space under it. */
+.pvp2-moves {
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 96px;
+  /* A tall, narrow centre column (the classic layout, or a narrow wide one)
+     would otherwise hand each tile ~300px of height. Cap the ROWS rather than
+     the panel: the panel still stretches — so its own surface fills the
+     column instead of the page background showing through — while the tiles
+     stay a sensible shape. */
+  grid-auto-rows: minmax(0, 170px);
+  align-content: start;
+}
+/* A stretched tile centres its name and stats instead of pinning them to the
+   top, so the extra height reads as a bigger target rather than dead space. */
+.pvp2-moves .move-slot { justify-content: center; }
 
 .pvp2-switch-row { display: flex; justify-content: flex-start; }
 
@@ -470,12 +587,9 @@
 /* ── Narrow / mobile ──────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
-  .pvp2-slot { max-width: 66%; }
-  .pvp2-sprite img {
-    max-width: calc(68px * var(--sprite-boost, 1.3));
-    max-height: calc(68px * var(--sprite-boost, 1.3));
-  }
-  .pvp2-field-strip { top: 34px; }
+  /* The scene's own chrome is handled by the @container rule above, which
+     keys off the arena rather than the viewport. Only the rail and the switch
+     grid are viewport-sized, so only they belong here. */
   /* Touch targets: the mobile audit found several controls under 40px,
      which is below the comfortable minimum for a thumb. */
   .pvp2-switch-card { min-height: 68px; }

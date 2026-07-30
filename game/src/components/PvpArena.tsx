@@ -125,29 +125,40 @@ function PvpBattleWindow({ room }: { room: BattleRoom }) {
             and were previously invisible entirely. */}
         <FieldStrip room={room} />
 
-        {/* Foe — top right, mirroring the idle scene's enemy slot. */}
-        <div className="pvp2-slot pvp2-slot-foe">
-          <div className="enemy-card-stack">
-            {foe.active
-              ? <PvpFighterCard mon={foe.active} className="enemy-card" />
-              : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
-            <div className="trainer-tag">
-              <OpponentName room={room} />
-              <TeamBalls side={foe} />
-            </div>
+        {/* The four fighters' pieces are laid out EXACTLY as the idle battle
+            scene lays out its own: enemy card + trainer tag top-left, enemy
+            sprite top-right, your back sprite bottom-left, your card
+            bottom-right. That is not decoration — `.enemy-card-stack` and
+            `.player-card` are `position: absolute` in app.css, so they need
+            the scene itself to be their containing block. Nesting them inside
+            a positioned per-side wrapper (which is what this used to be) made
+            that wrapper the containing block instead: it shrink-wrapped to the
+            only in-flow child it had left, the sprite, and both cards then
+            sized to min-content and hung ~50-70px outside the frame, where
+            `overflow: hidden` cut them in half — the "RAI Lv.100" and the
+            sliced "304/ 304" in the bug report — while covering the sprites
+            they sat on top of. */}
+        <div className="enemy-card-stack">
+          {foe.active
+            ? <PvpFighterCard mon={foe.active} className="enemy-card" />
+            : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
+          <div className="trainer-tag">
+            <OpponentName room={room} />
+            <TeamBalls side={foe} />
           </div>
-          {foe.active && <PvpSprite mon={foe.active} facing="foe" />}
         </div>
+        {foe.active && (
+          <PvpSprite key={`foe-${foe.active.ident}-${foe.active.speciesKey}`} mon={foe.active} facing="foe" />
+        )}
 
-        {/* You — bottom left. */}
-        <div className="pvp2-slot pvp2-slot-you">
-          {you.active && <PvpSprite mon={you.active} facing="you" />}
-          <div className="pvp2-you-card">
-            {you.active
-              ? <PvpFighterCard mon={you.active} className="player-card" />
-              : <div className="pvp2-slot-empty dim small">{t("Sending out…")}</div>}
-          </div>
-        </div>
+        {you.active
+          ? (
+            <>
+              <PvpSprite key={`you-${you.active.ident}-${you.active.speciesKey}`} mon={you.active} facing="you" />
+              <PvpFighterCard mon={you.active} className="player-card" />
+            </>
+          )
+          : <div className="pvp2-slot-empty player-card dim small">{t("Sending out…")}</div>}
 
         {room.view.turn > 0 && (
           <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
@@ -320,16 +331,43 @@ function statusClass(s: string): string {
   return s;
 }
 
+/**
+ * One fighter's sprite, in the idle battle scene's own slot.
+ *
+ * `.sprite-slot` + `.player-slot` / `.enemy-slot` and `.player-sprite` /
+ * `.enemy-sprite` are app.css classes, reused wholesale rather than
+ * reimplemented: they carry the slot geometry (percentages of the arena, so
+ * the sprite scales with it instead of being pinned to a 96px box), the
+ * intrinsic-size scaling that keeps every species' relative size honest, the
+ * floor shadow, the pokéball-pop entrance and the faint drop. The `pvp2-`
+ * classes are identity hooks with no layout of their own.
+ *
+ * The call sites key this on the Pokémon's ident, which is what replays the
+ * entrance animation on a switch-in the same way the idle scene does.
+ */
 function PvpSprite({ mon, facing }: { mon: ActiveMon; facing: "you" | "foe" }) {
+  const mine = facing === "you";
   return (
-    <div className={`pvp2-sprite pvp2-sprite-${facing} ${mon.fainted ? "fainted" : ""}`}>
+    <div
+      className={[
+        "sprite-slot",
+        mine ? "player-slot" : "enemy-slot",
+        "pvp2-sprite",
+        `pvp2-sprite-${facing}`,
+        mon.fainted ? "fainted" : "",
+      ].filter(Boolean).join(" ")}
+    >
       {/* Your own Pokémon shows its BACK sprite, exactly as in the idle
           battle scene — a PvP battle that renders both sides front-on reads
-          as a menu, not a battle. */}
+          as a menu, not a battle. PokemonSprite owns the failure policy:
+          animated GIF → cache-busting retry → static PNG → its retry → a
+          visible placeholder, so a species with no animated sprite degrades
+          instead of leaving an empty arena. */}
       <PokemonSprite
+        className={mine ? "player-sprite" : "enemy-sprite"}
         speciesKey={mon.speciesKey}
         isShiny={mon.shiny}
-        isBack={facing === "you"}
+        isBack={mine}
         alt={mon.name}
         style={{ imageRendering: "pixelated" }}
       />
