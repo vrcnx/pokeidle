@@ -31,12 +31,17 @@
 //
 //   1. `provenance` — the reward is OPT-IN AT ROOM-CONSTRUCTION TIME, and it is
 //      an ALLOWLIST OF HUMAN PAIRING PATHS, not a bot check.
-//      `BattleRoom.ladderProvenance?: "queue" | "invite"` is set in exactly TWO
-//      places — the matchmaking pairing path (socket.ts tryPairAndSpawnRoom) and
-//      the friend-invite accept path — which are the only two pieces of code
-//      that know a second HUMAN independently consented. tournamentRunner, the
-//      admin force-start and every future bot room omit it and are unrewarded
-//      WITH NO CODE OF THEIR OWN.
+//      `BattleRoom.ladderProvenance?: "queue"` is set in exactly ONE place:
+//      socket.ts's tryPairAndSpawnRoom, the matchmaking pairing path, which is
+//      the only code in this process that knows two HUMANS independently joined
+//      a queue. The friend-invite accept path, tournamentRunner, the admin
+//      force-start and every present and future bot room omit it and are
+//      unrewarded WITH NO CODE OF THEIR OWN — see the OWNER'S DECISION block
+//      below for why an invite is deliberately in that list.
+//
+//      The field's TYPE is the single string literal "queue", so a future room
+//      literal cannot opt itself in by copy-pasting `ladderProvenance:
+//      "invite"` either: that is a compile error, not a payout.
 //
 //      There is no "is this a bot?" check to forget — there is only a human
 //      check a bot cannot accidentally satisfy. A new room type, a copy-pasted
@@ -52,19 +57,28 @@
 //          queue pairing from an invite; and a bot task that reuses random50 for
 //          the Lv50 cap — the natural thing to do — would be paid by it.
 //
-//   2. FOREIGN KEYS. The payout inserts BOTH sides' PvpLadderEarn rows in one
-//      transaction, and both "userId" and "opponentUserId" are NOT NULL FKs to
-//      User(id). Bot identities are synthetic strings (nothing stops that —
-//      PvpMatch.userBId has no FK), and a synthetic id raises 23503, which
-//      rolls back BOTH ledger rows and BOTH grants. The human's reward is
-//      inseparable from the bot's; there is no partial success. A constraint,
-//      not a branch: unforgettable, and unremovable under the additive-only
-//      migration policy.
-//
-//   3. `saveVersion > 0`. Both ids must resolve to a User that has had at
+//   2. `saveVersion > 0`. Both ids must resolve to a User that has had at
 //      least one save upload accepted. A bot has no client and never uploads,
 //      so even a bot handed a real User row (likely, to make its username
-//      render) fails this. Allowlist-shaped: a missing row is a refusal.
+//      render) fails this. Allowlist-shaped: a missing row is a refusal. This
+//      is the layer that actually fires for a synthetic id — see layer 3.
+//
+//   3. FOREIGN KEYS, and this claim is deliberately weaker than it used to be.
+//      The payout inserts BOTH sides' PvpLadderEarn rows in one transaction, and
+//      both "userId" and "opponentUserId" are NOT NULL FKs to User(id). A
+//      synthetic bot id raises 23503, which rolls back BOTH ledger rows and BOTH
+//      grants: the human's reward is inseparable from the bot's, and there is no
+//      partial success. A constraint, not a branch — unforgettable, and
+//      unremovable under the additive-only migration policy.
+//
+//      But this block used to call the FK the place a bot is killed, and
+//      MEASURED that is wrong: it is UNREACHABLE IN PRACTICE. Executed against a bot room with
+//      the provenance forced on and `isBot` stripped, layer 2 refuses the
+//      synthetic id inside computeLadderReward first, which raises a
+//      LadderRefusal, so the INSERT never runs — no 23503, and nothing logged.
+//      The FK is real belt-and-braces for a future caller that skips the policy,
+//      not the thing that stops a bot today. Both directions fail closed; only
+//      the story was overstated. tests/pvpLadderResidual.test.ts pins the order.
 //
 //   4. SYMMETRIC PAYMENT. Both grants go through enqueuePrizeGrant(..., tx),
 //      which already throws "user not found" for an unresolvable id
@@ -134,8 +148,13 @@
 // ════════════════════════════════════════════════════════════════════════
 // ANTI-COLLUSION: WHAT IS LOAD-BEARING, WHAT WAS THEATRE, AND WHAT IT COSTS
 // ════════════════════════════════════════════════════════════════════════
-// Collusion is cheap here: accounts are free and battle:invite lets you pick
-// your opponent. IP-based alt detection is IMPOSSIBLE — measured, every
+// Collusion is not free here, and the matchmade-only rule above is why: you
+// cannot choose your opponent on the only path that pays, so a ring has to
+// queue two accounts and hope. It is not IMPOSSIBLE either — with ~8 of 10
+// queue attempts failing to match, two accounts queueing at 03:00 find each
+// other reliably — so the caps below still do the real bounding.
+//
+// IP-based alt detection is IMPOSSIBLE — measured, every
 // Session.ipAddress in production is a Cloudflare edge address with dozens of
 // accounts behind a single one. There is no fingerprinting in this file
 // because there is no signal to fingerprint.
@@ -150,20 +169,28 @@
 //     2. LADDER_WIN_BONUS_COOLDOWN_MS — the cash bonus at most once per 20h per
 //        account, arbitrated by a single-row conditional upsert
 //        (PvpWinBonusClaim), not by arithmetic. Cost: ~zero.
-//     3. Cash amount scales with RATING (lib/pvpBadge.ts), the one PvP quantity
-//        a ring cannot manufacture, because Elo is zero-sum. Cost: nothing to
-//        an honest player; it PAYS them more than a flat number did.
-//     4. The bot gate and the end-reason allowlist, above.
+//     3. Cash amount scales with the WITNESSED rating — see
+//        LADDER_WITNESSED_BASE_RATING. This bullet used to read "scales with
+//        RATING, the one PvP quantity a ring cannot manufacture, because Elo is
+//        zero-sum", and that sentence was FALSE and was exploited: Elo being
+//        zero-sum bounds the total supply of rating, not any ONE account's, and
+//        one account's rating is what prices the money. Rating is manufacturable
+//        on the unpaid, opponent-chosen invite path by instant forfeits — 40 of
+//        them moved an account a tier, ~448 reach Diamond and a 20x price. So the
+//        price is now read from `min(live rating, 1000 + Σ ladder ratingDelta)`,
+//        i.e. only from climbs made in matches this feature actually paid for,
+//        which a ring cannot produce without being paired with a stranger. Cost
+//        to an honest player today: zero, measured — no live account is within
+//        84 points of the first boundary.
+//     4. The bot gate, the MATCHMADE-ONLY gate and the end-reason allowlist —
+//        all three are the same mechanism (an allowlist of pairing paths
+//        asserted at room construction) and all three are above.
+//     5. LADDER_MILESTONE_BP_CAP_PER_WINDOW plus the frozen baseline, which
+//        bound the one payment the 25-BP cap cannot see. Cost to an honest
+//        player: nothing, unless they climb two whole tiers inside 24 hours.
 //
 //   REMOVED AS THEATRE, because it cost honest players far more than it cost an
 //   attacker:
-//     * "matchmade only, never friend invites". Measured against production: 42
-//       of 55 matches ever (76%) are between accounts that are FRIENDS, and 8 of
-//       the 9 pairs that met more than once are friends — including the top pair
-//       at 12 matches. Friend-invite play IS PvP in this game. Meanwhile the
-//       rule bought nothing against a determined colluder: with 8 of 10 queue
-//       attempts failing to match, two accounts queueing at 03:00 reliably find
-//       each other anyway. So invites are now payable, and the caps do the work.
 //     * decay to ZERO. The old table paid nothing from the 5th meeting. On the
 //       real busiest PvP day in the game's history — 12 matches between one pair
 //       — that made 8 of the 12 battles worth literally nothing to BOTH sides,
@@ -173,6 +200,38 @@
 //       CAP is the bound — decay only shapes the curve underneath it, and a
 //       shape that reaches zero teaches your only available opponent to stop
 //       playing you.
+//
+// ════════════════════════════════════════════════════════════════════════
+// THE OWNER'S DECISION: MATCHMADE ONLY. A FRIEND INVITE PAYS NOTHING.
+// ════════════════════════════════════════════════════════════════════════
+// Asked directly, the owner said no friendly payout. It is settled, so this
+// block records the decision and its cost rather than re-arguing it.
+//
+// It is enforced BY OMISSION, which is the only enforcement shape that survives
+// a refactor: socket.ts's battle:invite room literal simply does not carry a
+// `ladderProvenance`, exactly like a bot room and a tournament room, so an
+// invite is refused by gate 1 with no invite-specific code anywhere. There is no
+// `if (provenance === "invite") return` to delete by accident, and no config flag
+// that could ship on. tests/pvpLadderWiring.test.ts audits src/ so that the
+// field keeps having exactly one writer.
+//
+// THE COST, stated because it is large and was measured, not hand-waved: 42 of
+// the 55 matches ever played (76%) are between accounts that are FRIENDS, and 8
+// of the 9 pairs that met more than once are friends, including the top pair at
+// 12 matches. So most PvP that actually happens in this game earns nothing, and
+// the honest summary for the owner is "the ladder pays the queue, not your
+// friends list". What it buys: the only faucet is a pairing path where you
+// cannot choose your opponent, which is the one structural obstacle to a
+// two-account ring that no cap can provide.
+//
+// The policy allowlist below USED to carry "invite" as a payable value, on the
+// theory that reversing the decision should be a one-word type change. That was
+// wrong twice over. It made the defence one layer thick — widening the room
+// field's type would have re-enabled invite payouts with nothing underneath to
+// refuse them — and GET /pvp/me/ladder derives its player-facing
+// `payablePairingPaths` from that array, so the server was ADVERTISING a payable
+// invite path it would never honour. Both are fixed: the array is ["queue"], and
+// an invite is now refused by the policy as well as by omission.
 //
 // What this does NOT stop, said out loud: a ring of N accounts is bounded by
 // N × (25 BP + one tier-priced cash bonus) per 20h, and nothing structural
@@ -185,6 +244,60 @@
 // and the response is an operator decision. There are no auto-bans and no
 // automated clawbacks here: a clawback is a negative prize, i.e. a save write
 // the player never agreed to, which is the shape awayProgress already refuses.
+//
+// ════════════════════════════════════════════════════════════════════════
+// THE MILESTONE FAUCET: TWO HOLES THAT WERE CLOSED, AND HOW
+// ════════════════════════════════════════════════════════════════════════
+// Milestone BP is the only payment in this feature the rolling cap cannot see
+// (it is a separate ledger column ON PURPOSE — see LADDER_BP_CAP_PER_WINDOW), so
+// "uncapped" was true in two ways nobody wanted:
+//
+//   HOLE 1 — 115 BP IN A DAY, 90 OF IT IN A SINGLE MATCH. The cap read is
+//   SUM("bp"), so the entire 90-BP lifetime milestone stack sat outside it and,
+//   arithmetically, was payable by ONE match: computeSide paid every threshold
+//   between ratingBefore and ratingAfter, and nothing bounded how many that was.
+//   K=32 makes a +600 match impossible TODAY, which is precisely the wrong reason
+//   to leave it open — a K change, a rating reseed or an admin adjustment is a
+//   config edit away, and this is the largest single BP payment in the game.
+//   Closed by LADDER_MILESTONE_BP_CAP_PER_WINDOW, a SECOND rolling cap over
+//   SUM("milestoneBp") alone, so the honest per-window maximum is now 65 and a
+//   single match can mint at most one tier's worth. The two caps stay separate
+//   because merging them re-creates the bug the split column exists to fix: a
+//   rank-up match exhausting the ordinary cap for the rest of the day.
+//
+//   HOLE 2 — BEING PAID FOR THE PAST. `milestonesCrossed` already refuses to pay
+//   for merely STANDING above a threshold, which stops the switch-flip day from
+//   dumping everyone's back-catalogue at once. It does not stop the same dump
+//   arriving one loss later: every account above a threshold is a single defeat
+//   away from RE-crossing it, and the (userId, threshold) primary key happily
+//   pays that first re-crossing. So "milestones key on movement" bought a
+//   staggered dump rather than no dump.
+//
+//   Closed with a real baseline: PvpLadderBaseline freezes, once per account,
+//   the rating that account had ALREADY reached before the ladder ever paid it
+//   anything, and no threshold at or below that number can ever pay. The number
+//   is not invented — PlayerRating."peakRating" has been maintained by
+//   applyEloUpdate since long before rewards existed, so the game already
+//   recorded exactly what each account had achieved for free. The migration
+//   backfills a row for every account that has ever played a rated match (4 rows
+//   in production, ratings 984–1016, so the exposure being frozen today is 0 BP),
+//   and the settle seeds one lazily for anybody who starts later.
+//
+//   The known cost, stated exactly: for an account with NO backfilled row, the
+//   lazily-seeded baseline is read AFTER applyEloUpdate has already moved the
+//   peak, so it is GREATEST(peak, ratingAfter) — conservative, and it declines a
+//   threshold crossed by that account's very FIRST paid match. That cannot bite
+//   anybody real: a new account starts at 1000, the first threshold is 1100, and
+//   K=32 caps one match at +32, so the baseline is always frozen at least two
+//   matches below Silver. It is the fail-CLOSED direction of an ambiguity that
+//   only exists for one match per account, which is why it is not worth an extra
+//   pre-Elo query on the hot path to resolve.
+//
+//   Residual, honestly: if PVP_LADDER_REWARDS is switched OFF for a long time
+//   after an account's baseline is frozen, climbs made during that window can be
+//   paid for on a later re-crossing. The switch is documented as a one-way
+//   rollback, not a schedule, and the bound is 90 BP of unspendable currency per
+//   account.
 //
 // ════════════════════════════════════════════════════════════════════════
 // ECONOMY SIZING — measured read-only against production, 2026-07-30
@@ -290,11 +403,21 @@
 //     battlepoint + $25,000!" — which does not mention PvP;
 //   * there is no BP shop, so BP is unspendable (and, for the same reason,
 //     unsellable: SELL_ITEM resolves an uncatalogued sellPrice via `?? 0`).
-// Rewards therefore DEFAULT OFF. The correct deploy order is: apply the
-// migration, ship the client catalog entry + BP shop + the PvP rewards panel
+// Rewards therefore DEFAULT OFF. The correct deploy order is: apply BOTH
+// migrations, ship the client catalog entry + BP shop + the PvP rewards panel
 // that reads GET /pvp/me/ladder, THEN set PVP_LADDER_REWARDS=1. Every rule below
 // is echoed by that endpoint precisely so the client never needs a second,
 // drifting copy of these numbers.
+//
+// BOTH migrations, and the order matters — verified read-only against production
+// on 2026-07-30: 20260730120000_add_pvp_ladder IS applied (06:14Z, its three
+// tables exist), and 20260730130000_add_pvp_ladder_baseline is NOT. Flipping the
+// switch before the second one lands means every rated battle raises 42P01 on
+// "PvpLadderBaseline", pays nothing and logs pvp_ladder_settle_failed. That is
+// the fail-closed direction and it is loud, but it is also a wasted evening, so:
+// migrate first. The same measurement is why the baseline is worth applying at
+// all right now — max peakRating is 1016 and NO account is at or above the first
+// threshold of 1100, so the backfill freezes 4 rows and forgives 0 BP.
 
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -303,7 +426,7 @@ import { recordError } from "./errorReporting.js";
 import { enqueuePrizeGrant } from "./prizeGrant.js";
 import type { Prize } from "./giveaway.js";
 import {
-  PVP_MILESTONE_BP_LIFETIME_TOTAL,
+  PVP_MILESTONES,
   milestonesCrossed,
   pvpTierForRating,
   winBonusMoneyForRating,
@@ -404,20 +527,58 @@ export const LADDER_BP_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const LADDER_BP_CAP_PER_WINDOW = 25;
 
 /**
+ * Milestone BP per account per ROLLING WINDOW — the SECOND cap, over
+ * `SUM("milestoneBp")` alone.
+ *
+ * ── WHY A SECOND CAP INSTEAD OF ONE MERGED ONE ───────────────────────
+ * Milestone BP is exempt from LADDER_BP_CAP_PER_WINDOW because putting the two
+ * in one column was measured to break honest play: a rank-up match exhausted the
+ * ordinary cap and every legitimate battle for the rest of that day paid 0. But
+ * "exempt from that cap" was silently read as "uncapped", and it was: the whole
+ * 90-BP lifetime stack was payable inside a single window and, arithmetically,
+ * inside a single MATCH.
+ *
+ * So each faucet gets its own hard bound. 25 + 40 = 65 is now the honest
+ * per-window maximum (LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW), and neither cap can
+ * consume the other's budget.
+ *
+ * ── WHY 40, AND WHAT IT COSTS ────────────────────────────────────────
+ * 40 is the largest single tier bonus (Diamond), derived rather than typed so it
+ * cannot drift from pvpBadge.ts. It is therefore exactly "one rank-up per
+ * window", which is the most any honest climb can legitimately earn: crossing two
+ * thresholds inside 24h means gaining 200+ rating, i.e. ~7 net wins at K=32 at
+ * the very top of the ladder.
+ *
+ * The cost, said out loud: an account that climbed Bronze→Diamond inside one
+ * rolling window would be paid 40 of its 90, and the remainder is NOT deferred —
+ * a threshold pays on the match that crosses it or not at all, so the clamped
+ * portion is lost. That climb is 700 rating points, ~22 net wins in a day, in a
+ * game whose all-time peak rating is 1016 across 55 matches ever. Deferral would
+ * mean a second payment path with its own idempotency, which is a great deal more
+ * machinery than the case is worth.
+ */
+export const LADDER_MILESTONE_BP_CAP_PER_WINDOW =
+  PVP_MILESTONES.reduce((max, m) => Math.max(max, m.bp), 0);
+
+/**
  * THE HONEST HEADLINE NUMBER: the most BP one account can ever hold after one
  * window, inclusive of milestones.
  *
  * `LADDER_BP_CAP_PER_WINDOW` alone reads like the hard bound and it is not —
- * milestones are exempt, by design and now also in the arithmetic. The
- * exemption is safe because milestone BP is (a) once-ever per threshold,
- * arbitrated by a primary key, (b) payable only on the match that CROSSES the
- * threshold, and (c) gated on rating, which Elo makes zero-sum across any
- * collusion ring. So the 90 below is a LIFETIME total per account, not a daily
- * one: the steady state is 25 per window, and 115 can happen exactly once in
- * the life of an account that climbs from Bronze to Diamond in a single day.
+ * milestones are exempt from it, by design and in the arithmetic. What makes the
+ * exemption safe is that they have a cap OF THEIR OWN: milestone BP is (a)
+ * once-ever per threshold, arbitrated by a primary key, (b) payable only on the
+ * match that CROSSES the threshold and only above the account's frozen baseline,
+ * (c) gated on rating, which Elo makes zero-sum across any collusion ring, and
+ * now (d) bounded per rolling window by LADDER_MILESTONE_BP_CAP_PER_WINDOW.
+ *
+ * This number used to be 115 — the 25-BP cap plus the ENTIRE 90-BP lifetime
+ * milestone stack, all of which was payable in one window and, arithmetically, in
+ * one match. It is 65 because 90 is a lifetime figure and no window may pay more
+ * than one tier's worth of it.
  */
 export const LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW =
-  LADDER_BP_CAP_PER_WINDOW + PVP_MILESTONE_BP_LIFETIME_TOTAL;
+  LADDER_BP_CAP_PER_WINDOW + LADDER_MILESTONE_BP_CAP_PER_WINDOW;
 
 /**
  * The cash bonus is claimable at most once per this interval, per account.
@@ -443,6 +604,64 @@ export const LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW =
  */
 export const LADDER_WIN_BONUS_COOLDOWN_MS = 20 * 60 * 60 * 1000;
 
+/**
+ * The rating every account starts at, and the floor the cash bonus is priced
+ * from when an account has no WITNESSED climb.
+ *
+ * ── WHY THE CASH IS NOT PRICED BY LIVE PlayerRating ──────────────────
+ * This constant exists because the anti-collusion argument above was FALSE as
+ * written. It said rating "is the one PvP quantity a ring cannot manufacture",
+ * and that is true of the SUPPLY of rating — Elo is zero-sum — but it is not
+ * true of any ONE account's rating, and one account's rating is what prices the
+ * money. Executed: 40 instant forfeit INVITES, which mint nothing and where you
+ * choose your opponent, moved an account past a tier boundary, and its next
+ * matchmade KO paid the higher tier. Extrapolated on the real applyEloUpdate
+ * arithmetic, 448 thrown invite matches across 5 fresh alts reach Diamond — at
+ * the invite limiter that is ~90 minutes of scripted play, after which the main
+ * claims $200,000 per 20h instead of $10,000. A forfeit is instant: no turns, no
+ * 20s floor, no simulator.
+ *
+ * The hole is not that invites are rated (the owner's deliberate decision) and
+ * not that cash is tier-priced (the measured sizing decision). It is that the
+ * PRICE was read from a quantity set on paths that pay nothing. So the price is
+ * now read from a quantity this feature has WITNESSED:
+ *
+ *   pricedRating = min(live ratingAfter, 1000 + Σ ladder ratingDelta)
+ *
+ * where the sum is over this account's own PvpLadderEarn rows — i.e. rating won
+ * in matches that were matchmade, decisive, at least 3 turns and 20 seconds
+ * long, and between two save-having humans. A ring cannot manufacture a single
+ * point of that without queueing and being paired with a stranger.
+ *
+ * It is a min(), so it only ever clamps DOWN: an account whose ledger climbed
+ * further than its live rating is priced by the live rating, because paying the
+ * higher of the two would be a second faucet.
+ *
+ * ── WHAT IT COSTS AN HONEST PLAYER, MEASURED ─────────────────────────
+ * Today: nothing at all. Production, read-only 2026-07-30 — 4 PlayerRating rows,
+ * ratings 984–1016, max peak 1016, and the first tier boundary is 1100. Every
+ * live account is Bronze on both numbers, so this rule changes NOBODY's payout
+ * on the day it ships. That is the same argument that made the milestone
+ * baseline worth applying now rather than after a ladder has formed.
+ *
+ * Later: a player whose climb happened on friend invites is priced below their
+ * badge until the queue has witnessed the same climb. That is a real cost and it
+ * is the consistent extension of the decision this file already shipped — "the
+ * ladder pays the queue, not your friends list". Their BADGE, their leaderboard
+ * placement and their milestones are untouched; only the cash is derated, and it
+ * returns to full price as they climb on the path that pays.
+ *
+ * ── WHY IT DOES NOT CLAMP THE MILESTONE ──────────────────────────────
+ * Deliberate asymmetry. The cash bonus returns every 20h, so a clamp only
+ * derates a payment that comes round again. A milestone is paid ONLY on the
+ * match that crosses its threshold, so a clamp there would not delay it — it
+ * would destroy it permanently, for an honest player, with no way to re-earn it.
+ * Milestones already carry three gates of their own (the crossing rule, the
+ * frozen baseline, the once-ever primary key) plus a per-window cap, and they
+ * mint an unspendable, unsellable currency. Cash is the faucet worth clamping.
+ */
+export const LADDER_WITNESSED_BASE_RATING = 1000;
+
 /** A battle shorter than this pays nothing even when it reports "ko". */
 export const LADDER_MIN_TURNS = 3;
 /** …and neither does one that finished faster than this. See the header for why
@@ -459,16 +678,32 @@ export const LADDER_PAYABLE_END_REASONS = ["ko", "tie"] as const;
 /**
  * The ALLOWLIST of room-construction paths that can pay — the bot gate.
  *
- * "queue"  = socket.ts tryPairAndSpawnRoom, i.e. two humans independently
- *            joined the matchmaking queue.
- * "invite" = a friend invite that the other human explicitly accepted.
+ * "queue" = socket.ts tryPairAndSpawnRoom, i.e. two humans independently joined
+ *           the matchmaking queue. THE ONLY VALUE, and the only value any code
+ *           produces.
  *
- * Both are positive assertions of human consent made at room-construction time.
- * Anything else — a bot room, a tournament room, an admin force-start, a room
- * type that does not exist yet — carries no provenance and is refused with no
- * code of its own.
+ * It is a positive assertion of human consent made at room-construction time.
+ * Anything else — a bot room, a tournament room, an admin force-start, a friend
+ * invite, a room type that does not exist yet — carries no provenance and is
+ * refused with no code of its own.
+ *
+ * ── WHY "invite" IS NOT HERE, THOUGH IT ONCE WAS ─────────────────────
+ * The owner's decision is MATCHMADE ONLY, and it was already enforced by
+ * omission at the room field. But this list still carried "invite" as payable,
+ * which made the defence exactly one layer thick: widening `BattleRoom
+ * .ladderProvenance` by one word would have re-enabled invite payouts with
+ * nothing underneath to refuse them. Worse, GET /pvp/me/ladder derives its
+ * player-facing `payablePairingPaths` from this array, so the server was
+ * ADVERTISING a payable invite path — meaning the wrong change would have looked
+ * like a bug fix and matched what the client already promised.
+ *
+ * Two layers now say the same thing: the room field's type is the literal
+ * "queue", and this policy refuses anything else even if a room asserts it. If
+ * the decision is ever revisited, both must change together, deliberately —
+ * which is the correct amount of friction for the sentence "friend battles pay
+ * money now".
  */
-export const LADDER_PAYABLE_PROVENANCE = ["queue", "invite"] as const;
+export const LADDER_PAYABLE_PROVENANCE = ["queue"] as const;
 
 /**
  * Per-opponent diminishing returns, indexed by (meeting number - 1) within the
@@ -533,8 +768,28 @@ export interface LadderSideState {
   /** Rating BEFORE the match. Milestones pay only on a crossing, so this is
    *  load-bearing, not decoration — see milestonesCrossed. */
   ratingBefore: number | null;
-  /** Rating AFTER the match. Also prices the cash bonus (pvpBadge tier). */
+  /** Rating AFTER the match. The CEILING on the cash price, not the price
+   *  itself — see witnessedRatingDeltaBefore. */
   ratingAfter: number | null;
+  /**
+   * Sum of this account's `ratingDelta` over every PvpLadderEarn row it already
+   * has, lifetime — i.e. how far it has climbed IN MATCHES THIS FEATURE PAID
+   * FOR. With this match's own delta added it becomes the witnessed rating, and
+   * `min(ratingAfter, LADDER_WITNESSED_BASE_RATING + witnessed)` prices the cash
+   * bonus. See LADDER_WITNESSED_BASE_RATING for the executed exploit this
+   * closes: live PlayerRating moves on friend invites, which pay nothing and let
+   * you choose your opponent, and it priced the cash 20x.
+   *
+   * Lifetime rather than windowed on purpose. A rolling window would erase an
+   * honest player's whole climb every 24h and price a genuine Diamond at Bronze
+   * forever, which is a far larger cost than the one this rule is buying off.
+   *
+   * `null` means the ledger could not be read, and it prices at the BASE rating
+   * — the fail-closed direction, and the same shape as milestoneBaselineRating.
+   * Required rather than optional so a caller that forgets it is a compile
+   * error rather than an account priced at Diamond by default.
+   */
+  witnessedRatingDeltaBefore: number | null;
   /** This side's Elo delta, stored for audit. */
   ratingDelta: number;
   /** Meetings against THIS opponent already recorded inside the window. */
@@ -542,6 +797,35 @@ export interface LadderSideState {
   /** Capped BP already earned inside the window, before this match. Excludes
    *  milestone BP by construction — it is a different column. */
   bpEarnedInWindowBeforeThis: number;
+  /**
+   * Milestone BP already minted inside the window, before this match — read
+   * from `SUM("milestoneBp")`, the column the ordinary cap deliberately cannot
+   * see.
+   *
+   * Required rather than optional: a caller that forgets it would hand the
+   * milestone faucet a full budget, and this is the largest single payment in
+   * the feature. A compile error is the cheapest possible place to find that out.
+   */
+  milestoneBpInWindowBeforeThis: number;
+  /**
+   * The rating this account had ALREADY reached before the ladder paid it
+   * anything (PvpLadderBaseline, frozen once per account). No threshold at or
+   * below it can ever pay, which is what stops the staggered retroactive dump:
+   * every account above a threshold is one loss away from re-crossing it, and
+   * the once-ever primary key would happily pay that first re-crossing.
+   *
+   * `null` means the caller could not establish a baseline AT ALL, and it
+   * REFUSES every milestone for this side — not the match, just its uncapped
+   * component. An unknown history must not authorise the one payment the
+   * ordinary cap cannot see.
+   *
+   * NOT the same as 0. `settleLadderEarn` passes 0 for an account with no
+   * baseline row, which is EXACT rather than optimistic: no row means no
+   * PlayerRating row means no rated match has ever been played, so there is
+   * nothing to forgive. A failed baseline read cannot reach here as 0 — it throws
+   * and the whole settle rolls back.
+   */
+  milestoneBaselineRating: number | null;
   /** Is the cash bonus still on cooldown for this account? */
   winBonusOnCooldown: boolean;
   /** Rating thresholds already awarded to this account, ever. */
@@ -575,8 +859,19 @@ export interface LadderSideReward {
   winBonus: boolean;
   bpWinBonus: number;
   money: number;
-  /** The tier that priced `money`, for the audit row and the UI. */
+  /** The tier that priced `money`, for the audit row and the UI. Derived from
+   *  `pricedRating`, NOT from `ratingAfter`, so a row whose tier disagrees with
+   *  its own ratingAfter is the visible signal that the witnessed clamp bound. */
   tier: string;
+  /**
+   * The rating the cash was actually priced at:
+   * `min(ratingAfter, LADDER_WITNESSED_BASE_RATING + witnessed climb)`.
+   *
+   * Reported rather than left implicit because it is the one number that can
+   * differ from the rating the player sees on their own badge, and "why was my
+   * Diamond win paid Bronze?" has to be answerable from the audit row alone.
+   */
+  pricedRating: number;
   milestones: LadderMilestoneAward[];
   /** Milestone BP only. Deliberately separate from the capped total. */
   milestoneBp: number;
@@ -732,19 +1027,88 @@ function computeSide(s: LadderSideState): LadderSideReward {
   // the BP arithmetic, so letting a decayed win claim it mints nothing extra.
   const winBonus = s.result === "win" && !s.winBonusOnCooldown;
   const bpWinBonus = winBonus ? Math.min(LADDER_WIN_BONUS_BP, remaining) : 0;
-  // Priced by RATING, the one PvP quantity a ring cannot manufacture.
-  const money = winBonus ? winBonusMoneyForRating(ratingAfter) : 0;
-  const tier = pvpTierForRating(ratingAfter).id;
+
+  // ── The price ──────────────────────────────────────────────────────
+  // Priced by the rating THIS FEATURE HAS WITNESSED, never by live
+  // PlayerRating. Live rating moves on friend invites — rated by the owner's
+  // decision, paid nothing by it, and with an opponent you choose — so pricing
+  // on it made the 20x tier spread manufacturable by two accounts and a script.
+  // See LADDER_WITNESSED_BASE_RATING for the executed reproduction.
+  //
+  // A non-finite witnessed climb prices at the BASE rating rather than being
+  // ignored: an unreadable ledger must not authorise the top tier, and NaN would
+  // otherwise flow through Math.min into pvpTierForRating.
+  const witnessedClimb = typeof s.witnessedRatingDeltaBefore === "number"
+    && Number.isFinite(s.witnessedRatingDeltaBefore)
+    ? Math.floor(s.witnessedRatingDeltaBefore)
+    : null;
+  // This match is itself witnessed — it is the payable match being settled — so
+  // its own delta counts. Without it every promotion would be priced one match
+  // late for no reason.
+  const witnessedRating = witnessedClimb === null
+    ? LADDER_WITNESSED_BASE_RATING
+    : LADDER_WITNESSED_BASE_RATING + witnessedClimb + (Math.trunc(s.ratingDelta) || 0);
+  // min(): the clamp only ever reduces. An account whose ledger climbed further
+  // than its live rating is priced by the live rating, because paying the higher
+  // of the two would be a second faucet rather than a bound on the first.
+  const pricedRating = Math.min(ratingAfter, witnessedRating);
+  const money = winBonus ? winBonusMoneyForRating(pricedRating) : 0;
+  const tier = pvpTierForRating(pricedRating).id;
 
   // ── Milestones ─────────────────────────────────────────────────────
-  // Exempt from the window cap (they are a separate ledger column, so the cap
-  // read cannot even see them), and paid ONLY on the match that crosses the
-  // threshold — never for merely standing above it, which is what made the
-  // switch-flip day pay every high account its whole back-catalogue.
+  // FOUR gates, and every one of them is a refusal:
+  //
+  //   * CROSSED. Paid only on the match that moves through the threshold, never
+  //     for merely standing above it — that keying-on-live-rating version made
+  //     the switch-flip day pay every high account its whole back-catalogue.
+  //   * ABOVE THE BASELINE. The crossing rule alone only staggers that dump:
+  //     one loss puts any account back below a threshold it already owns, and
+  //     the once-ever key pays the re-crossing. The frozen baseline is what
+  //     makes "nobody is paid for the past" true instead of nearly true.
+  //   * NOT ALREADY AWARDED. The (userId, threshold) primary key is the real
+  //     arbiter; this is the read that avoids issuing a doomed INSERT.
+  //   * INSIDE THE MILESTONE BUDGET. Exempt from the ordinary cap (separate
+  //     ledger column, so that cap read cannot see them) but NOT uncapped: 90 BP
+  //     is a lifetime figure and a rolling window pays at most one tier's worth.
+  //
+  // NOTE these read the LIVE ratings, not `pricedRating`. That asymmetry with
+  // the cash bonus is deliberate and it is argued in full on
+  // LADDER_WITNESSED_BASE_RATING: a clamped cash bonus is merely derated and
+  // returns in 20h, but a milestone pays only on the match that crosses its
+  // threshold, so clamping one would DESTROY it permanently for an honest player
+  // whose climb happened on invites. These four gates plus an unspendable
+  // currency are the bound here; the clamp is the bound on money.
+  //
+  // Ascending order matters: the budget is spent on the thresholds crossed
+  // FIRST, so a clamp costs the highest tier rather than silently voiding the
+  // cheap ones that were earned earlier.
   const awarded = new Set(s.milestonesAlreadyAwarded);
-  const milestones: LadderMilestoneAward[] = milestonesCrossed(s.ratingBefore, s.ratingAfter)
-    .filter((ms) => !awarded.has(ms.threshold))
-    .map((ms) => ({ threshold: ms.threshold, bp: ms.bp, ratingBefore, ratingAtAward: ratingAfter }));
+  const baseline = typeof s.milestoneBaselineRating === "number"
+    && Number.isFinite(s.milestoneBaselineRating)
+    ? Math.floor(s.milestoneBaselineRating)
+    : null;
+  // A non-finite "already spent" means NO budget, not a full one: an unreadable
+  // ledger must not be able to authorise the uncapped faucet. NaN would otherwise
+  // propagate through Math.min and pay NaN BP.
+  const milestoneSpent = Number.isFinite(s.milestoneBpInWindowBeforeThis)
+    ? Math.max(0, Math.floor(s.milestoneBpInWindowBeforeThis))
+    : LADDER_MILESTONE_BP_CAP_PER_WINDOW;
+  let milestoneBudget = Math.max(0, LADDER_MILESTONE_BP_CAP_PER_WINDOW - milestoneSpent);
+  const milestones: LadderMilestoneAward[] = [];
+  // `baseline === null` is a refusal, not a zero: see milestoneBaselineRating.
+  if (baseline !== null) {
+    for (const ms of milestonesCrossed(s.ratingBefore, s.ratingAfter)) {
+      if (awarded.has(ms.threshold)) continue;
+      if (ms.threshold <= baseline) continue;
+      // Clamped, not dropped: the crossing is still recorded (with the BP it
+      // actually paid) so the audit says why a rank-up was worth less than the
+      // tier table advertises, and so the threshold is not left looking
+      // claimable when it can never be crossed again.
+      const bp = Math.min(ms.bp, milestoneBudget);
+      milestoneBudget -= bp;
+      milestones.push({ threshold: ms.threshold, bp, ratingBefore, ratingAtAward: ratingAfter });
+    }
+  }
   const milestoneBp = milestones.reduce((a, b) => a + b.bp, 0);
 
   const bpTotal = bpFromBattle + bpWinBonus + milestoneBp;
@@ -761,6 +1125,7 @@ function computeSide(s: LadderSideState): LadderSideReward {
     bpWinBonus,
     money,
     tier,
+    pricedRating,
     milestones,
     milestoneBp,
     bpTotal,
@@ -801,7 +1166,11 @@ export function prizesFor(bp: number, money: number): Prize[] {
 export interface SettleLadderInput {
   /** The battle room id. Doubles as the ledger's idempotency key. */
   matchId: string;
-  /** `room.ladderProvenance` — "queue" | "invite", or absent. See gate 1. */
+  /** `room.ladderProvenance` — "queue" from the matchmaking pairing path, and
+   *  absent from every other room in the process. Typed `string | null |
+   *  undefined` rather than the room field's type on purpose: an unrecognised
+   *  value from a future room type must be a runtime REFUSAL, not a type error
+   *  that tempts someone into a cast. See gate 1. */
   provenance: string | null | undefined;
   winnerId: string;
   loserId: string;
@@ -867,8 +1236,35 @@ function newLadderRowId(): string {
   return "ple_" + randomBytes(9).toString("hex");
 }
 
+/** The tables this feature adds, and the migration that creates each — so a
+ *  42P01 can be turned into an instruction instead of a mystery. */
+const LADDER_RELATIONS: readonly { relation: string; migration: string }[] = [
+  { relation: "PvpLadderBaseline", migration: "20260730130000_add_pvp_ladder_baseline" },
+  { relation: "PvpLadderEarn", migration: "20260730120000_add_pvp_ladder" },
+  { relation: "PvpWinBonusClaim", migration: "20260730120000_add_pvp_ladder" },
+  { relation: "PvpBadgeMilestone", migration: "20260730120000_add_pvp_ladder" },
+];
+
+/**
+ * Is this failure "the migration has not been applied yet"?
+ *
+ * Matched on BOTH the SQLSTATE and the relation name, and only for relations
+ * this feature owns: a 42P01 naming somebody else's table is not this feature's
+ * deploy order and must not be reported as though it were. Prisma surfaces the
+ * code on the error, on `.meta`, and inside the message depending on which layer
+ * raised it, so all three are checked rather than trusting one shape.
+ */
+function missingLadderRelation(e: unknown): { relation: string; migration: string } | null {
+  const err = e as { code?: unknown; meta?: { code?: unknown } } | null;
+  const text = String(e);
+  const code = String(err?.code ?? err?.meta?.code ?? "");
+  if (code !== "42P01" && !text.includes("42P01") && !/does not exist/i.test(text)) return null;
+  return LADDER_RELATIONS.find((r) => text.includes(r.relation)) ?? null;
+}
+
 interface SideLedgerRead {
   bpInWindow: number;
+  milestoneBpInWindow: number;
   meetings: number;
   winBonusOnCooldown: boolean;
 }
@@ -886,10 +1282,20 @@ async function readSideLedger(
   // special path.
   //
   // NOTE `SUM(e."bp")` and not `SUM(e."bp" + e."milestoneBp")`. That is the
-  // milestone exemption, expressed where it actually binds.
-  const rows = await tx.$queryRaw<{ bp_window: number; meetings: number; bonus_on_cooldown: number }[]>`
+  // milestone exemption, expressed where it actually binds — and
+  // `milestone_window` beside it is the SECOND cap, which reads the other column
+  // and only that column. Two sums, two budgets, neither able to eat the other.
+  //
+  // Adding a column here deliberately adds NO bind parameter: the fake Postgres
+  // in tests/pvpLadderSettle.test.ts routes on statement shape and POSITIONAL
+  // parameters, so a new placeholder in the middle of this statement would
+  // silently re-map every value after it.
+  const rows = await tx.$queryRaw<{
+    bp_window: number; milestone_window: number; meetings: number; bonus_on_cooldown: number;
+  }[]>`
     SELECT
       COALESCE(SUM(e."bp"), 0)::int AS bp_window,
+      COALESCE(SUM(e."milestoneBp"), 0)::int AS milestone_window,
       COUNT(*) FILTER (WHERE e."opponentUserId" = ${opponentUserId})::int AS meetings,
       (SELECT COUNT(*) FROM "PvpWinBonusClaim" w
         WHERE w."userId" = ${userId} AND w."claimedAt" > ${bonusCutoff})::int AS bonus_on_cooldown
@@ -899,9 +1305,93 @@ async function readSideLedger(
   const r = rows[0];
   return {
     bpInWindow: Number(r?.bp_window ?? 0),
+    milestoneBpInWindow: Number(r?.milestone_window ?? 0),
     meetings: Number(r?.meetings ?? 0),
     winBonusOnCooldown: Number(r?.bonus_on_cooldown ?? 0) > 0,
   };
+}
+
+/**
+ * Freeze what this account had ALREADY achieved before the ladder paid it
+ * anything, then read back whatever is frozen — the account's own row if the
+ * migration backfilled one, otherwise the row this statement just wrote.
+ *
+ * ── WHY PlayerRating."peakRating" IS THE RIGHT NUMBER ─────────────────
+ * It is not invented for this feature: applyEloUpdate has maintained it since
+ * long before rewards existed, so the database already records exactly how high
+ * each account had climbed for free. A threshold at or below it is not an
+ * achievement this feature witnessed, and paying for it is paying for the past.
+ *
+ * ── WHY INSERT … SELECT FROM "PlayerRating" AND NOT VALUES(…) ─────────
+ * No PlayerRating row means the account has NEVER played a rated match, so it
+ * cannot have reached any threshold and there is nothing to forgive. Sourcing the
+ * row from PlayerRating makes that case write nothing at all, and "no baseline
+ * row" then reads as 0 — which is EXACT for a genuinely new player rather than a
+ * guess. GREATEST() also folds in this match's own result, so the seed is
+ * conservative for the one match per account where the post-Elo peak is
+ * ambiguous (see the MILESTONE FAUCET block in the header).
+ *
+ * ON CONFLICT DO NOTHING is the whole idempotency story: the row is written once
+ * and NEVER revised. Revising it would move the baseline up behind the player
+ * and make every subsequent milestone unpayable.
+ */
+async function readBaselines(
+  tx: Prisma.TransactionClient,
+  sides: readonly { userId: string; ratingAfter: number }[],
+  now: Date,
+): Promise<Map<string, number>> {
+  for (const side of sides) {
+    await tx.$executeRaw`
+      INSERT INTO "PvpLadderBaseline" ("userId","rating","source","createdAt")
+      SELECT pr."userId",
+             -- ::int for the same reason the day parameter is cast to ::date
+             -- above: a bind parameter's inferred type decides GREATEST's result
+             -- type, and the target column is INTEGER.
+             GREATEST(pr."peakRating", pr."rating", ${side.ratingAfter}::int),
+             'settle',
+             ${now}
+        FROM "PlayerRating" pr
+       WHERE pr."userId" = ${side.userId}
+      ON CONFLICT ("userId") DO NOTHING
+    `;
+  }
+  const rows = await tx.$queryRaw<{ userId: string; rating: number }[]>`
+    SELECT "userId", "rating"::int AS rating
+      FROM "PvpLadderBaseline"
+     WHERE "userId" IN (${sides[0]?.userId ?? ""}, ${sides[1]?.userId ?? ""})
+  `;
+  const out = new Map<string, number>();
+  for (const r of rows) out.set(String(r.userId), Number(r.rating));
+  return out;
+}
+
+/**
+ * How far this account has climbed IN MATCHES THE LADDER PAID FOR — the sum of
+ * its own `ratingDelta` across the whole ledger, lifetime.
+ *
+ * This is the number that prices the cash bonus (see
+ * LADDER_WITNESSED_BASE_RATING). It is a SEPARATE statement from readSideLedger
+ * rather than another column on it for two reasons: readSideLedger is scoped to
+ * the rolling window and this must not be, and the fake Postgres in
+ * tests/pvpLadderSettle.test.ts routes on statement shape and POSITIONAL
+ * parameters, so folding a differently-scoped aggregate into that statement
+ * would have re-mapped every value after it.
+ *
+ * Deliberately NOT filtered on provenance/result/endReason: a row only exists in
+ * PvpLadderEarn if it already passed every gate, so the ledger IS the filter.
+ * Losses count too, negatively, which is what makes this a rating rather than a
+ * score — an account cannot bank its wins and hide its losses from the price.
+ */
+async function readWitnessedClimb(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<number> {
+  const rows = await tx.$queryRaw<{ witnessed_delta: number }[]>`
+    SELECT COALESCE(SUM(e."ratingDelta"), 0)::int AS witnessed_delta
+      FROM "PvpLadderEarn" e
+     WHERE e."userId" = ${userId}
+  `;
+  return Number(rows[0]?.witnessed_delta ?? 0);
 }
 
 async function readMilestones(tx: Prisma.TransactionClient, userId: string): Promise<number[]> {
@@ -1002,12 +1492,24 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
         accounts.filter((a) => (a.saveVersion ?? 0) > 0).map((a) => a.id),
       );
 
-      const [winnerLedger, loserLedger, winnerMilestones, loserMilestones] = await Promise.all([
+      const [
+        winnerLedger, loserLedger, winnerMilestones, loserMilestones,
+        winnerWitnessed, loserWitnessed,
+      ] = await Promise.all([
         readSideLedger(tx, input.winnerId, input.loserId, windowStart, bonusCutoff),
         readSideLedger(tx, input.loserId, input.winnerId, windowStart, bonusCutoff),
         readMilestones(tx, input.winnerId),
         readMilestones(tx, input.loserId),
+        readWitnessedClimb(tx, input.winnerId),
+        readWitnessedClimb(tx, input.loserId),
       ]);
+      // Sequential, and after the reads above: this is the one WRITE in the
+      // gathering phase, and it must not be interleaved with them on the same
+      // connection. An absent row reads as 0 — see readBaselines.
+      const baselines = await readBaselines(tx, [
+        { userId: input.winnerId, ratingAfter: delta.aRating },
+        { userId: input.loserId, ratingAfter: delta.bRating },
+      ], now);
 
       const description: LadderMatchDescription = {
         ...shape,
@@ -1023,6 +1525,9 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
             ratingDelta: delta.aDelta,
             priorMeetingsVsOpponentInWindow: winnerLedger.meetings,
             bpEarnedInWindowBeforeThis: winnerLedger.bpInWindow,
+            milestoneBpInWindowBeforeThis: winnerLedger.milestoneBpInWindow,
+            milestoneBaselineRating: baselines.get(input.winnerId) ?? 0,
+            witnessedRatingDeltaBefore: winnerWitnessed,
             winBonusOnCooldown: winnerLedger.winBonusOnCooldown,
             milestonesAlreadyAwarded: winnerMilestones,
           },
@@ -1036,6 +1541,9 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
             ratingDelta: delta.bDelta,
             priorMeetingsVsOpponentInWindow: loserLedger.meetings,
             bpEarnedInWindowBeforeThis: loserLedger.bpInWindow,
+            milestoneBpInWindowBeforeThis: loserLedger.milestoneBpInWindow,
+            milestoneBaselineRating: baselines.get(input.loserId) ?? 0,
+            witnessedRatingDeltaBefore: loserWitnessed,
             winBonusOnCooldown: loserLedger.winBonusOnCooldown,
             milestonesAlreadyAwarded: loserMilestones,
           },
@@ -1052,9 +1560,11 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
       // If either insert is a no-op this match has already been settled, and
       // rolling back here means a replay cannot create a second grant.
       //
-      // This is also where a BOT DIES: "userId" and "opponentUserId" are FKs to
-      // User(id), so a synthetic bot id raises 23503 and takes both rows and
-      // both grants down together.
+      // "userId" and "opponentUserId" are also FKs to User(id), so a synthetic
+      // bot id raises 23503 and takes both rows and both grants down together.
+      // That is belt-and-braces rather than the live bot gate: computeLadderReward
+      // above already refused the synthetic id on `saveVersion > 0`, so this
+      // statement is not reached for a bot. See layer 3 in the header.
       const rowIds: string[] = [];
       for (const side of plan.sides) {
         const id = newLadderRowId();
@@ -1100,7 +1610,7 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
           const claimed = await tx.$executeRaw`
             INSERT INTO "PvpWinBonusClaim" ("userId","claimedAt","day","matchId","rating","tier","money")
             VALUES (${side.userId}, ${now}, ${day}::date, ${input.matchId},
-                    ${side.ratingAfter}, ${side.tier}, ${side.money})
+                    ${side.pricedRating}, ${side.tier}, ${side.money})
             ON CONFLICT ("userId") DO UPDATE
               SET "claimedAt" = EXCLUDED."claimedAt",
                   "day"       = EXCLUDED."day",
@@ -1183,13 +1693,39 @@ export async function settleLadderEarn(input: SettleLadderInput): Promise<Settle
     // A refusal is a normal answer, and the transaction has already rolled
     // back. Report it; do not log it.
     if (e instanceof LadderRefusal) return NOT_PAID(e.slug);
+
+    // ── THE DEPLOY-ORDER HAZARD, NAMED ─────────────────────────────
+    // The single most likely way this feature fails on its first day is the
+    // switch being flipped before the second migration lands. That is
+    // fail-CLOSED — 42P01 rolls the transaction back and nobody is paid — but
+    // "pvp_ladder_settle_failed: relation does not exist" on every rated battle
+    // names neither the cause nor the fix, and it is 3am when someone reads it.
+    // So the one recoverable operational failure gets its own message and its
+    // own remedy, and everything else keeps the generic one.
+    const missing = missingLadderRelation(e);
+    if (missing) {
+      void recordError({
+        kind: "server",
+        message: "pvp_ladder_migration_missing",
+        source: "lib/pvpLadder.settleLadderEarn",
+        meta: {
+          matchId: input.matchId,
+          relation: missing.relation,
+          migration: missing.migration,
+          remedy: `PVP_LADDER_REWARDS is ON but "${missing.relation}" does not exist. `
+            + `Nothing has been paid and nothing was written. Apply ${missing.migration} `
+            + `(prisma migrate deploy), then rated battles pay normally — no backfill needed.`,
+          error: String(e),
+        },
+      });
+      return NOT_PAID("migration_missing");
+    }
+
     // The transaction guarantees nothing was written; this only reports it.
     //
-    // Recorded rather than swallowed because the two most likely causes are
-    // both things an operator must see: a missing migration (the tables do not
-    // exist yet, so every rated battle logs this and pays nothing — loud, and
-    // fail-closed), and an FK violation from a synthetic opponent id, which is
-    // the bot gate firing and worth knowing about.
+    // Recorded rather than swallowed because the likely causes are things an
+    // operator must see — an FK violation from a synthetic opponent id (the bot
+    // gate's constraint layer firing), a connection failure, or a policy bug.
     void recordError({
       kind: "server",
       message: "pvp_ladder_settle_failed",
@@ -1230,8 +1766,22 @@ export interface LadderStatus {
   winBonusAvailableAt: string | null;
   winBonusCooldownMs: number;
   winBonusBp: number;
-  /** What a win right now would pay in cash, at this account's rating. */
+  /**
+   * What a win right now would ACTUALLY pay in cash — priced from
+   * `witnessedRating`, not from the badge.
+   *
+   * This used to be priced from live PlayerRating, which made it the same class
+   * of bug as the `invitesPay: true` this endpoint also used to report: a
+   * rewards panel promising an amount the settle would never pay. If the two
+   * numbers disagree, THIS is the true one.
+   */
   winBonusMoney: number;
+  /**
+   * The rating the cash is priced at: `min(live rating, 1000 + Σ ladder
+   * ratingDelta)`. Reported alongside the badge so a UI can explain a gap
+   * instead of looking broken — see LADDER_WITNESSED_BASE_RATING.
+   */
+  witnessedRating: number;
   rewardsEnabled: boolean;
 }
 
@@ -1249,13 +1799,18 @@ export async function readLadderStatus(
   const windowStart = new Date(now.getTime() - LADDER_BP_WINDOW_MS);
   const rows = await prisma.$queryRaw<{
     bp_window: number; matches_window: number; bp_lifetime: number;
-    milestone_lifetime: number; bonus_at: Date | null;
+    milestone_lifetime: number; witnessed_delta: number; bonus_at: Date | null;
   }[]>`
     SELECT
       COALESCE(SUM(e."bp") FILTER (WHERE e."createdAt" > ${windowStart}), 0)::int AS bp_window,
       COUNT(*) FILTER (WHERE e."createdAt" > ${windowStart})::int AS matches_window,
       COALESCE(SUM(e."bp"), 0)::int AS bp_lifetime,
       COALESCE(SUM(e."milestoneBp"), 0)::int AS milestone_lifetime,
+      -- The witnessed climb, unwindowed and unfiltered, exactly as
+      -- readWitnessedClimb computes it inside the settle. Adding it here costs
+      -- no extra bind parameter and no extra round trip, which matters because
+      -- the fake Postgres in tests routes on positional parameters.
+      COALESCE(SUM(e."ratingDelta"), 0)::int AS witnessed_delta,
       (SELECT w."claimedAt" FROM "PvpWinBonusClaim" w WHERE w."userId" = ${userId}) AS bonus_at
     FROM "PvpLadderEarn" e
     WHERE e."userId" = ${userId}
@@ -1267,6 +1822,13 @@ export async function readLadderStatus(
     ? new Date(claimedAt.getTime() + LADDER_WIN_BONUS_COOLDOWN_MS)
     : null;
   const onCooldown = !!availableAt && availableAt.getTime() > now.getTime();
+  // Priced exactly as computeSide prices it, from the same two numbers, so the
+  // panel and the payout cannot disagree. Conservative by one match: it does not
+  // pre-credit the delta of the win being advertised.
+  const witnessedRating = Math.min(
+    typeof rating === "number" && Number.isFinite(rating) ? Math.floor(rating) : LADDER_WITNESSED_BASE_RATING,
+    LADDER_WITNESSED_BASE_RATING + Number(r?.witnessed_delta ?? 0),
+  );
   return {
     day: utcDayString(now),
     windowMs: LADDER_BP_WINDOW_MS,
@@ -1280,7 +1842,8 @@ export async function readLadderStatus(
     winBonusAvailableAt: onCooldown ? availableAt!.toISOString() : null,
     winBonusCooldownMs: LADDER_WIN_BONUS_COOLDOWN_MS,
     winBonusBp: LADDER_WIN_BONUS_BP,
-    winBonusMoney: winBonusMoneyForRating(rating ?? 1000),
+    winBonusMoney: winBonusMoneyForRating(witnessedRating),
+    witnessedRating,
     rewardsEnabled: ladderRewardsEnabled(),
   };
 }
@@ -1313,7 +1876,7 @@ export async function readLadderHistory(userId: string, limit = 25): Promise<Lad
   const rows = await prisma.$queryRaw<any[]>`
     SELECT "matchId","opponentUserId","day","provenance","result","bp","milestoneBp",
            "moneyAwarded","winBonusPaid","tier","meetingIndex","bpBeforeDecay","turns",
-           "ratingDelta","createdAt"
+           "ratingDelta","ratingAfter","createdAt"
     FROM "PvpLadderEarn"
     WHERE "userId" = ${userId}
     ORDER BY "createdAt" DESC
@@ -1344,6 +1907,10 @@ export async function readLadderHistory(userId: string, limit = 25): Promise<Lad
         money: Number(r.moneyAwarded),
         winBonusPaid: Boolean(r.winBonusPaid),
         result: String(r.result),
+        // Both already on the row, so explaining a clamped payout costs no
+        // extra column and no extra query.
+        ratingAfter: Number(r.ratingAfter),
+        tier: String(r.tier ?? ""),
       }),
       turns: Number(r.turns),
       ratingDelta: Number(r.ratingDelta),
@@ -1360,6 +1927,12 @@ export async function readLadderHistory(userId: string, limit = 25): Promise<Lad
 export function explainEarn(e: {
   meetingIndex: number; decayPercent: number; bp: number; milestoneBp: number;
   money: number; winBonusPaid: boolean; result: string;
+  /** The live rating after this match, and the tier the cash was PRICED at.
+   *  Optional so existing callers are unaffected; when both are present and they
+   *  disagree, the row says why — see LADDER_WITNESSED_BASE_RATING. Without this
+   *  a player at a Gold badge sees a Bronze payout and no reason, which reads as
+   *  a bug rather than as a rule. */
+  ratingAfter?: number; tier?: string;
 }): string {
   const parts: string[] = [];
   if (e.bp > 0 || e.milestoneBp > 0) {
@@ -1374,6 +1947,18 @@ export function explainEarn(e: {
   }
   if (e.result === "win" && !e.winBonusPaid && e.money === 0) {
     parts.push("win bonus already claimed — it returns 20h after your last one");
+  }
+  // The clamp, explained only when it actually bound. A row whose paid tier is
+  // below the tier its own rating would buy is the visible signature of a climb
+  // made off the paying path.
+  if (typeof e.ratingAfter === "number" && typeof e.tier === "string" && e.tier) {
+    const live = pvpTierForRating(e.ratingAfter);
+    if (live.id !== e.tier) {
+      parts.push(
+        `paid at ${e.tier} rather than ${live.id}: the win bonus is priced on rating won `
+        + "in matchmade ladder battles, and part of yours was earned elsewhere",
+      );
+    }
   }
   return parts.join("; ");
 }

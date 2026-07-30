@@ -365,6 +365,33 @@ export interface BattleRoom {
   winnerId?: string;
   loserId?: string;
   endReason?: "ko" | "tie" | "forfeit" | "timeout" | "cancelled";
+  /**
+   * THE LADDER REWARD GATE, asserted at room-construction time.
+   *
+   * Set in exactly ONE place — socket.ts's tryPairAndSpawnRoom, the matchmaking
+   * pairing path — and read in exactly one place, endBattle's settleLadderEarn
+   * call. It is a POSITIVE assertion that two humans independently joined a
+   * queue, not a bot check, because there is no way to forget a positive
+   * assertion into existence:
+   *
+   *   * a bot room (socket.ts battle:bot), a friend invite, a tournament room
+   *     (lib/tournamentRunner.ts), the admin force-start (routes/admin.ts) and
+   *     every room type nobody has written yet omit this field, read `undefined`,
+   *     and pay NOTHING with no code of their own;
+   *   * a denylist — `format !== "bot"` — would instead be defeated by a second
+   *     bot format or a rename, and `format === "random50"` cannot tell a queue
+   *     pairing from an invite because battle:invite whitelists random50 too.
+   *
+   * Bot battles are the exploit that matters: ~8 of 10 queue attempts never
+   * match, so a player can generate bot battles endlessly with no second human.
+   * If one ever paid, it is an infinite money printer. Hence a room type that has
+   * never heard of rewards is unrewarded BY DEFAULT.
+   *
+   * Typed as the single literal "queue" rather than "queue" | "invite" because
+   * the owner's decision is matchmade-only: an invite payout is then a compile
+   * error rather than a copy-paste. lib/pvpLadder.ts documents the cost.
+   */
+  ladderProvenance?: "queue";
   /** Optional tournament linkage — set by the bracket runner when the
    *  match was created from a tournament round. */
   tournamentId?: string;
@@ -1531,12 +1558,44 @@ export async function endBattle(
   // while persisting the row as "cancelled": history loses a win whose rating
   // already moved, and tournamentRunner reads a non-completed row as dead and
   // REPLAYS a decided pairing.
+  //
+  // THE LADDER REWARD INPUTS ARE FROZEN HERE FOR THE SAME REASON, and it is a
+  // stronger reason. The room's ladder provenance is the gate that decides
+  // whether a bot battle pays; `id` is the ledger's idempotency key and the
+  // PendingGrant sourceId. Both used to be sampled by the settle hook at the
+  // BOTTOM of this function — i.e. after the Elo await below, a real
+  // four-statement database round trip, during which this room is still in
+  // `battleRooms` and still mutable by every socket handler, and then after a
+  // dynamic module load on top of that.
+  //
+  // Executed: writing a "queue" provenance onto an invite-shaped room while
+  // endBattle was suspended on the Elo await paid 9 BP and $10,000, and
+  // renaming `room.id` in the same window wrote both ledger rows and both
+  // grants against the OTHER match's id. Nothing in src/ writes either field
+  // that late today — the provenance field has exactly one writer, at room
+  // construction — so this was latent rather than live. But "asserted once, at
+  // room-construction time, and never re-decided" is the entire security
+  // argument for the gate, and a value re-read across an await is not that.
+  //
+  // The field below is deliberately named `provenance` rather than repeating
+  // the room field's name: this is a READ, and tests/pvpLadderWiring.test.ts
+  // audits src/ for assignments to `ladderProvenance` so that the room field
+  // keeps exactly one writer. A freeze must not look like a second one.
+  //
+  // The log and createdAt come along for consistency: the stream is destroyed
+  // above, so no line can arrive after this point anyway, and freezing them
+  // makes "every reward input is captured before the first await" a property
+  // that is true rather than nearly true.
   const outcome = {
     status: room.status,
     winnerId: room.winnerId ?? null,
     loserId: room.loserId ?? null,
     battleLog: room.log.join("\n"),
     tournamentId: room.tournamentId ?? null,
+    matchId: room.id,
+    provenance: room.ladderProvenance,
+    logLines: room.log.slice(),
+    startedAt: room.createdAt,
   };
   // A voided battle publishes NO teams. The drain and the both-sides-away
   // branch write a "cancelled" row, and the row used to carry the raw team
@@ -1661,7 +1720,124 @@ export async function endBattle(
     }
   }
 
-  // Drop after a beat so any in-flight state events are delivered.
+  // ── LADDER REWARDS ─────────────────────────────────────────────────
+  // Deliberately the LAST thing endBattle does, and deliberately not awaited.
+  //
+  // WHY HERE AND NOT BESIDE applyEloUpdate: the outcome was frozen above
+  // precisely because a late write can rename a winner, and a reward is a much
+  // worse thing to have racing that than a rating is. Everything below reads the
+  // FROZEN `outcome`, never room.winnerId, so a battle:cancel landing inside this
+  // window cannot redirect a payment. And by sitting after rememberOutcome +
+  // sendToUser, nothing it does — including a synchronous throw, which
+  // settleLadderEarn is written never to produce — can stop the result reaching
+  // the two players who just played it.
+  //
+  // WHY IT CANNOT FAIL A BATTLE: settleLadderEarn never rejects (every path
+  // inside it returns a refusal or records an error), and the .catch below is the
+  // second opinion on that claim. A reward that cannot be paid must produce a
+  // recordError, never a corrupted outcome — the battle already happened.
+  //
+  // WHY trackPersist: the shutdown drain waits on these, so a deploy landing in
+  // the same instant as a KO commits the reward instead of dropping it silently.
+  // The drain's own battles end "cancelled", which is unpayable, so this adds no
+  // work to a restart.
+  //
+  // The four gates this call passes through, none of which live here: `room
+  // .ladderProvenance` (undefined for bots, invites, tournaments and admin
+  // rooms), `ratingDelta` (null unless applyEloUpdate ran), `reason` (only "ko"
+  // and "tie" are payable, so a forfeit/timeout/cancel pays NOBODY, including
+  // the survivor), and the ledger's own exactly-once constraints.
+  //
+  // WHY THE IMPORT IS DYNAMIC, and why that is not decoration: lib/pvpLadder.ts
+  // pays through lib/prizeGrant.ts, which imports ./socket.js for its
+  // fire-and-forget "gift:pending" nudge — and socket.ts imports THIS file. A
+  // static import here would therefore make pvp.ts → pvpLadder → prizeGrant →
+  // socket → pvp a real module cycle, contradicting the rule in this file's
+  // header, and would drag socket.ts (which constructs better-auth at module
+  // scope) into the import graph of tournamentRunner, the admin routes and every
+  // test that touches a battle. Deferring the load to the one place that needs it
+  // keeps this module's static graph exactly as it was. TypeScript checks the
+  // specifier and the named export either way, so nothing is lost but the cycle.
+  //
+  // WHY THE WHOLE BLOCK IS INSIDE A try: everything below is fire-and-forget, so
+  // an ASYNC failure is already contained by the .catch. A SYNCHRONOUS throw was
+  // not, and it had two victims rather than one — measured by arming a throw on
+  // the first statement in the block: endBattle REJECTED, and the
+  // `battleRooms.delete` timer below never ran, so the room stayed in the map
+  // forever. A leaked room is worse than a lost reward: "already in a battle" is
+  // checked against that map, so both players are benched from the queue, from
+  // invites and from tournament pairings until the process restarts.
+  //
+  // Nothing in the block can throw synchronously TODAY — room.log is a
+  // non-optional string[], Date.now() cannot throw, import() returns a promise —
+  // so this guards the class rather than a live bug. It is three lines, and the
+  // alternative is that a future edit here silently benches players.
+  try {
+    if (ratingDelta && outcome.winnerId && outcome.loserId) {
+      // EVERY VALUE BELOW COMES FROM THE FREEZE AT THE TOP OF THIS FUNCTION, not
+      // from `room`, so nothing that happens during the Elo await, the dynamic
+      // import or the transaction can change what is paid. The room is still in
+      // `battleRooms` for another five seconds and is reachable by every socket
+      // handler; `outcome` is a local object nothing else holds a reference to,
+      // and its `logLines` is a COPY — the turn count is a reward input, and a
+      // reward input must not be a live array owned by a room that is about to be
+      // deleted. See the freeze itself for what was measured when the gate and
+      // the match id were read from `room` down here instead.
+      const winnerId = outcome.winnerId;
+      const loserId = outcome.loserId;
+      const logLines = outcome.logLines;
+      const durationMs = Date.now() - outcome.startedAt;
+      const matchId = outcome.matchId;
+      const provenance = outcome.provenance;
+      trackPersist(
+        import("./lib/pvpLadder.js").then((ladder) => ladder.settleLadderEarn({
+          matchId,
+          provenance,
+          winnerId,
+          loserId,
+          // `endReason`, not `reason`. The field name is the ledger's, and the
+          // allowlist that refuses a forfeit reads it.
+          endReason: reason,
+          // Turns exist NOWHERE ELSE once the room is dropped, and this room is
+          // five seconds from deletion.
+          logLines,
+          // Likewise unrecoverable: PvpMatch.createdAt is stamped at insert time,
+          // so finishedAt - createdAt is 0 for every row ever written.
+          durationMs,
+          ratingDelta,
+        })).catch((e) => {
+          void recordError({
+            kind: "server",
+            message: "pvp_ladder_settle_threw",
+            source: "pvp.endBattle",
+            meta: {
+              battleId: matchId, format: room.format, reason,
+              winnerId: outcome.winnerId, loserId: outcome.loserId,
+              error: String(e),
+            },
+          });
+        }),
+      );
+    }
+  } catch (e) {
+    // Same contract as the .catch above, for the synchronous half: a reward that
+    // cannot be paid must produce a recordError, never a corrupted outcome and
+    // never a leaked room. The battle already happened and both players already
+    // have their result.
+    void recordError({
+      kind: "server",
+      message: "pvp_ladder_settle_threw",
+      source: "pvp.endBattle",
+      meta: {
+        battleId: outcome.matchId, format: room.format, reason,
+        winnerId: outcome.winnerId, loserId: outcome.loserId,
+        sync: true, error: String(e),
+      },
+    });
+  }
+
+  // Drop after a beat so any in-flight state events are delivered. Reached on
+  // EVERY path out of the reward block above, which is the point of the try.
   setTimeout(() => battleRooms.delete(room.id), 5_000);
 }
 

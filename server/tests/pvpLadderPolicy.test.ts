@@ -32,10 +32,12 @@
 //     exhausted the 25-BP cap for every legitimate battle after it that day;
 //   * milestones keyed on the LIVE rating, so flipping PVP_LADDER_REWARDS on
 //     would have paid every already-high account its entire back-catalogue;
-//   * matchmade-only refused friend invites, which are 76% of every PvP match
-//     ever played here;
 //   * a 60s wall-clock floor refused genuine 4- and 6-turn matches;
-//   * the cash was flat, and sized against a cohort that does not play PvP.
+//   * the cash was flat, and sized against a cohort that does not play PvP;
+//   * the cash was then priced by LIVE rating, which is manufacturable on the
+//     unpaid, opponent-chosen invite path — 40 instant forfeits moved an account
+//     a tier and ~448 reached a 20x price. It is priced by the WITNESSED rating
+//     now: see tests/pvpLadderResidual.test.ts for the reproduction.
 //
 // No mocks and no database — this file imports nothing that reaches src/db.ts.
 
@@ -52,6 +54,7 @@ import {
   LADDER_DECAY_PERCENT_BY_MEETING,
   LADDER_DECAY_PERCENT_FLOOR,
   LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW,
+  LADDER_MILESTONE_BP_CAP_PER_WINDOW,
   LADDER_MIN_DURATION_MS,
   LADDER_MIN_TURNS,
   LADDER_PAYABLE_END_REASONS,
@@ -97,6 +100,18 @@ function sideState(over: Partial<LadderSideState> & { userId: string; result: La
     ratingDelta: won ? 16 : over.result === "tie" ? 0 : -16,
     priorMeetingsVsOpponentInWindow: 0,
     bpEarnedInWindowBeforeThis: 0,
+    milestoneBpInWindowBeforeThis: 0,
+    // 0, not null: an account with no PvpLadderBaseline row has never played a
+    // rated match, so there is nothing it could already have been paid for. This
+    // is the default a fresh account really has, which is why the milestone tests
+    // below read as "climbing from Bronze" rather than needing setup.
+    milestoneBaselineRating: 0,
+    // Likewise 0 rather than null: a fresh account has an empty ledger, so it has
+    // WITNESSED no climb and is priced from LADDER_WITNESSED_BASE_RATING. Every
+    // fixture below therefore reads as "priced at the rating it actually reached
+    // on the queue", which is the honest default — see the witnessed-rating
+    // section for what happens when live rating and witnessed rating disagree.
+    witnessedRatingDeltaBefore: 0,
     winBonusOnCooldown: false,
     milestonesAlreadyAwarded: [],
     ...over,
@@ -206,7 +221,7 @@ describe("bot battles cannot pay — the reward is opt-in at room construction",
     for (const p of ["bot", "tournament", "admin", "stream", "QUEUE", "", " queue", "queue "]) {
       expect(structuralRefusal(shape({ provenance: p }))).toBe("not_human_pvp");
     }
-    expect([...LADDER_PAYABLE_PROVENANCE]).toEqual(["queue", "invite"]);
+    expect([...LADDER_PAYABLE_PROVENANCE]).toEqual(["queue"]);
     for (const p of LADDER_PAYABLE_PROVENANCE) {
       expect(structuralRefusal(shape({ provenance: p }))).toBeNull();
     }
@@ -256,27 +271,38 @@ describe("bot battles cannot pay — the reward is opt-in at room construction",
 });
 
 // ════════════════════════════════════════════════════════════════════
-// 2. FRIEND INVITES PAY — the removed "matchmade only" rule
+// 2. MATCHMADE ONLY — a friend invite pays NOTHING
 // ════════════════════════════════════════════════════════════════════
-describe("friend invites are payable, because they ARE PvP in this game", () => {
-  // REGRESSION. Measured read-only against production: 42 of 55 matches ever
-  // (76%) are between accounts that are FRIENDS, and 8 of the 9 pairs that met
-  // more than once are friends — including the top pair at 12 matches. The old
-  // rule refused every one of them and called the cost "small".
-  it("pays an invite exactly as it pays a queue pairing", () => {
-    const viaQueue = sideOf(computeLadderReward(duel({}, {}, { provenance: "queue" })), "alice");
-    const viaInvite = sideOf(computeLadderReward(duel({}, {}, { provenance: "invite" })), "alice");
-    expect(viaInvite.bpTotal).toBe(viaQueue.bpTotal);
-    expect(viaInvite.money).toBe(viaQueue.money);
-    expect(viaInvite.money).toBeGreaterThan(0);
+// The owner's settled decision, asked directly and answered directly. The cost
+// is real and was measured rather than waved away: 42 of 55 matches ever (76%)
+// are between accounts that are FRIENDS, and 8 of the 9 pairs that met more than
+// once are friends, including the top pair at 12 matches. So most PvP that
+// actually happens in this game earns nothing. What it buys is the one
+// structural obstacle to a two-account ring that no cap can provide — you cannot
+// choose your opponent on the only path that pays.
+describe("a friend invite is refused, by the policy as well as by omission", () => {
+  it("refuses an invite even when a room asserts one", () => {
+    // The room field's type is the literal "queue", so no construction site can
+    // produce this. The policy refuses it anyway: that is the second layer, and
+    // it is why widening the field by one word cannot quietly re-open the faucet.
+    expect(structuralRefusal(shape({ provenance: "invite" }))).toBe("not_human_pvp");
+    expect(computeLadderReward(duel({}, {}, { provenance: "invite" })).eligible).toBe(false);
+    expect(computeLadderReward(duel({}, {}, { provenance: "invite" })).sides).toEqual([]);
   });
 
-  it("stayed an allowlist — widening it by one HUMAN path did not make it a denylist", () => {
-    expect(LADDER_PAYABLE_PROVENANCE.length).toBe(2);
+  it("is an ALLOWLIST of one, and still enumerates no bot anywhere", () => {
+    expect(LADDER_PAYABLE_PROVENANCE.length).toBe(1);
     expect((LADDER_PAYABLE_PROVENANCE as readonly string[]).includes("bot")).toBe(false);
     // A bot room is refused because it carries NOTHING, not because "bot" is
     // enumerated anywhere. That is the property that survives a refactor.
     expect(structuralRefusal(shape({ provenance: undefined }))).toBe("not_human_pvp");
+  });
+
+  it("pays the queue pairing it does allow", () => {
+    // The other half of the claim: refusing invites did not refuse everything.
+    const viaQueue = sideOf(computeLadderReward(duel({}, {}, { provenance: "queue" })), "alice");
+    expect(viaQueue.money).toBeGreaterThan(0);
+    expect(viaQueue.bpTotal).toBeGreaterThan(0);
   });
 });
 
@@ -538,14 +564,28 @@ describe("the rolling BP cap is the hard bound, and it holds", () => {
     expect(a.bpWinBonus).toBe(LADDER_WIN_BONUS_BP);
   });
 
-  // REGRESSION for the headline number itself. "The cap is 25" read as the hard
-  // bound and was not: milestones are exempt, and one match could pay 98 BP.
-  it("states the honest ceiling, inclusive of the exempt milestone stack", () => {
+  // REGRESSION for the headline number itself, twice over.
+  //
+  // First defect: "the cap is 25" read as the hard bound and was not, because
+  // milestone BP is a separate ledger column the cap read cannot see.
+  //
+  // Second defect, the one this assertion now pins: the honest number was 115 —
+  // the 25-BP cap plus the WHOLE 90-BP lifetime milestone stack — and all 90 of
+  // it was payable inside one rolling window, arithmetically inside a single
+  // MATCH. A lifetime figure had become a daily one. The exemption is still real
+  // (milestones never consume the battle cap, see section 6 below), but it is now
+  // bounded by a cap of its own: one tier's worth per window.
+  it("states the honest ceiling, and the exempt part is bounded too", () => {
     expect(LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW)
-      .toBe(LADDER_BP_CAP_PER_WINDOW + PVP_MILESTONE_BP_LIFETIME_TOTAL);
-    expect(LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW).toBe(115);
-    // …and the exempt part is a LIFETIME total, not a per-window one.
+      .toBe(LADDER_BP_CAP_PER_WINDOW + LADDER_MILESTONE_BP_CAP_PER_WINDOW);
+    expect(LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW).toBe(65);
+    // The lifetime total is unchanged — 90 BP is still what a full climb from
+    // Bronze to Diamond is worth. What changed is that no single window may pay
+    // more than the largest single rank-up.
     expect(PVP_MILESTONE_BP_LIFETIME_TOTAL).toBe(90);
+    expect(LADDER_MILESTONE_BP_CAP_PER_WINDOW).toBe(40);
+    expect(LADDER_MILESTONE_BP_CAP_PER_WINDOW)
+      .toBe(Math.max(...PVP_MILESTONES.map((m) => m.bp)));
   });
 });
 
@@ -591,15 +631,38 @@ describe("the once-per-cooldown win bonus", () => {
     expect(a.money).toBeGreaterThan(0);
   });
 
-  it("prices the cash by badge tier, which a collusion ring cannot manufacture", () => {
+  it("prices the cash by badge tier, on a rating a collusion ring cannot manufacture", () => {
+    // `witnessedRatingDeltaBefore` is what makes the title true rather than
+    // merely stated. The tier table is indexed by the rating this feature has
+    // WITNESSED — climbs made in matches it actually paid for — so an account is
+    // priced at Gold only if it won its way to Gold on the queue. Each fixture
+    // therefore banks the climb it is claiming. See tests/pvpLadderResidual.ts
+    // for the executed exploit that this replaced: live PlayerRating moves on
+    // free instant forfeit INVITES, where you choose your opponent and nothing is
+    // paid, and it priced this same table 20x.
     const at = (rating: number) =>
-      sideOf(computeLadderReward(duel({ ratingBefore: rating, ratingAfter: rating })), "alice");
+      sideOf(computeLadderReward(duel({
+        ratingBefore: rating, ratingAfter: rating,
+        witnessedRatingDeltaBefore: rating - 1000 - 16,
+      })), "alice");
     expect(at(1000).tier).toBe("bronze");
     expect(at(1000).money).toBe(10_000);
     expect(at(1100).money).toBe(25_000);
     expect(at(1300).money).toBe(60_000);
     expect(at(1500).money).toBe(120_000);
     expect(at(1700).money).toBe(200_000);
+
+    // …and the same ratings with NOTHING witnessed are all Bronze. This is the
+    // clamp, and it is the whole defence: the 20x spread above is only reachable
+    // by an account that climbed on the one path a ring cannot control.
+    const unwitnessed = (rating: number) =>
+      sideOf(computeLadderReward(duel({
+        ratingBefore: rating, ratingAfter: rating, witnessedRatingDeltaBefore: 0,
+      })), "alice");
+    for (const r of [1100, 1300, 1500, 1700, 5000]) {
+      expect(unwitnessed(r).money).toBe(10_000);
+      expect(unwitnessed(r).tier).toBe("bronze");
+    }
     // Monotonic in rating, and never above the top tier.
     let prev = 0;
     for (let r = 0; r <= 2500; r += 50) {
@@ -695,10 +758,97 @@ describe("rating milestones", () => {
     expect(crossing(1700, 1720).milestones).toEqual([]);
   });
 
-  it("awards every threshold a single big jump crosses, ascending", () => {
+  // REGRESSION: this used to pay all 90 BP — the entire lifetime stack — from
+  // ONE match, because nothing bounded how many thresholds a single crossing
+  // could carry. K=32 makes a +750 match impossible today, which is precisely the
+  // wrong reason to leave the largest payment in the feature unbounded: a K
+  // change or a rating reseed is a config edit.
+  //
+  // The crossings are all still RECORDED — the achievement happened, and the row
+  // is what stops a threshold looking claimable when it can never be crossed
+  // again — but the BP is clamped to the window's milestone budget, spent in
+  // ascending order so the clamp costs the top tier rather than the ones earned
+  // first.
+  it("records every threshold a single big jump crosses, and pays at most one tier's worth", () => {
     const m = crossing(1000, 1750);
     expect(m.milestones.map((x) => x.threshold)).toEqual([1100, 1300, 1500, 1700]);
-    expect(m.milestoneBp).toBe(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+    expect(m.milestoneBp).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
+    expect(m.milestoneBp).toBeLessThan(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+    // Ascending spend: 10 + 15 + 15-of-25, then nothing left for Diamond.
+    expect(m.milestones.map((x) => x.bp)).toEqual([10, 15, 15, 0]);
+  });
+
+  it("pays nothing more once the window's milestone budget is already spent", () => {
+    const spent = sideOf(computeLadderReward(duel(
+      {
+        ratingBefore: 1090, ratingAfter: 1106,
+        milestoneBpInWindowBeforeThis: LADDER_MILESTONE_BP_CAP_PER_WINDOW,
+        winBonusOnCooldown: true,
+      },
+      {},
+    )), "alice");
+    expect(spent.milestones.map((x) => x.threshold)).toEqual([1100]);
+    expect(spent.milestoneBp).toBe(0);
+    // …and the ordinary battle BP is untouched by that, which is the whole
+    // reason the two budgets are separate.
+    expect(spent.bpFromBattle).toBe(LADDER_BP_WIN);
+  });
+
+  // REGRESSION for the staggered retroactive dump. Keying on the MOVEMENT stops
+  // the switch-flip day paying everyone at once, but every account above a
+  // threshold is one loss away from re-crossing it, and the once-ever key pays
+  // that first re-crossing. The frozen baseline is what makes "nobody is paid for
+  // the past" true rather than nearly true.
+  it("refuses a threshold at or below the account's frozen baseline", () => {
+    const reCrossing = (baseline: number) => sideOf(computeLadderReward(duel(
+      {
+        ratingBefore: 1290, ratingAfter: 1322,
+        milestoneBaselineRating: baseline,
+        winBonusOnCooldown: true,
+      },
+      {},
+    )), "alice");
+    // Had already reached 1310 before rewards existed: the dip-and-return pays
+    // nothing.
+    expect(reCrossing(1310).milestones).toEqual([]);
+    expect(reCrossing(1310).milestoneBp).toBe(0);
+    // Genuinely new ground for an account that had never been past 1290.
+    expect(reCrossing(1290).milestones.map((x) => x.threshold)).toEqual([1300]);
+    expect(reCrossing(1290).milestoneBp).toBe(15);
+    // Exactly AT the threshold is still the past — 1300 was already reached.
+    expect(reCrossing(1300).milestones).toEqual([]);
+  });
+
+  it("treats an unreadable window spend as NO budget, not a full one", () => {
+    // NaN would otherwise propagate through Math.min and pay NaN BP, which the
+    // ledger's nonneg CHECK would not even catch.
+    const broken = sideOf(computeLadderReward(duel(
+      {
+        ratingBefore: 1090, ratingAfter: 1106,
+        milestoneBpInWindowBeforeThis: Number.NaN,
+        winBonusOnCooldown: true,
+      },
+      {},
+    )), "alice");
+    expect(broken.milestoneBp).toBe(0);
+    expect(broken.bpTotal).toBe(broken.bpFromBattle);
+    expect(Number.isFinite(broken.bpTotal)).toBe(true);
+  });
+
+  it("refuses every milestone when the baseline is unknown, rather than assuming zero", () => {
+    // null is not 0. An account with no baseline row has 0 (it has never played a
+    // rated match, so there is nothing to forgive); null means the caller could
+    // not establish one at all, and an unknown history must not authorise the one
+    // payment the rolling cap cannot see.
+    const unknown = sideOf(computeLadderReward(duel(
+      { ratingBefore: 1090, ratingAfter: 1106, milestoneBaselineRating: null, winBonusOnCooldown: true },
+      {},
+    )), "alice");
+    expect(unknown.milestones).toEqual([]);
+    expect(unknown.milestoneBp).toBe(0);
+    // The battle itself still pays: a missing baseline costs the uncapped
+    // component, not the match.
+    expect(unknown.bpFromBattle).toBe(LADDER_BP_WIN);
   });
 
   it("never re-awards a threshold already paid", () => {
@@ -728,7 +878,11 @@ describe("rating milestones", () => {
       {},
     )), "alice");
     expect(burnt.bpFromBattle).toBe(0);
-    expect(burnt.milestoneBp).toBe(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+    // Paid in full out of the SEPARATE milestone budget, with the ordinary cap
+    // completely exhausted. That is the exemption, and it survives the second cap
+    // — the two budgets bound each other's faucet, not each other.
+    expect(burnt.milestoneBp).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
+    expect(burnt.milestoneBp).toBeGreaterThan(0);
 
     const m = crossing(1000, 1750);
     // The capped figure the ledger sums is SEPARATE from the milestone figure,
@@ -893,5 +1047,34 @@ describe("every reward explains itself", () => {
     });
     expect(s).toContain("33 BP");
     expect(s).toContain("25 BP rank-up bonus");
+  });
+
+  it("explains a payout priced BELOW the badge, instead of leaving it looking broken", () => {
+    // A Gold-badged player paid the Bronze bonus has to be told why, or the
+    // witnessed-rating clamp reads as a bug. This is the row-level half of the
+    // same honesty the status endpoint provides with `witnessedRating`.
+    const s = explainEarn({
+      meetingIndex: 1, decayPercent: 100, bp: 8, milestoneBp: 0,
+      money: 10_000, winBonusPaid: true, result: "win",
+      ratingAfter: 1350, tier: "bronze",
+    });
+    expect(s).toContain("paid at bronze rather than gold");
+    expect(s).toContain("matchmade ladder battles");
+  });
+
+  it("says nothing about pricing when the clamp did not bind", () => {
+    // The overwhelmingly common case — and an explanation that fires on every
+    // row would train players to ignore it.
+    const s = explainEarn({
+      meetingIndex: 1, decayPercent: 100, bp: 8, milestoneBp: 0,
+      money: 10_000, winBonusPaid: true, result: "win",
+      ratingAfter: 1016, tier: "bronze",
+    });
+    expect(s).not.toContain("rather than");
+    // …and an old row with neither field still explains itself.
+    expect(explainEarn({
+      meetingIndex: 1, decayPercent: 100, bp: 8, milestoneBp: 0,
+      money: 10_000, winBonusPaid: true, result: "win",
+    })).not.toContain("rather than");
   });
 });

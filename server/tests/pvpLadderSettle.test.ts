@@ -71,6 +71,8 @@ import {
   LADDER_BP_LOSS,
   LADDER_BP_WIN,
   LADDER_BP_WINDOW_MS,
+  LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW,
+  LADDER_MILESTONE_BP_CAP_PER_WINDOW,
   LADDER_WIN_BONUS_BP,
   LADDER_WIN_BONUS_COOLDOWN_MS,
   readLadderHistory,
@@ -108,13 +110,22 @@ interface GrantRow {
   id: string; userId: string; prizes: string; source: string;
   sourceId: string | null; summary: string; deliveredAt: Date | null;
 }
+/** PlayerRating, modelled ONLY as the baseline seed reads it. Deliberately
+ *  absent for most tests: no PlayerRating row means the account has never played
+ *  a rated match, which is the case where a 0 baseline is exact rather than
+ *  optimistic. */
+interface RatingRow { userId: string; rating: number; peakRating: number }
+/** PvpLadderBaseline — what each account had ALREADY achieved before the ladder
+ *  paid it anything. Written once, never revised. */
+interface BaselineRow { userId: string; rating: number; source: string; createdAt: Date }
 
 /** Statement kinds the fake understands, keyed off the SQL shape. Anything the
  *  module issues that is NOT in here is a hard failure, so a stray query cannot
  *  slip in unnoticed. */
 type StmtKind =
   | "read.sideLedger" | "read.milestones" | "read.status" | "read.history"
-  | "insert.earn" | "claim.winBonus" | "insert.milestone" | "update.earn";
+  | "insert.earn" | "claim.winBonus" | "insert.milestone" | "update.earn"
+  | "insert.baseline" | "read.baseline" | "read.witnessed";
 
 class FakeDb {
   users = new Map<string, { id: string; saveVersion: number; saveData: string | null; saveAdoptSeq: number }>();
@@ -122,6 +133,8 @@ class FakeDb {
   bonusClaims: BonusClaimRow[] = [];
   milestones: MilestoneRow[] = [];
   grants: GrantRow[] = [];
+  ratings: RatingRow[] = [];
+  baselines: BaselineRow[] = [];
   /** Every statement kind issued, in order. */
   log: StmtKind[] = [];
   /** Interleaving hook — fires before the named statement executes. */
@@ -133,14 +146,25 @@ class FakeDb {
     const self = this;
 
     const classify = (sql: string): StmtKind => {
-      if (sql.includes('FROM "PvpLadderEarn" e') && sql.includes('FILTER (WHERE e."opponentUserId"')) return "read.sideLedger";
-      if (sql.includes('FROM "PvpBadgeMilestone" WHERE')) return "read.milestones";
+      // ORDER MATTERS, and it is load-bearing. Three statements now select FROM
+      // "PvpLadderEarn" e, and two of them carry `AS witnessed_delta` — the
+      // settle's dedicated lifetime read, and readLadderStatus, which folds the
+      // same aggregate in so the panel prices the bonus exactly as the payout
+      // does. So the two MULTI-column statements are claimed by their own
+      // distinctive markers first, and the bare witnessed read is what is left.
       if (sql.includes('COALESCE(SUM(e."bp") FILTER')) return "read.status";
+      if (sql.includes('FROM "PvpLadderEarn" e') && sql.includes('FILTER (WHERE e."opponentUserId"')) return "read.sideLedger";
+      // Deliberately NOT windowed: the witnessed climb that prices the cash
+      // bonus is a lifetime sum.
+      if (sql.includes("AS witnessed_delta")) return "read.witnessed";
+      if (sql.includes('FROM "PvpBadgeMilestone" WHERE')) return "read.milestones";
       if (sql.includes('ORDER BY "createdAt" DESC')) return "read.history";
       if (sql.includes('INSERT INTO "PvpLadderEarn"')) return "insert.earn";
       if (sql.includes('INSERT INTO "PvpWinBonusClaim"')) return "claim.winBonus";
       if (sql.includes('INSERT INTO "PvpBadgeMilestone"')) return "insert.milestone";
       if (sql.includes('UPDATE "PvpLadderEarn"')) return "update.earn";
+      if (sql.includes('INSERT INTO "PvpLadderBaseline"')) return "insert.baseline";
+      if (sql.includes('FROM "PvpLadderBaseline"')) return "read.baseline";
       // A statement the fake does not model. Fail loudly rather than silently
       // returning "no rows", which would make a broken query look like a
       // legitimate refusal.
@@ -158,7 +182,10 @@ class FakeDb {
     };
 
     const make = (tx?: {
-      created: { earns: Set<object>; bonusClaims: Set<object>; milestones: Set<object>; grants: Set<object> };
+      created: {
+        earns: Set<object>; bonusClaims: Set<object>; milestones: Set<object>;
+        grants: Set<object>; baselines: Set<object>;
+      };
       modifiedEarns: Map<string, EarnRow>;
       modifiedClaims: Map<string, BonusClaimRow>;
     }) => ({
@@ -221,10 +248,27 @@ class FakeDb {
             // NOTE: "bp" only, never "bp" + "milestoneBp". That IS the milestone
             // exemption, expressed where it actually binds.
             bp_window: mine.reduce((a, e) => a + e.bp, 0),
+            // …and the SECOND cap reads the other column, and only it. Two sums,
+            // two budgets, neither able to eat the other. This was missing from
+            // the fake, which meant the milestone cap could not bind through the
+            // settle at all — every window looked like a full budget.
+            milestone_window: mine.reduce((a, e) => a + e.milestoneBp, 0),
             meetings: mine.filter((e) => e.opponentUserId === opponentId).length,
             bonus_on_cooldown: self.bonusClaims.filter(
               (b) => b.userId === userId && b.claimedAt.getTime() > (bonusCutoff as Date).getTime(),
             ).length,
+          }];
+        }
+        if (kind === "read.witnessed") {
+          // LIFETIME, and deliberately unfiltered on provenance/result: a row
+          // only exists in this ledger if it already passed every gate, so the
+          // ledger IS the filter. Losses count negatively, which is what makes it
+          // a rating rather than a score.
+          const [userId] = values;
+          return [{
+            witnessed_delta: self.earns
+              .filter((e) => e.userId === userId)
+              .reduce((a, e) => a + Number(e.ratingDelta ?? 0), 0),
           }];
         }
         if (kind === "read.milestones") {
@@ -243,8 +287,17 @@ class FakeDb {
             matches_window: inWindow.length,
             bp_lifetime: mine.reduce((a, e) => a + e.bp, 0),
             milestone_lifetime: mine.reduce((a, e) => a + e.milestoneBp, 0),
+            // Same lifetime aggregate the settle reads, so the panel's advertised
+            // cash and the payout's actual cash come from one number.
+            witnessed_delta: mine.reduce((a, e) => a + Number(e.ratingDelta ?? 0), 0),
             bonus_at: claim ? claim.claimedAt : null,
           }];
+        }
+        if (kind === "read.baseline") {
+          const [a, b] = values;
+          return self.baselines
+            .filter((x) => x.userId === a || x.userId === b)
+            .map((x) => ({ userId: x.userId, rating: x.rating }));
         }
         if (kind === "read.history") {
           const [userId, take] = values;
@@ -336,6 +389,27 @@ class FakeDb {
           return 1;
         }
 
+        if (kind === "insert.baseline") {
+          // INSERT … SELECT FROM "PlayerRating" … ON CONFLICT DO NOTHING.
+          // Param order pinned to the statement: ratingAfter, now, userId.
+          const [ratingAfter, createdAt, userId] = values;
+          const pr = self.ratings.find((r) => r.userId === userId);
+          // No PlayerRating row → the SELECT yields nothing → NO row is written,
+          // and the account reads as baseline 0. That is exact, not lenient: it
+          // has never played a rated match, so it cannot have reached a threshold.
+          if (!pr) return 0;
+          if (self.baselines.some((x) => x.userId === userId)) return 0;
+          const row: BaselineRow = {
+            userId,
+            rating: Math.max(pr.peakRating, pr.rating, ratingAfter),
+            source: "settle",
+            createdAt: createdAt instanceof Date ? createdAt : new Date(createdAt),
+          };
+          self.baselines.push(row);
+          tx?.created.baselines.add(row);
+          return 1;
+        }
+
         if (kind === "update.earn") {
           const [bp, milestoneBp, moneyAwarded, winBonusPaid, grantId, id] = values;
           // ── CHECK nonneg ────────────────────────────────────────
@@ -366,6 +440,7 @@ class FakeDb {
         const created = {
           earns: new Set<object>(), bonusClaims: new Set<object>(),
           milestones: new Set<object>(), grants: new Set<object>(),
+          baselines: new Set<object>(),
         };
         const modifiedEarns = new Map<string, EarnRow>();
         const modifiedClaims = new Map<string, BonusClaimRow>();
@@ -376,6 +451,7 @@ class FakeDb {
           self.bonusClaims = self.bonusClaims.filter((r) => !created.bonusClaims.has(r));
           self.milestones = self.milestones.filter((r) => !created.milestones.has(r));
           self.grants = self.grants.filter((r) => !created.grants.has(r));
+          self.baselines = self.baselines.filter((r) => !created.baselines.has(r));
           for (const [id, pre] of modifiedEarns) {
             const row = self.earns.find((r) => r.id === id);
             if (row) Object.assign(row, pre);
@@ -395,6 +471,41 @@ class FakeDb {
   /** A real account: has a User row AND has had a save upload accepted. */
   addPlayer(id: string, saveVersion = 7) {
     this.users.set(id, { id, saveVersion, saveData: JSON.stringify({ money: 5000, inventory: {} }), saveAdoptSeq: 0 });
+  }
+
+  /** Give an account a rated history — the high-water mark the baseline is
+   *  frozen from. Most tests do NOT call this, because most accounts here are
+   *  climbing from nothing. */
+  addRating(id: string, rating: number, peakRating = rating) {
+    this.ratings.push({ userId: id, rating, peakRating });
+  }
+
+  /** A baseline already frozen by the migration backfill, i.e. what production
+   *  looks like on the day rewards are switched on. */
+  addBaseline(id: string, rating: number, source = "migration") {
+    this.baselines.push({ userId: id, rating, source, createdAt: new Date("2026-07-30T00:00:00.000Z") });
+  }
+
+  /**
+   * Give an account a WITNESSED climb: settled ladder rows whose ratingDelta
+   * sums to `totalDelta`, i.e. rating it won in matches this feature already
+   * paid for. That sum is what prices the cash bonus.
+   *
+   * Backdated well outside the rolling window on purpose, so a witnessed climb
+   * cannot also move the BP cap, the per-opponent decay or the meeting count —
+   * the only thing under test here is the PRICE.
+   */
+  witness(userId: string, totalDelta: number, opponentUserId = "old_rival") {
+    this.earns.push({
+      id: `wit_${userId}_${this.nextRowId++}`, matchId: `m_wit${this.nextRowId}`,
+      userId, opponentUserId, day: "2026-07-01", provenance: "queue",
+      result: totalDelta >= 0 ? "win" : "loss", endReason: "ko",
+      turns: 6, durationMs: 300_000,
+      ratingBefore: 1000, ratingAfter: 1000 + totalDelta, ratingDelta: totalDelta,
+      meetingIndex: 1, bpBeforeDecay: 0, tier: "bronze",
+      bp: 0, milestoneBp: 0, moneyAwarded: 0, winBonusPaid: false, grantId: null,
+      createdAt: new Date(NOW.getTime() - 40 * 60 * 60 * 1000),
+    });
   }
 
   grantsFor(userId: string) { return this.grants.filter((g) => g.userId === userId); }
@@ -447,12 +558,16 @@ function input(over: Partial<SettleLadderInput> = {}): SettleLadderInput {
   };
 }
 
-/** Nothing at all was written — the assertion behind every refusal. */
+/** Nothing at all was written — the assertion behind every refusal. Includes the
+ *  baseline seed, which is a WRITE inside the same transaction: a refused settle
+ *  must not leave one behind, or a match nobody was paid for would silently
+ *  freeze the account's milestone floor. */
 function expectNothingWritten() {
   expect(db.earns).toEqual([]);
   expect(db.bonusClaims).toEqual([]);
   expect(db.milestones).toEqual([]);
   expect(db.grants).toEqual([]);
+  expect(db.baselines).toEqual([]);
 }
 
 const aliceIn = (r: Awaited<ReturnType<typeof settleLadderEarn>>) =>
@@ -505,9 +620,11 @@ describe("payment goes through PendingGrant and NOTHING else", () => {
   });
 
   it("records the provenance, both ratings and the tier, so the audit answers 'why'", async () => {
-    await settleLadderEarn(input({ provenance: "invite" }));
+    await settleLadderEarn(input({ provenance: "queue" }));
     const a = db.earns.find((e) => e.userId === "alice")!;
-    expect(a.provenance).toBe("invite");
+    // "queue" is the only payable value there is — the owner's decision is
+    // matchmade-only, and the policy allowlist now agrees with the room field.
+    expect(a.provenance).toBe("queue");
     expect(a.ratingBefore).toBe(1000);
     expect(a.ratingAfter).toBe(1016);
     expect(a.tier).toBe("bronze");
@@ -824,13 +941,51 @@ describe("the cash bonus is a cooldown, and a cooldown cannot be straddled", () 
   });
 
   it("prices the cash from the badge tier at the time of the win", async () => {
+    // The 500 points have to be WITNESSED — won in matches the ladder paid for —
+    // or the clamp prices this at Bronze. That is the point of the clamp: live
+    // PlayerRating moves on free instant forfeit invites, where you choose your
+    // opponent and nothing is minted.
+    db.witness("alice", 500);
     const a = aliceIn(await settleLadderEarn(input({
       ratingDelta: { aDelta: 16, bDelta: -16, aRating: 1516, bRating: 984 },
     })));
     expect(a.tier).toBe("platinum");
     expect(a.money).toBe(120_000);
     expect(db.bonusClaims[0].tier).toBe("platinum");
+    // The claim row records the rating that PRICED it, so (rating, tier, money)
+    // are mutually consistent on the row and a support ticket is answerable.
     expect(db.bonusClaims[0].rating).toBe(1516);
+  });
+
+  it("prices the SAME win at Bronze when the climb was made off the paying path", async () => {
+    // REGRESSION, reproduced end-to-end in tests/pvpLadderResidual.test.ts: 40
+    // instant forfeit invites moved an account a tier and the next matchmade KO
+    // paid the higher one; ~448 of them reached Diamond and a 20x price. The
+    // account below is identical to the one above except that its ledger is
+    // empty — every point of its 1516 came from somewhere this feature never saw.
+    const a = aliceIn(await settleLadderEarn(input({
+      ratingDelta: { aDelta: 16, bDelta: -16, aRating: 1516, bRating: 984 },
+    })));
+    expect(a.tier).toBe("bronze");
+    expect(a.money).toBe(BRONZE_MONEY);
+    expect(db.owed("alice").money).toBe(BRONZE_MONEY);
+    // The ledger still records the LIVE rating, so the clamp is visible rather
+    // than silent: ratingAfter 1516 beside tier "bronze" is the audit trail.
+    expect(db.earns.find((e) => e.userId === "alice")!.ratingAfter).toBe(1516);
+    expect(db.earns.find((e) => e.userId === "alice")!.tier).toBe("bronze");
+  });
+
+  it("counts the LOSSES in the ledger too, so wins cannot be banked and losses hidden", async () => {
+    // A rating is a net figure. If the witnessed climb summed only wins, an
+    // account could farm the price by queueing, banking every win and taking its
+    // losses on invites.
+    db.witness("alice", 500);
+    db.witness("alice", -400);
+    const a = aliceIn(await settleLadderEarn(input({
+      ratingDelta: { aDelta: 16, bDelta: -16, aRating: 1516, bRating: 984 },
+    })));
+    // 1000 + 500 - 400 + 16 = 1116 → Silver, not Platinum.
+    expect(a.tier).toBe("silver");
   });
 
   it("is claimable on a decayed win, which the old bpFromBattle>0 rule blocked", async () => {
@@ -906,7 +1061,9 @@ describe("a milestone payout does not burn the ordinary cap", () => {
     const a = aliceIn(await settleLadderEarn(input({
       ratingDelta: { aDelta: 750, bDelta: -16, aRating: 1750, bRating: 984 },
     })));
-    expect(a.milestoneBp).toBe(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+    // One window pays at most one tier's worth of milestone BP — see the second
+    // regression in this block — but it comes out of its OWN budget.
+    expect(a.milestoneBp).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
     expect(a.bp).toBe(LADDER_BP_WIN + LADDER_WIN_BONUS_BP);   // the capped part only
 
     const next = aliceIn(await settleLadderEarn(input({
@@ -922,9 +1079,144 @@ describe("a milestone payout does not burn the ordinary cap", () => {
     }));
     const row = db.earns.find((e) => e.userId === "alice")!;
     expect(row.bp).toBe(LADDER_BP_WIN + LADDER_WIN_BONUS_BP);
-    expect(row.milestoneBp).toBe(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+    expect(row.milestoneBp).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
     // The grant is the SUM, so the player is paid everything in one toast.
     expect(db.owed("alice").bp).toBe(row.bp + row.milestoneBp);
+  });
+
+  // REGRESSION for the OTHER half of "uncapped": 90 BP is a LIFETIME figure, and
+  // all 90 of it was payable inside one rolling window — arithmetically inside a
+  // single match. The exemption from the 25-BP cap was never meant to be an
+  // exemption from arithmetic.
+  it("never mints more than one tier's worth of milestone BP in a window", async () => {
+    // The +750 jump crosses all four thresholds at once.
+    await settleLadderEarn(input({
+      ratingDelta: { aDelta: 750, bDelta: -16, aRating: 1750, bRating: 984 },
+    }));
+    // …and a second rank-up inside the same window adds nothing further, because
+    // the budget is spent. (Contrived — this needs a rating reseed, not Elo —
+    // which is exactly why the bound is arithmetic rather than a comment about
+    // K=32.)
+    const second = aliceIn(await settleLadderEarn(input({
+      loserId: "carol",
+      ratingDelta: { aDelta: 700, bDelta: -16, aRating: 2450, bRating: 984 },
+    })));
+    expect(second.milestoneBp).toBe(0);
+
+    const minted = db.earns
+      .filter((e) => e.userId === "alice")
+      .reduce((a, e) => a + e.milestoneBp, 0);
+    expect(minted).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
+    expect(minted).toBeLessThan(PVP_MILESTONE_BP_LIFETIME_TOTAL);
+
+    // THE HONEST HEADLINE, executed: everything one account can hold from one
+    // rolling window, milestones included.
+    const window = db.earns
+      .filter((e) => e.userId === "alice")
+      .reduce((a, e) => a + e.bp + e.milestoneBp, 0);
+    expect(window).toBeLessThanOrEqual(LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW);
+    expect(db.owed("alice").bp).toBeLessThanOrEqual(LADDER_MAX_BP_ONE_ACCOUNT_ONE_WINDOW);
+  });
+
+  it("records the crossings it could not fully pay, so a threshold is not left looking claimable", async () => {
+    await settleLadderEarn(input({
+      ratingDelta: { aDelta: 750, bDelta: -16, aRating: 1750, bRating: 984 },
+    }));
+    const mine = db.milestones.filter((m) => m.userId === "alice");
+    expect(mine.map((m) => m.threshold)).toEqual([1100, 1300, 1500, 1700]);
+    // Ascending spend: the clamp costs the TOP tier, not the ones crossed first.
+    expect(mine.map((m) => m.bp)).toEqual([10, 15, 15, 0]);
+    expect(mine.reduce((a, m) => a + m.bp, 0)).toBe(LADDER_MILESTONE_BP_CAP_PER_WINDOW);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// 7b. NOBODY IS PAID FOR THE PAST — the frozen baseline
+// ════════════════════════════════════════════════════════════════════
+//
+// REGRESSION for the retroactive dump, second attempt. Keying milestones on the
+// MOVEMENT rather than the live rating stops the switch-flip day paying every
+// high account its whole back-catalogue AT ONCE. It does not stop the same dump
+// arriving one loss later: every account above a threshold is a single defeat
+// away from re-crossing it, and the once-ever primary key pays that first
+// re-crossing quite happily.
+//
+// PvpLadderBaseline freezes what each account had ALREADY reached — from
+// PlayerRating."peakRating", which applyEloUpdate has maintained since long
+// before rewards existed — and no threshold at or below it can ever pay.
+describe("the frozen baseline refuses to pay for progress made before rewards", () => {
+  beforeEach(() => { db.addPlayer("alice"); db.addPlayer("bob"); db.addPlayer("carol"); });
+
+  const dipAndReturn = () => input({
+    // 1290 → 1322: crosses 1300 on the way back up.
+    ratingDelta: { aDelta: 32, bDelta: -32, aRating: 1322, bRating: 984 },
+  });
+
+  it("pays nothing for re-crossing a threshold the account had already reached", async () => {
+    // The account peaked at 1310 months ago, when rewards did not exist. The
+    // migration froze that.
+    db.addRating("alice", 1290, 1310);
+    db.addBaseline("alice", 1310);
+    const a = aliceIn(await settleLadderEarn(dipAndReturn()));
+    expect(a.milestones).toEqual([]);
+    expect(a.milestoneBp).toBe(0);
+    expect(db.milestones).toEqual([]);
+    // The battle itself still pays — the baseline costs the milestone, not the
+    // match.
+    expect(a.bp).toBe(LADDER_BP_WIN + LADDER_WIN_BONUS_BP);
+  });
+
+  it("pays an account that is genuinely on new ground", async () => {
+    db.addRating("alice", 1290, 1290);
+    db.addBaseline("alice", 1290);
+    const a = aliceIn(await settleLadderEarn(dipAndReturn()));
+    expect(a.milestones).toEqual([1300]);
+    expect(a.milestoneBp).toBe(15);
+  });
+
+  it("freezes a baseline for an account the backfill never saw, and never revises it", async () => {
+    // No baseline row, but a rated history: the settle seeds one from the live
+    // peak, conservatively, and that is the number every later match reads.
+    db.addRating("alice", 1016, 1016);
+    db.addRating("bob", 984, 1000);
+    await settleLadderEarn(input());
+    const seeded = db.baselines.find((b) => b.userId === "alice")!;
+    expect(seeded.rating).toBe(1016);      // GREATEST(peak, rating, ratingAfter)
+    expect(seeded.source).toBe("settle");
+    // Both sides get one, so the LOSER's future climbs are measured too.
+    expect(db.baselines.map((b) => b.userId).sort()).toEqual(["alice", "bob"]);
+
+    // A later match must not move it — a baseline that follows the player up
+    // makes every subsequent milestone unpayable.
+    await settleLadderEarn(input({
+      loserId: "carol",
+      ratingDelta: { aDelta: 16, bDelta: -16, aRating: 1200, bRating: 984 },
+    }));
+    expect(db.baselines.filter((b) => b.userId === "alice")).toHaveLength(1);
+    expect(db.baselines.find((b) => b.userId === "alice")!.rating).toBe(1016);
+  });
+
+  it("treats an account with NO rated history as baseline 0, which is exact", async () => {
+    // No PlayerRating row at all: it has never played a rated match, so it
+    // cannot have reached a threshold and there is nothing to forgive. The seed
+    // statement writes no row, and the crossing is paid.
+    const a = aliceIn(await settleLadderEarn(input({
+      ratingDelta: { aDelta: 104, bDelta: -16, aRating: 1104, bRating: 984 },
+    })));
+    expect(db.baselines).toEqual([]);
+    expect(a.milestones).toEqual([1100]);
+  });
+
+  it("leaves no baseline behind when the settle is refused", async () => {
+    db.addRating("alice", 1016, 1016);
+    db.addRating("bob", 984, 1000);
+    // A replay: the second attempt rolls back, and the baseline write it made on
+    // the way in must roll back with it.
+    const inp = input();
+    await settleLadderEarn(inp);
+    const before = JSON.stringify(db.baselines);
+    await settleLadderEarn(inp);
+    expect(JSON.stringify(db.baselines)).toBe(before);
   });
 
   // REGRESSION: milestones used to key on the live rating, so the day
@@ -1029,17 +1321,69 @@ describe("concurrent claims cannot double-pay", () => {
 describe("every failure path records an error", () => {
   beforeEach(() => { db.addPlayer("alice"); db.addPlayer("bob"); });
 
-  it("records — and pays nothing — when the migration has not been applied", async () => {
+  it("NAMES the missing migration — and pays nothing — when one has not been applied", async () => {
+    // THE DEPLOY-ORDER HAZARD, and it is the single most likely way this feature
+    // fails on its first day: PVP_LADDER_REWARDS=1 landing before the migration.
+    // It is fail-CLOSED (42P01 rolls back, nobody is paid), but it used to log
+    // only "pvp_ladder_settle_failed: relation does not exist" on every rated
+    // battle, which names neither the cause nor the fix — at 3am, on a silent
+    // faucet nobody can distinguish from "PvP is just quiet tonight".
     db.hook = (kind) => {
       if (kind === "read.sideLedger") {
         throw new Error('42P01 relation "PvpLadderEarn" does not exist');
       }
     };
-    expect(await settleLadderEarn(input())).toEqual({ paid: false, reason: "error", sides: [] });
+    expect(await settleLadderEarn(input()))
+      .toEqual({ paid: false, reason: "migration_missing", sides: [] });
     expectNothingWritten();
-    expect(h.recordError).toHaveBeenCalledWith(expect.objectContaining({
-      message: "pvp_ladder_settle_failed",
-    }));
+    const call = h.recordError.mock.calls.find(
+      (c) => (c[0] as any).message === "pvp_ladder_migration_missing",
+    );
+    expect(call).toBeTruthy();
+    expect((call![0] as any).meta).toMatchObject({
+      relation: "PvpLadderEarn",
+      migration: "20260730120000_add_pvp_ladder",
+    });
+    expect(String((call![0] as any).meta.remedy)).toMatch(/migrate deploy/);
+  });
+
+  it("names the BASELINE migration specifically — the one not applied in production", async () => {
+    // Verified read-only against production 2026-07-30: 20260730120000 is
+    // applied and 20260730130000 is NOT, so this is the live ordering risk.
+    db.hook = (kind) => {
+      if (kind === "insert.baseline") {
+        throw new Error('42P01 relation "PvpLadderBaseline" does not exist');
+      }
+    };
+    expect((await settleLadderEarn(input())).reason).toBe("migration_missing");
+    expectNothingWritten();
+    const call = h.recordError.mock.calls.find(
+      (c) => (c[0] as any).message === "pvp_ladder_migration_missing",
+    );
+    expect((call![0] as any).meta.migration).toBe("20260730130000_add_pvp_ladder_baseline");
+  });
+
+  it("does NOT call an ordinary failure a missing migration", async () => {
+    // The diagnosis has to be specific or it is worse than the generic message
+    // it replaced: a connection reset reported as "apply the migration" sends an
+    // operator to the wrong place.
+    db.hook = (kind) => { if (kind === "read.sideLedger") throw new Error("connection reset by peer"); };
+    expect((await settleLadderEarn(input())).reason).toBe("error");
+    expect(h.recordError.mock.calls.map((c) => (c[0] as any).message))
+      .toContain("pvp_ladder_settle_failed");
+    expect(h.recordError.mock.calls.map((c) => (c[0] as any).message))
+      .not.toContain("pvp_ladder_migration_missing");
+  });
+
+  it("does not claim a 42P01 on somebody ELSE'S table as this feature's deploy order", async () => {
+    // A missing "User" table is not a ladder migration problem, and reporting it
+    // as one would send an operator to run a migration that changes nothing.
+    db.hook = (kind) => {
+      if (kind === "read.sideLedger") throw new Error('42P01 relation "SomeOtherTable" does not exist');
+    };
+    expect((await settleLadderEarn(input())).reason).toBe("error");
+    expect(h.recordError.mock.calls.map((c) => (c[0] as any).message))
+      .not.toContain("pvp_ladder_migration_missing");
   });
 
   it("rolls the FIRST side's payment back when the second side cannot be paid", async () => {
@@ -1069,10 +1413,10 @@ describe("every failure path records an error", () => {
 
   it("carries enough context in the error to answer a support ticket", async () => {
     db.hook = (kind) => { if (kind === "read.sideLedger") throw new Error("nope"); };
-    await settleLadderEarn(input({ provenance: "invite" }));
+    await settleLadderEarn(input({ provenance: "queue" }));
     expect((h.recordError.mock.calls[0][0] as any).meta).toMatchObject({
       winnerId: "alice", loserId: "bob", endReason: "ko",
-      provenance: "invite", turns: 4, day: DAY, durationMs: 5 * 60_000,
+      provenance: "queue", turns: 4, day: DAY, durationMs: 5 * 60_000,
     });
   });
 });
@@ -1098,6 +1442,33 @@ describe("the read side reports what was minted, never a balance", () => {
       .toBe(new Date(NOW.getTime() + LADDER_WIN_BONUS_COOLDOWN_MS).toISOString());
     // No BALANCE anywhere: the balance lives in the save.
     expect(Object.keys(s)).not.toContain("bpBalance");
+  });
+
+  it("advertises the cash the settle would ACTUALLY pay, not the badge's price", async () => {
+    // THE SAME BUG CLASS as the `invitesPay: true` this endpoint used to report:
+    // a rewards panel promising an amount that never arrives. `winBonusMoney`
+    // was priced from live PlayerRating while the payout is priced from the
+    // WITNESSED rating, so a player whose 1516 came from friend invites would
+    // have been shown $120,000 and paid $10,000.
+    const s = await readLadderStatus("alice", NOW, 1516);
+    expect(s.witnessedRating).toBe(1000);            // nothing in the ledger
+    expect(s.winBonusMoney).toBe(BRONZE_MONEY);      // …so Bronze, honestly
+    expect(s.winBonusMoney).not.toBe(PVP_BADGE_TIERS[3].winBonusMoney);
+
+    // …and it rises to the real tier as the queue witnesses the climb.
+    db.witness("alice", 500);
+    const climbed = await readLadderStatus("alice", NOW, 1516);
+    expect(climbed.witnessedRating).toBe(1500);
+    expect(climbed.winBonusMoney).toBe(PVP_BADGE_TIERS[3].winBonusMoney);
+  });
+
+  it("never advertises MORE than the live rating, however long the ledger is", async () => {
+    // The panel uses the same min() the payout uses, so a ledger that climbed
+    // higher than the live rating cannot advertise the higher number.
+    db.witness("alice", 5_000);
+    const s = await readLadderStatus("alice", NOW, 1016);
+    expect(s.witnessedRating).toBe(1016);
+    expect(s.winBonusMoney).toBe(BRONZE_MONEY);
   });
 
   it("reports the bonus as available once the cooldown has elapsed", async () => {

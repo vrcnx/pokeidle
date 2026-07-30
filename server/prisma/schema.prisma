@@ -159,6 +159,7 @@ model User {
   pvpLadderAgainst   PvpLadderEarn[]     @relation("PvpLadderOpponent")
   pvpWinBonusClaim   PvpWinBonusClaim?
   pvpBadgeMilestones PvpBadgeMilestone[]
+  pvpLadderBaseline  PvpLadderBaseline?
 }
 
 /// Per-account constant secret that lets an OBS/24-7 stream auto-login via
@@ -911,6 +912,12 @@ model Bid {
 //   CHECK PvpBadgeMilestone_nonneg        ("bp" >= 0)
 //   CHECK PvpBadgeMilestone_crossed       ("ratingBefore" < "threshold")
 //
+// The list above is complete, and PvpLadderBaseline (migration
+// 20260730130000_add_pvp_ladder_baseline) deliberately adds nothing to it: its
+// only value column is written as GREATEST() of three server-owned integers that
+// are already non-negative by construction, so there is no predicate a CHECK
+// could enforce that the writer does not.
+//
 // There is deliberately NO partial unique index anywhere in this feature.
 // Prisma DOES introspect indexes and cannot express a WHERE clause, so a
 // partial index is exactly the object `prisma migrate dev` would generate a
@@ -1062,4 +1069,41 @@ model PvpBadgeMilestone {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, threshold])
+}
+
+/// What an account had ALREADY achieved before the ladder ever paid it
+/// anything. One row per account, written ONCE and never revised.
+///
+/// ── WHY THIS TABLE EXISTS ────────────────────────────────────────────────
+/// Milestone BP is paid on the match that CROSSES a rating threshold, which
+/// stops the day PVP_LADDER_REWARDS is switched on from paying every already-high
+/// account its entire back-catalogue at once. It does not stop the same payout
+/// arriving one loss later: an account sitting above a threshold is a single
+/// defeat away from re-crossing it, and PvpBadgeMilestone's once-ever key pays
+/// that first re-crossing quite happily. So "keyed on movement" bought a
+/// STAGGERED retroactive dump rather than no dump.
+///
+/// `rating` here is the high-water mark the account had reached before rewards —
+/// taken from PlayerRating."peakRating", which applyEloUpdate has maintained
+/// since long before this feature existed, so the number is a record rather than
+/// an estimate. lib/pvpLadder.ts refuses any threshold at or below it.
+///
+/// Migration 20260730130000_add_pvp_ladder_baseline backfills one row per
+/// account that has ever played a rated match (4 rows in production, ratings
+/// 984–1016), which is what makes the freeze exact for everybody who exists
+/// today; the settle seeds one lazily for anybody who starts later.
+///
+/// NEVER UPDATE A ROW HERE. A baseline that follows the player upward makes
+/// every subsequent milestone unpayable.
+model PvpLadderBaseline {
+  userId String @id
+  /// The high-water rating frozen at `createdAt`. No milestone threshold at or
+  /// below this can ever be paid to this account.
+  rating Int
+  /// 'migration' (backfilled at deploy) or 'settle' (seeded on first payout), so
+  /// ops can tell an exact freeze from a conservative one.
+  source    String   @default("settle")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

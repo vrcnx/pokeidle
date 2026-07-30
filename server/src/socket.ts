@@ -703,6 +703,20 @@ export function attachSocketServer(httpServer: HttpServer): Server {
       id: battleId,
       status: "invited",  // immediately upgraded to "active" by startBattle
       format: "random50",
+      // THE ONLY PLACE IN THE PROCESS THAT MAY SET THIS. It is the ladder reward
+      // gate, and it is a positive assertion that TWO HUMANS independently joined
+      // the queue: both entries came from popQueuePair, both were re-checked
+      // against `online` immediately above, and neither player chose the other.
+      //
+      // Every other room literal — battle:invite, battle:bot,
+      // lib/tournamentRunner.ts, routes/admin.ts — omits it and therefore pays
+      // nothing, with no reward-aware code of its own. That is the direction the
+      // mistake has to fail in: bots exist because ~8 of 10 queue attempts never
+      // match, so a bot battle that paid anything would be an infinite money
+      // printer needing no second human. lib/pvpLadder.ts holds the whole
+      // argument; tests/pvpLadderWiring.test.ts audits src/ so this stays the
+      // only writer.
+      ladderProvenance: "queue",
       createdAt: Date.now(),
       lastChoiceAt: Date.now(),
       a: { userId: aEntry.userId, username: aEntry.username, team: aEntry.team, stream: null, request: null, connected: true },

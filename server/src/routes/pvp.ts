@@ -360,13 +360,25 @@ app.get("/me/ladder", requireUser, async (c) => {
       minDurationMs: LADDER_MIN_DURATION_MS,
       perOpponentDecayPercent: [...LADDER_DECAY_PERCENT_BY_MEETING],
       perOpponentDecayFloorPercent: LADDER_DECAY_PERCENT_FLOOR,
-      // Stated plainly because these are the most-asked questions. Friend
-      // invites DO pay — 76% of every PvP match ever played in this game is
-      // between friends, so a matchmade-only rule made the reward unreachable
-      // for essentially all real play. A forfeit still pays nobody, in either
-      // direction, so you cannot profit from an opponent disconnecting.
+      // Stated plainly because these are the most-asked questions, and stated
+      // HONESTLY because this endpoint is what a rewards panel renders.
+      //
+      // A FRIEND INVITE PAYS NOTHING. That is the owner's settled decision, and
+      // the cost is real and measured: 76% of every PvP match ever played in
+      // this game is between friends, so most PvP that actually happens here
+      // earns nothing. The ladder pays the queue, not your friends list. What it
+      // buys is the one structural obstacle to a two-account ring that no cap
+      // can provide — you cannot choose your opponent on the only path that pays.
+      //
+      // These two fields used to say the opposite: `invitesPay` was hardcoded
+      // `true` beside a comment arguing for it, while the server paid an invite
+      // exactly nothing. It is DERIVED now so the endpoint cannot drift from the
+      // policy again, in either direction.
+      //
+      // A forfeit still pays nobody, in either direction, so you cannot profit
+      // from an opponent disconnecting.
       payablePairingPaths: [...LADDER_PAYABLE_PROVENANCE],
-      invitesPay: true,
+      invitesPay: (LADDER_PAYABLE_PROVENANCE as readonly string[]).includes("invite"),
       forfeitPaysNothing: true,
       botBattlesPayNothing: true,
     },
