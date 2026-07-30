@@ -104,7 +104,23 @@ export function ballForAutoCatch(
   if (isShiny && state.alwaysCatchShinies) {
     const fromEnabled = pickAutoBall(speciesKey, settings.enabledBalls, state.inventory);
     if (fromEnabled) return fromEnabled;
-    const anyOwned = BALL_ORDER.find((b) => (state.inventory[b] ?? 0) > 0);
+    // Emergency fallback for a shiny whose configured balls are all out of
+    // stock: better the wrong ball than watching it walk away.
+    //
+    // But NEVER the Master Ball. BALL_ORDER ends with "masterball", so this
+    // used to be `BALL_ORDER.find(owned > 0)` — and a player down to their
+    // last Poke Ball, with one Master Ball banked, silently spent it on a
+    // shiny they never chose it for (br_3a5bc2b26425b58611: "my Master Ball
+    // was used directly. I never selected it"). The most valuable item in the
+    // game, gone with no prompt.
+    //
+    // A Master Ball is only ever thrown when the player put it in
+    // enabledBalls themselves — which the pickAutoBall call above honours.
+    // The fallback exists to avoid losing a shiny, and losing the ball that
+    // guarantees a catch in order to maybe catch one is not that trade.
+    const anyOwned = BALL_ORDER.find(
+      (b) => b !== "masterball" && (state.inventory[b] ?? 0) > 0,
+    );
     if (anyOwned) return anyOwned;
     return null;
   }
