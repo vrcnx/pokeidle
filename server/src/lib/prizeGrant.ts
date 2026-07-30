@@ -31,6 +31,7 @@
 // Living in a lib rather than a route file is what lets the timer-driven
 // draw reuse it without importing the admin Hono app (which would be a
 // cycle).
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { sendToUserGlobal } from "../socket.js";
 import { describePrizes, parsePrizes } from "./giveaway.js";
@@ -131,11 +132,25 @@ export function checkPrizesDeliverable(prizes: readonly Prize[]): string | null 
  *
  * Throws if the account does not exist, so an operator still gets a real
  * error for a genuinely impossible grant rather than a silently orphaned row.
+ *
+ * `runner` lets a caller enlist the row in ITS OWN transaction, so that the
+ * thing which decided the grant was earned and the grant itself commit or roll
+ * back together. Away-progress needs exactly that: it stamps `awayClaimedAt`
+ * as a conditional UPDATE and must not be able to consume the away period
+ * without owing the reward, or vice versa. Omit it and the row commits on its
+ * own, which is right for callers whose earn-decision is already durable (a
+ * giveaway draw has GiveawayEntry, an admin gift has the operator's request).
+ *
+ * NOTE the ordering consequence when you do pass one: the socket nudge below
+ * fires before your transaction commits. It is fire-and-forget and nothing
+ * depends on it (the inbox is the guarantee), so a rolled-back claim can at
+ * worst cause one wasted client sync.
  */
 export async function enqueuePrizeGrant(
   userId: string,
   prizes: Prize[],
   meta: GrantMeta,
+  runner: Prisma.TransactionClient = prisma,
 ): Promise<{ id: string }> {
   if (!Array.isArray(prizes) || prizes.length === 0) throw new Error("no prizes to grant");
   // Refuse a prize that can never be folded, BEFORE it becomes a durable row
@@ -147,10 +162,10 @@ export async function enqueuePrizeGrant(
   if (badPrize) throw new Error(`prize would corrupt save: ${badPrize}`);
   // Cheap existence check. The FK would catch this too, but as an opaque
   // P2003 — an operator staring at a failed draw deserves the real reason.
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  const target = await runner.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!target) throw new Error("user not found");
 
-  const row = await prisma.pendingGrant.create({
+  const row = await runner.pendingGrant.create({
     data: {
       userId,
       prizes: JSON.stringify(prizes),

@@ -113,6 +113,21 @@ model User {
   longestDailyStreak Int       @default(0)
   lastDailyClaimAt   DateTime?
 
+  /// When this account last collected away-time catch-up progress
+  /// (lib/awayProgress.ts). NULL = never claimed.
+  ///
+  /// THE ATOMIC GATE for that feature, together with `saveUpdatedAt`: away
+  /// time is measured from `max(saveUpdatedAt, awayClaimedAt)`, and the claim
+  /// route only pays when a conditional UPDATE on the previously-observed
+  /// value still matches. Two concurrent claims therefore cannot both succeed
+  /// — the same shape as `lastDailyClaimAt` above.
+  ///
+  /// Server-written only, like every other timestamp here. The client never
+  /// sends a time or a duration, so a tampered system clock cannot forge away
+  /// progress. The reward itself is paid through the PendingGrant inbox, so
+  /// nothing about this column participates in a save write.
+  awayClaimedAt      DateTime?
+
   // Moderation — admin flag bootstraps a user into the admin dashboard;
   // bannedUntil > now blocks login + socket connections.
   isAdmin         Boolean   @default(false)
