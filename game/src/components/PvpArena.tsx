@@ -26,8 +26,46 @@
 // markup as a trainer battle. That is why the arena looks native without
 // duplicating a single style rule — the cascade already knows how to draw
 // all of it. New PvP-only chrome lives in pvpArena.css under `pvp2-`.
+//
+// ─── WHAT THE 2026-07 PASS ADDED, AND WHY EACH PIECE IS REUSE ─────────
+//
+// A live battle had three holes the owner reported: no battle message box, no
+// move effects at all, and an action area whose "Switch Pokémon" ghost button
+// and greyed "Forfeit" were orphans floating at opposite edges under the move
+// grid. A fourth was that a finished battle dead-ended on "Back to the game".
+//
+//  1. MESSAGE BOX — `.scene-status`, the idle game's OWN battle-text box,
+//     verbatim. It is `position: absolute; bottom: 0; left/right: 0;
+//     z-index: 40` in app.css and `.pvp2-scene` is `position: relative`, so
+//     mounting it here needs no new rule and comes out pixel-identical to the
+//     idle battle's. Fed by a PACER (utils/pvpNarrationPacer.ts), because PvP
+//     narration arrives in bursts of a dozen lines per socket message and a box
+//     that renders the latest line would flicker through all of them in one
+//     frame. See that file for the four properties the queue has to hold.
+//
+//  2. MOVE EFFECTS — the idle game's `.move-anim` system, driven from PvP
+//     narration by utils/pvpMoveEffects.ts. Every particle, beam, impact and
+//     aura rule in app.css is globally scoped, and `.pvp2-scene` is locked to
+//     the same 16/9 ratio as `.battle-scene` while the arena's sprites already
+//     use the real `.player-slot` / `.enemy-slot` classes — so the baked slot
+//     anchors and the baked beam angle land correctly with NO app.css change.
+//     `.damage-flash` and `.effectiveness-flash` are reused the same way. Only
+//     the Earthquake shake needed a rule, because app.css scopes its trigger to
+//     `.battle-scene:has(…) .scene-content`; the PvP sibling of that one
+//     selector lives in pvpArena.css and the `@keyframes` it references is
+//     app.css's, shared.
+//
+//  3. ACTION AREA — one `.pvp2-console` panel holding the moves AND the bench
+//     side by side, with forfeit as a small muted control in the console's own
+//     header. The bench reuses `.pvp2-switch-grid` / `.pvp2-switch-card`, which
+//     already existed for the forced-switch-after-faint case and is now
+//     promoted to a permanent surface; the forced case keeps its own louder
+//     treatment so it still reads as forced.
+//
+//  4. THE LOOP — PvpResultDialog, a real post-battle dialog with rematch and a
+//     path back to the hub. See that file for the loop's design.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   usePvpState,
   chooseBattleAction,
@@ -43,6 +81,12 @@ import { moves as movesTable } from "../data/moves";
 import { itemSpriteUrl } from "../utils/sprites";
 import { typeEffectiveness } from "../utils/typing";
 import { TYPE_COLOR } from "../utils/moveEffects";
+import { useDamageFlash } from "../hooks/useDamageFlash";
+import { effectForNarration, bannerForNarration, type PvpMoveEffect } from "../utils/pvpMoveEffects";
+import { displayNarration } from "../utils/pvpNarrationText";
+import { NarrationPacer } from "../utils/pvpNarrationPacer";
+import { MoveEffectVisual } from "./MoveEffectVisual";
+import { PvpResultDialog } from "./PvpResultDialog";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
@@ -93,7 +137,6 @@ export function PvpCenter() {
 
 function PvpBattleWindow({ room }: { room: BattleRoom }) {
   const t = useT();
-  const [confirmingForfeit, setConfirmingForfeit] = useState(false);
   const you = room.view.you;
   const foe = room.view.foe;
 
@@ -102,131 +145,344 @@ function PvpBattleWindow({ room }: { room: BattleRoom }) {
   const isWaiting = !!room.request?.wait;
   const forceSwitch = room.request?.forceSwitch?.some(Boolean) ?? !!myActive?.forceSwitch;
   const trapped = !!myActive?.trapped;
+  const over = !!room.result || room.voided;
   const onChoose = (choice: string) => chooseBattleAction(room.battleId, choice);
+
+  const stage = usePvpNarrationStage(room);
 
   return (
     <div className="pvp2-center">
       <div className="pvp2-scene">
-        <img
-          className="battle-bg"
-          src={ARENA_BG}
-          alt=""
-          aria-hidden
-          draggable={false}
-          onError={(e) => {
-            const el = e.target as HTMLImageElement;
-            const abs = window.location.origin + ARENA_BG_FALLBACK;
-            if (el.src !== abs) el.src = ARENA_BG_FALLBACK;
-          }}
-        />
+        {/* Everything that should rattle on an Earthquake-class move goes
+            inside `.scene-content` — app.css's own wrapper, reused verbatim
+            (`position: absolute; inset: 0`, so the scene's geometry is
+            unchanged). The message box is deliberately OUTSIDE it: the idle
+            game shakes its typewriter along with the scene, but this is a
+            timed competitive battle and text you cannot read during the one
+            second you most need it is a worse trade here. */}
+        <div className="scene-content">
+          <img
+            className="battle-bg"
+            src={ARENA_BG}
+            alt=""
+            aria-hidden
+            draggable={false}
+            onError={(e) => {
+              const el = e.target as HTMLImageElement;
+              const abs = window.location.origin + ARENA_BG_FALLBACK;
+              if (el.src !== abs) el.src = ARENA_BG_FALLBACK;
+            }}
+          />
 
-        {/* Field conditions sit above the arena so weather and hazards are
-            readable at a glance — they change how a turn should be played
-            and were previously invisible entirely. */}
-        <FieldStrip room={room} />
+          {/* Field conditions sit above the arena so weather and hazards are
+              readable at a glance — they change how a turn should be played
+              and were previously invisible entirely. */}
+          <FieldStrip room={room} />
 
-        {/* The four fighters' pieces are laid out EXACTLY as the idle battle
-            scene lays out its own: enemy card + trainer tag top-left, enemy
-            sprite top-right, your back sprite bottom-left, your card
-            bottom-right. That is not decoration — `.enemy-card-stack` and
-            `.player-card` are `position: absolute` in app.css, so they need
-            the scene itself to be their containing block. Nesting them inside
-            a positioned per-side wrapper (which is what this used to be) made
-            that wrapper the containing block instead: it shrink-wrapped to the
-            only in-flow child it had left, the sprite, and both cards then
-            sized to min-content and hung ~50-70px outside the frame, where
-            `overflow: hidden` cut them in half — the "RAI Lv.100" and the
-            sliced "304/ 304" in the bug report — while covering the sprites
-            they sat on top of. */}
-        <div className="enemy-card-stack">
-          {foe.active
-            ? <PvpFighterCard mon={foe.active} className="enemy-card" />
-            : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
-          <div className="trainer-tag">
-            <OpponentName room={room} />
-            <TeamBalls side={foe} />
+          {/* The four fighters' pieces are laid out EXACTLY as the idle battle
+              scene lays out its own: enemy card + trainer tag top-left, enemy
+              sprite top-right, your back sprite bottom-left, your card
+              bottom-right. That is not decoration — `.enemy-card-stack` and
+              `.player-card` are `position: absolute` in app.css, so they need
+              a full-bleed containing block. Nesting them inside a positioned
+              per-side wrapper (which is what this used to be) made that wrapper
+              the containing block instead: it shrink-wrapped to the only
+              in-flow child it had left, the sprite, and both cards then sized
+              to min-content and hung ~50-70px outside the frame, where
+              `overflow: hidden` cut them in half — the "RAI Lv.100" and the
+              sliced "304/ 304" in the bug report — while covering the sprites
+              they sat on top of. `.scene-content` is `inset: 0` so it is that
+              same full-bleed box. */}
+          <div className="enemy-card-stack">
+            {foe.active
+              ? <PvpFighterCard mon={foe.active} className="enemy-card" />
+              : <div className="pvp2-slot-empty dim small">{t("Waiting for opponent…")}</div>}
+            <div className="trainer-tag">
+              <OpponentName room={room} />
+              <TeamBalls side={foe} />
+            </div>
           </div>
-        </div>
-        {foe.active && (
-          <PvpSprite key={`foe-${foe.active.ident}-${foe.active.speciesKey}`} mon={foe.active} facing="foe" />
-        )}
-
-        {you.active
-          ? (
-            <>
-              <PvpSprite key={`you-${you.active.ident}-${you.active.speciesKey}`} mon={you.active} facing="you" />
-              <PvpFighterCard mon={you.active} className="player-card" />
-            </>
-          )
-          : <div className="pvp2-slot-empty player-card dim small">{t("Sending out…")}</div>}
-
-        {room.view.turn > 0 && (
-          <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
-        )}
-      </div>
-
-      {/* ── Action bar ── */}
-      {room.voided ? (
-        <VoidedNotice />
-      ) : room.result ? (
-        <ResultBar room={room} />
-      ) : (
-        <section className="pvp2-actions">
-          {room.opponentAway && <AwayBanner away={room.opponentAway} />}
-
-          {isWaiting && (
-            <p className="pvp2-waiting dim">{t("Waiting for opponent's choice…")}</p>
+          {foe.active && (
+            <PvpSprite key={`foe-${foe.active.ident}-${foe.active.speciesKey}`} mon={foe.active} facing="foe" />
           )}
 
-          {!isWaiting && forceSwitch && (
-            <>
-              <h4 className="pvp2-action-title">{t("Choose your next Pokémon")}</h4>
-              <SwitchRow
-                pokemon={mySidePoke}
-                bench={you.bench}
-                onChoose={(slot) => onChoose(`switch ${slot + 1}`)}
-              />
-            </>
+          {you.active
+            ? (
+              <>
+                <PvpSprite key={`you-${you.active.ident}-${you.active.speciesKey}`} mon={you.active} facing="you" />
+                <PvpFighterCard mon={you.active} className="player-card" />
+              </>
+            )
+            : <div className="pvp2-slot-empty player-card dim small">{t("Sending out…")}</div>}
+
+          {room.view.turn > 0 && (
+            <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
           )}
 
-          {!isWaiting && !forceSwitch && myActive && (
-            <MoveGrid
-              active={myActive}
-              pokemon={mySidePoke}
-              bench={you.bench}
-              trapped={trapped}
-              foeTypes={foe.active ? (pokemonTable[foe.active.speciesKey]?.types ?? []) : []}
-              onMove={(i) => onChoose(`move ${i + 1}`)}
-              onSwitch={(slot) => onChoose(`switch ${slot + 1}`)}
+          {/* Floating "-42" / "+18" over the slot whose HP moved, and the
+              super-effective / critical banner. Both reuse app.css's
+              `.damage-flash` and `.effectiveness-flash`, which are generic
+              absolutely-positioned rules — no new CSS, and identical to what
+              the idle battle shows. */}
+          {foe.active && <PvpHpFloat mon={foe.active} side="enemy" />}
+          {you.active && <PvpHpFloat mon={you.active} side="player" />}
+
+          {stage.effect && (
+            <MoveEffectVisual
+              archetype={stage.effect.archetype}
+              target={stage.effect.target}
+              shake={stage.effect.shake}
+              typeColor={stage.effect.typeColor}
+              animKey={stage.seq}
             />
           )}
-
-          {!isWaiting && !forceSwitch && !myActive && (
-            <p className="pvp2-waiting dim">{t("Getting the battle ready…")}</p>
+          {stage.banner && (
+            <div
+              key={`banner-${stage.seq}`}
+              className={`effectiveness-flash effectiveness-${stage.banner.kind}`}
+              aria-hidden
+            >
+              {t(stage.banner.text)}
+            </div>
           )}
+        </div>
 
-          <div className="pvp2-forfeit-row">
-            {confirmingForfeit ? (
-              <div className="pvp2-forfeit-confirm" role="alertdialog">
-                <span>{t("Forfeit? Your opponent gets the win.")}</span>
-                <button
-                  className="g-btn-ghost g-btn-small"
-                  onClick={() => setConfirmingForfeit(false)}
-                >{t("Keep fighting")}</button>
-                <button
-                  className="g-btn-danger-ghost g-btn-small"
-                  onClick={() => { setConfirmingForfeit(false); cancelBattle(room.battleId); }}
-                >{t("Yes, forfeit")}</button>
-              </div>
-            ) : (
-              <button
-                className="g-btn-ghost g-btn-small pvp2-forfeit-btn"
-                onClick={() => setConfirmingForfeit(true)}
-              >{t("Forfeit")}</button>
-            )}
-          </div>
-        </section>
+        {/* ── The battle message box ── */}
+        <PvpMessageBox
+          line={stage.line}
+          text={stage.text}
+          fallback={messagePrompt(room, { isWaiting, forceSwitch, over }, t)}
+        />
+      </div>
+
+      {/* ── Action area ── */}
+      {over ? (
+        <PvpResultDialog room={room} />
+      ) : (
+        <PvpConsole
+          room={room}
+          active={myActive}
+          pokemon={mySidePoke}
+          bench={you.bench}
+          isWaiting={isWaiting}
+          forceSwitch={forceSwitch}
+          trapped={trapped}
+          foeTypes={foe.active ? (pokemonTable[foe.active.speciesKey]?.types ?? []) : []}
+          onMove={(i) => onChoose(`move ${i + 1}`)}
+          onSwitch={(slot) => onChoose(`switch ${slot + 1}`)}
+        />
       )}
+    </div>
+  );
+}
+
+// ─── The narration stage: message box + effects, paced ───────────────
+
+interface NarrationStage {
+  /** The beat currently in the box, or null before the first line. */
+  line: NarrationLine | null;
+  /** Its display text, with the decoder's third-person `|win|` phrasing
+   *  corrected for the local player. */
+  text: string | null;
+  /** Bumped per beat, so an effect's keyframes restart for a repeated move. */
+  seq: number;
+  effect: PvpMoveEffect | null;
+  banner: { kind: "crit" | "se" | "nve"; text: string } | null;
+}
+
+/**
+ * Drive one `NarrationPacer` off the room and publish the visible beat.
+ *
+ * The pacer is the whole answer to the burst problem and its invariants are
+ * documented in utils/pvpNarrationPacer.ts. This hook is only the wiring, and
+ * it is deliberately thin:
+ *
+ *  * ONE timer, scheduled at `nextDueAt()`, re-armed after each beat. No
+ *    polling interval, so a battle sitting on "waiting for opponent" costs
+ *    nothing and a backgrounded tab cannot accumulate work. `tick` steps as
+ *    many beats as the elapsed time owes, so a throttled timer (browsers clamp
+ *    background `setTimeout` to ~1s) catches up in one call instead of falling
+ *    a beat further behind on every fire.
+ *  * A re-render is requested only when the visible beat actually CHANGED.
+ *  * The pacer is reset when `battleId` changes, which is what stops a rematch
+ *    inheriting the previous battle's last line, and hurried when the battle
+ *    ends so a burst that lands with the KO drains in a few hundred ms instead
+ *    of narrating a finished battle.
+ *
+ * Nothing here touches `room.request`, so a drain can never gate the move
+ * picker: the tiles render from the request and stay live throughout.
+ */
+function usePvpNarrationStage(room: BattleRoom): NarrationStage {
+  const pacerRef = useRef<NarrationPacer | null>(null);
+  if (!pacerRef.current) pacerRef.current = new NarrationPacer();
+  const pacer = pacerRef.current;
+
+  const battleRef = useRef(room.battleId);
+  if (battleRef.current !== room.battleId) {
+    battleRef.current = room.battleId;
+    pacer.reset();
+  }
+
+  const [, bump] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const ended = !!room.result || room.voided;
+
+  useEffect(() => {
+    const rerender = () => bump((n) => n + 1);
+
+    const schedule = () => {
+      if (timerRef.current != null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const due = pacer.nextDueAt();
+      if (due == null) return;
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        if (pacer.tick(Date.now())) rerender();
+        schedule();
+      }, Math.max(0, due - Date.now()));
+    };
+
+    const before = pacer.current?.seq ?? 0;
+    pacer.observe(room.narration, Date.now());
+    if (ended) pacer.hurry(Date.now());
+    if ((pacer.current?.seq ?? 0) !== before) rerender();
+    schedule();
+
+    return () => {
+      if (timerRef.current != null) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    };
+  }, [room.narration, ended, pacer]);
+
+  const beat = pacer.current;
+  const seq = beat?.seq ?? 0;
+  const line = beat?.line ?? null;
+
+  // Recomputed only when the beat changes — `effectForNarration` does a dex
+  // lookup, and a re-render caused by anything else must not repeat it.
+  const derived = useMemo(() => {
+    if (!beat || !beat.line) return { effect: null, banner: null, text: null };
+    return {
+      effect: beat.animate ? effectForNarration(beat.line, room.side) : null,
+      banner: beat.animate ? bannerForNarration(beat.line) : null,
+      text: displayNarration(beat.line, room.view),
+    };
+    // room.view is intentionally read fresh but not depended on: the only part
+    // used is the two trainer names, which are fixed for the battle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq, room.side]);
+
+  return { line, text: derived.text, seq, effect: derived.effect, banner: derived.banner };
+}
+
+/**
+ * The classic Pokémon message box.
+ *
+ * `.scene-status` is the idle game's own class — same parchment-dark bar, same
+ * pixel font, same z-index above the sprites and the particle layer — so this
+ * matches the idle battle exactly rather than approximating it. `.pvp2-msg`
+ * adds only the second row for the effectiveness/crit tags the decoder attaches
+ * to a move line, and a minimum height so the bar never changes size between a
+ * one-line and a two-line beat.
+ *
+ * `aria-live="polite"` rather than "assertive": a screen reader should hear the
+ * battle, but never at the cost of interrupting the player mid-choice.
+ */
+function PvpMessageBox({
+  line, text, fallback,
+}: {
+  line: NarrationLine | null;
+  text: string | null;
+  fallback: string;
+}) {
+  const t = useT();
+  const showing = text ?? fallback;
+  const tags = line?.tags ?? [];
+  return (
+    <div
+      className={`scene-status pvp2-msg${line ? ` kind-${line.kind}` : " is-prompt"}`}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className="pvp2-msg-text">{showing}</span>
+      {tags.length > 0 && (
+        <span className="pvp2-msg-tags">
+          {tags.map((tg) => (
+            <em
+              key={tg}
+              className={tg.startsWith("Super") ? "great" : tg.startsWith("Critical") ? "crit" : "weak"}
+            >
+              {t(tg)}
+            </em>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the box says when the queue is empty — which is most of a battle, since
+ * the player spends it waiting for their own decision or the opponent's.
+ *
+ * Deliberately the same vocabulary the idle game's `statusLine` uses, including
+ * "What will <name> do?", so the two battle systems read as one game.
+ */
+function messagePrompt(
+  room: BattleRoom,
+  s: { isWaiting: boolean; forceSwitch: boolean; over: boolean },
+  t: (k: string) => string,
+): string {
+  if (room.voided) return t("The battle was voided by a server restart.");
+  if (s.over) return t("The battle is over.");
+  if (room.opponentAway) return t("Waiting for your opponent to reconnect…");
+  if (s.forceSwitch) return t("Choose your next Pokémon!");
+  if (s.isWaiting) return t("Waiting for the opponent's move…");
+  const mine = room.view.you.active;
+  if (mine && room.request?.active?.[0]) return `${t("What will")} ${mine.name} ${t("do?")}`;
+  return t("Getting the battle ready…");
+}
+
+/**
+ * Floating HP delta over a slot, reusing app.css's `.damage-flash`.
+ *
+ * Watches the DECODED hp rather than a log line, exactly as the idle game's
+ * DamageFlash watches `currentHp` — so passive damage (Leftovers, Toxic,
+ * Sandstorm, Stealth Rock on entry) floats too, without needing a narration
+ * line to exist for it. Keyed on the mon's ident so a switch-in never reads as
+ * a 300-point hit.
+ *
+ * When the format hides exact HP the delta is shown as a percentage instead of
+ * inventing a number: `hpKnownExact` is false precisely when the protocol gave
+ * us `48/100`, and printing "-52" there would be a lie about a 52-HP hit.
+ */
+function PvpHpFloat({ mon, side }: { mon: ActiveMon; side: "player" | "enemy" }) {
+  const exact = mon.hpKnownExact;
+  const value = exact ? mon.hp : Math.round(mon.hpPct);
+  const prev = useRef<{ ident: string | null; value: number | null }>({ ident: null, value: null });
+  const [pop, setPop] = useState<{ key: number; delta: number } | null>(null);
+
+  useEffect(() => {
+    const last = prev.current;
+    prev.current = { ident: mon.ident, value };
+    if (last.ident !== mon.ident) return;
+    if (last.value == null) return;
+    const delta = value - last.value;
+    if (delta === 0) return;
+    setPop({ key: Date.now() + (side === "player" ? 0 : 1), delta });
+    // 1400ms matches the `damageFlashRise` keyframes' own duration in app.css,
+    // so the element is removed exactly as its animation ends.
+    const id = window.setTimeout(() => setPop(null), 1400);
+    return () => window.clearTimeout(id);
+  }, [mon.ident, value, side]);
+
+  if (!pop) return null;
+  const heal = pop.delta > 0;
+  return (
+    <div className={`damage-flash side-${side} ${heal ? "heal" : "hit"}`} aria-hidden>
+      {heal ? "+" : ""}{pop.delta}{exact ? "" : "%"}
     </div>
   );
 }
@@ -342,11 +598,16 @@ function statusClass(s: string): string {
  * floor shadow, the pokéball-pop entrance and the faint drop. The `pvp2-`
  * classes are identity hooks with no layout of their own.
  *
+ * `bump-0` / `bump-1` is the idle game's own hit recoil, driven by the same
+ * `useDamageFlash` hook BattleScene uses — so a PvP Pokémon flinches when it
+ * is hit exactly as an idle one does, with no new animation.
+ *
  * The call sites key this on the Pokémon's ident, which is what replays the
  * entrance animation on a switch-in the same way the idle scene does.
  */
 function PvpSprite({ mon, facing }: { mon: ActiveMon; facing: "you" | "foe" }) {
   const mine = facing === "you";
+  const bump = useDamageFlash(mon.ident, mon.hpKnownExact ? mon.hp : Math.round(mon.hpPct));
   return (
     <div
       className={[
@@ -354,8 +615,10 @@ function PvpSprite({ mon, facing }: { mon: ActiveMon; facing: "you" | "foe" }) {
         mine ? "player-slot" : "enemy-slot",
         "pvp2-sprite",
         `pvp2-sprite-${facing}`,
+        bump > 0 ? `bump-${bump % 2}` : "",
         mon.fainted ? "fainted" : "",
       ].filter(Boolean).join(" ")}
+      data-status={mon.status ?? undefined}
     >
       {/* Your own Pokémon shows its BACK sprite, exactly as in the idle
           battle scene — a PvP battle that renders both sides front-on reads
@@ -406,83 +669,198 @@ function TeamBalls({ side }: { side: SideView }) {
   );
 }
 
-// ─── Move grid ──────────────────────────────────────────────────────
+// ─── The console: one control surface ───────────────────────────────
 
-function MoveGrid({
-  active, pokemon, bench, trapped, foeTypes, onMove, onSwitch,
+/**
+ * Moves, bench and forfeit as ONE panel.
+ *
+ * WHAT WAS WRONG. "Switch Pokémon" was a 104×26 ghost button pinned to the
+ * LEFT edge under the move grid and "Forfeit" was a 55×26 button at the RIGHT
+ * edge at 11px / rgb(156,156,156) / opacity 0.65 — measured on a live battle.
+ * Neither had any visual relationship to the 2×2 grid they belonged with, the
+ * grid itself soaked all 564px of the column's vertical slack, and the two
+ * orphans left a band of dead space beneath it. Worse than the geometry: your
+ * team was HIDDEN behind a toggle, so a switch — which in a competitive battle
+ * is as much an attacking decision as a move is — cost two clicks and made the
+ * moves disappear while you thought about it.
+ *
+ * WHAT THIS IS. A titled panel whose body is the moves grid and the bench, side
+ * by side (a real simulator puts your team beside your moves, and this arena's
+ * own rail already proves the bench reads fine as a narrow column). Both
+ * columns stretch, so the panel has no slack to leave anywhere and there is no
+ * layout jump between fighting, waiting and switching — the surface is the same
+ * size in all three, only its contents change.
+ *
+ * FORFEIT lives in the console's header, small and muted with a flag glyph, at
+ * the opposite end of the panel from every attack and outside the body that
+ * contains them. It keeps its confirmation, which becomes a full-width
+ * `role="alertdialog"` bar across the header rather than an inline span — an
+ * accidental forfeit in a rated match is unrecoverable, so the confirm step has
+ * to be louder than the trigger, not quieter. It is in the CENTRE column and
+ * not the rail on purpose: the rail is a third dashboard track that a narrow
+ * layout can push off-screen, and on MobileShell it only appears under the
+ * "party" tab — a rail-only forfeit would be a control the player has to go
+ * looking for in a battle with a turn clock.
+ *
+ * The forced-switch case keeps its own treatment (`forced`), where the bench
+ * takes the whole body as large cards and the header says so in warning colour
+ * — it must still read as forced, not as a bench that happens to be open.
+ */
+function PvpConsole({
+  room, active, pokemon, bench, isWaiting, forceSwitch, trapped, foeTypes, onMove, onSwitch,
 }: {
-  active: ActiveSlot;
+  room: BattleRoom;
+  active: ActiveSlot | null;
   pokemon: SidePokemon[];
   bench: BenchMon[];
+  isWaiting: boolean;
+  forceSwitch: boolean;
   trapped: boolean;
   foeTypes: PokemonType[];
   onMove: (i: number) => void;
   onSwitch: (slot: number) => void;
 }) {
   const t = useT();
-  const [showSwitch, setShowSwitch] = useState(false);
-  const switchable = pokemon.some((p, i) => !p.active && !p.condition.includes("fnt") && i >= 0);
+  const [confirming, setConfirming] = useState(false);
+
+  const mode = forceSwitch ? "forced" : isWaiting ? "waiting" : active ? "fight" : "loading";
+  const switchDisabledReason =
+    forceSwitch ? null
+      : trapped ? t("You can't switch out right now.")
+      : isWaiting ? t("Waiting for the opponent…")
+      : null;
+
   return (
-    <>
-      {/* Reuses the idle game's own `.moves-panel` / `.move-slot` markup,
-          inline type colour and all, so a PvP move tile is visually the
-          same object as an idle one. The old modal emitted
-          `move-type-<type>` classes that do not exist anywhere in the
-          stylesheet, which is why PvP moves rendered as grey boxes. */}
-      <div className="moves-panel pickable pvp2-moves">
-        {active.moves.map((m, i) => {
-          const def = movesTable[m.id];
-          const out = !!m.disabled || m.pp <= 0;
-          const ppLow = m.pp > 0 && m.pp <= Math.max(1, Math.ceil(m.maxpp * 0.25));
-          const eff = def ? effectivenessChip(def.type, def.category, foeTypes) : null;
-          const color = def ? (TYPE_COLOR[def.type] ?? "#888") : "#888";
-          return (
+    <section className={`pvp2-console mode-${mode}`} aria-label={t("Battle actions")}>
+      <header className="pvp2-console-head">
+        {confirming ? (
+          <div className="pvp2-forfeit-confirm" role="alertdialog" aria-label={t("Confirm forfeit")}>
+            <strong>{t("Forfeit? Your opponent gets the win.")}</strong>
+            <button
+              className="g-btn-ghost g-btn-small"
+              autoFocus
+              onClick={() => setConfirming(false)}
+            >{t("Keep fighting")}</button>
+            <button
+              className="g-btn-danger-ghost g-btn-small"
+              onClick={() => { setConfirming(false); cancelBattle(room.battleId); }}
+            >{t("Yes, forfeit")}</button>
+          </div>
+        ) : (
+          <>
+            <h4 className="pvp2-console-title">
+              {mode === "forced" ? t("Choose your next Pokémon")
+                : mode === "waiting" ? t("Opponent is choosing")
+                : t("Your move")}
+            </h4>
             <button
               type="button"
-              key={`${m.id}-${i}`}
-              className={`move-slot is-pickable ${out ? "no-pp" : ""} ${eff?.cls ?? ""}`}
-              style={{ background: color }}
-              disabled={out}
-              onClick={() => onMove(i)}
-              title={
-                m.pp <= 0 ? t("No PP left")
-                  : m.disabled ? t("This move is disabled")
-                  : (def?.name ?? m.move)
-              }
+              className="pvp2-forfeit-btn"
+              onClick={() => setConfirming(true)}
+              title={t("Give up this battle — your opponent gets the win")}
             >
-              <div className="move-slot-name">
-                {def?.name ?? m.move}
-                {eff && <span className="move-eff-chip">{eff.label}</span>}
-              </div>
-              <div className="move-slot-stats">
-                <span>{t("Pow")} {def?.power || "—"}</span>
-                <span>{def?.type ?? "?"}</span>
-                <span className={`move-pp ${ppLow ? "low" : ""} ${m.pp <= 0 ? "out" : ""}`}>
-                  {t("PP")} {m.pp}/{m.maxpp}
-                </span>
-              </div>
+              <span aria-hidden>⚐</span> {t("Forfeit")}
             </button>
-          );
-        })}
-      </div>
+          </>
+        )}
+      </header>
 
-      <div className="pvp2-switch-row">
-        {trapped ? (
-          <span className="dim small">{t("You can't switch out right now.")}</span>
-        ) : switchable ? (
+      {room.opponentAway && <AwayBanner away={room.opponentAway} />}
+
+      <div className="pvp2-console-body">
+        {/* The moves column exists in EVERY mode, which is what stops the
+            console resizing between fighting, waiting and switching — a surface
+            that reflows mid-turn in a battle with a turn clock is a way to
+            mis-click. In a forced switch it carries the notice instead; the
+            first attempt gave the whole body to the bench and measured 430px of
+            dead space under three cards. */}
+        <div className="pvp2-console-moves">
+          {mode === "fight" && active ? (
+            <MoveGrid active={active} foeTypes={foeTypes} onMove={onMove} />
+          ) : mode === "forced" ? (
+            <p className="pvp2-forced-notice" role="status">
+              <strong>{t("Your Pokémon fainted.")}</strong>
+              <span>{t("You must send out a replacement before the battle can go on.")}</span>
+            </p>
+          ) : (
+            <p className="pvp2-waiting dim">
+              {mode === "waiting"
+                ? t("Waiting for opponent's choice…")
+                : t("Getting the battle ready…")}
+            </p>
+          )}
+        </div>
+
+        <div className="pvp2-console-bench">
+          <div className="pvp2-bench-head">
+            <h5>{mode === "forced" ? t("Send out") : t("Switch")}</h5>
+            {switchDisabledReason && <span className="dim small">{switchDisabledReason}</span>}
+          </div>
+          <SwitchGrid
+            pokemon={pokemon}
+            bench={bench}
+            variant={mode === "forced" ? "wide" : "rail"}
+            disabled={switchDisabledReason != null}
+            onChoose={onSwitch}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Move grid ──────────────────────────────────────────────────────
+
+function MoveGrid({
+  active, foeTypes, onMove,
+}: {
+  active: ActiveSlot;
+  foeTypes: PokemonType[];
+  onMove: (i: number) => void;
+}) {
+  const t = useT();
+  return (
+    /* Reuses the idle game's own `.moves-panel` / `.move-slot` markup,
+       inline type colour and all, so a PvP move tile is visually the
+       same object as an idle one. The old modal emitted
+       `move-type-<type>` classes that do not exist anywhere in the
+       stylesheet, which is why PvP moves rendered as grey boxes. */
+    <div className="moves-panel pickable pvp2-moves">
+      {active.moves.map((m, i) => {
+        const def = movesTable[m.id];
+        const out = !!m.disabled || m.pp <= 0;
+        const ppLow = m.pp > 0 && m.pp <= Math.max(1, Math.ceil(m.maxpp * 0.25));
+        const eff = def ? effectivenessChip(def.type, def.category, foeTypes) : null;
+        const color = def ? (TYPE_COLOR[def.type] ?? "#888") : "#888";
+        return (
           <button
-            className="g-btn-ghost g-btn-small"
-            onClick={() => setShowSwitch((v) => !v)}
+            type="button"
+            key={`${m.id}-${i}`}
+            className={`move-slot is-pickable ${out ? "no-pp" : ""} ${eff?.cls ?? ""}`}
+            style={{ background: color }}
+            disabled={out}
+            onClick={() => onMove(i)}
+            title={
+              m.pp <= 0 ? t("No PP left")
+                : m.disabled ? t("This move is disabled")
+                : (def?.name ?? m.move)
+            }
           >
-            {showSwitch ? t("Hide team") : t("Switch Pokémon")}
+            <div className="move-slot-name">
+              {def?.name ?? m.move}
+              {eff && <span className="move-eff-chip">{eff.label}</span>}
+            </div>
+            <div className="move-slot-stats">
+              <span>{t("Pow")} {def?.power || "—"}</span>
+              <span>{def?.type ?? "?"}</span>
+              <span className={`move-pp ${ppLow ? "low" : ""} ${m.pp <= 0 ? "out" : ""}`}>
+                {t("PP")} {m.pp}/{m.maxpp}
+              </span>
+            </div>
           </button>
-        ) : null}
-      </div>
-
-      {showSwitch && !trapped && (
-        <SwitchRow pokemon={pokemon} bench={bench} onChoose={(slot) => { setShowSwitch(false); onSwitch(slot); }} />
-      )}
-    </>
+        );
+      })}
+    </div>
   );
 }
 
@@ -515,18 +893,37 @@ function effectivenessChip(
   return label ? { label, cls } : null;
 }
 
-// ─── Switch row ─────────────────────────────────────────────────────
+// ─── Switch grid ────────────────────────────────────────────────────
 
-function SwitchRow({
-  pokemon, bench, onChoose,
+/**
+ * The bench, as switch targets.
+ *
+ * This is the arena's existing `.pvp2-switch-grid` / `.pvp2-switch-card` —
+ * built for the forced-switch-after-faint case and now PROMOTED to a permanent
+ * part of the console rather than duplicated. `variant` picks the shape: "rail"
+ * is the narrow column that sits beside the moves, "wide" is the original
+ * auto-fill grid, used when a faint hands the whole body over to it.
+ *
+ * Each card shows everything the rail's team panel shows — sprite, name, an HP
+ * bar, status badge and the fainted state — because "switch to what?" is a
+ * decision, and the previous toggle-then-choose flow made the player commit
+ * before they could see the answer.
+ */
+function SwitchGrid({
+  pokemon, bench, onChoose, variant, disabled,
 }: {
   pokemon: SidePokemon[];
   bench: BenchMon[];
   onChoose: (slot: number) => void;
+  variant: "rail" | "wide";
+  disabled: boolean;
 }) {
   const t = useT();
+  if (pokemon.length === 0) {
+    return <p className="dim small pvp2-bench-empty">{t("No bench Pokémon.")}</p>;
+  }
   return (
-    <div className="pvp2-switch-grid">
+    <div className={`pvp2-switch-grid as-${variant}`}>
       {pokemon.map((p, idx) => {
         const fainted = p.condition.includes("fnt");
         const speciesKey = (p.details.split(",")[0] ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -535,26 +932,40 @@ function SwitchRow({
         const pct = fainted ? 0 : m ? (parseInt(m[1], 10) / parseInt(m[2], 10)) * 100 : 100;
         const hpClass = pct > 50 ? "ok" : pct > 20 ? "warn" : "low";
         const status = bench.find((b) => b.ident === p.ident)?.status ?? null;
+        const blocked = p.active || fainted || disabled;
         return (
           <button
             key={p.ident}
+            type="button"
             className={`pvp2-switch-card ${p.active ? "active" : ""} ${fainted ? "fainted" : ""}`}
-            disabled={p.active || fainted}
+            disabled={blocked}
             onClick={() => onChoose(idx)}
             title={p.active ? t("Already out") : fainted ? t("Fainted") : `${t("Send out")} ${name}`}
           >
-            <PokemonSprite
-              speciesKey={speciesKey}
-              alt=""
-              width={40}
-              height={40}
-              style={{ imageRendering: "pixelated" }}
-            />
+            {/* Wrapped rather than laid out directly: PokemonSprite renders an
+                <img> normally but a `.sprite-missing` glyph when every source
+                in its fallback chain fails, and the grid needs one stable child
+                to place either way. */}
+            <span className="pvp2-switch-pic">
+              <PokemonSprite
+                speciesKey={speciesKey}
+                alt=""
+                width={40}
+                height={40}
+                style={{ imageRendering: "pixelated" }}
+              />
+            </span>
             <span className="pvp2-switch-name">{name}</span>
             <span className={`pvp2-switch-hp ${hpClass}`}>
               <span style={{ width: `${pct}%` }} />
             </span>
-            {status && <span className={`hp-status-badge status-${status}`}>{status.toUpperCase()}</span>}
+            {(status || p.active || fainted) && (
+              <span className="pvp2-switch-flags">
+                {status && <span className={`hp-status-badge status-${status}`}>{status.toUpperCase()}</span>}
+                {p.active && <span className="pvp2-switch-tag">{t("Out")}</span>}
+                {fainted && <span className="pvp2-switch-tag">{t("KO")}</span>}
+              </span>
+            )}
           </button>
         );
       })}
@@ -598,7 +1009,7 @@ function pushHazards(
   }
 }
 
-// ─── Banners and results ────────────────────────────────────────────
+// ─── Banners ────────────────────────────────────────────────────────
 
 function AwayBanner({ away }: { away: { username: string; graceEndsAt: number } }) {
   const t = useT();
@@ -612,59 +1023,6 @@ function AwayBanner({ away }: { away: { username: string; graceEndsAt: number } 
     <div className="pvp2-away-banner" role="status">
       <strong>{away.username}</strong>{" "}
       {t("lost connection")} — {left}s {t("to reconnect")}
-    </div>
-  );
-}
-
-function VoidedNotice() {
-  const t = useT();
-  return (
-    <div className="pvp2-voided" role="status">
-      <strong>{t("Battle ended by a server restart.")}</strong>
-      <span className="dim small">{t("It was not rated — your ranking is unchanged.")}</span>
-      <button className="g-btn-primary g-btn-small" onClick={() => clearBattleRoom()}>
-        {t("Back to the game")}
-      </button>
-    </div>
-  );
-}
-
-function ResultBar({ room }: { room: BattleRoom }) {
-  const t = useT();
-  // The server sends winnerId as a real userId. The client doesn't keep its
-  // own id but does keep the opponent's, so "did I win?" is "the winner is
-  // not the opponent". The old sentinel-based check could never match a real
-  // id, which is why every winner once saw "You lose."
-  const won = room.result?.winnerId != null && room.result.winnerId !== room.opponent.id;
-  const cancelled = room.result?.winnerId == null;
-  const delta = room.result?.ratingDelta ?? null;
-  const myDelta = delta ? (won ? delta.aDelta : delta.bDelta) : null;
-  const myRating = delta ? (won ? delta.aRating : delta.bRating) : null;
-  return (
-    <div className={`pvp2-result ${cancelled ? "draw" : won ? "win" : "loss"}`} role="status">
-      <strong className="pvp2-result-verdict">
-        {cancelled ? t("Battle cancelled") : won ? t("You win!") : t("You lose.")}
-      </strong>
-      {room.result?.reason === "forfeit" && <span className="dim small">({t("forfeit")})</span>}
-      {room.result?.reason === "timeout" && <span className="dim small">({t("timeout")})</span>}
-      {/* Explain the MISSING rating delta rather than just omitting it. A win
-          with no number next to it otherwise reads as "the rating update
-          failed", which is the bug report this line prevents. */}
-      {isBotBattle(room) && (
-        <span className="dim small">{t("Practice vs AI — not rated")}</span>
-      )}
-      {myDelta != null && (
-        <span className={`pvp2-result-delta ${myDelta >= 0 ? "up" : "down"}`}>
-          {myDelta >= 0 ? "+" : ""}{myDelta}
-          <small className="dim"> → {myRating}</small>
-        </span>
-      )}
-      {/* No auto-close. The old modal cleared itself after 4 seconds, which
-          meant a player who looked away missed the result and the rating
-          change entirely. Leaving is now their decision. */}
-      <button className="g-btn-primary g-btn-small" onClick={() => clearBattleRoom()}>
-        {t("Back to the game")}
-      </button>
     </div>
   );
 }
@@ -697,7 +1055,7 @@ export function PvpRail() {
 
       <section className="ctx-section pvp2-log-card">
         <h4>{t("Battle log")}</h4>
-        <NarrationLog lines={room.narration} mySide={room.side} />
+        <NarrationLog lines={room.narration} mySide={room.side} view={room.view} />
       </section>
     </div>
   );
@@ -747,7 +1105,17 @@ function TeamPanel({ title, side, own = false }: { title: string; side: SideView
   );
 }
 
-function NarrationLog({ lines, mySide }: { lines: NarrationLine[]; mySide: "a" | "b" }) {
+/** The full transcript. Unlike the message box this is NOT paced — a
+ *  transcript's job is to be complete and scrollable, and pacing it would mean
+ *  the player could not scroll back to a line the box had already passed.
+ *  It does share the `|win|` phrasing fix, so the two never disagree. */
+function NarrationLog({
+  lines, mySide, view,
+}: {
+  lines: NarrationLine[];
+  mySide: "a" | "b";
+  view: Parameters<typeof displayNarration>[1];
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
   const t = useT();
   useEffect(() => {
@@ -761,7 +1129,7 @@ function NarrationLog({ lines, mySide }: { lines: NarrationLine[]; mySide: "a" |
           key={i}
           className={`pvp2-log-line kind-${l.kind} ${l.side ? (l.side === mySide ? "mine" : "theirs") : ""}`}
         >
-          <span>{l.text}</span>
+          <span>{displayNarration(l, view)}</span>
           {l.tags && l.tags.length > 0 && (
             <span className="pvp2-log-tags">
               {l.tags.map((tg) => (

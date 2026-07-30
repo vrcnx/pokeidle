@@ -284,25 +284,194 @@
   cursor: help;
 }
 
-/* ── Action area ──────────────────────────────────────────────────── */
+/* ── The battle message box ────────────────────────────────────────────
+ *
+ * The BOX itself is `.scene-status` — the idle battle's own text bar, reused
+ * verbatim rather than restyled. app.css declares it `position: absolute;
+ * bottom: 0; left: 0; right: 0; z-index: 40` with the pixel font and the dark
+ * bar, and `.pvp2-scene` is `position: relative`, so mounting it inside the
+ * arena needs nothing but the class name and comes out identical to the idle
+ * game's. Everything below is only what PvP adds: a second row for the
+ * effectiveness/crit tags the decoder attaches to a move line, and a floor
+ * height so the bar does not resize between a one-line and a two-line beat.
+ */
 
-/* The action bar takes whatever height the scene leaves, exactly as the idle
-   layout's third grid row does — otherwise the arena stopped halfway down the
-   column and the rest of it showed the page background through. */
-.pvp2-actions {
+/* Two classes deliberately. `.scene-status` lives in app.css and a single-class
+   override here would TIE on specificity, leaving the winner to depend on which
+   stylesheet the bundler happened to emit last — a coin flip that would change
+   between dev and a production build. Matching both classes takes the decision
+   away from source order. */
+.scene-status.pvp2-msg {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 30px;
+  /* The scene's own bottom edge is rounded; without this the bar's corners
+     poke past it. Matches .pvp2-scene's 10px radius minus its 1px border. */
+  border-bottom-left-radius: 9px;
+  border-bottom-right-radius: 9px;
+}
+
+.pvp2-msg-text { flex: 1 1 auto; min-width: 0; }
+
+/* The resting prompt ("What will Espeon do?") is quieter than narration, so a
+   glance can tell "something happened" from "it's your turn". */
+.pvp2-msg.is-prompt .pvp2-msg-text { color: var(--ink-soft); }
+
+.pvp2-msg.kind-faint .pvp2-msg-text { color: #ffb4b4; }
+.pvp2-msg.kind-cant  .pvp2-msg-text { color: #ffd9a8; }
+.pvp2-msg.kind-win,
+.pvp2-msg.kind-tie { border-top-color: var(--gold); }
+.pvp2-msg.kind-win .pvp2-msg-text,
+.pvp2-msg.kind-tie .pvp2-msg-text { color: var(--gold); }
+
+.pvp2-msg-tags { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+
+/* ── The Earthquake shake ──────────────────────────────────────────────
+ *
+ * The ONLY rule in the whole effect system that could not be reused as-is.
+ * app.css scopes its trigger to `.battle-scene:has(.move-anim.shake-screen)
+ * .scene-content`, which needs a `.battle-scene` ancestor the arena does not
+ * have. The `@keyframes scene-shake` it drives is global, so this is the PvP
+ * sibling of that one selector and nothing is duplicated — which is also why
+ * no app.css edit was needed for any of this.
+ *
+ * `> .scene-content` deliberately, not a descendant match: the wrapper is the
+ * arena's own direct child and a looser selector would rattle a nested scene if
+ * one ever existed. */
+.pvp2-scene:has(.move-anim.shake-screen) > .scene-content {
+  animation: scene-shake 500ms ease-out;
+}
+
+/* ── Action area: one console ──────────────────────────────────────────
+ *
+ * WHAT THIS REPLACED, measured on a live battle at 1600×950: the moves grid was
+ * 520×564 with 248×170 tiles, soaking every pixel of vertical slack; "Switch
+ * Pokémon" was a 104×26 ghost button pinned to the LEFT edge under it; and
+ * "Forfeit" was a 55×26 button at the RIGHT edge at 11px / rgb(156,156,156) /
+ * opacity 0.65. Three unrelated objects at three different edges, with a band
+ * of dead space between them, and your team hidden behind a toggle.
+ *
+ * Now: one titled panel. Its body is a two-track grid — moves, then the bench —
+ * and BOTH tracks stretch, so the panel has no slack left to leave anywhere at
+ * any width. The surface is the same size while you fight, while you wait and
+ * while you switch; only its contents change, so nothing reflows mid-turn in a
+ * battle with a turn clock.
+ *
+ * Queried on the CONSOLE rather than the viewport (`container-name`), because
+ * the same console is ~1080px wide in the wide dashboard and ~370px in a narrow
+ * one, and only the second needs to stack.
+ */
+
+.pvp2-console {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
   flex: 1 1 auto;
-  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel-2);
+  container-type: inline-size;
+  container-name: pvp2console;
 }
 
-.pvp2-action-title {
+.pvp2-console-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+
+.pvp2-console-title {
   margin: 0;
-  font: 600 12px/1.4 var(--font-body);
+  margin-right: auto;
+  font: 700 11px/1.4 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
+
+/* A forced switch must still READ as forced rather than as a bench that
+   happens to be open — it is the one moment the player has no choice. */
+.pvp2-console.mode-forced {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.pvp2-console.mode-forced .pvp2-console-title { color: var(--warn); }
+
+.pvp2-console-body {
+  display: grid;
+  /* Moves take roughly two thirds, the bench one — the same proportion a real
+     simulator gives them, and enough for a 6-row bench column to stay legible
+     without stealing tap area from the tiles. */
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 0.95fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pvp2-console-moves,
+.pvp2-console-bench {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pvp2-bench-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.pvp2-bench-head h5 {
+  margin: 0;
+  font: 700 10px/1.4 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pvp2-bench-empty { margin: 0; }
+
+/* A forced switch does NOT hand the whole body to the bench.
+ *
+ * That was the first attempt and it measured badly: three switch cards in one
+ * auto-fill row filled 128px of a 578px body and left 430px of dead space —
+ * precisely the band this layout exists to remove, reintroduced in the one state
+ * the player has no choice about. Instead the body keeps its two tracks and the
+ * moves column becomes the notice, so the surface does not resize or reflow at
+ * all between fighting, waiting and switching. The bench takes slightly MORE
+ * than half the width, which is the only geometric hint that it is the half to
+ * act on — the loud signals are the console's gold tint, its title and the fact
+ * that the bench cards are the only enabled controls on screen. */
+.pvp2-console.mode-forced .pvp2-console-body {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+}
+
+.pvp2-forced-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  border: 1px dashed var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+}
+.pvp2-forced-notice strong { font: 700 13px/1.4 var(--font-body); }
+.pvp2-forced-notice span { color: var(--text-muted); font-size: 11px; }
 
 /* "Waiting for opponent's choice…" is not a transient — it is half of every
    turn — so it takes the space the move grid would have had rather than
@@ -321,26 +490,20 @@
 }
 
 /* .moves-panel already lays out a 2x2 grid; only spacing differs here.
-   It absorbs the action bar's spare height the same way the idle moves panel
-   absorbs its grid row, so the tiles are big targets in a timed battle
-   instead of a short strip with empty space under it. */
+   The tiles now share the console body with the bench, so instead of capping
+   the row height (which is what left a band of dead space under a short grid)
+   the rows STRETCH to fill exactly the height the console has, with a floor so
+   they stay a comfortable tap target when the console is short. */
 .pvp2-moves {
   margin: 0;
   flex: 1 1 auto;
-  min-height: 96px;
-  /* A tall, narrow centre column (the classic layout, or a narrow wide one)
-     would otherwise hand each tile ~300px of height. Cap the ROWS rather than
-     the panel: the panel still stretches — so its own surface fills the
-     column instead of the page background showing through — while the tiles
-     stay a sensible shape. */
-  grid-auto-rows: minmax(0, 170px);
-  align-content: start;
+  min-height: 0;
+  grid-auto-rows: minmax(56px, 1fr);
+  align-content: stretch;
 }
 /* A stretched tile centres its name and stats instead of pinning them to the
    top, so the extra height reads as a bigger target rather than dead space. */
 .pvp2-moves .move-slot { justify-content: center; }
-
-.pvp2-switch-row { display: flex; justify-content: flex-start; }
 
 .pvp2-switch-grid {
   display: grid;
@@ -349,6 +512,7 @@
 }
 
 .pvp2-switch-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -402,17 +566,179 @@
 .pvp2-switch-hp.warn > span, .pvp2-team-hp.warn > span { background: var(--warn); }
 .pvp2-switch-hp.low > span,  .pvp2-team-hp.low > span  { background: var(--bad); }
 
-.pvp2-forfeit-row { display: flex; justify-content: flex-end; }
-.pvp2-forfeit-btn { opacity: 0.65; }
-.pvp2-forfeit-btn:hover { opacity: 1; }
+/* ── The bench as a permanent surface ──────────────────────────────────
+ *
+ * `.pvp2-switch-grid` / `.pvp2-switch-card` already existed for the forced
+ * switch after a faint. Rather than write a second grid for the always-on
+ * bench, the same one takes a variant class: `as-rail` is the narrow column
+ * beside the moves, `as-wide` is the original auto-fill grid, used when a faint
+ * hands the whole console body to it. Same markup, same states, one set of
+ * rules to keep honest. */
 
+.pvp2-switch-grid.as-rail {
+  grid-template-columns: minmax(0, 1fr);
+  /* Rows stretch to fill the column, but CAPPED. Uncapped, a one-Pokémon bench
+     produced a single 393px-tall card; capped without stretch, a six-Pokémon
+     bench left a band under it. `minmax(34px, 64px)` is the shape a row of
+     sprite + name + HP bar actually wants, and any remainder is absorbed by the
+     console's own panel background — the same convention the moves panel above
+     already uses, and the reason no page background can show through. */
+  grid-auto-rows: minmax(34px, 64px);
+  align-content: start;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* In the rail the card turns on its side: sprite, then name over an HP bar,
+   then any flags. A grid rather than a row of flex children so the HP bar can
+   sit under the name without either of them wrapping. */
+.pvp2-switch-grid.as-rail .pvp2-switch-card {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "pic name flags"
+    "pic hp   flags";
+  align-items: center;
+  gap: 1px 6px;
+  padding: 3px 6px;
+  text-align: left;
+}
+.pvp2-switch-grid.as-rail .pvp2-switch-pic { grid-area: pic; }
+.pvp2-switch-grid.as-rail .pvp2-switch-name { grid-area: name; text-align: left; }
+.pvp2-switch-grid.as-rail .pvp2-switch-hp { grid-area: hp; }
+.pvp2-switch-grid.as-rail .pvp2-switch-flags { grid-area: flags; }
+
+.pvp2-switch-grid.as-rail .pvp2-switch-pic img,
+.pvp2-switch-grid.as-rail .pvp2-switch-pic .sprite-missing {
+  width: 26px;
+  height: 26px;
+}
+
+/* The forced-switch grid: bigger cards than the rail's, because this is a
+   decision the player was forced into and did not get to prepare for — but they
+   still STRETCH to fill the column, so there is no slack here either. */
+.pvp2-console.mode-forced .pvp2-switch-grid.as-wide {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-auto-rows: minmax(96px, 150px);
+  /* Centred rather than top-aligned: this is a chooser, not a list, and with a
+     small bench the cards sitting in the middle of the column reads as balanced
+     where the same cards pinned to the top read as a broken layout. */
+  align-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pvp2-switch-pic { display: inline-flex; line-height: 0; }
+
+.pvp2-switch-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pvp2-switch-tag {
+  font: 800 8px/1.5 var(--font-body);
+  letter-spacing: 0.1em;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--text-muted);
+}
+.pvp2-switch-card.active .pvp2-switch-tag { background: var(--gold); color: #1a1a1a; }
+
+/* ── Forfeit ───────────────────────────────────────────────────────────
+ *
+ * Present, never mistakable for an attack. It lives in the CONSOLE HEADER —
+ * the opposite end of the panel from every move tile and outside the body that
+ * holds them — small, muted and flagged with a glyph, and it does not use
+ * `.g-btn-*` at all so it cannot inherit a primary button's weight. It is in
+ * the centre column and not the right rail on purpose: the rail is a third
+ * dashboard track a narrow layout can push off-screen, and on MobileShell it
+ * only appears under the "party" tab. */
+.pvp2-forfeit-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 11px/1.5 var(--font-body);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  /* Full opacity with a hairline, NOT a faded label. The control this replaces
+     was 11px at rgb(156,156,156) and opacity 0.65 and read as broken rather
+     than as secondary — "barely legible" was in the bug report. Being quiet is
+     about weight and position, not about being hard to see: this sits in a
+     labelled header at the far end of the panel from every attack, which is
+     what makes it unmistakable for one. */
+  border-color: var(--border);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.pvp2-forfeit-btn:hover,
+.pvp2-forfeit-btn:focus-visible {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+/* The confirm step is LOUDER than the trigger, not quieter — an accidental
+   forfeit in a rated match is unrecoverable, so it takes over the whole console
+   header rather than appearing as an inline aside beside it. */
 .pvp2-forfeit-confirm {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1 1 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: var(--bad-soft);
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--ink);
+}
+.pvp2-forfeit-confirm > strong { margin-right: auto; }
+
+/* ── Narrow console: stack instead of squeezing ─────────────────────────
+ *
+ * Below ~520px of CONSOLE width a two-track body would give the bench ~170px
+ * and the tiles ~330px, and the tiles are the thing that must stay tappable. So
+ * the bench moves under the moves and goes back to the auto-fill card shape.
+ * The moves row keeps `1fr` and the bench takes `auto`, so stacking does not
+ * reintroduce the dead band this layout exists to remove. */
+@container pvp2console (max-width: 520px) {
+  .pvp2-console-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .pvp2-switch-grid.as-rail {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    grid-auto-rows: minmax(0, auto);
+    flex: 0 0 auto;
+  }
+  /* Back to the stacked card — a 26px sprite beside a name in an 84px column
+     leaves the name no room. Same selector as the rule above so it has to win
+     on source order; a container query adds no specificity of its own. */
+  .pvp2-switch-grid.as-rail .pvp2-switch-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 4px;
+    text-align: center;
+  }
+  .pvp2-switch-grid.as-rail .pvp2-switch-name { text-align: center; }
+  .pvp2-switch-grid.as-rail .pvp2-switch-pic img,
+  .pvp2-switch-grid.as-rail .pvp2-switch-pic .sprite-missing {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 /* ── Banners ──────────────────────────────────────────────────────── */
@@ -427,7 +753,12 @@
   text-align: center;
 }
 
-.pvp2-voided,
+/* ── The post-battle summary bar ───────────────────────────────────────
+ *
+ * Kept as well as the dialog, not instead of it. It is the action area's
+ * content once the battle is over — so the console's slot is never empty — and
+ * it is what "View final board" leaves behind, carrying the one control that
+ * brings the dialog back plus an exit that always works. */
 .pvp2-result {
   display: flex;
   align-items: center;
@@ -438,16 +769,127 @@
   border-radius: 10px;
   border: 1px solid var(--border-strong);
   background: var(--panel-2);
+  flex: 0 0 auto;
 }
 
 .pvp2-result.win  { border-color: var(--good); background: var(--good-soft); }
 .pvp2-result.loss { border-color: var(--bad);  background: var(--bad-soft); }
+.pvp2-result.draw { border-color: var(--gold); }
+.pvp2-result.void { border-color: var(--border-bright); }
 
 .pvp2-result-verdict { font: 700 15px/1.3 var(--font-body); }
 
 .pvp2-result-delta { font: 700 13px/1.3 var(--font-body); }
 .pvp2-result-delta.up   { color: var(--good); }
 .pvp2-result-delta.down { color: var(--bad); }
+.pvp2-result-delta.big  { font-size: 26px; line-height: 1.1; }
+
+/* ── The post-battle dialog ────────────────────────────────────────────
+ *
+ * `.modal-overlay` and `.g-modal` are app.css's own popup primitives, reused so
+ * this reads as part of the same game as every other dialog. Only the width,
+ * the outcome tint and the summary's own internals are declared here. */
+/* Two classes, for the same source-order reason as `.scene-status.pvp2-msg`
+   above: app.css declares `.modal-overlay` three times over and the last one
+   sets `align-items: flex-start`, `padding: 8vh …`, a darker backdrop and
+   `z-index: 100`. A single-class rule here would tie with all of it. */
+.modal-overlay.pvp2-result-overlay {
+  /* The board the player just fought on is still behind this, and a player who
+     just lost wants to see how — so the backdrop is lighter than the default
+     and the dialog is centred rather than pinned near the top. */
+  align-items: center;
+  padding: 24px var(--sp-4, 16px);
+  background: rgba(7, 9, 12, 0.55);
+  z-index: 120;
+}
+
+/* `.g-modal` sets `width: min(760px, 96vw)` in app.css — two classes again so
+   the narrower dialog cannot lose a source-order tie. */
+.g-modal.pvp2-result-dialog { width: min(520px, 94vw); }
+.pvp2-result-dialog.outcome-win  { box-shadow: 0 0 0 1px var(--good), 0 24px 70px rgba(0, 0, 0, 0.62); }
+.pvp2-result-dialog.outcome-loss { box-shadow: 0 0 0 1px var(--bad),  0 24px 70px rgba(0, 0, 0, 0.62); }
+.pvp2-result-dialog.outcome-draw { box-shadow: 0 0 0 1px var(--gold), 0 24px 70px rgba(0, 0, 0, 0.62); }
+
+.pvp2-result-head { gap: 10px; }
+
+.pvp2-result-badge {
+  font: 800 10px/1.6 var(--font-body);
+  letter-spacing: 0.16em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-3);
+  color: var(--text-muted);
+}
+.pvp2-result-badge.win  { background: var(--good-soft); color: var(--good); }
+.pvp2-result-badge.loss { background: var(--bad-soft);  color: var(--bad); }
+.pvp2-result-badge.draw { background: var(--gold);      color: #1a1a1a; }
+
+.pvp2-result-body { gap: 12px; }
+.pvp2-result-reason { margin: 0; font-size: 13px; color: var(--text); }
+
+.pvp2-result-rating {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.pvp2-result-rating.not-rated { font-size: 12px; color: var(--text-muted); }
+.pvp2-result-rating-now { font-size: 13px; }
+.pvp2-result-unrated { font-size: 12px; }
+
+.pvp2-result-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.pvp2-result-stats > div {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.pvp2-result-stats dt {
+  font: 600 10px/1.5 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pvp2-result-stats dd {
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 700 13px/1.3 var(--font-body);
+}
+
+.pvp2-result-last {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border-bright);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.pvp2-result-idle { margin: 0; }
+
+.pvp2-rematch-note { margin: 0; font-size: 12px; }
+.pvp2-rematch-note.pending { color: var(--gold); }
+.pvp2-rematch-note.warn    { color: var(--warn); }
+.pvp2-rematch-note.bad     { color: var(--bad); }
+
+/* Four actions do not fit one phone row, and the primary must never be the one
+   that wraps off. `wrap-reverse` puts the primary (last in DOM order, so it
+   reads last for a screen reader too) on the TOP row when it wraps. */
+.pvp2-result-foot { flex-wrap: wrap-reverse; gap: 6px; }
+.pvp2-result-foot > button { min-height: 40px; }
 
 /* ── Right rail ───────────────────────────────────────────────────── */
 
@@ -572,7 +1014,10 @@
 .pvp2-log-line.kind-error  { color: var(--bad); }
 
 .pvp2-log-tags { margin-left: 5px; }
-.pvp2-log-tags em {
+/* The message box's tags share the transcript's chips exactly — the same
+   "Super effective!" reads the same in both places. */
+.pvp2-log-tags em,
+.pvp2-msg-tags em {
   font-style: normal;
   font-weight: 700;
   font-size: 10px;
@@ -580,9 +1025,9 @@
   border-radius: 3px;
   margin-left: 3px;
 }
-.pvp2-log-tags em.great { background: var(--good-soft); color: var(--good); }
-.pvp2-log-tags em.weak  { background: var(--panel-3);   color: var(--text-muted); }
-.pvp2-log-tags em.crit  { background: var(--gold);      color: #1a1a1a; }
+.pvp2-log-tags em.great, .pvp2-msg-tags em.great { background: var(--good-soft); color: var(--good); }
+.pvp2-log-tags em.weak,  .pvp2-msg-tags em.weak  { background: var(--panel-3);   color: var(--text-muted); }
+.pvp2-log-tags em.crit,  .pvp2-msg-tags em.crit  { background: var(--gold);      color: #1a1a1a; }
 
 /* ── Narrow / mobile ──────────────────────────────────────────────── */
 
