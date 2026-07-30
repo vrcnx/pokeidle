@@ -217,3 +217,161 @@ export function describePrizes(prizes: readonly Prize[]): string {
     )
     .join(" + ");
 }
+
+// ── The PLAYER-FACING projection ────────────────────────────────────
+//
+// One function, used by every player-facing giveaway route, because the
+// privacy rules here are the kind that rot if they are re-stated per route:
+//
+//   * an entrant who LOST must never appear anywhere in the output. Who
+//     entered and did not win is nobody's business and publishing it invites
+//     harassment;
+//   * no user id ever leaves — not a winner's, not the viewer's. `winners` is
+//     a list of strings, never objects;
+//   * the draw seed and the winner list appear only AFTER `drawnAt`. Before
+//     the draw the seed would let an entrant compute the outcome; after it, it
+//     is the whole fairness proof;
+//   * `draft` and `cancelled` giveaways are operator state and are not
+//     public at all — production is holding an unpublished draft right now.
+//
+// Enforced by server/tests/giveawayPublicView.test.ts, which asserts over the
+// object this returns rather than over route source: a grep for a `where`
+// clause rots the moment someone refactors the query, a projection test does
+// not.
+
+/** The only statuses a player may ever be shown. */
+export const PUBLIC_GIVEAWAY_STATUSES = ["open", "closed", "drawn"] as const;
+
+/**
+ * The entry columns the projection needs. Routes are expected to have ALREADY
+ * narrowed the rows to `viewer OR winner` — that is what makes a losing
+ * entrant's row something this process never loads — but the filtering below
+ * is repeated anyway so a caller that forgets cannot leak.
+ */
+export interface GiveawayEntryRowForView {
+  userId: string;
+  username: string;
+  isWinner: boolean;
+}
+
+export interface GiveawayRowForView {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  drawnAt: Date | null;
+  winnerCount: number;
+  minAccountLevel: number | null;
+  prizes: string;
+  drawSeed: string | null;
+  entries: GiveawayEntryRowForView[];
+  /** Prisma `_count: { select: { entries: true } }` — the TRUE entrant total. */
+  _count?: { entries: number };
+}
+
+export interface PublicGiveawayView {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: Date;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  drawnAt: Date | null;
+  winnerCount: number;
+  minAccountLevel: number | null;
+  prizes: Prize[];
+  prizeSummary: string;
+  entryCount: number;
+  hasEntered: boolean;
+  youWon: boolean;
+  /**
+   * Whether the viewer's OWN prize has physically landed in their save.
+   * `null` means "not applicable or not knowable" — they did not win, or the
+   * win predates the PendingGrant queue (production holds 68 wins against 33
+   * grant rows, so this is the common case on older giveaways). Never says
+   * anything about anybody else: it is read from a single row scoped to the
+   * viewer's user id.
+   */
+  youWonDelivered: boolean | null;
+  /** Usernames only, and only once drawn. Losers are never listed. */
+  winners: string[];
+  /** Published after the draw so the result can be independently recomputed. */
+  drawSeed: string | null;
+}
+
+export interface ShapeViewerContext {
+  viewerId: string;
+  /** giveawayId → delivered?, built from the VIEWER's own PendingGrant rows. */
+  delivered?: ReadonlyMap<string, boolean>;
+}
+
+/**
+ * Project one Giveaway row into what a player may see, or `null` if the row
+ * is not public at all.
+ */
+export function shapePublicGiveaway(
+  row: GiveawayRowForView,
+  ctx: ShapeViewerContext,
+): PublicGiveawayView | null {
+  if (!(PUBLIC_GIVEAWAY_STATUSES as readonly string[]).includes(row.status)) return null;
+
+  const entries = row.entries ?? [];
+  const prizes = parsePrizes(row.prizes);
+  const drawn = row.drawnAt != null;
+  const youWon = entries.some((e) => e.userId === ctx.viewerId && e.isWinner);
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    // History with no date is not history. `createdAt` is the only date every
+    // row is guaranteed to have — endsAt and drawnAt are both nullable, and
+    // production holds drawn giveaways with endsAt === null.
+    createdAt: row.createdAt,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    drawnAt: row.drawnAt,
+    winnerCount: row.winnerCount,
+    minAccountLevel: row.minAccountLevel,
+    prizes,
+    prizeSummary: describePrizes(prizes),
+    // An aggregate, never a list. Prefer the DB's own count: the entry rows
+    // above are deliberately narrowed, so counting them would under-report.
+    entryCount: row._count?.entries ?? entries.length,
+    hasEntered: entries.some((e) => e.userId === ctx.viewerId),
+    youWon,
+    youWonDelivered: youWon ? ctx.delivered?.get(row.id) ?? null : null,
+    winners: drawn ? entries.filter((e) => e.isWinner).map((e) => e.username) : [],
+    drawSeed: drawn ? row.drawSeed : null,
+  };
+}
+
+/**
+ * Lifetime, aggregate-only giveaway numbers. This exists for one reason: a
+ * returning player needs to be able to SEE that giveaways happen regularly,
+ * and one line ("13 giveaways · 68 prizes to 39 trainers · since 17 July")
+ * does that better than any amount of copy.
+ *
+ * Deliberately NOT a top-winners leaderboard. The data supports one — 68 wins
+ * are spread over 39 names and the repeats are visible — and it should not be
+ * built: it aggregates a handful of named individuals into a target and hands
+ * the "it's rigged" argument a headline. Per-giveaway winner lists are already
+ * public and are enough.
+ */
+export interface GiveawayStats {
+  /** Public giveaways ever held (draft/cancelled excluded). */
+  total: number;
+  /** Winner entries across all of them — i.e. prizes handed out. */
+  prizesAwarded: number;
+  /** How many DIFFERENT trainers have won at least once. */
+  distinctWinners: number;
+  /** When the first public giveaway was created. */
+  firstAt: Date | null;
+  /** The viewer's own record. Own data only. */
+  you: { entered: number; won: number };
+}

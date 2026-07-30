@@ -1,0 +1,595 @@
+/* =====================================================================
+   Giveaways — the standing rail control, prize chips, and the history
+   half of the dialog.
+
+   Scoped stylesheet, imported by the components that need it, following
+   the pvpArena.css pattern. NOT app.css: that file is ~600KB with rules
+   from several eras already fighting each other via !important, and a
+   recent task was spent unpicking exactly that.
+
+   There is no !important anywhere below, and none is needed. The
+   "card uniformity" blanket at app.css:11358 that outranks plain
+   declarations is an explicit SELECTOR LIST (.mini-chat, .unlock-hint,
+   .dock-btn, .party-row, …), not a wildcard — a new class simply is not
+   matched by it. Verified in the running app at all three widths.
+   ===================================================================== */
+
+/* ── The rail row ──────────────────────────────────────────────────
+   One row. Same height in every state, including loading and "nothing
+   running", because a control that vanishes when idle is how this
+   feature became invisible in the first place.
+
+   flex: 0 0 auto — the left rail is a flex column in which .chat-card is
+   the single elastic child, so this must never grow. It costs chat
+   exactly its own height plus the column's 8px gap, and nothing else. */
+.gw-rail {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.gw-rail:hover { background: var(--panel-2); border-color: rgba(192, 132, 252, 0.45); }
+.gw-rail:focus-visible { outline: 2px solid #c084fc; outline-offset: 1px; }
+
+.gw-rail-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1;
+  filter: saturate(0.9);
+}
+
+/* min-width:0 is what lets the label actually ellipsise inside a flex
+   row — without it the text sets the row's minimum width and a long
+   prize name pushes the countdown off the 300px rail. */
+.gw-rail-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.gw-rail-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gw-rail-sub {
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gw-rail-pill {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gw-rail-chev { flex: 0 0 auto; font-size: 12px; color: var(--text-dim); line-height: 1; }
+
+/* Tone is the permanent differentiator; the pulse is temporary. */
+.gw-rail--quiet .gw-rail-icon { opacity: 0.65; }
+.gw-rail--quiet .gw-rail-label { color: var(--text-muted); font-weight: 600; }
+/* --text-muted, not --text-dim: the pill's own 6%-white fill lifts the
+   background under it, and on the mobile rail's --panel-2 surface #888
+   measures 4.43:1 — under AA, though it clears on desktop's --panel at
+   4.83:1. #9c9c9c clears both (5.72:1 mobile, 6.24:1 desktop), so the pill
+   is not one colour on a phone and another on a laptop. */
+.gw-rail--quiet .gw-rail-pill { background: rgba(255, 255, 255, 0.06); color: var(--text-muted); }
+
+.gw-rail--calm { border-color: rgba(134, 239, 172, 0.3); }
+.gw-rail--calm .gw-rail-pill { background: rgba(134, 239, 172, 0.16); color: #86efac; }
+
+.gw-rail--urgent {
+  border-color: rgba(192, 132, 252, 0.5);
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.14), var(--panel) 70%);
+}
+/* The pill's label is 9px/800 — nowhere near WCAG's "large text" threshold
+   (18.66px bold), so it needs the full 4.5:1. The gradient used to run
+   #a855f7 → #7c3aed, and white on the #a855f7 end measures 3.96:1: the one
+   string in this whole feature that failed AA. Darkened one step to
+   purple-600 → violet-700, which reads as the same brand purple and
+   measures 5.38:1 at the light stop and 7.10:1 at the dark one. The
+   surrounding rail chrome is unchanged — the light lavender border and the
+   background wash both stayed, because neither carries text. */
+.gw-rail--urgent .gw-rail-pill {
+  background: linear-gradient(180deg, #9333ea, #6d28d9);
+  color: #fff;
+}
+
+.gw-rail--won {
+  border-color: rgba(251, 191, 36, 0.6);
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.18), var(--panel) 70%);
+}
+.gw-rail--won .gw-rail-label { color: #fde68a; }
+.gw-rail--won .gw-rail-pill { background: linear-gradient(180deg, #fbbf24, #f59e0b); color: #1a0e00; }
+/* The won row is the one tone whose wash LIGHTENS the background: the gold
+   at 18% composites to rgb(56,45,18), where --text-dim (#888) measures
+   3.82:1 — under AA. Every other tone stays dark enough that #888 passes,
+   so this lifts the two dim strings one step to --text-muted (4.93:1) for
+   this tone only, rather than re-colouring the rail everywhere to fix one
+   state. */
+.gw-rail--won .gw-rail-sub,
+.gw-rail--won .gw-rail-chev { color: var(--text-muted); }
+
+/* Six pulses, then it stops for good. Loud enough to catch an eye once,
+   short enough that it is not a thing on the screen that never settles. */
+.gw-rail-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c084fc;
+  box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.7);
+  animation: gw-pulse 2s ease-out 6;
+}
+.gw-rail--won .gw-rail-dot { background: #fbbf24; box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+@keyframes gw-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.7); }
+  70%  { box-shadow: 0 0 0 7px rgba(192, 132, 252, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-rail-dot { animation: none; }
+}
+
+/* ── Mobile: the same row, directly above the chat tab ─────────────
+   MobileShell renders MiniChat bare into .mobile-content, and app.css
+   gives every direct child of that container `min-height: 100%` and
+   .mini-chat `height: 100%`. Two siblings would therefore both claim the
+   full height and the container would scroll, which is the one thing the
+   rail must not cause. So the chat tab body is wrapped, the wrapper is
+   the single full-height child, and the four .mini-chat rules app.css
+   applies via `.mobile-content > .mini-chat` are restated here for the
+   wrapped position. Plain declarations at higher specificity; nothing
+   here is fighting an !important.
+
+   The wrapper contributes NOTHING of its own — no padding, no gap. It had
+   `padding: 6px 6px 0` and `gap: 6px`, and measured at 390x760 that took
+   54px of height AND 12px of width off .mini-chat, against a rail that is
+   only 42px tall: a fifth of the cost was chrome the wrapper invented, and
+   the width loss was a straight regression, since .mobile-content is
+   `padding: 0` and every other pane in it is edge-to-edge. Now the cost is
+   exactly the rail's own 42px and zero width, which is the same promise the
+   desktop rail makes. */
+.mobile-content > .gw-chat-tab {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+/* Full-bleed strip, matching every other mobile pane. Its own border is
+   dropped rather than sitting 1px above .mini-chat's — two hairlines with
+   nothing between them read as a rendering fault. The tone backgrounds
+   (gradient wash for urgent/won) still differentiate the states, and the
+   rail keeps its 42px because box-sizing is border-box. */
+.gw-chat-tab > .gw-rail--mobile {
+  border: 0;
+  border-radius: 0;
+  padding: 0 12px;
+}
+/* …but a borderless strip needs a surface of its own, and the rail's base
+   background is --panel, which is ALSO .mobile-content's background. In the
+   two tones that carry no wash that would render the control as bare text on
+   the page. --panel-2 is the app's raised-surface token and the one
+   .mini-chat directly below already uses, so the strip reads as part of the
+   same stack. Scoped to those two tones on purpose: writing `background`
+   into the rule above would out-specify --urgent and --won and delete their
+   gradients, which are the whole reason those states are noticeable. */
+.gw-chat-tab > .gw-rail--quiet,
+.gw-chat-tab > .gw-rail--calm { background: var(--panel-2); }
+.gw-chat-tab > .mini-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+.gw-chat-tab > .mini-chat .mini-chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.gw-chat-tab > .mini-chat .mini-chat-input {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  background: var(--panel-2, #1a1a1a);
+  z-index: 1;
+  padding: 10px 12px;
+}
+.gw-chat-tab > .mini-chat .mini-chat-input input {
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+/* The Chat tab icon carries a dot when something is live and unentered.
+   Without it the mobile control is only discoverable by somebody who has
+   already opened chat — the same invisibility this is fixing. */
+.mobile-tabbar button.gw-tab-marked { position: relative; }
+.gw-tab-dot {
+  position: absolute;
+  top: 5px;
+  right: calc(50% - 16px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c084fc;
+  box-shadow: 0 0 0 2px var(--panel, #12121a);
+}
+.gw-tab-dot.is-won { background: #fbbf24; }
+
+/* ── Prize chips ───────────────────────────────────────────────────
+   The sprites are the game's existing ones, via the existing helpers.
+   The chip is only a frame. */
+.gw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.gw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  max-width: 100%;
+}
+.gw-chip-img {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.gw-chip-glyph {
+  flex: 0 0 auto;
+  width: 26px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 26px;
+}
+.gw-chip-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fde68a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gw-chip-qty {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.gw-chip--shiny .gw-chip-name { color: #fcd34d; }
+.gw-chip--unknown .gw-chip-name { color: var(--text-muted); font-family: ui-monospace, monospace; }
+
+/* Small variant for history rows, where the prize is a reminder and not
+   the headline. */
+.gw-chips--sm .gw-chip { padding: 2px 6px 2px 3px; gap: 4px; }
+.gw-chips--sm .gw-chip-img { width: 18px; height: 18px; }
+.gw-chips--sm .gw-chip-glyph { width: 18px; font-size: 11px; line-height: 18px; }
+.gw-chips--sm .gw-chip-name { font-size: 11px; font-weight: 600; }
+.gw-chips--sm .gw-chip-qty { font-size: 10px; }
+
+/* ── Dialog: the recurring-feature line ────────────────────────────
+   "13 giveaways · 68 prizes to 39 trainers · since 17 Jul". One line,
+   and the single most load-bearing thing in the dialog for a returning
+   player: it is what says the feature is real and keeps happening. */
+.gw-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.gw-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.gw-stats-you { color: #86efac; }
+
+.gw-section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 -2px;
+}
+.gw-section h3 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* Repeat winners are visible in a 12-row history (one name has 5 of 68
+   wins), which is exactly the "it's rigged" conversation the draw seed
+   was built to end. So the proof gets a standing link at the top of the
+   history, not only a <details> buried inside each row. */
+.gw-fair-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.gw-fair-link:hover { color: var(--text); }
+.gw-fair-note {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── History rows ──────────────────────────────────────────────────
+   Compact rows, NOT the full live-card treatment. Twelve past giveaways
+   rendered as twelve hero cards is what "show previous" turns into if
+   the layouts are not separated. */
+.gw-past {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gw-past-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.gw-past-row:hover { background: rgba(255, 255, 255, 0.06); }
+.gw-past-row:focus-visible { outline: 2px solid #c084fc; outline-offset: 1px; }
+.gw-past-row.is-won { box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.5); }
+.gw-past-date {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+.gw-past-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.gw-past-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gw-past-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gw-past-winners {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: right;
+  max-width: 176px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The "+9". Never shrinks — see the note in HistoryRow. */
+.gw-past-more {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.gw-past-youwon {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  color: #1a0e00;
+  white-space: nowrap;
+}
+.gw-past-caret { font-size: 10px; color: var(--text-dim); }
+
+.gw-past-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -2px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+}
+/* Descriptions run to 272 characters with paragraph breaks in production,
+   so the expanded body must respect them rather than assume one line. */
+.gw-past-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: pre-line;
+}
+.gw-past-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.gw-past-meta strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.gw-winner-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gw-winner-list li {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+.gw-winner-list li.is-you { background: linear-gradient(180deg, #fbbf24, #f59e0b); color: #1a0e00; }
+
+.gw-more {
+  align-self: center;
+  margin-top: 4px;
+  padding: 7px 18px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gw-more:hover:not(:disabled) { color: var(--text); border-color: rgba(192, 132, 252, 0.45); }
+.gw-more:disabled { opacity: 0.55; cursor: default; }
+
+/* ── Live card additions ───────────────────────────────────────────
+   The live card keeps its existing app.css chrome; these are the parts
+   that did not exist before. */
+.gw-live-prize {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.gw-live-prize-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.gw-draw-line {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.gw-draw-line strong { color: var(--text-muted); }
+/* The won note inside an expanded history row. Deliberately NOT the
+   .giveaway-won-banner class: that one carries a negative margin tuned to
+   bleed to the edges of a 16px-padded card, and reusing it inside a
+   10px-padded detail block put its gold bar half outside the box. */
+.gw-won-note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  color: #1a0e00;
+}
+.gw-won-note-head { font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; }
+.gw-won-note-body { font-size: 11px; font-weight: 600; line-height: 1.4; color: #3a2400; }
+
+@media (max-width: 600px) {
+  .gw-past-row { grid-template-columns: 46px minmax(0, 1fr); row-gap: 6px; }
+  .gw-past-right { grid-column: 1 / -1; justify-content: flex-start; }
+  .gw-past-winners { text-align: left; max-width: none; }
+}
+
+/* ── Touch targets ─────────────────────────────────────────────────
+   900px is the app's own touch breakpoint — GameShell swaps to
+   MobileShell at exactly `(max-width: 900px)` — so this is "when a
+   finger is the pointer", not a guess at a device.
+
+   Measured at 390x760 before this block existed: "How winners are
+   picked" was 14px tall, "Show more" 31px, the seed disclosure inside a
+   history row 14px, and the Enter button 34px. All four are below the
+   40px floor, and the two that matter most are the ones a player uses to
+   do the thing the dialog is for: enter, and page back through what has
+   already been given away.
+
+   The text links grow by padding and give the space straight back with
+   an equal negative margin, so the hit box expands without moving a
+   single glyph or changing the height of the row they sit in. Vertical
+   only — a negative horizontal margin on `.gw-fair-link` would push it
+   past the right edge of its space-between row.
+
+   `.giveaway-enter` is app.css's (unchanged, and its 34px predates this
+   work); the rule below is scoped through `.giveaway-card` so it wins on
+   specificity alone. No !important, and none is needed. */
+@media (max-width: 900px) {
+  .gw-fair-link { padding: 13px 0; margin: -13px 0; }
+  .gw-more { padding: 12px 22px; }
+  /* 14, not 13: the summary's own line box measures 13.5px, so 13+13+13.5
+     lands at 39.5 — half a pixel under the floor, which is still under it. */
+  .gw-past-detail .giveaway-fair > summary { padding: 14px 0; margin: -14px 0; }
+  .giveaway-card .giveaway-enter { padding: 13px 22px; }
+}
+
+/* ── Contrast: the same 3.96:1 purple, in the other place it is used ──
+   The rail pill and this button carried the identical
+   `#a855f7 → #7c3aed` gradient under white text, and white on #a855f7 is
+   3.96:1 — under AA's 4.5:1 for text this size. The pill was fixed at its
+   own declaration above; this one lives in app.css, so it is corrected
+   here at higher specificity (`.giveaway-card` + `.giveaway-enter`, two
+   classes, plain declarations, no !important) rather than by editing a
+   600KB stylesheet that several eras of rules already fight over.
+
+   Same darkening as the pill — purple-600 → violet-700, 5.38:1 at the
+   light stop — so the feature's primary CTA and its rail counterpart stay
+   the same colour as each other, which is the whole reason the mismatch
+   was visible in the first place. The glow keeps the ORIGINAL brighter
+   purple: it is a shadow, it carries no text, and it is what makes the
+   button still read as the loud thing on the card. */
+.giveaway-card .giveaway-enter {
+  background: linear-gradient(180deg, #9333ea, #6d28d9);
+}

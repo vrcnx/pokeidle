@@ -10,6 +10,9 @@ import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
 import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
+import { GiveawayRail } from "./GiveawayRail";
+import { useGiveaways, seenWins } from "../utils/giveawayStore";
+import { railState } from "../utils/giveawayRail";
 import { PvpMobileStage, PvpMobilePanel, pvpBattleSignals } from "./PvpArena";
 import { usePvpState } from "../state/pvp";
 import { nextPvpMobileView, type PvpMobileView } from "../utils/pvpMobileNav";
@@ -80,6 +83,26 @@ export function MobileShell() {
     { id: "chat",  label: t("Chat") },
   ];
   const [tab, setTab] = useState<MobileTab>("world");
+
+  // A marker on the Chat tab when there is a giveaway to act on. Without it
+  // the mobile control is only discoverable by somebody who has already opened
+  // chat — which is the same invisibility the rail exists to fix. Static, 7px,
+  // no animation, and it disappears the moment the player enters (or, for a
+  // win, once they have opened the dialog on it): it is a state readout, not a
+  // badge that has to be dismissed. Hidden while Chat is the active tab, where
+  // the rail itself is already on screen saying more.
+  const gwSnap = useGiveaways();
+  const gw = railState({
+    giveaways: gwSnap.giveaways,
+    stats: gwSnap.stats,
+    now: Date.now(),
+    seenWins: seenWins(),
+  });
+  const gwDot =
+    gw.kind === "won" ? "won"
+    : gw.kind === "live-unentered" || gw.kind === "live-mixed" ? "live"
+    : null;
+  const showTabDot = gwDot != null && tab !== "chat";
 
   // ─── PvP takeover ──────────────────────────────────────────────────
   //
@@ -244,7 +267,24 @@ export function MobileShell() {
             {pcView === "box" ? <PCTab /> : <DexTab />}
           </div>
         )}
-        {!pvpLive && tab === "chat"  && <MiniChat />}
+        {/* The giveaway control lives directly above chat here, exactly as it
+            does on desktop, so both shells teach the same relationship. It is
+            not a seventh bottom-bar tab (MobileShell's own note: a seventh
+            wraps the bar at 360px) and not in the header MetaDock (a full
+            3-up grid owned by GlobalDock). Chat is also where the giveaway
+            system cards land, so a player following one arrives on the tab
+            that carries the standing control.
+
+            The wrapper is load-bearing: app.css gives every direct child of
+            .mobile-content `min-height: 100%`, so two bare siblings would each
+            claim the full height and push chat into a scroll. One wrapper,
+            one full-height child; see giveaways.css. */}
+        {!pvpLive && tab === "chat"  && (
+          <div className="gw-chat-tab">
+            <GiveawayRail variant="mobile" />
+            <MiniChat />
+          </div>
+        )}
       </div>
 
       {/* One bar, two modes. `role="tablist"` and the aria-selected state are
@@ -267,16 +307,20 @@ export function MobileShell() {
         </nav>
       ) : (
         <nav className="mobile-tabbar">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={tab === t.id ? "active" : ""}
-              onClick={() => setTab(t.id)}
-            >
-              <span className="tab-icon">{tabIcon(t.id)}</span>
-              <span className="tab-label">{t.label}</span>
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const marked = t.id === "chat" && showTabDot;
+            return (
+              <button
+                key={t.id}
+                className={`${tab === t.id ? "active" : ""}${marked ? " gw-tab-marked" : ""}`}
+                onClick={() => setTab(t.id)}
+              >
+                <span className="tab-icon">{tabIcon(t.id)}</span>
+                <span className="tab-label">{t.label}</span>
+                {marked && <span className={`gw-tab-dot${gwDot === "won" ? " is-won" : ""}`} aria-hidden />}
+              </button>
+            );
+          })}
         </nav>
       )}
     </div>

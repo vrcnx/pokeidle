@@ -18,7 +18,7 @@
 // target alive. A Route 1 Pidgey has 15 max HP, so a grown lead one-shot the
 // very Pokémon it was supposed to be softening.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   autoCatchOutlook, ballForAutoCatch, shouldAutoCatch, shouldWeakenBeforeCatch,
   WEAKEN_HP_THRESHOLD,
@@ -29,6 +29,43 @@ import { pokemonTable } from "../src/data/pokemon";
 import { createPokemon } from "../src/utils/pokemon";
 import type { CatchSettings, GameState, Pokemon, StatStages } from "../src/types";
 import { makeMon, makeState } from "./helpers";
+
+// ── Determinism ─────────────────────────────────────────────────────
+//
+// createPokemon() rolls random IVs, a random nature and a random ability off
+// Math.random, so every damage assertion below was a coin flip weighted by
+// how far apart the two mons are. Most pairs here are lopsided enough that
+// the flip never lands wrong, but the machop-20 / geodude-30 pair used by
+// "the overkill guard reads the live stat stages" sits close to the line:
+// measured over 5,000 constructions of that exact pair, 39 of them (0.78%)
+// produced a lead whose +4 estimate did NOT reach the target's HP, which
+// fails BOTH single-pair assertions in that block at once. That is a ~1.6%
+// chance of a red suite per run on a file that has nothing to do with
+// randomness — and it duly went red on a full run of this suite.
+//
+// So the whole file draws from a fixed stream instead. Seed 6 was chosen by
+// searching seeds 1..40 for one whose machop/geodude pair reproduces the
+// numbers the block's own comment documents: 33 damage unboosted, 87
+// boosted. The grid test below still spans 800 constructions; it is now 800
+// FIXED constructions, which is the same coverage and none of the lottery.
+const RNG_SEED = 6;
+let realRandom: typeof Math.random;
+
+beforeEach(() => {
+  realRandom = Math.random;
+  // mulberry32 — small, self-contained, and identical on every platform.
+  let s = RNG_SEED >>> 0;
+  Math.random = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+});
+afterEach(() => {
+  Math.random = realRandom;
+});
 
 /** The reporter's verbatim per-species rule: on, "Not registered", weaken on,
  *  three balls enabled, and plenty of stock. */
@@ -414,6 +451,28 @@ describe("weaken-before-catch must not kill what it is softening", () => {
     // boosted (dies). 298 such pairs exist in the grid below.
     const lead = () => createPokemon("machop", 20, 1000);
     const enemy = () => createPokemon("geodude", 30, 2000);
+
+    // The regression test for the flake itself. The two assertions below only
+    // mean anything if the pair they are asserting about is the SAME pair
+    // every run; before the seeded stream it was a fresh roll each time and
+    // 0.78% of those rolls made the block red. Pinning the exact numbers the
+    // block's comment documents is what makes a re-introduced Math.random
+    // fail here, loudly and immediately, instead of once a fortnight in CI.
+    it("builds the same pair every run — the numbers are pinned, not rolled", () => {
+      const l = lead(), e = enemy();
+      expect({ hp: e.maxHp, neutral: est(l, e), boosted: est(l, e, BOOST) })
+        .toEqual({ hp: 73, neutral: 33, boosted: 87 });
+    });
+
+    it("…and the stream restarts for every test, not once per file", () => {
+      // Same first two draws as the test above, from a stream that the test
+      // above already consumed. If the seeding ever moves out of beforeEach
+      // this test keeps its own numbers and the one above stops matching.
+      const l = lead(), e = enemy();
+      expect({ hp: e.maxHp, neutral: est(l, e), boosted: est(l, e, BOOST) })
+        .toEqual({ hp: 73, neutral: 33, boosted: 87 });
+      expect(l.nature).toBe("Hardy");
+    });
 
     it("the pair really is an overkill case at +4 and safe at neutral", () => {
       const l = lead(), e = enemy();

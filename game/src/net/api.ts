@@ -132,7 +132,18 @@ export const api = {
   publicOnlineCount: () => request<{ count: number }>("GET", "/api/public/online"),
 
   // Giveaways
-  listGiveaways: () => request<{ giveaways: PublicGiveaway[] }>("GET", "/api/giveaways"),
+  listGiveaways: () =>
+    request<{ giveaways: PublicGiveaway[]; stats: GiveawayStats; hasMoreHistory: boolean }>(
+      "GET",
+      "/api/giveaways",
+    ),
+  // Read-only, cursor-paged archive. Exists because the list above is capped,
+  // and the entire premise of showing history is that it keeps accumulating.
+  giveawayHistory: (before?: string | null, limit = 20) =>
+    request<{ giveaways: PublicGiveaway[]; hasMore: boolean; nextBefore: string | null }>(
+      "GET",
+      `/api/giveaways/history?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+    ),
   enterGiveaway: (id: string) =>
     request<{ ok: true; alreadyEntered: boolean; entryCount?: number }>(
       "POST",
@@ -425,6 +436,14 @@ export interface GiveawayPrize {
   quantity?: number;
   amount?: number;
   label?: string;
+  /**
+   * The full serialised mon on a `pokemon` prize. The server has ALWAYS sent
+   * this (it is stored whole so nobody has to re-derive stats — see
+   * lib/giveaway.ts) and this type simply never admitted it, which is the only
+   * reason a Pokémon prize could not be drawn as a Pokémon. `speciesKey`,
+   * `isShiny` and `level` are the three fields the sprite path needs.
+   */
+  mon?: Record<string, unknown>;
 }
 
 /**
@@ -447,6 +466,10 @@ export interface PublicGiveaway {
   title: string;
   description: string;
   status: "open" | "closed" | "drawn";
+  /** When it was published. The only date every row is guaranteed to have —
+   *  endsAt and drawnAt are both nullable, so history sorts and labels on
+   *  this when the others are missing. */
+  createdAt: string;
   startsAt: string | null;
   endsAt: string | null;
   drawnAt: string | null;
@@ -457,11 +480,31 @@ export interface PublicGiveaway {
   entryCount: number;
   hasEntered: boolean;
   youWon: boolean;
+  /**
+   * Whether the viewer's own prize has physically landed in their save.
+   * `null` = they did not win, or the win predates the PendingGrant queue and
+   * delivery is simply not knowable — say nothing rather than guess.
+   */
+  youWonDelivered: boolean | null;
   /** Public once drawn. Losers are never listed. */
   winners: string[];
   /** Published after the draw so the result can be independently
    *  recomputed and checked. Null until drawn. */
   drawSeed: string | null;
+}
+
+/**
+ * Lifetime, aggregate-only giveaway numbers, plus the viewer's own record.
+ * One line of these ("13 giveaways · 68 prizes to 39 trainers · since 17 Jul")
+ * is what makes the feature read as real and recurring to somebody who was
+ * offline for the last three.
+ */
+export interface GiveawayStats {
+  total: number;
+  prizesAwarded: number;
+  distinctWinners: number;
+  firstAt: string | null;
+  you: { entered: number; won: number };
 }
 
 export interface PvpHistoryRow {
