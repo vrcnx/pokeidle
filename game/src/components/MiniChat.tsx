@@ -11,6 +11,8 @@ import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 import { AuctionBoard } from "./AuctionBoard";
 import { PollCard } from "./PollCard";
+import { useGame } from "../state/GameContext";
+import { SaveStatusDot } from "./ChannelHeader";
 import { useT } from "../i18n/useT";
 
 // Compact chat panel for the left column. Two tabs:
@@ -43,6 +45,7 @@ export function MiniChat() {
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
   const onlineCount = useOnlineCount();
+  const { saveStatus } = useGame();
   const mute = useMuteList();
   void mute.version; // re-render when mute list changes
 
@@ -129,13 +132,23 @@ export function MiniChat() {
         >
           <span className="mini-chat-dot trade" /> {t("Auctions")}
         </button>
-        <span
-          className="mini-chat-online"
-          title={`${onlineCount} player${onlineCount === 1 ? "" : "s"} online`}
-          aria-label={`${onlineCount} online`}
-        >
-          <span className="mini-chat-online-dot" />
-          {onlineCount}
+        {/* Right side of the single header row. This used to be a second
+            row above — "CHAT" plus the same online count again — which spent
+            44px restating what the tabs already say. The save warning moved
+            down here with it, so it is finally visible on mobile too, where
+            MiniChat renders without a ChannelHeader. It only appears when
+            saving is actually broken; when saving works, saving is
+            invisible. */}
+        <span className="mini-chat-meta">
+          <SaveStatusDot status={saveStatus} />
+          <span
+            className="mini-chat-online"
+            title={`${onlineCount} player${onlineCount === 1 ? "" : "s"} online`}
+            aria-label={`${onlineCount} online`}
+          >
+            <span className="mini-chat-online-dot" />
+            {onlineCount}
+          </span>
         </span>
       </div>
 

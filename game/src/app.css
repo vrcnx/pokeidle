@@ -9618,6 +9618,17 @@ input, textarea, select {
   gap: 4px;
   margin: 0 0 8px;
 }
+/* Right-hand group of the single chat header row. The save warning and the
+   online count used to live in a separate 44px ChannelHeader band above the
+   tabs, which also repeated the online number the tabs row already showed.
+   margin-left:auto is what pushes this group to the right of the tabs. */
+.mini-chat-meta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* "X online" pill on the right of the chat tab strip — sits next to
    the tab buttons, not flexed so its width is just its content. The
    live dot reuses the global-chat green to imply "live, server-wide". */

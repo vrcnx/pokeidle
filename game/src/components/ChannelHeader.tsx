@@ -7,12 +7,25 @@ import { useT } from "../i18n/useT";
 import type { SaveStatus } from "../state/GameContext";
 import type { Announcement, AnnouncementType } from "../net/api";
 
-// The 44px band at the top of the chat column. Normally it just reads
-// "CHAT" with the live online count. When an admin pins a server-wide
-// banner it becomes an announcement card instead — same height, same slot,
-// so the three columns keep their shared top line — while STILL showing the
-// online count on the right. The banner wins the left half; presence keeps
-// the right.
+// The announcement band at the top of the chat column — and NOTHING when
+// there is no announcement.
+//
+// It used to render a permanent 44px row reading "CHAT" plus the online
+// count, sitting directly above MiniChat's tab row, which carries its own
+// online pill. That was two rows and two copies of the same number to say
+// one thing. The label was redundant with the tabs beneath it (GLOBAL /
+// AUCTIONS is unambiguously a chat), so the row is gone and its two pieces
+// that DO carry information — the save-status warning and the online count —
+// moved into MiniChat's tab row, which was already there.
+//
+// The banner still gets its own band, because an admin pinning "the server
+// restarts in 10 minutes" must not have to compete with tab chrome for the
+// space. It just no longer reserves that band when there is nothing to say.
+//
+// SaveStatusDot is exported for MiniChat. It is worth noting that MiniChat
+// also renders standalone on mobile (MobileShell), which never had a
+// ChannelHeader — so before this change a phone could never show the
+// "Not backing up" warning at all. Moving it here fixes that too.
 export function ChannelHeader() {
   const { saveStatus } = useGame();
   const online = useOnlineCount();
@@ -21,6 +34,8 @@ export function ChannelHeader() {
   const t = useT();
 
   const showBanner = !!announcement && !(dismissed && META[announcement.type].dismissible);
+  // No banner, no band. MiniChat's tab row carries presence and save status.
+  if (!showBanner) return null;
 
   return (
     <div
@@ -28,20 +43,7 @@ export function ChannelHeader() {
       role="banner"
       aria-label={showBanner ? t("Announcement") : t("Chat")}
     >
-      {showBanner
-        ? <AnnouncementBody a={announcement!} onDismiss={() => dismiss(announcement!.id)} />
-        : <span className="channel-header-label">{t("CHAT")}</span>}
-
-      <span className="channel-header-meta">
-        <SaveStatusDot status={saveStatus} />
-        {online > 0 && (
-          <span className="channel-header-online" title={`${online} player${online === 1 ? "" : "s"} online`}>
-            <span className="channel-header-online-dot" />
-            <span className="tabular">{online}</span>
-            <span className="dim small">{t("online")}</span>
-          </span>
-        )}
-      </span>
+      <AnnouncementBody a={announcement!} onDismiss={() => dismiss(announcement!.id)} />
     </div>
   );
 }
@@ -147,7 +149,7 @@ function useDismissed(currentId: string | null): boolean {
 // Compact dot+text save status. Only speaks when the game genuinely cannot
 // keep the player's progress — see the long note that used to live here.
 // When saving works, saving is invisible.
-function SaveStatusDot({ status }: { status: SaveStatus }) {
+export function SaveStatusDot({ status }: { status: SaveStatus }) {
   const t = useT();
   if (status === "rejected") {
     return (
