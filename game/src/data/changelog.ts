@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.4";
+export const CURRENT_VERSION = "0.9.5";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,65 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.5",
+      subtitle: "PvP is a real battle now, and a pile of things that quietly did nothing",
+      date: "2026-07-30",
+      sections: [
+        {
+          heading: "⚔️ PvP is a proper battle screen",
+          items: [
+            "PvP takes over the game window: your battle in the centre, your team and the opponent's on the right, the message box along the bottom — \"Darkrai used Shadow Ball!\", \"It's super effective!\" — and the same attack animations the rest of the game uses",
+            "Everything the engine was already doing is finally visible. Paralysis, sleep, flinch and freeze now SAY so — before, your turn just did nothing and no line explained why. Same for type effectiveness, stat boosts, weather, hazards, Substitute, held items and abilities. The battles were always this detailed; you just couldn't see any of it",
+            "BOT BATTLES. Nobody else queued? Practise against an AI instead. Never rated, always labelled, and level-matched to your team",
+            "TEAM PREVIEW: see the opponent's Pokémon and pick your lead before turn one, the way a real battle simulator does",
+            "Win, lose or draw now ends in a proper result screen with your rating change — and a Battle Again button, instead of dumping you back out",
+            "Everything is manual. No auto-battling in PvP, and it runs at normal speed no matter what you've set the idle game to",
+          ],
+        },
+        {
+          heading: "⚖️ Ranked was unplayable for almost everyone, and nobody knew",
+          items: [
+            "The Lv 50 queue only ever levelled Pokémon DOWN. If your team was under 50 — and 87% of accounts are — you kept your real levels and fought opponents scaled to 50. Roughly 94% of players were entering ranked at a disadvantage they couldn't see. Everyone is now set to exactly the format level, both directions",
+            "Competitive rules apply: no Sleep-spamming a whole team, no Fissure or Sheer Cold, no Double Team, and endless stalling can't run forever",
+            "A disconnect is no longer an instant loss. You get 45 seconds to reconnect, your opponent is told what's happening instead of watching a frozen timer, and a battle killed by a server restart is voided rather than counted",
+          ],
+        },
+        {
+          heading: "🐛 Things that were silently doing nothing",
+          items: [
+            "Clicking a Pokémon sometimes did nothing at all. Holding the click a fraction too long — or moving the mouse 5 pixels — made the game treat it as a drag and swallow the click entirely. On a trackpad this happened constantly. Fixed",
+            "Evolving a shiny registered the evolution as a NORMAL Pokémon in your dex. Shiny Growlithe → Arcanine, and the dex recorded a plain Arcanine. Fixed, and the 160 entries this destroyed across 68 accounts are being restored",
+            "The auto-catch screen lied. It showed a green ✓ CATCH on species your settings were actually skipping — 444 accounts had every Route 1 Pokémon badged CATCH while nothing was ever thrown. The badge now tells the truth",
+            "Effectiveness and +XP popups stopped appearing after about eight battles and never came back until you refreshed",
+            "Your MASTER BALL could be spent automatically. If your selected balls ran out and a shiny appeared, the game reached for the next ball it could find — and that list ended with the Master Ball. It is now never thrown unless you choose it yourself",
+          ],
+        },
+        {
+          heading: "📦 PC, Pokédex and quality of life",
+          items: [
+            "BULK RELEASE: select several Pokémon in the PC and release them together, with one confirmation that names the count. Two of you asked for this while trying to clear hundreds of Magikarp",
+            "Nicknames now show everywhere — party, PC, battle text, level-ups — instead of only in the rename box",
+            "EV gains are finally shown when you earn them. They were always being awarded; nothing ever told you",
+            "\"Not caught yet\" split into \"Not registered\" and \"Not owned\", so releasing or trading a species can bring it back into scope",
+            "The Pokédex was rebuilt. Where to Find comes FIRST now, sorted best-route-first, with your current location pinned — and shiny odds are stated plainly at last: 1/8,192, or 1/4,096 with the Shiny Charm, the same on every route",
+            "Trainer intro animations respect game speed. At 5× they were still playing at full length and stalling the battle",
+            "Away progress: close the tab and come back to catch-up rewards for the time you were gone",
+            "Auto-heal settings, and the Heal button moved to the Party card where it belongs",
+          ],
+        },
+        {
+          heading: "💰 Auctions, giveaways and speed",
+          items: [
+            "MAXIMUM BIDS. Set the most you're willing to pay and the game bids for you, only as high as it needs to. The lot goes to whoever valued it most — not whoever happened to be refreshing at the right second",
+            "Minimum raises now scale with the price and with how contested a lot is. Before this, 87% of every bid ever placed was a raise of $10 or less, and most auctions were decided by a $5 click",
+            "Minimum starting bid is $500. Pokémon were being listed for $1 by accident",
+            "A GIVEAWAY BUTTON in the sidebar, plus a history of past giveaways and their winners. Only 67 players had ever entered one — because unless you were online the moment it was announced, there was no way to find it",
+            "5× speed is retired. The game runs at 1× or 2× now",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.4",
       subtitle: "PvP actually works, a PC you can see, and your name is yours",
