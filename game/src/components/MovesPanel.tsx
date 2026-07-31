@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useGame } from "../state/GameContext";
+import { useAuth } from "../auth/AuthContext";
 import { moves as movesTable } from "../data/moves";
 import { openManageMoves } from "./ManageMovesModal";
 import { ControlsPopover } from "./ControlsPopover";
@@ -113,16 +115,51 @@ function moveTooltip(
 // Standalone toolbar bar that lives between the battle scene and the moves
 // grid. Holds speed, heal, manage, and the More popover. Rendered separately
 // from the moves card so it reads as a global controls strip.
+// 5x is no longer offered to players — 1x and 2x only. It stays available to
+// admins and to the 24-7 stream, which is an operator-run showcase and needs
+// to cover ground on camera.
+//
+// This is a UI gate, not a security boundary, and it is not pretending to be
+// one: SET_SPEED is a client reducer and the save is client-authoritative, so
+// anyone determined can still write speed:5 into their own blob. That is
+// fine. The point is that the game no longer OFFERS it, not that it is
+// cryptographically forbidden.
+//
+// Migration matters here more than the gate does: 850 of 2,327 accounts
+// (36.5%) were sitting on 5x when this shipped. Hiding the button alone would
+// have left every one of them stuck at a speed the UI could no longer show or
+// change — the segment would render 1x/2x with neither marked active, and
+// clicking either would feel like a downgrade with no explanation. So a
+// non-admin found above 2x is moved to 2x once, and told why in the battle
+// log rather than silently.
+const PLAYER_SPEEDS = [1, 2];
+const ADMIN_SPEEDS = [1, 2, 5];
+const MAX_PLAYER_SPEED = 2;
+
 export function MovesToolbar() {
   const { state, dispatch } = useGame();
+  const { me } = useAuth();
   const t = useT();
   const player = state.playerPokemon;
   const activeIdx = state.activePlayerPokemonIndex;
+  const canFastForward = !!me?.isAdmin || !!me?.isStream;
+  const speedChoices = canFastForward ? ADMIN_SPEEDS : PLAYER_SPEEDS;
+
+  // Pull a player down off a speed that no longer exists for them. Keyed on
+  // the resolved flag rather than firing before the profile has loaded —
+  // `me` is null while auth is still resolving, and clamping then would
+  // briefly demote an admin on every refresh.
+  useEffect(() => {
+    if (!me) return;
+    if (canFastForward) return;
+    if (state.speed <= MAX_PLAYER_SPEED) return;
+    dispatch({ type: "SET_SPEED", payload: { speed: MAX_PLAYER_SPEED } });
+  }, [me, canFastForward, state.speed, dispatch]);
 
   return (
     <div className="moves-toolbar" role="toolbar" aria-label={t("Game controls")}>
       <div className="moves-toolbar-group speed-segment" role="group" aria-label={t("Game speed")}>
-        {[1, 2, 5].map((s) => (
+        {speedChoices.map((s) => (
           <button
             key={s}
             type="button"

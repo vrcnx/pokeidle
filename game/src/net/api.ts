@@ -672,6 +672,9 @@ export interface MeProfile {
    *  never carries its own copy of the cooldown length. */
   usernameChangeAllowedAt?: string | null;
   displayNameChangeAllowedAt?: string | null;
+  /** True for an admin account. Used to gate admin-only affordances in the
+   *  UI (the 5x speed). Never a security boundary — see the server comment. */
+  isAdmin?: boolean;
   /** True when this is a restricted OBS/24-7 stream auto-login session.
    *  The client uses it to auto-dismiss popups (update / daily / etc.) and
    *  hide sensitive UI (trades, auctions, account settings). */
