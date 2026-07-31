@@ -16,7 +16,7 @@ import { getSocket } from "../net/socket";
 
 export interface AuctionNotification {
   id: string;
-  kind: "outbid" | "won" | "sold" | "cancelled" | "expired";
+  kind: "outbid" | "won" | "sold" | "cancelled" | "expired" | "proxy_dropped";
   auctionId: string;
   text: string;
 }
@@ -66,6 +66,37 @@ export interface AuctionBidEvent {
   amount: number;
   username: string;
   endsAt: string;
+  /** Contest counts, so the bid box can recompute the next minimum live.
+   *  Absent on payloads from a server that predates proxy bidding. */
+  bidCount?: number;
+  distinctBidders?: number;
+}
+
+/** A proxy maximum that the bidder's synced balance can no longer cover. */
+export interface AuctionProxyDroppedEvent {
+  auctionId: string;
+  yourMax: number;
+  balance: number;
+  priceNow: number;
+}
+type ProxyDroppedListener = (e: AuctionProxyDroppedEvent) => void;
+const _proxyDroppedListeners = new Set<ProxyDroppedListener>();
+export function onAuctionProxyDropped(fn: ProxyDroppedListener): () => void {
+  _proxyDroppedListeners.add(fn);
+  return () => { _proxyDroppedListeners.delete(fn); };
+}
+
+/**
+ * Fired when THIS player loses the lead on an auction. The authoritative
+ * signal, and the only one available: a bid tick alone cannot distinguish
+ * "you were outbid" from "your proxy defended and you still lead", because
+ * the client has no copy of its own username to compare against.
+ */
+type OutbidListener = (e: { auctionId: string; amount: number; username: string }) => void;
+const _outbidListeners = new Set<OutbidListener>();
+export function onAuctionOutbid(fn: OutbidListener): () => void {
+  _outbidListeners.add(fn);
+  return () => { _outbidListeners.delete(fn); };
 }
 type BidListener = (e: AuctionBidEvent) => void;
 const _bidListeners = new Set<BidListener>();
@@ -86,12 +117,30 @@ export function bindAuctionUiSocket(): void {
     for (const fn of _bidListeners) fn(payload);
   });
   sock.on("auction:outbid", (payload: { auctionId: string; amount: number; username: string }) => {
-    pushAuctionNotification("outbid", payload.auctionId, `${payload.username} outbid you at $${payload.amount}.`);
+    for (const fn of _outbidListeners) fn(payload);
+    pushAuctionNotification(
+      "outbid",
+      payload.auctionId,
+      `${payload.username} outbid you at $${payload.amount.toLocaleString("en-US")}.`,
+    );
   });
   sock.on("auction:cancelled", (payload: { auctionId: string; reason: string }) => {
     pushAuctionNotification("cancelled", payload.auctionId, `An auction was cancelled (${payload.reason.replace(/_/g, " ")}).`);
   });
   sock.on("auction:expired", (payload: { auctionId: string }) => {
     pushAuctionNotification("expired", payload.auctionId, "Your auction ended with no bids.");
+  });
+  // The VISIBLE failure mode of "money is not escrowed on bid": the server
+  // will not raise on your behalf past what your synced balance covers, so
+  // your maximum is paused rather than silently ignored. The toast is the
+  // fast path; AuctionBoard also renders a durable badge from GET /mine,
+  // because this can fire while the player is offline.
+  sock.on("auction:proxy_dropped", (payload: AuctionProxyDroppedEvent) => {
+    for (const fn of _proxyDroppedListeners) fn(payload);
+    pushAuctionNotification(
+      "proxy_dropped",
+      payload.auctionId,
+      `Your maximum is paused — your synced balance is $${payload.balance.toLocaleString("en-US")} and bidding has passed it. Sync and raise your maximum to stay in.`,
+    );
   });
 }

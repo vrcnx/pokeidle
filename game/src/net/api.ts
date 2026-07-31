@@ -167,8 +167,12 @@ export const api = {
   myAuctions: () => request<{ selling: PublicAuction[]; bidding: PublicAuction[] }>("GET", "/api/auctions/mine"),
   createAuction: (input: { pokemonId: string; startingBid: number; durationMinutes: number }) =>
     request<{ auction: PublicAuction }>("POST", "/api/auctions", input),
+  /**
+   * `amount` is the bidder's MAXIMUM, not the price they pay. The server
+   * raises on their behalf by the minimum increment only as far as it must.
+   */
   placeBid: (id: string, amount: number) =>
-    request<{ ok: true; currentBid: number; endsAt: string }>("POST", `/api/auctions/${id}/bids`, { amount }),
+    request<PlaceBidResult>("POST", `/api/auctions/${id}/bids`, { amount }),
   cancelAuction: (id: string) => request<{ ok: true }>("POST", `/api/auctions/${id}/cancel`),
 
   // Saves
@@ -412,15 +416,52 @@ export interface PublicPoll {
 export interface PublicAuction {
   id: string;
   sellerUsername: string | null;
+  /**
+   * True when this is the VIEWER'S OWN listing. The server refuses a bid on
+   * your own lot, so the card renders a "this is yours" panel instead of a
+   * bid box that can never succeed.
+   */
+  youAreSeller: boolean;
   pokemon: unknown; // Pokemon snapshot at listing time — cast at the call site
   startingBid: number;
   currentBid: number;
   currentBidderUsername: string | null;
   bidCount: number;
+  /** Distinct bidders — the signal the minimum increment escalates on. */
+  distinctBidders: number;
+  /**
+   * What THIS viewer must bid at least, computed server-side for this
+   * viewer specifically (a returning repeat-bidder faces a higher minimum
+   * than a newcomer). Display and prefill only — the server recomputes it
+   * on submit and is the sole authority.
+   */
+  minNextBid: number;
+  /** The raise component of minNextBid, for explaining the rule. 0 if unbid. */
+  minIncrement: number;
+  youAreHighBidder: boolean;
+  /**
+   * The viewer's OWN secret maximum on this lot, or null. The server only
+   * ever populates this for its owner — no response contains anyone else's.
+   */
+  yourMax: number | null;
   status: "active" | "sold" | "cancelled" | "expired";
   endsAt: string;
   createdAt: string;
   settledAt: string | null;
+}
+
+/** Response to POST /api/auctions/:id/bids. */
+export interface PlaceBidResult {
+  ok: true;
+  currentBid: number;
+  endsAt: string;
+  youAreHighBidder: boolean;
+  /** Your own maximum, echoed back. Never another player's. */
+  yourMax: number | null;
+  /** True when a hidden maximum beat you the instant you submitted. */
+  outbidImmediately?: boolean;
+  /** False when you only raised your own maximum — the price did not move. */
+  priceMoved: boolean;
 }
 
 export interface AuctionBid {

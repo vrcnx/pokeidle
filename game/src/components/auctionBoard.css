@@ -1,0 +1,234 @@
+/* Auction bidding chrome — the rule explanation, the maximum-bid field and
+ * the proxy-paused badge.
+ *
+ * Its own file rather than an addition to app.css, following the
+ * pvpArena.css / giveaways.css / releaseControls.css pattern. app.css is
+ * ~600KB with rules from several eras that already fight each other, and it
+ * is under concurrent edit by other work; a separate file imported by
+ * AuctionBoard.tsx cannot collide with either, and Vite inlines it the same
+ * way.
+ *
+ * Everything here is namespaced `auc2-`. The existing .auction-card /
+ * .auction-card-actions / .g-btn-* classes in app.css are reused untouched,
+ * so this adds only genuinely new chrome.
+ *
+ * NO `!important` anywhere in this file — deliberately. Every selector below
+ * is a new `auc2-` class with nothing in app.css to override.
+ *
+ * ── WHY THE SIZES ARE px AND NOT em ──────────────────────────────────
+ * These rules originally used em multipliers (0.78em–0.85em). MEASURED in a
+ * browser at both target viewports, that compounded straight through the
+ * floor: index.css sets `body { font-size: 10px }`, so the desktop chat rail
+ * rendered the rule at 8.5px and its breakdown at 7.8px, and inside the
+ * mobile card (9px) the hint and the secrecy promise rendered at 7.02px.
+ * This is the text whose entire job is to state the minimum BEFORE the player
+ * types, in a pixel font, and 7px cannot do that job.
+ *
+ * `--fs-2xs: 10px` is the SMALLEST size token this app defines and `--fs-xs`
+ * (11px) is what the card's own price line already uses, so nothing here now
+ * renders below the design system's own floor, and nothing compounds.
+ */
+
+/* ── The rule, stated before the player types ─────────────────────── */
+
+.auc2-min {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  margin: 4px 0 2px;
+  /* The price line above it is var(--fs-xs); the rule that governs the price
+     should not be smaller than the price. */
+  font-size: var(--fs-xs, 11px);
+  line-height: 1.35;
+}
+
+.auc2-min-label {
+  opacity: 0.7;
+}
+
+.auc2-min-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.auc2-min-breakdown {
+  opacity: 0.6;
+  /* px, not a second em multiplier on top of .auc2-min's — that is what
+     produced 7.04px on a phone. */
+  font-size: var(--fs-2xs, 10px);
+}
+
+/* Shown only when the contest multiplier has actually engaged. */
+.auc2-heating {
+  margin: 3px 0 2px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.35;
+  background: rgba(255, 168, 64, 0.14);
+  border: 1px solid rgba(255, 168, 64, 0.35);
+}
+
+/* ── The maximum-bid field, which is the primary control ──────────── */
+
+.auc2-bidbox {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+
+.auc2-bidrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.auc2-bidrow input[type="number"] {
+  flex: 1 1 9em;
+  min-width: 0;
+}
+
+/* THE TOUCH TARGET. The Bid button already reaches 44px on a coarse pointer
+ * via app.css's WCAG 2.5.5 block (`.g-btn-primary { min-height: 44px }`), but
+ * that block covers only `.auth-form input, .login-form input` — so the
+ * maximum-bid field, which is the primary control of this whole feature,
+ * MEASURED 27px on a phone while the button beside it measured 44px. Same
+ * 44px here so the row is one consistent, thumb-sized target. */
+@media (pointer: coarse) {
+  .auc2-bidrow input[type="number"] {
+    min-height: 44px;
+  }
+
+  /* THE OTHER TWO SUB-40px TARGETS in this board, measured at 390x760 with
+   * app.css's own coarse-pointer rules applied: the Browse / My Auctions
+   * segmented tabs came out 25px, and the "Show bids" link 14px. Both are
+   * styled in app.css, which this work is not allowed to edit — so they are
+   * raised here instead, from the stylesheet AuctionBoard.tsx already imports.
+   *
+   * Two-class selectors (0,2,0) rather than one (0,1,0): that beats the
+   * app.css rules on specificity regardless of which stylesheet Vite happens
+   * to emit first, so this cannot regress on a bundling change. No
+   * `!important` — nothing here needs it.
+   *
+   * inline-flex + centring, not padding: padding would move the text and
+   * change the look on desktop too. This grows only the hit box, and only on
+   * a touch device. */
+  .auction-board .auction-board-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .auction-card .auction-card-bidlink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+.auc2-maxlabel {
+  font-size: var(--fs-xs, 11px);
+  font-weight: 600;
+}
+
+.auc2-hint {
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.4;
+  opacity: 0.78;
+}
+
+.auc2-hint strong {
+  opacity: 0.95;
+}
+
+/* The secrecy promise — the reason the whole mechanism works, so it is on
+ * screen rather than in a help page. */
+.auc2-secret {
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.4;
+  opacity: 0.78;
+}
+
+.auc2-yourmax {
+  font-size: var(--fs-xs, 11px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── You already hold this lot ─────────────────────────────────────── */
+
+.auc2-leading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs, 11px);
+}
+
+.auc2-leading-badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs, 10px);
+  font-weight: 700;
+  background: rgba(64, 200, 120, 0.18);
+  border: 1px solid rgba(64, 200, 120, 0.4);
+}
+
+/* ── Proxy paused: insufficient funds ─────────────────────────────── */
+
+.auc2-paused {
+  margin: 4px 0;
+  padding: 5px 7px;
+  border-radius: 6px;
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.4;
+  background: rgba(230, 72, 72, 0.14);
+  border: 1px solid rgba(230, 72, 72, 0.42);
+}
+
+.auc2-paused-title {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* ── Your own listing: no bid box, an explanation instead ─────────── */
+
+.auc2-own {
+  margin: 4px 0;
+  padding: 5px 7px;
+  border-radius: 6px;
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.4;
+  background: rgba(192, 132, 252, 0.12);
+  border: 1px solid rgba(192, 132, 252, 0.34);
+}
+
+.auc2-own-title {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* ── Listing form ─────────────────────────────────────────────────── */
+
+.auc2-floor {
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.4;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.auc2-floor-bad {
+  opacity: 1;
+  color: #e64848;
+}
+
+@media (prefers-color-scheme: dark) {
+  .auc2-floor-bad {
+    color: #ff8a8a;
+  }
+}

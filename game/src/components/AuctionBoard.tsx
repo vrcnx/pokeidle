@@ -2,12 +2,36 @@ import { useEffect, useState } from "react";
 import { api, type PublicAuction, type AuctionBid } from "../net/api";
 import { useGame } from "../state/GameContext";
 import { PokemonSprite } from "./Sprite";
-import { watchAuction, unwatchAuction, onAuctionBid } from "../state/auctions";
+import {
+  watchAuction, unwatchAuction, onAuctionBid, onAuctionOutbid, onAuctionProxyDropped,
+} from "../state/auctions";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
 import type { Pokemon } from "../types";
+import {
+  MIN_STARTING_BID, baseStepFor, bidFloorFor, concentrationRatio, conservativeMinBid,
+  contestMultiplier, formatMoney, minIncrementFor, prefillBidAmount,
+} from "../utils/auctionBidRules";
+import "./auctionBoard.css";
 
 type BoardView = "browse" | "list" | "mine";
+
+/** Fold a live bid tick into a card, recomputing the displayed minimum.
+ *  `conservativeMinBid` deliberately errs HIGH — see its doc comment. */
+function applyBidTick(a: PublicAuction, e: {
+  amount: number; username: string; endsAt: string; bidCount?: number; distinctBidders?: number;
+}): PublicAuction {
+  const next = {
+    ...a,
+    currentBid: e.amount,
+    currentBidderUsername: e.username,
+    endsAt: e.endsAt,
+    bidCount: e.bidCount ?? a.bidCount + 1,
+    distinctBidders: e.distinctBidders ?? a.distinctBidders,
+  };
+  const minNextBid = conservativeMinBid(next);
+  return { ...next, minNextBid, minIncrement: next.currentBid > 0 ? minNextBid - next.currentBid : 0 };
+}
 
 function timeLeft(endsAt: string): string {
   const ms = new Date(endsAt).getTime() - Date.now();
@@ -75,12 +99,17 @@ export function AuctionBoard() {
     if (view !== "browse") return;
     for (const a of auctions) watchAuction(a.id);
     const off = onAuctionBid((e) => {
-      setAuctions((prev) => prev.map((a) => a.id === e.auctionId
-        ? { ...a, currentBid: e.amount, currentBidderUsername: e.username, endsAt: e.endsAt, bidCount: a.bidCount + 1 }
-        : a));
+      setAuctions((prev) => prev.map((a) => (a.id === e.auctionId ? applyBidTick(a, e) : a)));
+    });
+    // Losing the lead is the ONE thing a bid tick cannot tell us (a tick may
+    // equally be our own proxy defending), so take it from the server.
+    const offOutbid = onAuctionOutbid((e) => {
+      setAuctions((prev) => prev.map((a) => (a.id === e.auctionId
+        ? { ...a, youAreHighBidder: false, yourMax: null } : a)));
     });
     return () => {
       off();
+      offOutbid();
       for (const a of auctions) unwatchAuction(a.id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,15 +124,28 @@ export function AuctionBoard() {
     for (const a of watched) watchAuction(a.id);
     const off = onAuctionBid((e) => {
       setMine((prev) => prev && ({
-        selling: prev.selling.map((a) => a.id === e.auctionId
-          ? { ...a, currentBid: e.amount, currentBidderUsername: e.username, endsAt: e.endsAt, bidCount: a.bidCount + 1 } : a),
-        bidding: prev.bidding.map((a) => a.id === e.auctionId
-          ? { ...a, currentBid: e.amount, currentBidderUsername: e.username, endsAt: e.endsAt, bidCount: a.bidCount + 1 } : a),
+        selling: prev.selling.map((a) => (a.id === e.auctionId ? applyBidTick(a, e) : a)),
+        bidding: prev.bidding.map((a) => (a.id === e.auctionId ? applyBidTick(a, e) : a)),
       }));
     });
-    return () => { off(); for (const a of watched) unwatchAuction(a.id); };
+    const offOutbid = onAuctionOutbid((e) => {
+      setMine((prev) => prev && ({
+        selling: prev.selling,
+        bidding: prev.bidding.map((a) => (a.id === e.auctionId
+          ? { ...a, youAreHighBidder: false, yourMax: null } : a)),
+      }));
+    });
+    return () => { off(); offOutbid(); for (const a of watched) unwatchAuction(a.id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, (mine?.bidding ?? []).map((a) => a.id).join(","), (mine?.selling ?? []).map((a) => a.id).join(",")]);
+
+  // A maximum the player's synced balance can no longer cover. Held here so
+  // the badge survives re-renders of the card; GET /mine's balance check
+  // (see AuctionCard) is the durable half that survives a reload.
+  const [pausedIds, setPausedIds] = useState<Set<string>>(new Set());
+  useEffect(() => onAuctionProxyDropped((e) => {
+    setPausedIds((prev) => new Set(prev).add(e.auctionId));
+  }), []);
 
   return (
     <div className="auction-board">
@@ -136,7 +178,7 @@ export function AuctionBoard() {
           {loading && auctions.length === 0 && <div className="dim small">{t("Loading…")}</div>}
           {!loading && auctions.length === 0 && <div className="dim small">{t("No active auctions right now.")}</div>}
           {auctions.map((a) => (
-            <AuctionCard key={a.id} auction={a} onBid={load} />
+            <AuctionCard key={a.id} auction={a} onBid={load} proxyPaused={pausedIds.has(a.id)} />
           ))}
         </div>
       )}
@@ -148,7 +190,9 @@ export function AuctionBoard() {
           {mine?.selling.map((a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />)}
           <h4 className="auction-board-subhead">{t("Bidding on")}</h4>
           {(mine?.bidding.length ?? 0) === 0 && <div className="dim small">{t("You haven't bid on anything.")}</div>}
-          {mine?.bidding.map((a) => <AuctionCard key={a.id} auction={a} onBid={loadMine} />)}
+          {mine?.bidding.map((a) => (
+            <AuctionCard key={a.id} auction={a} onBid={loadMine} proxyPaused={pausedIds.has(a.id)} />
+          ))}
         </div>
       )}
 
@@ -164,14 +208,56 @@ export function AuctionBoard() {
   );
 }
 
-function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onBid: () => void; readOnly?: boolean }) {
+export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
+  auction: PublicAuction; onBid: () => void; readOnly?: boolean; proxyPaused?: boolean;
+}) {
   const t = useT();
-  const { syncNow } = useGame();
+  const { state, syncNow } = useGame();
   const mon = auction.pokemon as (Pokemon & { speciesKey: string }) | null;
-  const [amount, setAmount] = useState<number>(auction.currentBid > 0 ? auction.currentBid + 1 : auction.startingBid);
+  // THE PREFILLED NUMBER, which differs by state and must never be a number
+  // the server will refuse:
+  //   * challenging  -> the minimum acceptable bid;
+  //   * already leading -> your OWN maximum plus a meaningful raise, because
+  //     a maximum can only be RAISED. Seeding this from minNextBid (which is
+  //     computed against the public price, far below your hidden maximum)
+  //     prefilled a number the server rejects outright — caught by rendering
+  //     the real card, not by any typecheck.
+  const [amount, setAmount] = useState<number>(() => prefillBidAmount(auction));
+  const floor = bidFloorFor(auction);
+  // Whether the player has edited the field. An untouched field TRACKS the
+  // live minimum; a touched one is left alone so a half-typed number is
+  // never clobbered mid-keystroke.
+  const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showBids, setShowBids] = useState(false);
   const [bids, setBids] = useState<AuctionBid[] | null>(null);
+
+  // THE PREFILL FIX. AuctionCard previously had NO effect at all, so `amount`
+  // kept its mount-time value forever: the parent re-rendered the card with a
+  // fresh `auction` prop on every socket tick and 20-second poll, but React
+  // preserved the state because `key={a.id}` keeps the same instance alive.
+  // The player then clicked Bid with a stale number and got a bare rejection.
+  // That was off by $1 under the old +1 rule; under the new increments it
+  // would be off by up to $50,000, so this is a prerequisite for shipping
+  // them rather than a nicety.
+  useEffect(() => {
+    const target = prefillBidAmount(auction);
+    setAmount((prev) => (touched && prev >= floor ? prev : target));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auction.minNextBid, auction.currentBid, auction.yourMax, auction.youAreHighBidder, floor, touched]);
+
+  const money = state.money ?? 0;
+  const isLeading = auction.youAreHighBidder;
+  // The escalation has engaged. Computed conservatively (as for a returning
+  // bidder) so the notice never under-claims.
+  const multiplier = auction.currentBid > 0
+    ? contestMultiplier(concentrationRatio(auction.bidCount, auction.distinctBidders, false))
+    : 1;
+  // Durable half of the "your maximum is paused" signal: survives a reload,
+  // unlike the socket event, because it is derived from live balance vs the
+  // live minimum rather than from an event the player may have been offline for.
+  const cannotCoverMinimum = !readOnly && auction.status === "active"
+    && !isLeading && money < auction.minNextBid;
 
   const bid = async () => {
     setBusy(true);
@@ -181,8 +267,21 @@ function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onB
       // just earned money (but hasn't autosaved yet) gets a wrong "insufficient
       // funds" rejection. This is the "no funds despite 67M" fix.
       await syncNow();
-      await api.placeBid(auction.id, amount);
-      pushToast({ kind: "success", text: t("Bid placed!") });
+      const res = await api.placeBid(auction.id, amount);
+      if (!res.priceMoved) {
+        pushToast({ kind: "success", text: t("Maximum raised to") + ` ${formatMoney(res.yourMax ?? amount)}.` });
+      } else if (res.outbidImmediately) {
+        // Without this the player is outbid in the same second they bid and
+        // it reads as a bug rather than as somebody else valuing it higher.
+        pushToast({
+          kind: "warn",
+          text: t("Outbid — another player's hidden maximum is higher. The price is now")
+            + ` ${formatMoney(res.currentBid)}.`,
+        });
+      } else {
+        pushToast({ kind: "success", text: t("You're the highest bidder at") + ` ${formatMoney(res.currentBid)}.` });
+      }
+      setTouched(false);
       onBid();
     } catch (e: any) {
       pushToast({ kind: "warn", text: e?.message ?? t("Couldn't place bid.") });
@@ -224,7 +323,14 @@ function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onB
       <div className="auction-card-bid-info">
         <div>
           <span className="dim small">{auction.bidCount > 0 ? t("Current bid") : t("Starting bid")}</span>
-          <strong className="auction-card-amount">${auction.currentBid > 0 ? auction.currentBid : auction.startingBid}</strong>
+          {/* GROUPED. This was a bare `${number}`, so the headline price read
+              "$90000000" three lines above "$90,250,000" on the same card —
+              measured in a browser. At these magnitudes the player has to
+              count digits to tell $9M from $90M, and the whole point of the
+              rule text below is that the numbers are legible. */}
+          <strong className="auction-card-amount">
+            {formatMoney(auction.currentBid > 0 ? auction.currentBid : auction.startingBid)}
+          </strong>
         </div>
         <div className="dim small">{t("Ends in")} {timeLeft(auction.endsAt)} · {auction.bidCount} {t("bids")}</div>
         <button type="button" className="auction-card-bidlink" onClick={toggleBids}>
@@ -233,19 +339,135 @@ function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onB
         {showBids && bids && (
           <ul className="auction-card-bid-history">
             {bids.length === 0 && <li className="dim small">{t("No bids yet.")}</li>}
-            {bids.map((b) => <li key={b.id}>{b.username} — ${b.amount}</li>)}
+            {bids.map((b) => <li key={b.id}>{b.username} — {formatMoney(b.amount)}</li>)}
           </ul>
         )}
       </div>
-      {!readOnly && (
-        <div className="auction-card-actions">
-          <input
-            type="number"
-            min={auction.currentBid > 0 ? auction.currentBid + 1 : auction.startingBid}
-            value={amount}
-            onChange={(e) => setAmount(parseInt(e.target.value, 10) || 0)}
-          />
-          <button className="g-btn-primary g-btn-small" disabled={busy} onClick={bid}>{t("Bid")}</button>
+      {/* YOUR OWN LISTING. The server has always refused this bid; what it
+          could not do was stop the client OFFERING it. Browse used to render a
+          full, enabled bid box on your own Pokemon and the only feedback was a
+          lowercase toast after a round trip. */}
+      {!readOnly && auction.youAreSeller && auction.status === "active" && (
+        <div className="auction-card-actions auc2-bidbox">
+          <div className="auc2-own">
+            <strong className="auc2-own-title">{t("This is your listing")}</strong>
+            {t("You can't bid on your own auction. It settles automatically when the timer runs out.")}
+          </div>
+        </div>
+      )}
+      {!readOnly && !auction.youAreSeller && auction.status === "active" && (
+        <div className="auction-card-actions auc2-bidbox">
+          {proxyPaused && (
+            <div className="auc2-paused">
+              <strong className="auc2-paused-title">{t("Maximum paused")}</strong>
+              {t("Bidding has passed your synced balance, so we stopped raising for you. Sync and set a higher maximum to stay in.")}
+            </div>
+          )}
+          {isLeading ? (
+            <>
+              <div className="auc2-leading">
+                <span className="auc2-leading-badge">{t("You're the highest bidder")}</span>
+                <span className="dim">{t("at")} {formatMoney(auction.currentBid)}</span>
+              </div>
+              {auction.yourMax !== null && (
+                <div className="auc2-yourmax">
+                  {t("Your maximum")}: {formatMoney(auction.yourMax)} <span className="dim">({t("only you can see this")})</span>
+                </div>
+              )}
+              <div className="auc2-hint">
+                {t("You can't bid against yourself. Raise your maximum instead — the price only moves if someone challenges you.")}
+              </div>
+              <div className="auc2-bidrow">
+                <input
+                  type="number"
+                  aria-label={t("Raise your maximum")}
+                  min={floor}
+                  value={amount}
+                  onChange={(e) => { setTouched(true); setAmount(parseInt(e.target.value, 10) || 0); }}
+                />
+                <button
+                  className="g-btn-primary g-btn-small"
+                  disabled={busy || amount < floor}
+                  onClick={bid}
+                >
+                  {t("Raise my maximum")}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* THE RULE, STATED BEFORE THE PLAYER TYPES. `min={}` on the
+                  input is invisible here — the Bid button is not a form
+                  submit, so native validation never fires. It has to be text. */}
+              <div className="auc2-min">
+                <span className="auc2-min-label">{t("Minimum bid")}:</span>
+                <span className="auc2-min-amount">{formatMoney(auction.minNextBid)}</span>
+                {auction.currentBid > 0 && (
+                  <span className="auc2-min-breakdown">
+                    ({formatMoney(auction.currentBid)} + {formatMoney(auction.minIncrement)})
+                  </span>
+                )}
+                {auction.currentBid === 0 && (
+                  <span className="auc2-min-breakdown">({t("the seller's starting bid")})</span>
+                )}
+              </div>
+              {multiplier > 1 && (
+                <div className="auc2-heating">
+                  {t("Bidding is heating up — a small group keeps raising, so the minimum raise has risen to")}
+                  {" "}<strong>{formatMoney(auction.minIncrement)}</strong>.
+                </div>
+              )}
+              {cannotCoverMinimum && (
+                <div className="auc2-paused">
+                  <strong className="auc2-paused-title">{t("You can't cover the minimum")}</strong>
+                  {t("Your balance is")} {formatMoney(money)} {t("and the minimum bid is")} {formatMoney(auction.minNextBid)}.
+                </div>
+              )}
+              <label className="auc2-maxlabel" htmlFor={`auc2-max-${auction.id}`}>
+                {t("Your maximum")}
+              </label>
+              <div className="auc2-bidrow">
+                <input
+                  id={`auc2-max-${auction.id}`}
+                  type="number"
+                  min={auction.minNextBid}
+                  /* NO CONTRADICTORY PAIR. When the minimum is above what you
+                     hold, `max={money}` sat BELOW `min`, so the field carried
+                     two native constraints that no value can satisfy at once.
+                     The "you can't cover the minimum" panel above already says
+                     so in words; the attribute is simply dropped rather than
+                     made nonsense. The button stays enabled on purpose — the
+                     local balance lags the server (which is why `bid()` calls
+                     syncNow() first), and disabling on a stale number would
+                     lock out a player who just earned the money. */
+                  max={money >= auction.minNextBid ? money : undefined}
+                  value={amount}
+                  onChange={(e) => { setTouched(true); setAmount(parseInt(e.target.value, 10) || 0); }}
+                />
+                <button
+                  className="g-btn-primary g-btn-small"
+                  disabled={busy || amount < floor}
+                  onClick={bid}
+                >
+                  {t("Bid")}
+                </button>
+              </div>
+              {/* The secrecy promise is the whole reason the mechanism works,
+                  so it belongs on screen and not in a help page — and it has
+                  to be TRUE. It used to say "nobody else can see this number"
+                  while a rival could read it exactly by probing with bids. The
+                  price a losing bid produces is now that bidder's own number,
+                  so the promise below is the literal behaviour: the only way
+                  to move the price to your maximum is for somebody to actually
+                  commit that much. */}
+              <div className="auc2-secret">
+                {t("We'll bid the minimum needed to keep you in front, up to your maximum. Nobody else can see this number, and the price only rises as far as a rival actually bids.")}
+              </div>
+              <div className="auc2-hint">
+                {t("If another player has set a higher maximum you may be outbid immediately. You can raise your maximum later, but you can't lower or cancel it.")}
+              </div>
+            </>
+          )}
         </div>
       )}
       {readOnly && auction.currentBidderUsername === null && auction.status === "active" && (
@@ -257,15 +479,26 @@ function AuctionCard({ auction, onBid, readOnly }: { auction: PublicAuction; onB
   );
 }
 
-function ListPokemonForm({
+export function ListPokemonForm({
   party, box, onDone, onCancel,
 }: { party: Pokemon[]; box: Pokemon[]; onDone: () => void; onCancel: () => void }) {
   const t = useT();
   const { syncNow, dispatch } = useGame();
   const [picked, setPicked] = useState<Pokemon | null>(null);
-  const [startingBid, setStartingBid] = useState(100);
+  // STARTS EMPTY, deliberately. This was `useState(100)`, and that untouched
+  // default is directly responsible for 24 of 240 production listings — 13 of
+  // which expired unsold, and one of which was a Lv100 unown with a 186 IV
+  // total that sold for $100. The $100 spike in the data is the shape of a
+  // form field nobody edited, not a market. A default of $500 would just move
+  // the spike, so there is no default at all: the submit button stays
+  // disabled until the seller actually names a price.
+  const [startingBidText, setStartingBidText] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [busy, setBusy] = useState(false);
+
+  const startingBid = Number.parseInt(startingBidText, 10);
+  const startingBidValid = Number.isFinite(startingBid) && startingBid >= MIN_STARTING_BID;
+  const startingBidTooLow = startingBidText.trim() !== "" && !startingBidValid;
 
   const eligible = [
     ...party.map((p) => ({ mon: p, from: "party" as const })),
@@ -273,7 +506,7 @@ function ListPokemonForm({
   ];
 
   const submit = async () => {
-    if (!picked) return;
+    if (!picked || !startingBidValid) return;
     setBusy(true);
     try {
       // Flush the live save first so the server can see (and escrow) the
@@ -329,8 +562,30 @@ function ListPokemonForm({
       </div>
       <label className="auction-list-field">
         {t("Starting bid")}
-        <input type="number" min={1} max={999999999} value={startingBid} onChange={(e) => setStartingBid(parseInt(e.target.value, 10) || 1)} />
+        <input
+          type="number"
+          min={MIN_STARTING_BID}
+          max={999999999}
+          placeholder={String(MIN_STARTING_BID)}
+          value={startingBidText}
+          onChange={(e) => setStartingBidText(e.target.value)}
+        />
       </label>
+      {/* The floor in words. `min={}` alone is invisible — this form's submit
+          is a button handler, not a native form submission. */}
+      <div className={`auc2-floor ${startingBidTooLow ? "auc2-floor-bad" : ""}`}>
+        {startingBidTooLow
+          ? `${t("Starting bid must be at least")} ${formatMoney(MIN_STARTING_BID)}.`
+          : `${t("Minimum starting bid")}: ${formatMoney(MIN_STARTING_BID)}.`}
+      </div>
+      {startingBidValid && (
+        <div className="auc2-floor">
+          {t("Bids on your listing will rise in steps of at least")}
+          {" "}{formatMoney(minIncrementFor(startingBid, {
+            bidCount: 1, distinctBidders: 1, bidderIsNew: true,
+          }) || baseStepFor(startingBid))}.
+        </div>
+      )}
       <label className="auction-list-field">
         {t("Duration")}
         <select value={durationMinutes} onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10))}>
@@ -342,7 +597,13 @@ function ListPokemonForm({
       </label>
       <div className="auction-list-actions">
         <button className="g-btn-ghost g-btn-small" onClick={() => setPicked(null)}>{t("Back")}</button>
-        <button className="g-btn-primary g-btn-small" disabled={busy} onClick={submit}>{t("List for auction")}</button>
+        <button
+          className="g-btn-primary g-btn-small"
+          disabled={busy || !startingBidValid}
+          onClick={submit}
+        >
+          {t("List for auction")}
+        </button>
       </div>
     </div>
   );

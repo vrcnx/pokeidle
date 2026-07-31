@@ -147,6 +147,7 @@ model User {
   funnelEvents      FunnelEvent[]
   auctionsSelling   Auction[]     @relation("AuctionSeller")
   bids              Bid[]         @relation("Bidder")
+  proxyBids         AuctionProxyBid[] @relation("ProxyBidder")
   pollVotes         PollVote[]
   streamKey         StreamKey?
   /// PvP ladder rewards (lib/pvpLadder.ts). Relation fields only — they
@@ -858,6 +859,9 @@ model Auction {
 
   seller User  @relation("AuctionSeller", fields: [sellerId], references: [id], onDelete: Cascade)
   bids   Bid[]
+  // The CURRENT LEADER's secret maximum, if any. A relation field only —
+  // it adds no column to this table, which is the point (see AuctionProxyBid).
+  proxyBid AuctionProxyBid?
 
   @@index([status, endsAt])
   @@index([sellerId, createdAt])
@@ -875,6 +879,37 @@ model Bid {
 
   @@index([auctionId, createdAt])
   @@index([bidderId, createdAt])
+}
+
+// PROXY (MAXIMUM) BIDS. A bidder submits the most they are willing to pay;
+// the server raises on their behalf by the minimum increment only as far as
+// it must, so the lot goes to whoever valued it highest rather than whoever
+// clicked last. DDL: the hand-written migration
+// 20260730150000_add_auction_proxy_bid/migration.sql, which carries the full
+// reasoning — this model mirrors it and adds nothing of its own.
+//
+// ONE ROW PER AUCTION, holding only the CURRENT LEADER's maximum: a beaten
+// maximum is consumed the instant it loses, which is what keeps proxy
+// resolution closed-form (see resolveProxy in lib/auctionBidRules.ts — one
+// comparison, zero iterations, no loop to terminate).
+//
+// `maxAmount` IS SECRET. It is deliberately NOT reachable from any query
+// against Auction, so no route that serialises an auction for another player
+// can leak it by accident — the one place it is returned is to its own owner,
+// behind a positive bidderId === viewerId check. Enforced by
+// tests/auctionRoute.test.ts, which asserts the exact key set of every
+// auction payload and drives a rival probing for it.
+model AuctionProxyBid {
+  auctionId String   @id
+  bidderId  String
+  maxAmount Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder  User    @relation("ProxyBidder", fields: [bidderId], references: [id], onDelete: Cascade)
+
+  @@index([bidderId])
 }
 
 // ── PvP ladder rewards ───────────────────────────────────────────────────
