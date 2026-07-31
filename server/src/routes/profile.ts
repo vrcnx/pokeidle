@@ -114,12 +114,6 @@ app.get("/me", requireUser, async (c) => {
       lastSeenAt: true,
       usernameChangedAt: true,
       nameChangedAt: true,
-      // Sent so the client can gate admin-only affordances. Currently: the
-      // 5x game speed, which is no longer offered to players. This is a
-      // CONVENIENCE flag, not a security boundary — the client is not
-      // trusted with anything, and nothing server-side keys off what the
-      // client believes about it.
-      isAdmin: true,
     },
   });
   if (!u) return c.json({ error: "user not found" }, 404);
