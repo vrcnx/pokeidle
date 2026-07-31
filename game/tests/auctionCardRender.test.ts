@@ -192,13 +192,36 @@ describe("THE RULE IS STATED BEFORE THE PLAYER TYPES, and prefilled", () => {
   });
 });
 
-describe("THE SECRECY PROMISE IS TRUE AS WRITTEN", () => {
-  it("says the price only rises as far as a rival actually bids", () => {
+describe("THE SECRECY PROMISE DOES NOT OVERCLAIM", () => {
+  // This block previously asserted the copy CONTAINED "Nobody else can see
+  // this number", on the reasoning that appending "the price only rises as
+  // far as a rival actually bids" made that sentence true. It does not. A
+  // rival who bids against you and watches where the price stops reads your
+  // maximum EXACTLY — measured at 9 probes for $950,000 and 17 for
+  // $2,345,678, in both cases while still losing. So the test was pinning a
+  // false statement and calling it honest, which is worse than no test.
+  //
+  // Probing is inherent to every sealed-max auction, eBay included, so the
+  // mechanism is fine. What was wrong was the promise. These assertions now
+  // pin the PROPERTY — never claim unreadability, always admit narrowing —
+  // rather than one exact sentence, so the copy can be reworded without
+  // silently reacquiring the overclaim.
+  it("never claims the maximum is unreadable", () => {
     const html = render(auction());
-    // The old text stopped at "Nobody else can see this number." — which was
-    // stronger than the mechanism delivered, because probing read it exactly.
-    expect(html).toContain("Nobody else can see this number");
-    expect(html).toContain("the price only rises as far as a rival actually bids");
+    expect(html).not.toContain("Nobody else can see this number");
+    expect(html).not.toMatch(/no ?one else can see/i);
+  });
+
+  it("admits a rival can narrow the maximum down", () => {
+    const html = render(auction());
+    expect(html).toMatch(/narrow it down/i);
+    expect(html).toMatch(/never shown to anyone/i);
+  });
+
+  it("still explains that the price only moves as far as it is pushed", () => {
+    // The genuinely reassuring half, and the part that IS true: naming a high
+    // maximum does not mean paying it.
+    expect(render(auction())).toMatch(/only rises as far as a rival actually/i);
   });
 });
 

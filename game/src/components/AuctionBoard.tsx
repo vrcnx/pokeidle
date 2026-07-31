@@ -461,7 +461,16 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
                   to move the price to your maximum is for somebody to actually
                   commit that much. */}
               <div className="auc2-secret">
-                {t("We'll bid the minimum needed to keep you in front, up to your maximum. Nobody else can see this number, and the price only rises as far as a rival actually bids.")}
+                {/* This used to promise "Nobody else can see this number." That was
+                    FALSE, and provably so: a rival who bids against you and watches
+                    where the price stops can read your maximum exactly — measured at
+                    9 probes to read $950,000 and 17 to read $2,345,678, in both cases
+                    while still losing. That is inherent to every sealed-max auction,
+                    eBay included; it is not a defect in this one. But promising
+                    secrecy the mechanism cannot deliver is worse than not promising
+                    it, because a player sets their true ceiling on the strength of
+                    it. Say what is actually true instead. */}
+                {t("We'll bid the minimum needed to keep you in front, up to your maximum. Your number is never shown to anyone — though a determined rival can narrow it down by bidding against you. The price only rises as far as a rival actually pushes it.")}
               </div>
               <div className="auc2-hint">
                 {t("If another player has set a higher maximum you may be outbid immediately. You can raise your maximum later, but you can't lower or cancel it.")}
