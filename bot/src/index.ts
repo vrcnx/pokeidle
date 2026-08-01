@@ -16,6 +16,7 @@ import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { config } from "./config.js";
 import { handleButton, handleCommand } from "./handlers.js";
 import { startRoleSync } from "./roleSync.js";
+import { startGiveawaySync } from "./giveawaySync.js";
 
 const client = new Client({
   intents: [
@@ -39,6 +40,10 @@ client.once(Events.ClientReady, (c) => {
   console.log(`[bot] ready as ${c.user.tag}`);
   console.log(`[bot] game server: ${config.apiBase}`);
   startRoleSync(client);
+  // Giveaways created in the admin dashboard with "Announce in Discord"
+  // ticked. Polled rather than pushed — the game server holds no Discord
+  // token. See giveawaySync.ts.
+  startGiveawaySync(client);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

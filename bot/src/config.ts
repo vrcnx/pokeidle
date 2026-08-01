@@ -101,6 +101,12 @@ export const config = {
    *  reconcilers would fight over the same roles. */
   roleSyncDisabled: optional("ROLE_SYNC_DISABLED", "") === "1",
 
+  /** Set to "1" to skip polling for admin-dashboard giveaways. Same reason as
+   *  ROLE_SYNC_DISABLED: two instances against one guild would both try to
+   *  announce. The server's NULL-guarded claim means the loser cleans up after
+   *  itself, but not racing at all is tidier. */
+  giveawaySyncDisabled: optional("GIVEAWAY_SYNC_DISABLED", "") === "1",
+
   /** How long a trade listing stays on the board before the bot deletes it. */
   tradeListingTtlMs: intOpt("TRADE_LISTING_TTL_MS", 48 * 60 * 60_000),
 } as const;

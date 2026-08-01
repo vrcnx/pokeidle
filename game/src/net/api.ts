@@ -99,7 +99,16 @@ export const api = {
       `/api/discord/link/peek?code=${encodeURIComponent(code)}`,
     ),
   discordLinkRedeem: (input: { code: string }) =>
-    request<{ ok: true; discordLabel: string }>("POST", "/api/discord/link/redeem", input),
+    request<{
+      ok: true;
+      discordLabel: string;
+      /** The link-reward prize, when the promotion is running and this is the
+       *  first time this account (and this Discord account) has linked.
+       *  Null otherwise — the server deliberately does not say WHY it is null,
+       *  so a player linking a second account isn't told about a prize they
+       *  are not getting. */
+      reward: { summary: string } | null;
+    }>("POST", "/api/discord/link/redeem", input),
   discordUnlink: () =>
     request<{ ok: true; removed: boolean }>("DELETE", "/api/discord/link/me"),
 

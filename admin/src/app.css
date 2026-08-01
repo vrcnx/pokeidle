@@ -3136,6 +3136,23 @@ input[type="checkbox"], input[type="radio"] {
   font-family: inherit;
   font-size: 13px;
 }
+/* Checkbox variant of .gv-field — horizontal, with the label beside the box
+   rather than stacked above it. The stacked layout the base class gives you
+   puts a caption over a lone checkbox, which reads as a heading for the whole
+   section rather than as that checkbox's own label. */
+.gv-field.gv-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.gv-field.gv-check > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.gv-field.gv-check input[type="checkbox"] { width: auto; margin: 0; }
+
 .gv-prize-builder { margin: 14px 0; }
 .gv-prize-builder h3 { margin: 0 0 8px; font-size: 12px; }
 .gv-prize-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }

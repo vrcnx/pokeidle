@@ -4,15 +4,20 @@
   "private": true,
   "type": "module",
   "description": "Pokémon Idle community Discord bot: account linking, trainer cards, ladder roles, giveaways and a trade noticeboard. Talks to the game server's /api/bot surface over a shared secret; runs as its own deploy, never inside the game server process.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "deploy-commands": "tsx src/deployCommands.ts",
-    "typecheck": "tsc --noEmit"
+    "snapshot": "tsx scripts/snapshot.mts",
+    "typecheck": "tsc --noEmit",
+    "samples": "tsx scripts/renderSamples.mts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
     "discord.js": "^14.16.3"
   },
   "devDependencies": {

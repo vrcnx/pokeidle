@@ -22,6 +22,7 @@
 
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -33,16 +34,28 @@ import {
 import { api, toUserMessage, versionWarning } from "./api.js";
 import { config } from "./config.js";
 import { GIVEAWAY_ENTER_PREFIX } from "./commands.js";
+import { tradeListingEmbed } from "./embeds.js";
 import {
-  dexEmbed,
-  leaderboardEmbed,
-  monEmbed,
-  prizesEmbed,
-  profileEmbed,
-  rankEmbed,
-  teamEmbed,
-  tradeListingEmbed,
-} from "./embeds.js";
+  dexCard,
+  giveawayCard,
+  leaderboardCard,
+  monCard,
+  prizesCard,
+  profileCard,
+  rankCard,
+  teamCard,
+} from "./cards/index.js";
+
+/**
+ * Attach a rendered card as the reply's image.
+ *
+ * Discord shows an attachment inline, so a card is not a download — it is the
+ * message. `name` matters: it becomes the filename in the client and is what a
+ * screenshot-and-share ends up called.
+ */
+function cardFile(png: Buffer, name: string): AttachmentBuilder {
+  return new AttachmentBuilder(png, { name: `${name}.png` });
+}
 
 /** The subject of a lookup command: an explicit trainer name, or the caller. */
 function subjectOf(i: ChatInputCommandInteraction): { discordId?: string; username?: string } {
@@ -89,7 +102,14 @@ async function handleLink(i: ChatInputCommandInteraction): Promise<void> {
             .setTitle("Your Pokémon Idle link code")
             .setDescription(
               `**\`${res.code}\`**\n\nOpen ${res.linkUrl}, sign in, and enter that code.\n` +
-                `It expires <t:${Math.floor(new Date(res.expiresAt).getTime() / 1000)}:R>.`,
+                `It expires <t:${Math.floor(new Date(res.expiresAt).getTime() / 1000)}:R>.` +
+                // "First-time" and "usually", because eligibility is decided at
+                // redeem: somebody relinking, or linking a second account, gets
+                // nothing, and promising them a prize here would be a lie the
+                // redeem screen then has to walk back.
+                (res.rewardSummary
+                  ? `\n\n🎁 First-time linkers usually get **${res.rewardSummary}** — it lands the next time your game saves.`
+                  : ""),
             )
             .setFooter({ text: "If you didn't run /link, ignore this — the code does nothing on its own." }),
         ],
@@ -130,9 +150,17 @@ async function handleUnlink(i: ChatInputCommandInteraction): Promise<void> {
 async function handleProfile(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply();
   try {
-    const p = await api.profile(subjectOf(i));
+    const subject = subjectOf(i);
+    // The trainer card shows the party, so both reads are needed — issued
+    // together rather than in sequence, because two round trips to the game
+    // server inside one interaction is the difference between a card that
+    // appears instantly and one that appears late.
+    const [p, team] = await Promise.all([api.profile(subject), api.team(subject)]);
     const warn = versionWarning(p.v);
-    await i.editReply({ content: warn ?? undefined, embeds: [profileEmbed(p)] });
+    await i.editReply({
+      content: warn ?? undefined,
+      files: [cardFile(await profileCard(p, team.party), `profile-${p.username}`)],
+    });
   } catch (e) {
     await fail(i, e);
   }
@@ -142,7 +170,7 @@ async function handleRank(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply();
   try {
     const r = await api.rank(subjectOf(i));
-    await i.editReply({ embeds: [rankEmbed(r.username, r)] });
+    await i.editReply({ files: [cardFile(await rankCard(r.username, r), `rank-${r.username}`)] });
   } catch (e) {
     await fail(i, e);
   }
@@ -152,7 +180,7 @@ async function handleLeaderboard(i: ChatInputCommandInteraction): Promise<void> 
   await i.deferReply();
   try {
     const res = await api.leaderboard(i.options.getInteger("limit") ?? 10);
-    await i.editReply({ embeds: [leaderboardEmbed(res.leaderboard)] });
+    await i.editReply({ files: [cardFile(await leaderboardCard(res.leaderboard), "ladder")] });
   } catch (e) {
     await fail(i, e);
   }
@@ -162,7 +190,15 @@ async function handleTeam(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply();
   try {
     const res = await api.team(subjectOf(i));
-    await i.editReply({ embeds: [teamEmbed(res.username, res.party, res.started)] });
+    if (!res.started) {
+      // A card whose only content is "hasn't started playing" is a lot of
+      // pixels to say nothing. Plain text is the better answer.
+      await i.editReply(`**${res.username}** hasn't started playing yet.`);
+      return;
+    }
+    await i.editReply({
+      files: [cardFile(await teamCard(res.username, res.party), `team-${res.username}`)],
+    });
   } catch (e) {
     await fail(i, e);
   }
@@ -175,7 +211,9 @@ async function handleMon(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const res = await api.mon(i.user.id, i.options.getInteger("slot", true));
-    await i.editReply({ embeds: [monEmbed(res.username, res.mon)] });
+    await i.editReply({
+      files: [cardFile(await monCard(res.username, res.mon), `mon-${res.mon.speciesKey}`)],
+    });
   } catch (e) {
     await fail(i, e);
   }
@@ -185,7 +223,7 @@ async function handleDex(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply();
   try {
     const d = await api.dex(subjectOf(i));
-    await i.editReply({ embeds: [dexEmbed(d)] });
+    await i.editReply({ files: [cardFile(await dexCard(d), `dex-${d.username}`)] });
   } catch (e) {
     await fail(i, e);
   }
@@ -195,7 +233,9 @@ async function handlePrizes(i: ChatInputCommandInteraction): Promise<void> {
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const res = await api.prizes(i.user.id);
-    await i.editReply({ embeds: [prizesEmbed(res.username, res.grants)] });
+    await i.editReply({
+      files: [cardFile(await prizesCard(res.username, res.grants), "prizes")],
+    });
   } catch (e) {
     await fail(i, e);
   }
@@ -284,15 +324,12 @@ async function handleGiveaway(i: ChatInputCommandInteraction): Promise<void> {
         ownerDiscordId: i.user.id,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(0xf2c94c)
-        .setTitle(`🎁 ${res.title}`)
-        .setDescription(
-          (i.options.getString("description") ?? "") +
-            `\n\n**Prize:** ${res.prizeSummary}\n**Winners:** ${res.winnerCount}\n\n` +
-            "Press **Enter** below. You'll need a linked game account — run `/link` first if you haven't.",
-        )
-        .setFooter({ text: `Giveaway id: ${res.giveawayId}` });
+      const png = await giveawayCard({
+        title: res.title,
+        description: res.description,
+        prizes: res.prizes,
+        winnerCount: res.winnerCount,
+      });
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
@@ -305,7 +342,19 @@ async function handleGiveaway(i: ChatInputCommandInteraction): Promise<void> {
           .setEmoji("🎟️"),
       );
 
-      await i.editReply({ embeds: [embed], components: [row] });
+      await i.editReply({
+        // The key facts stay in the message body as well as on the card.
+        // A card is an image: not selectable, not translatable, and invisible
+        // to anyone using a screen reader. The prize and the id must be
+        // readable without it.
+        content:
+          `🎁 **${res.title}** — ${res.prizeSummary} · ` +
+          `${res.winnerCount} winner${res.winnerCount === 1 ? "" : "s"}\n` +
+          `Press **Enter** below. You'll need a linked game account — run \`/link\` first if you haven't.\n` +
+          `-# Giveaway id: ${res.giveawayId}`,
+        files: [cardFile(png, `giveaway-${res.giveawayId}`)],
+        components: [row],
+      });
     } catch (e) {
       await fail(i, e);
     }

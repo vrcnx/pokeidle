@@ -249,6 +249,17 @@ export interface AdminGiveaway {
   prizeSummary: string;
   entryCount: number;
   entries: AdminGiveawayEntry[];
+  /** Post this one in the community Discord. A flag the BOT polls for — the
+   *  game server never talks to Discord itself. */
+  announceToDiscord?: boolean;
+  /** Channel override; null = the bot's configured default. */
+  discordChannelId?: string | null;
+  /** Set by the bot once it has posted the entry embed. Doubles as the
+   *  "already announced" marker, so a non-null value here is how the dashboard
+   *  knows the post exists. */
+  discordMessageId?: string | null;
+  /** Set by the bot once it has posted the RESULT. */
+  discordResultsAt?: string | null;
 }
 
 export interface AdminMe { id: string; username: string; isAdmin: boolean }
@@ -445,6 +456,7 @@ export const api = {
     title: string; description: string; winnerCount: number;
     prizes: GiveawayPrizeInput[]; minAccountLevel?: number | null;
     startsAt?: string | null; endsAt?: string | null;
+    announceToDiscord?: boolean; discordChannelId?: string | null;
   }) => req<{ giveaway: AdminGiveaway }>("POST", "/api/admin/giveaways", body),
   patchGiveaway: (id: string, body: Record<string, unknown>) =>
     req<{ giveaway: AdminGiveaway }>("PATCH", `/api/admin/giveaways/${id}`, body),

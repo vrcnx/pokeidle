@@ -141,6 +141,20 @@ export interface MonDetail extends MonSummary {
   ability: string | null;
 }
 
+/**
+ * A prize, as stored. Mirrors the server's `Prize` union in
+ * server/src/lib/giveaway.ts.
+ *
+ * The bot only ever RENDERS these — it never constructs one. A prize is built
+ * by the admin client (which owns the real stat formula) and validated by the
+ * server; anything the bot invented would be a mon with fabricated stats, which
+ * is the bug that shipped a Lv50 Charizard with 24 HP.
+ */
+export type PrizeDescriptor =
+  | { kind: "item"; itemId: string; quantity: number }
+  | { kind: "money"; amount: number }
+  | { kind: "pokemon"; label: string; mon?: { speciesKey?: string; isShiny?: boolean; level?: number } };
+
 export interface DesiredMember {
   discordId: string;
   userId: string;
@@ -169,9 +183,12 @@ function subjectQuery(subject: { discordId?: string; username?: string }): strin
 export const api = {
   // Linking
   linkStart: (discordId: string, discordLabel: string) =>
-    call<{ code: string; expiresAt: string; ttlMs: number; linkUrl: string }>(
-      "POST", "/api/bot/link/start", { discordId, discordLabel },
-    ),
+    call<{
+      code: string; expiresAt: string; ttlMs: number; linkUrl: string;
+      /** The link-reward prize, when the promotion is running. Nominal — not a
+       *  guarantee for this user, since eligibility is decided at redeem. */
+      rewardSummary: string | null;
+    }>("POST", "/api/bot/link/start", { discordId, discordLabel }),
   linkStatus: (discordId: string) =>
     call<{ linked: boolean; userId?: string; username?: string | null }>(
       "GET", `/api/bot/link?discordId=${encodeURIComponent(discordId)}`,
@@ -204,6 +221,7 @@ export const api = {
   prizes: (discordId: string) =>
     call<{ v: number; username: string; grants: Array<{
       id: string; summary: string; source: string; createdAt: string;
+      prizes: PrizeDescriptor[];
       delivered: boolean; deliveredAt: string | null; stuck: boolean;
       attempts: number; lastError: string | null;
     }> }>("GET", `/api/bot/prizes?discordId=${encodeURIComponent(discordId)}`),
@@ -215,9 +233,10 @@ export const api = {
   createGiveaway: (input: {
     title: string; description: string; prizes: unknown; winnerCount: number; ownerDiscordId: string;
   }) =>
-    call<{ ok: true; giveawayId: string; title: string; winnerCount: number; prizeSummary: string }>(
-      "POST", "/api/bot/giveaways", input,
-    ),
+    call<{
+      ok: true; giveawayId: string; title: string; description: string;
+      winnerCount: number; prizeSummary: string; prizes: PrizeDescriptor[];
+    }>("POST", "/api/bot/giveaways", input),
   enterGiveaway: (giveawayId: string, discordId: string) =>
     call<{ ok: true; entered: boolean; duplicate: boolean }>(
       "POST", `/api/bot/giveaways/${encodeURIComponent(giveawayId)}/entries`, { discordId },
@@ -234,6 +253,29 @@ export const api = {
       seed: string | null; entryCount: number; winners: string[];
       prizes: Array<{ username: string; summary: string; delivered: boolean; deliveredAt: string | null; stuck: boolean }>;
     }>("GET", `/api/bot/giveaways/${encodeURIComponent(giveawayId)}`),
+
+  // Admin-dashboard giveaways: the bot polls, the server never pushes.
+  pendingGiveaways: () =>
+    call<{
+      v: number;
+      toAnnounce: Array<{
+        id: string; title: string; description: string; prizes: PrizeDescriptor[];
+        prizeSummary: string; winnerCount: number; channelId: string | null; endsAt: string | null;
+      }>;
+      toReport: Array<{
+        id: string; title: string; seed: string | null; channelId: string | null;
+        announceMessageId: string | null;
+        winners: Array<{ username: string; discordId: string | null }>;
+      }>;
+    }>("GET", "/api/bot/giveaways/pending"),
+  markAnnounced: (id: string, messageId: string, channelId: string) =>
+    call<{ ok: true; claimed: boolean }>(
+      "POST", `/api/bot/giveaways/${encodeURIComponent(id)}/announced`, { messageId, channelId },
+    ),
+  markReported: (id: string) =>
+    call<{ ok: true; claimed: boolean }>(
+      "POST", `/api/bot/giveaways/${encodeURIComponent(id)}/reported`, {},
+    ),
 
   // Trade noticeboard — TEXT ONLY. There is deliberately no endpoint that
   // moves an asset; see the header of server/src/routes/bot.ts.

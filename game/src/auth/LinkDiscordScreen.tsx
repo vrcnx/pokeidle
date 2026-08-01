@@ -32,6 +32,7 @@ export function LinkDiscordScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkedTo, setLinkedTo] = useState<string | null>(null);
+  const [reward, setReward] = useState<string | null>(null);
   const [already, setAlready] = useState(false);
 
   // Is this account already linked? Answered before the form renders so
@@ -68,6 +69,7 @@ export function LinkDiscordScreen() {
     try {
       const res = await api.discordLinkRedeem({ code });
       setLinkedTo(res.discordLabel || "your Discord account");
+      setReward(res.reward?.summary ?? null);
     } catch (err) {
       if (err instanceof ApiError) {
         // The server already writes player-facing copy for every one of these
@@ -129,6 +131,13 @@ export function LinkDiscordScreen() {
           Linked to <strong>{linkedTo}</strong>. You've got the Trainer role — head
           back to Discord and try <code>/profile</code>.
         </div>
+        {reward && (
+          <p className="auth-tag">
+            🎁 Your reward — <strong>{reward}</strong> — is on its way. It lands
+            the next time the game saves, which is every few seconds while
+            you're playing, so head back in and it'll be there.
+          </p>
+        )}
         <button
           type="button"
           className="g-btn-primary auth-submit"

@@ -202,10 +202,108 @@ rebind to a fresh alt.
 
 ---
 
+## Cards
+
+Almost everything the bot shows is a **rendered PNG**, not an embed — an
+embed's field layout reflows differently on desktop, mobile and compact mode
+and cannot be controlled; a card is identical everywhere.
+
+Sprites come from the PokeAPI set on jsDelivr, so there are no assets to host.
+The URL rules are copied into `src/sprites.ts` with the reasons intact
+(GitHub raw serves `.gif` as `text/plain`; jsDelivr 403s named filenames, so
+sprites are keyed on the **numeric dex id**).
+
+That id is why `src/data/*.json` exists. The save blob carries only
+`speciesKey`, and the game server has no species table by design — so the
+mapping ships as a generated snapshot:
+
+```bash
+npm run snapshot     # regenerate after species/items/moves change in game/
+```
+
+Same pattern, and same reason, as `admin/scripts/snapshot.mts`. Re-run it when
+the game adds content; until you do, a new species renders without a sprite and
+a new move renders as a prettified id rather than its real name.
+
+To see what the cards look like without a Discord server:
+
+```bash
+npm run samples      # writes bot/samples/*.png
+```
+
+The sample data is deliberately awkward — a long nickname, a shiny, an unranked
+player, a stuck prize — because tidy data hides exactly the layout bugs this
+catches. Layout is not typecheckable; look at the PNGs.
+
+**Fonts are not optional.** `node:20-bookworm-slim` ships with none and
+`@napi-rs/canvas` draws text with whatever the OS has, so without
+`fonts-dejavu-core` (installed by the Dockerfile) every card renders perfectly
+except that all the text is blank — silently, and only in production. Colour
+emoji are deliberately *not* installed; cards keep emoji out of rendered text
+and put them in the message body, where Discord renders them.
+
+Every card also repeats its key facts in the message body. A card is an image:
+not selectable, not translatable, invisible to a screen reader.
+
+---
+
+## The link reward
+
+Set `DISCORD_LINK_REWARD` on the **game server** to a JSON prize array and the
+first link on an account pays out:
+
+```bash
+DISCORD_LINK_REWARD='[{"kind":"item","itemId":"masterball","quantity":1}]'
+```
+
+Blank or unset = off, which is the default. The prize is named in the `/link`
+DM (so it can actually persuade someone to link) and confirmed on the
+`/link-discord` page after redeeming.
+
+It pays through the `PendingGrant` inbox like every other grant, so it lands on
+the player's next save upload and cannot be raced away.
+
+**Idempotency uses no extra table.** `PendingGrant` is append-only and indexed
+on `(source, sourceId)`, so the grant *is* the receipt: a reward is refused
+when a `discord-link` grant already exists for the game account (`userId`) **or**
+the Discord account (`sourceId`). That blocks unlink-then-relink in both
+directions and survives restarts, because the rows are never deleted.
+
+What it does **not** block is N throwaway Discord accounts paired with N
+throwaway game accounts — nothing short of an eligibility gate does, and this
+shipped without one on purpose to keep the promotion frictionless. If the
+ledger shows farming:
+
+```sql
+SELECT date_trunc('day',"createdAt"), count(*) FROM "PendingGrant"
+WHERE source = 'discord-link' GROUP BY 1 ORDER BY 1 DESC;
+```
+
+…raise `DISCORD_LINK_REWARD_MIN_LEVEL` above 0. That is an env change, not a
+deploy.
+
+---
+
 ## Giveaways
 
-`/giveaway start` creates a **real `Giveaway` row** and posts an embed with an
-Enter button. `/giveaway draw` calls the **real `drawGiveaway()`**.
+Two ways in, one implementation.
+
+**From Discord:** `/giveaway start` creates a **real `Giveaway` row** and posts
+a card with an Enter button. `/giveaway draw` calls the **real
+`drawGiveaway()`**.
+
+**From the admin dashboard:** tick **Announce in Discord** when creating a
+giveaway (optionally with a channel id; blank uses the bot's default). The bot
+polls every 30 seconds, posts the card, and posts the result once it is drawn —
+from either side.
+
+The server never calls Discord for this. It sets a flag; the bot polls. Same
+split as role sync, and for the same reason: a Discord outage has nothing to
+fail here. `Giveaway.discordMessageId` and `discordResultsAt` are the
+idempotency markers — without them a timer-driven poll re-posts on every tick.
+The bot posts **first** and marks **second**: a crash in between costs one
+duplicate message a human can delete, where the other order costs a giveaway
+that is never announced at all.
 
 This is not the shortest implementation, and that is the point. A bot-local
 giveaway would have quietly lost: the atomic `drawnAt: null` compare-and-swap

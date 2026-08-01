@@ -1798,6 +1798,14 @@ const GiveawayBody = z.object({
   minAccountLevel: z.number().int().min(0).max(10_000).nullable().optional(),
   startsAt: z.string().datetime().nullable().optional(),
   endsAt: z.string().datetime().nullable().optional(),
+  // Post this giveaway in the community Discord. A flag the BOT polls for —
+  // the game server never talks to Discord itself. See the field comments on
+  // the Giveaway model.
+  announceToDiscord: z.boolean().optional(),
+  // Optional channel override; null/absent uses the bot's configured default.
+  // Bounded and digits-only because it is a snowflake, and an unbounded string
+  // here would be passed straight to a Discord API path.
+  discordChannelId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
 });
 
 app.get("/giveaways", async (c) => {
@@ -1813,8 +1821,14 @@ app.get("/giveaways", async (c) => {
   // grant pays twice), while a genuinely un-granted winner still needs paying
   // by hand. Join the inbox so the dashboard can say which is which instead of
   // printing "UNPAID" for a prize that is guaranteed.
+  // BOTH sources. A giveaway drawn from the Discord bot stamps its grants
+  // "discord" (so the ops sweep can tell them apart); one drawn here stamps
+  // "giveaway". Filtering on "giveaway" alone made every bot-drawn giveaway
+  // show its winners as never delivered, which is the exact wrong direction
+  // for this flag to be wrong in — it steers an operator toward re-granting a
+  // prize that already landed.
   const grants = rows.length === 0 ? [] : await prisma.pendingGrant.findMany({
-    where: { source: "giveaway", sourceId: { in: rows.map((g) => g.id) } },
+    where: { source: { in: ["giveaway", "discord"] }, sourceId: { in: rows.map((g) => g.id) } },
     select: { userId: true, sourceId: true, deliveredAt: true },
   });
   const deliveredKeys = new Set<string>();
@@ -1946,6 +1960,8 @@ app.post("/giveaways", async (c) => {
       endsAt: d.endsAt ? new Date(d.endsAt) : null,
       status: "draft",
       ownerId: me.id,
+      announceToDiscord: d.announceToDiscord ?? false,
+      discordChannelId: d.discordChannelId ?? null,
     },
   });
   void makeAudit(c)(me.id, "giveaway.create", g.id, { title: g.title, winnerCount: g.winnerCount });

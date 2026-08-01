@@ -1,0 +1,625 @@
+[
+  {
+    "id": "aspearberry",
+    "name": "Aspear Berry",
+    "spriteOverride": "aspear-berry"
+  },
+  {
+    "id": "bicycle",
+    "name": "Bicycle"
+  },
+  {
+    "id": "bignugget",
+    "name": "Big Nugget",
+    "spriteOverride": "big-nugget"
+  },
+  {
+    "id": "bigpearl",
+    "name": "Big Pearl",
+    "spriteOverride": "big-pearl"
+  },
+  {
+    "id": "blackbelt",
+    "name": "Black Belt",
+    "spriteOverride": "black-belt"
+  },
+  {
+    "id": "blackglasses",
+    "name": "Black Glasses",
+    "spriteOverride": "black-glasses"
+  },
+  {
+    "id": "charcoal",
+    "name": "Charcoal"
+  },
+  {
+    "id": "cheriberry",
+    "name": "Cheri Berry",
+    "spriteOverride": "cheri-berry"
+  },
+  {
+    "id": "chestoberry",
+    "name": "Chesto Berry",
+    "spriteOverride": "chesto-berry"
+  },
+  {
+    "id": "dragonfang",
+    "name": "Dragon Fang",
+    "spriteOverride": "dragon-fang"
+  },
+  {
+    "id": "dragonscale",
+    "name": "Dragon Scale",
+    "spriteOverride": "dragon-scale"
+  },
+  {
+    "id": "dubiousdisc",
+    "name": "Dubious Disc",
+    "spriteOverride": "dubious-disc"
+  },
+  {
+    "id": "electirizer",
+    "name": "Electirizer",
+    "spriteOverride": "electirizer"
+  },
+  {
+    "id": "expShare",
+    "name": "Exp. Share",
+    "spriteOverride": "exp-share"
+  },
+  {
+    "id": "firestone",
+    "name": "Fire Stone",
+    "spriteOverride": "fire-stone"
+  },
+  {
+    "id": "focussash",
+    "name": "Focus Sash",
+    "spriteOverride": "focus-sash"
+  },
+  {
+    "id": "goldbottlecap",
+    "name": "Gold Bottle Cap",
+    "spriteOverride": "gold-bottle-cap"
+  },
+  {
+    "id": "goodrod",
+    "name": "Good Rod",
+    "spriteOverride": "good-rod"
+  },
+  {
+    "id": "greatball",
+    "name": "Great Ball"
+  },
+  {
+    "id": "grepaberry",
+    "name": "Grepa Berry",
+    "spriteOverride": "grepa-berry"
+  },
+  {
+    "id": "hardstone",
+    "name": "Hard Stone",
+    "spriteOverride": "hard-stone"
+  },
+  {
+    "id": "hm01",
+    "name": "HM01 Cut"
+  },
+  {
+    "id": "hm02",
+    "name": "HM02 Fly"
+  },
+  {
+    "id": "hm03",
+    "name": "HM03 Surf"
+  },
+  {
+    "id": "hm04",
+    "name": "HM04 Strength"
+  },
+  {
+    "id": "hm05",
+    "name": "HM05 Flash"
+  },
+  {
+    "id": "hondewberry",
+    "name": "Hondew Berry",
+    "spriteOverride": "hondew-berry"
+  },
+  {
+    "id": "honey",
+    "name": "Honey"
+  },
+  {
+    "id": "itemfinder",
+    "name": "Itemfinder",
+    "spriteOverride": "dowsing-machine"
+  },
+  {
+    "id": "kelpsyberry",
+    "name": "Kelpsy Berry",
+    "spriteOverride": "kelpsy-berry"
+  },
+  {
+    "id": "kingsrock",
+    "name": "King's Rock",
+    "spriteOverride": "kings-rock"
+  },
+  {
+    "id": "leafstone",
+    "name": "Leaf Stone",
+    "spriteOverride": "leaf-stone"
+  },
+  {
+    "id": "leftovers",
+    "name": "Leftovers",
+    "spriteOverride": "leftovers"
+  },
+  {
+    "id": "lifeorb",
+    "name": "Life Orb",
+    "spriteOverride": "life-orb"
+  },
+  {
+    "id": "linkcable",
+    "name": "Link Cable",
+    "spriteOverride": "link-cable"
+  },
+  {
+    "id": "lumberry",
+    "name": "Lum Berry",
+    "spriteOverride": "lum-berry"
+  },
+  {
+    "id": "magmarizer",
+    "name": "Magmarizer",
+    "spriteOverride": "magmarizer"
+  },
+  {
+    "id": "magnet",
+    "name": "Magnet"
+  },
+  {
+    "id": "masterball",
+    "name": "Master Ball"
+  },
+  {
+    "id": "maxrepel",
+    "name": "Max Repel",
+    "spriteOverride": "max-repel"
+  },
+  {
+    "id": "metalcoat",
+    "name": "Metal Coat",
+    "spriteOverride": "metal-coat"
+  },
+  {
+    "id": "miracleseed",
+    "name": "Miracle Seed",
+    "spriteOverride": "miracle-seed"
+  },
+  {
+    "id": "moonstone",
+    "name": "Moon Stone",
+    "spriteOverride": "moon-stone"
+  },
+  {
+    "id": "mysticwater",
+    "name": "Mystic Water",
+    "spriteOverride": "mystic-water"
+  },
+  {
+    "id": "nevermeltice",
+    "name": "Never-Melt Ice",
+    "spriteOverride": "never-melt-ice"
+  },
+  {
+    "id": "nugget",
+    "name": "Nugget"
+  },
+  {
+    "id": "oldrod",
+    "name": "Old Rod",
+    "spriteOverride": "old-rod"
+  },
+  {
+    "id": "oranberry",
+    "name": "Oran Berry",
+    "spriteOverride": "oran-berry"
+  },
+  {
+    "id": "pearl",
+    "name": "Pearl"
+  },
+  {
+    "id": "pechaberry",
+    "name": "Pecha Berry",
+    "spriteOverride": "pecha-berry"
+  },
+  {
+    "id": "persimberry",
+    "name": "Persim Berry",
+    "spriteOverride": "persim-berry"
+  },
+  {
+    "id": "poisonbarb",
+    "name": "Poison Barb",
+    "spriteOverride": "poison-barb"
+  },
+  {
+    "id": "pokeball",
+    "name": "Poké Ball"
+  },
+  {
+    "id": "pokeflute",
+    "name": "Poké Flute",
+    "spriteOverride": "poke-flute"
+  },
+  {
+    "id": "pomegberry",
+    "name": "Pomeg Berry",
+    "spriteOverride": "pomeg-berry"
+  },
+  {
+    "id": "protector",
+    "name": "Protector",
+    "spriteOverride": "protector"
+  },
+  {
+    "id": "qualotberry",
+    "name": "Qualot Berry",
+    "spriteOverride": "qualot-berry"
+  },
+  {
+    "id": "rawstberry",
+    "name": "Rawst Berry",
+    "spriteOverride": "rawst-berry"
+  },
+  {
+    "id": "repel",
+    "name": "Repel"
+  },
+  {
+    "id": "sharpbeak",
+    "name": "Sharp Beak",
+    "spriteOverride": "sharp-beak"
+  },
+  {
+    "id": "shinycharm",
+    "name": "Shiny Charm",
+    "spriteOverride": "shiny-charm"
+  },
+  {
+    "id": "silkscarf",
+    "name": "Silk Scarf",
+    "spriteOverride": "silk-scarf"
+  },
+  {
+    "id": "silverbottlecap",
+    "name": "Silver Bottle Cap",
+    "spriteOverride": "bottle-cap"
+  },
+  {
+    "id": "silverpowder",
+    "name": "Silver Powder",
+    "spriteOverride": "silver-powder"
+  },
+  {
+    "id": "sitrusberry",
+    "name": "Sitrus Berry",
+    "spriteOverride": "sitrus-berry"
+  },
+  {
+    "id": "softsand",
+    "name": "Soft Sand",
+    "spriteOverride": "soft-sand"
+  },
+  {
+    "id": "spelltag",
+    "name": "Spell Tag",
+    "spriteOverride": "spell-tag"
+  },
+  {
+    "id": "starpiece",
+    "name": "Star Piece",
+    "spriteOverride": "star-piece"
+  },
+  {
+    "id": "stardust",
+    "name": "Stardust"
+  },
+  {
+    "id": "sunstone",
+    "name": "Sun Stone",
+    "spriteOverride": "sun-stone"
+  },
+  {
+    "id": "superrepel",
+    "name": "Super Repel",
+    "spriteOverride": "super-repel"
+  },
+  {
+    "id": "superrod",
+    "name": "Super Rod",
+    "spriteOverride": "super-rod"
+  },
+  {
+    "id": "tamatoberry",
+    "name": "Tamato Berry",
+    "spriteOverride": "tamato-berry"
+  },
+  {
+    "id": "thunderstone",
+    "name": "Thunder Stone",
+    "spriteOverride": "thunder-stone"
+  },
+  {
+    "id": "tm01",
+    "name": "TM01",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm02",
+    "name": "TM02",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm03",
+    "name": "TM03",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm04",
+    "name": "TM04",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm05",
+    "name": "TM05",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm06",
+    "name": "TM06",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm07",
+    "name": "TM07",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm08",
+    "name": "TM08",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm09",
+    "name": "TM09",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm10",
+    "name": "TM10",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm11",
+    "name": "TM11",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm12",
+    "name": "TM12",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm13",
+    "name": "TM13",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm14",
+    "name": "TM14",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm15",
+    "name": "TM15",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm16",
+    "name": "TM16",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm17",
+    "name": "TM17",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm18",
+    "name": "TM18",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm19",
+    "name": "TM19",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm20",
+    "name": "TM20",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm21",
+    "name": "TM21",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm22",
+    "name": "TM22",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm23",
+    "name": "TM23",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm24",
+    "name": "TM24",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm25",
+    "name": "TM25",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm26",
+    "name": "TM26",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm27",
+    "name": "TM27",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm28",
+    "name": "TM28",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm29",
+    "name": "TM29",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm30",
+    "name": "TM30",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm31",
+    "name": "TM31",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm32",
+    "name": "TM32",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm33",
+    "name": "TM33",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm34",
+    "name": "TM34",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm35",
+    "name": "TM35",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm36",
+    "name": "TM36",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm37",
+    "name": "TM37",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm38",
+    "name": "TM38",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm39",
+    "name": "TM39",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm40",
+    "name": "TM40",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm41",
+    "name": "TM41",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm42",
+    "name": "TM42",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm43",
+    "name": "TM43",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm44",
+    "name": "TM44",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm45",
+    "name": "TM45",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm46",
+    "name": "TM46",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm47",
+    "name": "TM47",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm48",
+    "name": "TM48",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm49",
+    "name": "TM49",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "tm50",
+    "name": "TM50",
+    "spriteOverride": "tm-normal"
+  },
+  {
+    "id": "twistedspoon",
+    "name": "Twisted Spoon",
+    "spriteOverride": "twisted-spoon"
+  },
+  {
+    "id": "ultraball",
+    "name": "Ultra Ball"
+  },
+  {
+    "id": "upgrade",
+    "name": "Up-Grade",
+    "spriteOverride": "up-grade"
+  },
+  {
+    "id": "waterstone",
+    "name": "Water Stone",
+    "spriteOverride": "water-stone"
+  }
+]

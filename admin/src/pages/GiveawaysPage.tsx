@@ -218,6 +218,10 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
   const [winnerCount, setWinnerCount] = useState(1);
   const [endsInDays, setEndsInDays] = useState(7);
   const [minLevel, setMinLevel] = useState<number | "">("");
+  // Discord announcement. The game server never talks to Discord — this is a
+  // flag the bot polls for, so ticking it queues a post rather than making one.
+  const [toDiscord, setToDiscord] = useState(false);
+  const [discordChannelId, setDiscordChannelId] = useState("");
   const [prizes, setPrizes] = useState<GiveawayPrizeInput[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -256,6 +260,13 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
   const submit = async () => {
     if (!title.trim()) { setErr("Give it a title."); return; }
     if (prizes.length === 0) { setErr("Add at least one prize."); return; }
+    // Checked here rather than only server-side so the operator finds out
+    // before the giveaway exists — the server's regex would reject the whole
+    // create, and "invalid body" is a poor explanation for a mistyped id.
+    if (toDiscord && discordChannelId.trim() && !/^\d{5,32}$/.test(discordChannelId.trim())) {
+      setErr("Discord channel id should be the numeric id (right-click the channel → Copy Channel ID).");
+      return;
+    }
     setBusy(true); setErr(null);
     try {
       await api.createGiveaway({
@@ -267,6 +278,8 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
         endsAt: endsInDays > 0
           ? new Date(Date.now() + endsInDays * 86400000).toISOString()
           : null,
+        announceToDiscord: toDiscord,
+        discordChannelId: toDiscord && discordChannelId.trim() ? discordChannelId.trim() : null,
       });
       onCreated();
     } catch (e) {
@@ -297,6 +310,28 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
           <input type="number" min={0} value={minLevel} onChange={(e) => setMinLevel(e.target.value === "" ? "" : Number(e.target.value))} placeholder="any" />
         </label>
       </div>
+
+      {/* Discord announcement. Note the wording: the bot POLLS for this, so
+          the post appears within its sync interval rather than instantly. Say
+          so, or the first thing an operator does is tick the box, look at
+          Discord, see nothing, and assume it is broken. */}
+      <label className="gv-field gv-check">
+        <input type="checkbox" checked={toDiscord} onChange={(e) => setToDiscord(e.target.checked)} />
+        <span>
+          Announce in Discord <em className="dim">— the bot posts an entry card with a button, usually within a minute</em>
+        </span>
+      </label>
+      {toDiscord && (
+        <label className="gv-field">
+          <span>Discord channel id <em className="dim">(optional — blank uses the bot's default channel)</em></span>
+          <input
+            value={discordChannelId}
+            onChange={(e) => setDiscordChannelId(e.target.value)}
+            placeholder="e.g. 1180000000000000000"
+            inputMode="numeric"
+          />
+        </label>
+      )}
 
       <label className="gv-field">
         <span>Description</span>

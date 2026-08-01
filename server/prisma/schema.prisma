@@ -645,6 +645,33 @@ model Giveaway {
 
   ownerId     String
 
+  /// ── Discord announcement (the community bot, bot/) ──────────────
+  /// Operator intent, set from the admin dashboard: "post this one in
+  /// Discord". Nothing reads it except the bot's sync poll.
+  ///
+  /// The game server does NOT talk to Discord — it holds no token and knows
+  /// no channel semantics (see lib/discordRoles.ts for why). So this is a
+  /// FLAG the bot polls for, not a job the server runs. A Discord outage is
+  /// therefore invisible here: there is no request to fail and no retry queue
+  /// to grow.
+  announceToDiscord Boolean @default(false)
+  /// Channel to post in. Null = the bot's configured default. Stored rather
+  /// than resolved so an operator can send one giveaway somewhere unusual.
+  discordChannelId  String?
+  /// Set once the bot has posted the entry embed.
+  ///
+  /// THIS IS THE ANNOUNCE IDEMPOTENCY MARKER. The bot polls on a timer, so
+  /// without it every tick would post the same giveaway again. The bot writes
+  /// it back immediately after posting, and the poll filters on
+  /// `discordMessageId IS NULL` — the same shape as `deliveredAt` gating a
+  /// grant, for the same reason.
+  discordMessageId  String?
+  /// Set once the bot has posted the RESULT. Separate from the announce
+  /// marker because they are two different posts at two different times, and a
+  /// giveaway drawn from the admin dashboard has an announcement but no result
+  /// post until the next poll.
+  discordResultsAt  DateTime?
+
   entries GiveawayEntry[]
 
   @@index([status, createdAt])

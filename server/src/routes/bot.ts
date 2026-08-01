@@ -69,8 +69,9 @@ import {
   LINK_CODE_TTL_MS,
 } from "../lib/discordLink.js";
 import { desiredRoles, type DesiredRoles } from "../lib/discordRoles.js";
+import { linkRewardPrizes } from "../lib/discordLinkReward.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
-import { parsePrizesStrict, describePrizes } from "../lib/giveaway.js";
+import { parsePrizes, parsePrizesStrict, describePrizes } from "../lib/giveaway.js";
 import { checkPrizesDeliverable } from "../lib/prizeGrant.js";
 
 const app = new Hono();
@@ -216,11 +217,23 @@ app.post("/link/start", async (c) => {
   if ("error" in minted) {
     return c.json({ error: "capacity", reason: "Too many links in flight right now. Try again in a minute." }, 503);
   }
+  // Advertise the reward in the DM the bot is about to send. Naming the prize
+  // at the moment someone is deciding whether to finish the flow is the whole
+  // point of the promotion; a reward they only learn about afterwards
+  // persuades nobody to link.
+  //
+  // Nominal, NOT a promise for this specific user: whether they are actually
+  // eligible is decided at redeem time, and saying "you'll get X" here to
+  // somebody relinking a second account would be a lie. The bot's copy hedges
+  // accordingly.
+  const reward = linkRewardPrizes();
+
   return c.json({
     code: minted.code,
     expiresAt: new Date(minted.expiresAt).toISOString(),
     ttlMs: LINK_CODE_TTL_MS,
     linkUrl: `${(process.env.FRONTEND_ORIGIN ?? "http://localhost:5173").split(",")[0].trim()}/link-discord`,
+    rewardSummary: reward && reward.length > 0 ? describePrizes(reward) : null,
   });
 });
 
@@ -357,7 +370,7 @@ app.get("/prizes", async (c) => {
     orderBy: { createdAt: "desc" },
     take: 10,
     select: {
-      id: true, summary: true, source: true, createdAt: true,
+      id: true, summary: true, source: true, createdAt: true, prizes: true,
       deliveredAt: true, attempts: true, lastError: true,
     },
   });
@@ -368,6 +381,12 @@ app.get("/prizes", async (c) => {
       id: r.id,
       summary: r.summary,
       source: r.source,
+      // The descriptors, not just the summary string, so the bot can draw the
+      // item/Pokémon sprite next to each line. parsePrizes (lenient) is
+      // correct here and parsePrizesStrict would be wrong: this is a STORED
+      // row that was validated on the way in, which is exactly the case the
+      // lenient reader documents itself as being for.
+      prizes: parsePrizes(r.prizes),
       createdAt: r.createdAt.toISOString(),
       delivered: !!r.deliveredAt,
       deliveredAt: r.deliveredAt?.toISOString() ?? null,
@@ -480,8 +499,12 @@ app.post("/giveaways", async (c) => {
     ok: true,
     giveawayId: row.id,
     title: row.title,
+    description,
     winnerCount: row.winnerCount,
     prizeSummary: describePrizes(parsed.prizes),
+    // Descriptors so the bot can render the item/Pokémon sprites on the
+    // giveaway card. Echoed from what we just validated and stored.
+    prizes: parsed.prizes,
   });
 });
 
@@ -594,6 +617,113 @@ app.post("/giveaways/:id/draw", async (c) => {
   });
 });
 
+// ── Admin-dashboard giveaways ───────────────────────────────────────
+//
+// GET /api/bot/giveaways/pending
+//
+// The bot polls this so a giveaway created in the ADMIN DASHBOARD can be
+// announced in Discord. The game server does not push, because it holds no
+// Discord token and knows no channel semantics — see lib/discordRoles.ts for
+// the same split applied to roles. A Discord outage therefore has nothing to
+// fail on this side.
+//
+// Two independent lists, because they are two different posts at two different
+// times: a giveaway is announced when it opens, and its result is posted when
+// it is drawn, which may be days later and may be triggered from either the
+// dashboard or the bot.
+//
+// `discordMessageId IS NULL` / `discordResultsAt IS NULL` are the idempotency
+// markers. Without them a timer-driven poll re-posts the same giveaway on
+// every tick.
+app.get("/giveaways/pending", async (c) => {
+  const [toAnnounce, toReport] = await Promise.all([
+    prisma.giveaway.findMany({
+      where: { announceToDiscord: true, status: "open", discordMessageId: null },
+      select: {
+        id: true, title: true, description: true, prizes: true,
+        winnerCount: true, discordChannelId: true, endsAt: true,
+      },
+      take: 10,
+    }),
+    prisma.giveaway.findMany({
+      where: { announceToDiscord: true, drawnAt: { not: null }, discordResultsAt: null },
+      select: {
+        id: true, title: true, drawSeed: true, discordChannelId: true, discordMessageId: true,
+        entries: { where: { isWinner: true }, select: { username: true, userId: true } },
+      },
+      take: 10,
+    }),
+  ]);
+
+  // Winners are decorated with their Discord ids so the bot can @mention them.
+  // Best-effort per winner — someone who has since unlinked is still a winner
+  // and is still paid, they just do not get a mention.
+  const reportRows = await Promise.all(
+    toReport.map(async (g) => ({
+      id: g.id,
+      title: g.title,
+      seed: g.drawSeed,
+      channelId: g.discordChannelId,
+      announceMessageId: g.discordMessageId,
+      winners: await Promise.all(
+        g.entries.map(async (e) => ({
+          username: e.username,
+          discordId: await discordIdForUser(e.userId),
+        })),
+      ),
+    })),
+  );
+
+  return c.json({
+    v: BOT_DTO_VERSION,
+    toAnnounce: toAnnounce.map((g) => ({
+      id: g.id,
+      title: g.title,
+      description: g.description,
+      prizes: parsePrizes(g.prizes),
+      prizeSummary: describePrizes(parsePrizes(g.prizes)),
+      winnerCount: g.winnerCount,
+      channelId: g.discordChannelId,
+      endsAt: g.endsAt?.toISOString() ?? null,
+    })),
+    toReport: reportRows,
+  });
+});
+
+// POST /api/bot/giveaways/:id/announced { messageId, channelId }
+//
+// The bot calls this immediately after posting. Written AFTER the post, not
+// before, and that ordering is deliberate: a crash in between costs one
+// duplicate message, which a human can delete. The other order costs a
+// giveaway that is never announced at all, which nobody notices until entries
+// are zero.
+app.post("/giveaways/:id/announced", async (c) => {
+  const id = c.req.param("id");
+  const body = await jsonObject(c);
+  const messageId = typeof body.messageId === "string" ? body.messageId.trim() : "";
+  if (!messageId) return c.json({ error: "messageId required" }, 400);
+  const channelId = typeof body.channelId === "string" ? body.channelId.trim() : null;
+
+  // updateMany with the NULL guard, not update: two bot instances (or a
+  // restarted one mid-poll) must not both claim the announcement. The loser
+  // gets count 0 and can delete its duplicate.
+  const res = await prisma.giveaway.updateMany({
+    where: { id, discordMessageId: null },
+    data: { discordMessageId: messageId, ...(channelId ? { discordChannelId: channelId } : {}) },
+  });
+  return c.json({ ok: true, claimed: res.count > 0 });
+});
+
+// POST /api/bot/giveaways/:id/reported — same, for the result post.
+app.post("/giveaways/:id/reported", async (c) => {
+  const id = c.req.param("id");
+  const res = await prisma.giveaway.updateMany({
+    where: { id, discordResultsAt: null },
+    data: { discordResultsAt: new Date() },
+  });
+  return c.json({ ok: true, claimed: res.count > 0 });
+});
+
 // GET /api/bot/giveaways/:id — owed vs delivered, for the audit post and for
 // a follow-up edit once prizes actually land.
 app.get("/giveaways/:id", async (c) => {
@@ -607,8 +737,16 @@ app.get("/giveaways/:id", async (c) => {
   });
   if (!g) return c.json({ error: "not_found" }, 404);
 
+  // BOTH sources, because the same giveaway can be drawn from either side: the
+  // bot stamps "discord", the admin dashboard stamps "giveaway", and a
+  // giveaway created in the dashboard and drawn there still needs its delivery
+  // state visible here. Filtering on "discord" alone silently reported every
+  // dashboard-drawn giveaway as having no prizes.
+  //
+  // Kept as an `in` on the leading column rather than a bare sourceId filter so
+  // it still uses @@index([source, sourceId]).
   const grants = await prisma.pendingGrant.findMany({
-    where: { source: "discord", sourceId: id },
+    where: { source: { in: ["discord", "giveaway"] }, sourceId: id },
     select: { summary: true, deliveredAt: true, attempts: true, userId: true },
   });
   const users = grants.length

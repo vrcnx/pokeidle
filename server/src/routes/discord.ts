@@ -22,6 +22,7 @@ import {
   redeemLinkCode,
   unlinkUser,
 } from "../lib/discordLink.js";
+import { grantLinkReward } from "../lib/discordLinkReward.js";
 
 const app = new Hono();
 
@@ -121,7 +122,20 @@ app.post("/link/redeem", requireUser, blockStream, async (c) => {
     return c.json({ error: result.reason, reason }, status);
   }
 
-  return c.json({ ok: true, discordLabel: result.discordLabel });
+  // The link is committed at this point. The reward is a bonus on top and is
+  // explicitly best-effort — grantLinkReward never throws — so a promotion
+  // problem can never turn a successful link into a failed one.
+  const reward = await grantLinkReward(user.id, result.discordId);
+
+  return c.json({
+    ok: true,
+    discordLabel: result.discordLabel,
+    // Only ever `granted: true` with a summary, or absent. The internal
+    // "why not" reasons (disabled / already_claimed / below_min_level) are
+    // deliberately NOT sent: a player who links a second account does not need
+    // to be told there was a prize they didn't get.
+    reward: reward.granted ? { summary: reward.summary } : null,
+  });
 });
 
 // ── DELETE /api/discord/link/me ─────────────────────────────────────
