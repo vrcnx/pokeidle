@@ -157,12 +157,19 @@
             <div class="card-flush">
               <div class="table-wrap" style="border-radius:0;border-left:0;border-right:0;border-bottom:0">
                 <table class="admin-table">
-                  <thead><tr><th>Trainer</th><th class="num">Level</th><th>Discord ID</th><th>Linked</th><th class="actions">Actions</th></tr></thead>
+                  <thead><tr>
+                    <th class="sortable"><span class="th-inner">Trainer<span class="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 10l5-5 5 5"/><path d="M7 14l5 5 5-5"/></svg></span></span></th>
+                    <th class="sortable num sorted"><span class="th-inner">Level<span class="th-sort th-sort--desc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 10l5-5 5 5"/><path d="M7 14l5 5 5-5"/></svg></span></span></th>
+                    <th class="sortable"><span class="th-inner">Discord ID<span class="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 10l5-5 5 5"/><path d="M7 14l5 5 5-5"/></svg></span></span></th>
+                    <th class="sortable"><span class="th-inner">Linked<span class="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 10l5-5 5 5"/><path d="M7 14l5 5 5-5"/></svg></span></span></th>
+                    <th class="num"></th>
+                  </tr></thead>
                   <tbody>
-                    <tr><td><strong>@sak4i</strong> <span class="tag tag-brand">Discord</span></td><td class="num">3,615</td><td class="g-mono small">421337000000000000</td><td class="dim small">2h ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
-                    <tr><td><strong>@stratus_varius</strong></td><td class="num">1,119</td><td class="g-mono small">421337000000000001</td><td class="dim small">1d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
-                    <tr><td><strong>@phoenix</strong> <span class="tag tag-bad">banned</span></td><td class="num">87</td><td class="g-mono small">421337000000000002</td><td class="dim small">3d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
-                    <tr><td><strong>@kelsier</strong></td><td class="num">712</td><td class="g-mono small">421337000000000003</td><td class="dim small">6d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr class="is-clickable is-active"><td><strong>@sak4i</strong> <span class="tag banned">banned</span></td><td class="num">3,615</td><td class="g-mono small">421337000000000000</td><td class="dim small">2h ago</td><td class="num"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr class="is-clickable"><td><strong>@stratus_varius</strong></td><td class="num">1,119</td><td class="g-mono small">421337000000000001</td><td class="dim small">1d ago</td><td class="num"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr class="is-clickable"><td><strong>@phoenix</strong></td><td class="num">87</td><td class="g-mono small">421337000000000002</td><td class="dim small">3d ago</td><td class="num"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr class="table-skeleton-row"><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td></tr>
+                    <tr class="table-skeleton-row"><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td><td><span class="table-skeleton"></span></td></tr>
                   </tbody>
                 </table>
               </div>

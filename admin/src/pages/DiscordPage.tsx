@@ -3,6 +3,7 @@ import { api, type DiscordStats, type DiscordLinkRow } from "../api";
 import { DiscordRewardPanel } from "../components/DiscordRewardPanel";
 import { XpPanel } from "../components/XpPanel";
 import { confirm, notify } from "../components/Confirm";
+import { DataTable } from "../components/DataTable";
 
 // The Discord control room: is the bot alive, how many people have linked,
 // what are the role thresholds catching, and who is linked to what.
@@ -191,41 +192,36 @@ function LinkedAccounts() {
         />
       </header>
       {err && <div className="page-err">{err}</div>}
-      {!rows && <div className="page-loading">Loading…</div>}
-      {rows && rows.length === 0 && (
-        <p className="dim">
-          Nobody has linked yet. Players run <code>/link</code> in Discord to start.
-        </p>
-      )}
-      {rows && rows.length > 0 && (
-        // .table-wrap scrolls the table horizontally on narrow viewports
-        // instead of letting it push the whole page sideways.
-        <div className="table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr><th>Trainer</th><th className="num">Level</th><th>Discord ID</th><th>Linked</th><th className="actions"></th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.discordId}>
-                <td>
-                  <strong>@{r.username}</strong>
-                  {/* A banned account holds no bot roles at all. Surfaced here
-                      so "why did they lose Trainer" is answered on this page. */}
-                  {r.banned && <span className="bug-src-discord" style={{ background: "rgba(248,113,113,0.18)", color: "#fca5a5" }}>banned</span>}
-                </td>
-                <td className="num">{r.accountLevel}</td>
-                <td className="g-mono small">{r.discordId}</td>
-                <td className="dim small">{ago(r.linkedAt)}</td>
-                <td className="actions">
-                  <button className="btn-ghost btn-tiny" onClick={() => unlink(r)}>Unlink</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      )}
+
+      <DataTable
+        rows={rows}
+        getKey={(r) => r.discordId}
+        defaultSort={{ key: "linkedAt", dir: "desc" }}
+        empty={<>Nobody has linked yet. Players run <code>/link</code> in Discord to start.</>}
+        columns={[
+          {
+            key: "username",
+            header: "Trainer",
+            sort: (r) => r.username,
+            render: (r) => (
+              <>
+                <strong>@{r.username}</strong>
+                {/* A banned account holds no bot roles at all, so "why did
+                    they lose Trainer" is answered on this row. */}
+                {r.banned && <span className="tag banned">banned</span>}
+              </>
+            ),
+          },
+          { key: "accountLevel", header: "Level", align: "right", sort: (r) => r.accountLevel, render: (r) => r.accountLevel.toLocaleString() },
+          { key: "discordId", header: "Discord ID", sort: (r) => r.discordId, render: (r) => <span className="g-mono small">{r.discordId}</span> },
+          { key: "linkedAt", header: "Linked", sort: (r) => r.linkedAt, render: (r) => <span className="dim small">{ago(r.linkedAt)}</span> },
+          { key: "lastSeenAt", header: "Last seen", sort: (r) => r.lastSeenAt, render: (r) => <span className="dim small">{ago(r.lastSeenAt)}</span> },
+          {
+            key: "actions", header: "", align: "right", stopClick: true,
+            render: (r) => <button className="btn-ghost btn-tiny" onClick={() => unlink(r)}>Unlink</button>,
+          },
+        ]}
+      />
     </section>
   );
 }

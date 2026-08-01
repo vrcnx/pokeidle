@@ -750,6 +750,63 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .admin-table th.num, .admin-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .admin-table td.actions, .admin-table th.actions { text-align: right; white-space: nowrap; }
 
+/* ── Sortable headers ──────────────────────────────────────────
+   Not one table in this dashboard could be sorted before. On pages that
+   routinely show hundreds of rows, "which is the highest level" meant
+   reading with your eyes. */
+
+.admin-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 110ms var(--ease), background 110ms var(--ease);
+}
+.admin-table th.sortable:hover { color: var(--text); background: var(--surface-1); }
+.admin-table th.sorted { color: var(--brand-text); }
+
+.th-inner { display: inline-flex; align-items: center; gap: 5px; }
+.admin-table th.num .th-inner { flex-direction: row-reverse; }
+
+/* Both chevrons at rest so the column reads as sortable before anyone
+   clicks; the active direction lights one and dims the other. An arrow
+   that only appears on hover is an affordance nobody discovers. */
+.th-sort { display: inline-flex; opacity: 0.35; flex-shrink: 0; }
+.th-sort svg { width: 11px; height: 11px; }
+.admin-table th.sortable:hover .th-sort { opacity: 0.6; }
+.th-sort--asc, .th-sort--desc { opacity: 1; }
+.th-sort--asc svg  path:last-child { opacity: 0.25; }
+.th-sort--desc svg path:first-child { opacity: 0.25; }
+
+/* ── Rows ──────────────────────────────────────────────────────── */
+
+.admin-table tr.is-clickable { cursor: pointer; }
+.admin-table tr.is-active {
+  background: var(--brand-soft);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+.admin-table tr.is-active:hover { background: var(--brand-soft); }
+
+/* ── Loading skeleton ──────────────────────────────────────────
+   A distinct state from "loaded and empty". Showing "Nothing to show"
+   while a fetch is still in flight is a lie the reader acts on. */
+
+.table-skeleton-row td { padding-top: 12px; padding-bottom: 12px; }
+.table-skeleton {
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+}
+/* Varying widths so it reads as text loading rather than as a progress bar. */
+.table-skeleton-row td:nth-child(3n+1) .table-skeleton { width: 70%; }
+.table-skeleton-row td:nth-child(3n+2) .table-skeleton { width: 45%; }
+.table-skeleton-row td:nth-child(3n+3) .table-skeleton { width: 58%; }
+@keyframes skeleton {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
 .table-empty {
   padding: var(--sp-8) var(--sp-4);
   text-align: center;
