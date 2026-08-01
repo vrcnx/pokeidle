@@ -398,6 +398,38 @@ model DiscordConfig {
   updatedAt DateTime @updatedAt
   /// The admin who last saved. Display only — AdminAudit is the real ledger.
   updatedBy String?
+
+  /// ── Role thresholds ─────────────────────────────────────────────
+  /// Account level for the Ace Trainer role, and rated matches before anyone
+  /// is awarded Champion. NULL = fall back to the env default.
+  ///
+  /// These started as environment variables and moved here for the same
+  /// reason the reward did: they are numbers an operator TUNES by looking at
+  /// the player base, not deployment configuration. The right Ace Trainer bar
+  /// is unknowable in advance — it depends on a level curve that shifts as the
+  /// game grows — so it has to be adjustable without a redeploy, from a page
+  /// that can show what the current value actually catches.
+  aceTrainerMinLevel Int?
+  championMinMatches Int?
+
+  /// ── Bot liveness ────────────────────────────────────────────────
+  /// When the bot last checked in. The dashboard turns this into
+  /// "connected" / "last seen 4 minutes ago" / "offline".
+  ///
+  /// Written by the bot, on its own reconcile tick, through the bot API. The
+  /// game server has no way to ASK whether the bot is alive — it holds no
+  /// Discord token and does not know where the bot runs — so liveness has to
+  /// be reported rather than probed. That is the same direction the renderer
+  /// reports its status in (BroadcastState.lastStatusAt), for the same reason.
+  ///
+  /// Stale is the honest default: if the bot dies, this simply stops moving,
+  /// and "last seen 2 hours ago" is exactly the right thing to show.
+  botLastSeenAt DateTime?
+  /// JSON blob of whatever the bot reported: guild member count, roles
+  /// granted/removed on the last pass, its own version. Free-form because it
+  /// is DISPLAY ONLY — nothing branches on it, so the bot can add a field
+  /// without a migration and an older dashboard just ignores it.
+  botStatus String?
 }
 
 model DiscordLink {

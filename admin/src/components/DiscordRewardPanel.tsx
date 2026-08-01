@@ -13,7 +13,7 @@ import { notify } from "./Confirm";
 // real stat formula, and a second hand-rolled picker is how you end up
 // handing out a Lv50 Charizard with 24 HP.
 
-export function DiscordRewardPanel() {
+export function DiscordRewardPanel({ onSaved }: { onSaved?: () => void } = {}) {
   const [cfg, setCfg] = useState<DiscordConfig | null>(null);
   const [prizes, setPrizes] = useState<GiveawayPrizeInput[]>([]);
   const [enabled, setEnabled] = useState(false);
@@ -41,6 +41,7 @@ export function DiscordRewardPanel() {
           ? `Link reward is ON — new linkers get ${d.linkRewardSummary}.`
           : "Link reward is OFF.",
       );
+      onSaved?.();
     } catch (e) {
       // Reset the toggle to what the SERVER believes, not what was clicked.
       // Leaving it showing the attempted state after a rejection is how an

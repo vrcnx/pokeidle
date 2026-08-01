@@ -3363,3 +3363,69 @@ input[type="checkbox"], input[type="radio"] {
 .broadcast-help li { margin-bottom: 6px; line-height: 1.5; }
 .broadcast-help code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 @media (max-width: 560px) { .broadcast-stats { grid-template-columns: 1fr; } }
+
+/* ── Discord page ──────────────────────────────────────────────────── */
+
+/* Liveness banner. First thing on the page because every other number here
+   is meaningless if the bot is not running — and "the bot is down" is
+   invisible from inside the game, since the game server never talks to
+   Discord. A stale heartbeat is the only signal there is. */
+.dc-health {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  border-left: 3px solid var(--border);
+}
+.dc-health--up    { border-left-color: #4ade80; }
+.dc-health--stale { border-left-color: #f87171; }
+.dc-health--never { border-left-color: #94a3b8; }
+.dc-health-main { display: flex; align-items: center; gap: 12px; }
+.dc-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dc-dot--up    { background: #4ade80; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.16); }
+.dc-dot--stale { background: #f87171; box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.16); }
+.dc-dot--never { background: #94a3b8; }
+.dc-health-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+
+.dc-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dc-tile { display: flex; flex-direction: column; gap: 3px; }
+.dc-tile-label { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: var(--text-muted); }
+.dc-tile-value { font-size: 26px; font-weight: 700; line-height: 1.15; }
+.dc-tile--warn .dc-tile-value { color: #fde68a; }
+
+.dc-threshold-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.dc-threshold-row .gv-field { min-width: 240px; }
+/* The live count next to each threshold is the whole reason these moved out
+   of env: a bar you cannot see the effect of is a guess. */
+.dc-threshold-hint { flex: 1; min-width: 220px; padding-top: 20px; line-height: 1.5; }
+
+.dc-links-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.dc-links-head h2 { margin: 0; }
+.dc-search {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  min-width: 260px;
+}

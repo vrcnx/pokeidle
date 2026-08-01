@@ -262,12 +262,37 @@ export interface AdminGiveaway {
   discordResultsAt?: string | null;
 }
 
+export interface DiscordStats {
+  bot: { lastSeenAt: string | null; status: { guildMembers?: number; linkedMembers?: number; rolesGranted?: number; rolesRemoved?: number; champion?: string | null } | null };
+  links: { total: number; last24h: number; last7d: number };
+  roles: {
+    trainer: number; aceTrainer: number; aceTrainerMinLevel: number;
+    championMinMatches: number; champion: string | null; championLinked: boolean;
+  };
+  reward: { enabled: boolean; summary: string | null; granted: number; delivered: number; pending: number };
+  giveaways: { announced: number; entries: number };
+  bugReports: { total: number; open: number };
+  trade: { listings7d: number };
+}
+
+export interface DiscordLinkRow {
+  discordId: string;
+  linkedAt: string;
+  userId: string;
+  username: string;
+  accountLevel: number;
+  lastSeenAt: string;
+  banned: boolean;
+}
+
 export interface DiscordConfig {
   /** Master switch, separate from the prize being set, so a promotion can be
    *  paused without losing its configuration. */
   linkRewardEnabled: boolean;
   linkReward: GiveawayPrizeInput[];
   linkRewardSummary: string | null;
+  aceTrainerMinLevel: number;
+  championMinMatches: number;
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -463,8 +488,18 @@ export const api = {
   // Discord settings. The link-reward prize lives in the database rather than
   // the environment so it can be changed here, without a redeploy.
   getDiscordConfig: () => req<DiscordConfig>("GET", "/api/admin/discord-config"),
-  putDiscordConfig: (body: { linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[] }) =>
-    req<DiscordConfig>("PUT", "/api/admin/discord-config", body),
+  putDiscordConfig: (body: {
+    linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[];
+    aceTrainerMinLevel?: number; championMinMatches?: number;
+  }) => req<DiscordConfig>("PUT", "/api/admin/discord-config", body),
+  discordStats: () => req<DiscordStats>("GET", "/api/admin/discord-stats"),
+  discordLinks: (q = "", limit = 50, offset = 0) =>
+    req<{ total: number; links: DiscordLinkRow[] }>(
+      "GET",
+      `/api/admin/discord-links?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`,
+    ),
+  discordUnlink: (discordId: string) =>
+    req<{ ok: true; removed: boolean }>("DELETE", `/api/admin/discord-links/${encodeURIComponent(discordId)}`),
 
   // Giveaways
   listGiveawaysAdmin: () => req<{ giveaways: AdminGiveaway[] }>("GET", "/api/admin/giveaways"),

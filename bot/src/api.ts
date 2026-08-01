@@ -168,6 +168,7 @@ export interface DesiredRoles {
   managedRoles: string[];
   champion: { username: string; discordId: string } | null;
   aceTrainerMinLevel: number;
+  championMinMatches: number;
   members: DesiredMember[];
   computedAt: string;
 }
@@ -225,6 +226,11 @@ export const api = {
       delivered: boolean; deliveredAt: string | null; stuck: boolean;
       attempts: number; lastError: string | null;
     }> }>("GET", `/api/bot/prizes?discordId=${encodeURIComponent(discordId)}`),
+
+  // Liveness. Reported rather than probed: the game server cannot reach the
+  // bot — no token, no address, outbound connections only.
+  heartbeat: (input: Record<string, unknown>) =>
+    call<{ ok: true }>("POST", "/api/bot/heartbeat", input),
 
   // Roles
   desiredRoles: () => call<DesiredRoles>("GET", "/api/bot/roles/desired"),

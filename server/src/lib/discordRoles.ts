@@ -57,9 +57,9 @@ export const ROLE_ACE_TRAINER = "Ace Trainer";
  * guessed while writing the reconciler. The default is deliberately reachable:
  * a role nobody has is not a role.
  */
-export const ACE_TRAINER_MIN_LEVEL = Math.max(
+export const ACE_TRAINER_MIN_LEVEL_DEFAULT = Math.max(
   1,
-  parseInt(process.env.DISCORD_ACE_TRAINER_LEVEL ?? "25", 10) || 25,
+  parseInt(process.env.DISCORD_ACE_TRAINER_LEVEL ?? "250", 10) || 250,
 );
 
 /**
@@ -71,10 +71,44 @@ export const ACE_TRAINER_MIN_LEVEL = Math.max(
  * match is noise, and worse, it repeatedly strips the role from someone who
  * did nothing wrong.
  */
-export const CHAMPION_MIN_MATCHES = Math.max(
+export const CHAMPION_MIN_MATCHES_DEFAULT = Math.max(
   1,
-  parseInt(process.env.DISCORD_CHAMPION_MIN_MATCHES ?? "5", 10) || 5,
+  parseInt(process.env.DISCORD_CHAMPION_MIN_MATCHES ?? "1", 10) || 1,
 );
+
+/**
+ * The thresholds actually in force: the DiscordConfig row when an operator has
+ * set one, otherwise the env default.
+ *
+ * Both defaults were changed after measuring against production, and the
+ * numbers are worth recording because they are the argument for making these
+ * configurable at all:
+ *
+ *   Ace Trainer shipped at level 25. Max account level is 18,810, the mean is
+ *   59, and 347 of 2,442 accounts sit at or above 25 — one in seven players.
+ *   A role that common is a participation badge. The default is now 250 (~5%),
+ *   and the real answer is whatever the operator picks after looking at the
+ *   distribution the dashboard shows them.
+ *
+ *   Champion shipped requiring 5 rated matches. The highest matchesPlayed in
+ *   the entire database is 1, so the query matched nobody and the role was
+ *   UNAWARDABLE — a reward nobody can earn, awarded by a job that always finds
+ *   nobody, which is indistinguishable from a broken job. It is exactly the
+ *   failure this file's own comment warns about for rating-gated roles, and
+ *   the match floor walked straight into it. Default is now 1.
+ */
+export async function roleThresholds(): Promise<{
+  aceTrainerMinLevel: number;
+  championMinMatches: number;
+}> {
+  const cfg = await prisma.discordConfig
+    .findUnique({ where: { id: "singleton" }, select: { aceTrainerMinLevel: true, championMinMatches: true } })
+    .catch(() => null);
+  return {
+    aceTrainerMinLevel: Math.max(1, cfg?.aceTrainerMinLevel ?? ACE_TRAINER_MIN_LEVEL_DEFAULT),
+    championMinMatches: Math.max(1, cfg?.championMinMatches ?? CHAMPION_MIN_MATCHES_DEFAULT),
+  };
+}
 
 export interface DesiredMember {
   discordId: string;
@@ -103,6 +137,7 @@ export interface DesiredRoles {
    *  can log a handover rather than inferring it from a diff. */
   champion: { username: string; discordId: string } | null;
   aceTrainerMinLevel: number;
+  championMinMatches: number;
   members: DesiredMember[];
   computedAt: string;
 }
@@ -119,6 +154,7 @@ const DESIRED_ROLES_VERSION = 1;
  */
 export async function desiredRoles(): Promise<DesiredRoles> {
   const now = new Date();
+  const { aceTrainerMinLevel, championMinMatches } = await roleThresholds();
 
   const links = await prisma.discordLink.findMany({
     select: {
@@ -134,7 +170,7 @@ export async function desiredRoles(): Promise<DesiredRoles> {
   // in-game leaderboard's primary key so the two can never disagree about who
   // is on top.
   const top = await prisma.playerRating.findFirst({
-    where: { matchesPlayed: { gte: CHAMPION_MIN_MATCHES } },
+    where: { matchesPlayed: { gte: championMinMatches } },
     orderBy: [{ rating: "desc" }, { matchesPlayed: "desc" }],
     select: { userId: true },
   });
@@ -163,7 +199,7 @@ export async function desiredRoles(): Promise<DesiredRoles> {
     }
 
     const roles: string[] = [ROLE_TRAINER];
-    if (u.accountLevel >= ACE_TRAINER_MIN_LEVEL) roles.push(ROLE_ACE_TRAINER);
+    if (u.accountLevel >= aceTrainerMinLevel) roles.push(ROLE_ACE_TRAINER);
     if (top && top.userId === link.userId) {
       roles.push(ROLE_CHAMPION);
       champion = { username: u.username, discordId: link.discordId };
@@ -186,7 +222,8 @@ export async function desiredRoles(): Promise<DesiredRoles> {
     // grants the new one, with no event and no memory of who held it before.
     managedRoles: [ROLE_TRAINER, ROLE_CHAMPION, ROLE_ACE_TRAINER],
     champion,
-    aceTrainerMinLevel: ACE_TRAINER_MIN_LEVEL,
+    aceTrainerMinLevel,
+    championMinMatches,
     members,
     computedAt: now.toISOString(),
   };

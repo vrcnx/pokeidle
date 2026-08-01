@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminGiveaway, type GiveawayPrizeInput } from "../api";
 import { PrizeBuilder } from "../components/PrizeBuilder";
-import { DiscordRewardPanel } from "../components/DiscordRewardPanel";
 
 // Giveaway operations.
 //
@@ -99,11 +98,6 @@ export function GiveawaysPage() {
       </header>
 
       {err && <div className="page-err">{err}</div>}
-
-      {/* Not strictly a giveaway, but it is the other way this game hands out
-          free prizes, and it uses the same prize picker — so an operator looking
-          for "how do I give something away" finds both in one place. */}
-      <DiscordRewardPanel />
 
       {creating && (
         <CreateGiveaway

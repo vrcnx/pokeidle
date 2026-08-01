@@ -15,17 +15,21 @@ const state = {
     user: { username: string; accountLevel: number; bannedUntil: Date | null };
   }>,
   top: null as { userId: string } | null,
+  /** The DiscordConfig singleton. NULL = no operator override, so the env
+   *  defaults apply — which is the state every deployment starts in. */
+  config: null as { aceTrainerMinLevel: number | null; championMinMatches: number | null } | null,
 };
 
 vi.mock("../src/db.js", () => ({
   prisma: {
     discordLink: { findMany: async () => state.links },
     playerRating: { findFirst: async () => state.top },
+    discordConfig: { findUnique: async () => state.config },
   },
 }));
 
 import {
-  ACE_TRAINER_MIN_LEVEL,
+  ACE_TRAINER_MIN_LEVEL_DEFAULT,
   ROLE_ACE_TRAINER,
   ROLE_CHAMPION,
   ROLE_TRAINER,
@@ -44,6 +48,7 @@ function link(
 beforeEach(() => {
   state.links = [];
   state.top = null;
+  state.config = null;
 });
 
 describe("managedRoles", () => {
@@ -74,9 +79,9 @@ describe("role assignment", () => {
 
   it("adds Ace Trainer at or above the level threshold", async () => {
     state.links = [
-      link("d1", "below", ACE_TRAINER_MIN_LEVEL - 1),
-      link("d2", "exactly", ACE_TRAINER_MIN_LEVEL),
-      link("d3", "above", ACE_TRAINER_MIN_LEVEL + 10),
+      link("d1", "below", ACE_TRAINER_MIN_LEVEL_DEFAULT - 1),
+      link("d2", "exactly", ACE_TRAINER_MIN_LEVEL_DEFAULT),
+      link("d3", "above", ACE_TRAINER_MIN_LEVEL_DEFAULT + 10),
     ];
     const d = await desiredRoles();
     const roles = Object.fromEntries(d.members.map((m) => [m.username, m.roles]));
@@ -117,7 +122,7 @@ describe("banned accounts", () => {
 
   it("regain their roles once the ban has expired", async () => {
     const past = new Date(Date.now() - 60 * 60_000);
-    state.links = [link("d1", "served", ACE_TRAINER_MIN_LEVEL, past)];
+    state.links = [link("d1", "served", ACE_TRAINER_MIN_LEVEL_DEFAULT, past)];
     const d = await desiredRoles();
     expect(d.members[0].roles).toEqual([ROLE_TRAINER, ROLE_ACE_TRAINER]);
   });
@@ -131,5 +136,37 @@ describe("banned accounts", () => {
     // alt immediately.
     expect(d.members).toHaveLength(1);
     expect(d.members[0].discordId).toBe("d1");
+  });
+});
+
+describe("operator-configured thresholds", () => {
+  it("uses the DiscordConfig value over the env default", async () => {
+    // The whole reason these moved out of env. Ace Trainer shipped at level 25
+    // against a player base whose mean level is 59 and whose max is 18,810 —
+    // one in seven accounts qualified, which makes it a participation badge.
+    // An operator has to be able to fix that from the dashboard.
+    state.config = { aceTrainerMinLevel: 5000, championMinMatches: null };
+    state.links = [link("d1", "high", 4999), link("d2", "higher", 5000)];
+    const d = await desiredRoles();
+    const roles = Object.fromEntries(d.members.map((m) => [m.username, m.roles]));
+    expect(roles.high).not.toContain(ROLE_ACE_TRAINER);
+    expect(roles.higher).toContain(ROLE_ACE_TRAINER);
+    expect(d.aceTrainerMinLevel).toBe(5000);
+  });
+
+  it("falls back to the env default per-field, not all-or-nothing", async () => {
+    // championMinMatches set, aceTrainerMinLevel left NULL: the configured one
+    // wins and the other still gets its default. A row that overrode both or
+    // neither would force an operator to set a number they have no opinion on.
+    state.config = { aceTrainerMinLevel: null, championMinMatches: 9 };
+    const d = await desiredRoles();
+    expect(d.aceTrainerMinLevel).toBe(ACE_TRAINER_MIN_LEVEL_DEFAULT);
+    expect(d.championMinMatches).toBe(9);
+  });
+
+  it("reports the thresholds in force, so the dashboard cannot show a stale bar", async () => {
+    state.config = { aceTrainerMinLevel: 300, championMinMatches: 2 };
+    const d = await desiredRoles();
+    expect(d).toMatchObject({ aceTrainerMinLevel: 300, championMinMatches: 2 });
   });
 });

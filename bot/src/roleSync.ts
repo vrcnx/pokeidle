@@ -144,6 +144,20 @@ export async function reconcileOnce(client: Client): Promise<void> {
         (desired.champion ? ` · champion: ${desired.champion.username}` : " · no champion"),
     );
   }
+
+  // Check in, so the admin dashboard can say whether this process is alive.
+  // Deliberately AFTER the work and deliberately swallowed: a heartbeat is
+  // telemetry, and a failed one must never turn a successful reconcile into a
+  // logged failure.
+  await api
+    .heartbeat({
+      guildMembers: members.size,
+      linkedMembers: desired.members.length,
+      rolesGranted: granted,
+      rolesRemoved: removed,
+      champion: desired.champion?.username ?? null,
+    })
+    .catch(() => undefined);
 }
 
 export function startRoleSync(client: Client): void {

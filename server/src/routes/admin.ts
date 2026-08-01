@@ -35,6 +35,8 @@ import {
   parsePrizes, parsePrizesStrict, describePrizes, PrizeListSchema, type Prize,
 } from "../lib/giveaway.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
+import { roleThresholds } from "../lib/discordRoles.js";
+import { LINK_REWARD_SOURCE } from "../lib/discordLinkReward.js";
 import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
@@ -1805,6 +1807,7 @@ app.get("/discord-config", async (c) => {
     linkRewardEnabled: row?.linkRewardEnabled ?? false,
     linkReward: row?.linkReward ? parsePrizes(row.linkReward) : [],
     linkRewardSummary: row?.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
+    ...(await roleThresholds()),
     updatedAt: row?.updatedAt?.toISOString() ?? null,
     updatedBy: row?.updatedBy ?? null,
   });
@@ -1814,6 +1817,11 @@ const DiscordConfigBody = z.object({
   linkRewardEnabled: z.boolean(),
   // Optional so the toggle can be flipped without re-sending the prize.
   linkReward: PrizeListSchema.optional(),
+  // Role thresholds. Bounded generously rather than tightly: the right Ace
+  // Trainer bar depends on a level curve that keeps moving, and the max
+  // account level in production is already 18,810.
+  aceTrainerMinLevel: z.number().int().min(1).max(1_000_000).optional(),
+  championMinMatches: z.number().int().min(1).max(10_000).optional(),
 });
 
 app.put("/discord-config", async (c) => {
@@ -1851,17 +1859,25 @@ app.put("/discord-config", async (c) => {
       id: "singleton",
       linkReward: linkRewardJson,
       linkRewardEnabled: d.linkRewardEnabled,
+      // undefined leaves the column NULL, which means "use the env default" —
+      // so omitting a threshold is not the same as setting it to zero.
+      aceTrainerMinLevel: d.aceTrainerMinLevel,
+      championMinMatches: d.championMinMatches,
       updatedBy: me.username,
     },
     update: {
       linkReward: linkRewardJson,
       linkRewardEnabled: d.linkRewardEnabled,
+      ...(d.aceTrainerMinLevel !== undefined ? { aceTrainerMinLevel: d.aceTrainerMinLevel } : {}),
+      ...(d.championMinMatches !== undefined ? { championMinMatches: d.championMinMatches } : {}),
       updatedBy: me.username,
     },
   });
 
   void makeAudit(c)(me.id, "discord.config_update", null, {
     linkRewardEnabled: row.linkRewardEnabled,
+    aceTrainerMinLevel: row.aceTrainerMinLevel,
+    championMinMatches: row.championMinMatches,
     linkReward: row.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
   });
 
@@ -1869,9 +1885,167 @@ app.put("/discord-config", async (c) => {
     linkRewardEnabled: row.linkRewardEnabled,
     linkReward: row.linkReward ? parsePrizes(row.linkReward) : [],
     linkRewardSummary: row.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
+    ...(await roleThresholds()),
     updatedAt: row.updatedAt.toISOString(),
     updatedBy: row.updatedBy,
   });
+});
+
+// ── Discord: stats + linked accounts ────────────────────────────────
+//
+// Everything the dashboard's Discord page needs, in ONE round trip. It is a
+// page of counters, and issuing a dozen requests to fill it would make the
+// page's load time the sum of a dozen latencies for no benefit — none of these
+// counts is expensive and none is independently useful.
+//
+// Every figure here is derived, not stored. There is no Discord analytics
+// table and there should not be: the link rows, the grant ledger and the bug
+// reports already know all of this, and a denormalised counter would be one
+// more thing that can silently disagree with them.
+
+app.get("/discord-stats", async (c) => {
+  const now = new Date();
+  const { aceTrainerMinLevel, championMinMatches } = await roleThresholds();
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60_000);
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60_000);
+  const visible = { OR: [{ bannedUntil: null }, { bannedUntil: { lt: now } }] };
+
+  const [
+    cfg,
+    linksTotal, links24h, links7d,
+    aceEligible, topRating,
+    rewardsGranted, rewardsDelivered,
+    discordGiveaways, discordEntries,
+    bugsFromDiscord, bugsOpenFromDiscord,
+    tradeListings,
+  ] = await Promise.all([
+    prisma.discordConfig.findUnique({ where: { id: "singleton" } }),
+    prisma.discordLink.count(),
+    prisma.discordLink.count({ where: { linkedAt: { gte: dayAgo } } }),
+    prisma.discordLink.count({ where: { linkedAt: { gte: weekAgo } } }),
+    // Ace Trainer eligibility across LINKED accounts only — the role can only
+    // ever be granted to someone in the server, so counting the whole player
+    // base would overstate it.
+    prisma.discordLink.count({
+      where: { user: { accountLevel: { gte: aceTrainerMinLevel }, ...visible } },
+    }),
+    prisma.playerRating.findFirst({
+      where: { matchesPlayed: { gte: championMinMatches } },
+      orderBy: [{ rating: "desc" }, { matchesPlayed: "desc" }],
+      select: { userId: true, rating: true },
+    }),
+    prisma.pendingGrant.count({ where: { source: LINK_REWARD_SOURCE } }),
+    prisma.pendingGrant.count({ where: { source: LINK_REWARD_SOURCE, deliveredAt: { not: null } } }),
+    prisma.giveaway.count({ where: { announceToDiscord: true } }),
+    prisma.giveawayEntry.count({ where: { giveaway: { announceToDiscord: true } } }),
+    prisma.bugReport.count({ where: { source: "discord" } }),
+    prisma.bugReport.count({ where: { source: "discord", status: "open" } }),
+    prisma.chatMessage.count({ where: { kind: "tradeOffer", createdAt: { gte: weekAgo } } }),
+  ]);
+
+  const championUser = topRating
+    ? await prisma.user.findUnique({ where: { id: topRating.userId }, select: { username: true } })
+    : null;
+  const championLinked = topRating
+    ? !!(await prisma.discordLink.findUnique({ where: { userId: topRating.userId }, select: { discordId: true } }))
+    : false;
+
+  let botStatus: unknown = null;
+  try { botStatus = cfg?.botStatus ? JSON.parse(cfg.botStatus) : null; } catch { botStatus = null; }
+
+  return c.json({
+    bot: {
+      lastSeenAt: cfg?.botLastSeenAt?.toISOString() ?? null,
+      status: botStatus,
+    },
+    links: { total: linksTotal, last24h: links24h, last7d: links7d },
+    roles: {
+      // Trainer goes to every linked, unbanned account, so its count IS the
+      // link count. Stated rather than queried separately so the page cannot
+      // show two numbers that disagree.
+      trainer: linksTotal,
+      aceTrainer: aceEligible,
+      aceTrainerMinLevel,
+      championMinMatches,
+      champion: championUser?.username ?? null,
+      // The dashboard needs to distinguish "nobody qualifies" from "the person
+      // who qualifies has not linked" — they look identical from the outside
+      // and have completely different fixes.
+      championLinked,
+    },
+    reward: {
+      enabled: cfg?.linkRewardEnabled ?? false,
+      summary: cfg?.linkReward ? describePrizes(parsePrizes(cfg.linkReward)) : null,
+      granted: rewardsGranted,
+      delivered: rewardsDelivered,
+      pending: Math.max(0, rewardsGranted - rewardsDelivered),
+    },
+    giveaways: { announced: discordGiveaways, entries: discordEntries },
+    bugReports: { total: bugsFromDiscord, open: bugsOpenFromDiscord },
+    trade: { listings7d: tradeListings },
+  });
+});
+
+// The linked accounts themselves, newest first. Paginated because this grows
+// with the Discord server rather than with the player base, but it still grows.
+app.get("/discord-links", async (c) => {
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query("limit") ?? "50", 10)));
+  const offset = Math.max(0, parseInt(c.req.query("offset") ?? "0", 10));
+  const q = (c.req.query("q") ?? "").trim();
+
+  const where = q
+    ? { OR: [{ discordId: { contains: q } }, { user: { username: { contains: q, mode: "insensitive" as const } } }] }
+    : {};
+
+  const [rows, total] = await Promise.all([
+    prisma.discordLink.findMany({
+      where,
+      orderBy: { linkedAt: "desc" },
+      take: limit,
+      skip: offset,
+      select: {
+        discordId: true,
+        linkedAt: true,
+        user: { select: { id: true, username: true, accountLevel: true, lastSeenAt: true, bannedUntil: true } },
+      },
+    }),
+    prisma.discordLink.count({ where }),
+  ]);
+
+  const now = new Date();
+  return c.json({
+    total,
+    links: rows.map((r) => ({
+      discordId: r.discordId,
+      linkedAt: r.linkedAt.toISOString(),
+      userId: r.user.id,
+      username: r.user.username,
+      accountLevel: r.user.accountLevel,
+      lastSeenAt: r.user.lastSeenAt.toISOString(),
+      // Surfaced because a banned linked account holds NO managed roles, and
+      // an operator wondering why someone lost Trainer needs to see this
+      // without opening another page.
+      banned: !!r.user.bannedUntil && r.user.bannedUntil > now,
+    })),
+  });
+});
+
+// Sever a link from the dashboard. The player-facing paths are /unlink in
+// Discord and the account settings on the site; this is the moderation one,
+// for a binding that needs removing without the account holder's cooperation.
+app.delete("/discord-links/:discordId", async (c) => {
+  const me = c.get("user");
+  const discordId = c.req.param("discordId");
+  const existing = await prisma.discordLink.findUnique({
+    where: { discordId },
+    select: { userId: true },
+  });
+  const res = await prisma.discordLink.deleteMany({ where: { discordId } });
+  if (res.count > 0) {
+    void makeAudit(c)(me.id, "discord.unlink", existing?.userId ?? null, { discordId });
+  }
+  // Idempotent: unlinking something already unlinked is not an error.
+  return c.json({ ok: true, removed: res.count > 0 });
 });
 
 const GiveawayBody = z.object({

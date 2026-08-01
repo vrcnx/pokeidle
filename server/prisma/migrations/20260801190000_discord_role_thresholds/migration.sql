@@ -1,0 +1,32 @@
+-- Role thresholds move from environment variables into DiscordConfig, so they
+-- can be tuned from the admin dashboard.
+--
+-- ── ADDITIVE ONLY ────────────────────────────────────────────────────
+-- Two nullable integers on the DiscordConfig singleton. Nothing dropped,
+-- retyped or backfilled; IF NOT EXISTS makes a rerun a no-op.
+--
+-- ── WHY NULL RATHER THAN A SEEDED DEFAULT ───────────────────────────
+-- NULL means "use the env default", so this migration changes no behaviour on
+-- its own and a deployment that never opens the page keeps working exactly as
+-- it did. The dashboard writes a real value the first time an operator saves.
+--
+-- ── WHY THESE MOVED AT ALL ──────────────────────────────────────────
+-- The Ace Trainer bar shipped at account level 25, chosen with no data. Read
+-- against production the day it shipped: max account level 18,810, mean 59,
+-- and 347 of 2,442 accounts at or above 25. So the role would have gone to
+-- roughly one in seven players — a participation badge, not an achievement,
+-- and the exact opposite of what a role called "Ace Trainer" is for.
+--
+-- The lesson is not "pick a better constant". It is that the right value
+-- depends on a level curve that moves as the game grows, so it cannot be
+-- decided once at authoring time and must not require a redeploy to change.
+-- Env was the wrong home; a number an operator tunes belongs next to a page
+-- that can show them what it currently catches.
+--
+-- Champion has the same problem in a sharper form: it shipped requiring 5
+-- rated matches, and the highest matchesPlayed in the entire database is 1 —
+-- so the query matched nobody and the role was unawardable. Configurable
+-- means that is a text box, not a deploy.
+
+ALTER TABLE "DiscordConfig" ADD COLUMN IF NOT EXISTS "aceTrainerMinLevel" INTEGER;
+ALTER TABLE "DiscordConfig" ADD COLUMN IF NOT EXISTS "championMinMatches" INTEGER;

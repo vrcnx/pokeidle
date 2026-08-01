@@ -777,6 +777,41 @@ app.get("/giveaways/:id", async (c) => {
   });
 });
 
+// ══ Heartbeat ═══════════════════════════════════════════════════════
+//
+// POST /api/bot/heartbeat
+//
+// The bot checks in on its own reconcile tick so the admin dashboard can say
+// whether it is running. Liveness is REPORTED rather than probed because the
+// game server has no way to reach the bot — no token, no address, and the bot
+// makes only outbound connections. Same direction as the renderer's status
+// post, for the same reason.
+//
+// Upsert, so a fresh deployment with no DiscordConfig row still records
+// liveness. Best-effort by contract: a failed heartbeat must never take a
+// reconcile pass down with it, so the bot ignores the result.
+app.post("/heartbeat", async (c) => {
+  const body = await jsonObject(c);
+  const now = new Date();
+  // Bounded and stored verbatim as JSON. DISPLAY ONLY — nothing branches on
+  // it, which is what lets the bot add a field without a migration.
+  const status = JSON.stringify({
+    guildMembers: Number(body.guildMembers) || 0,
+    linkedMembers: Number(body.linkedMembers) || 0,
+    rolesGranted: Number(body.rolesGranted) || 0,
+    rolesRemoved: Number(body.rolesRemoved) || 0,
+    champion: typeof body.champion === "string" ? body.champion.slice(0, 60) : null,
+    version: typeof body.version === "string" ? body.version.slice(0, 40) : null,
+  }).slice(0, 1000);
+
+  await prisma.discordConfig.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", botLastSeenAt: now, botStatus: status },
+    update: { botLastSeenAt: now, botStatus: status },
+  });
+  return c.json({ ok: true });
+});
+
 // ══ Bug reports from Discord ════════════════════════════════════════
 //
 // POST /api/bot/bug-reports

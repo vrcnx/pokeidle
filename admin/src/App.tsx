@@ -15,10 +15,11 @@ import { GiveawaysPage } from "./pages/GiveawaysPage";
 import { MassGiftPage } from "./pages/MassGiftPage";
 import { PollsPage } from "./pages/PollsPage";
 import { BroadcastPage } from "./pages/BroadcastPage";
+import { DiscordPage } from "./pages/DiscordPage";
 import { ConfirmHost } from "./components/Confirm";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
-export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements" | "broadcast";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements" | "broadcast" | "discord";
 
 // What a page can be asked to focus on when navigated to. The bus used
 // to carry a page name and nothing else, which meant every cross-page
@@ -35,7 +36,7 @@ export interface NavParams {
 
 const PAGES: Page[] = [
   "analytics", "liveops", "users", "map", "chat",
-  "bugs", "errors", "tournaments", "giveaways", "massgift", "polls", "audit", "announcements", "broadcast",
+  "bugs", "errors", "tournaments", "giveaways", "massgift", "polls", "audit", "announcements", "broadcast", "discord",
 ];
 
 // ── Hash routing ──────────────────────────────────────────────────────
@@ -213,6 +214,7 @@ export function App() {
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Tools</span>
+            <NavItem active={page === "discord"} onClick={() => gotoPage("discord")} label="Discord" icon={<IconChat />} />
             <NavItem active={page === "broadcast"} onClick={() => gotoPage("broadcast")} label="Broadcast" icon={<IconBroadcast />} />
             <NavItem active={page === "map"} onClick={() => gotoPage("map")} label="Map editor" icon={<IconMap />} />
           </div>
@@ -236,6 +238,7 @@ export function App() {
         {page === "announcements" && <AnnouncementsPage />}
         {page === "liveops" && <LiveOpsPage />}
         {page === "giveaways" && <GiveawaysPage />}
+        {page === "discord" && <DiscordPage />}
         {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
         {page === "broadcast" && <BroadcastPage />}
