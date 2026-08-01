@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin design system — preview</title>
+<!--
+  A static harness for the admin design system.
+
+  WHY THIS EXISTS: the dashboard is behind an admin session, so the only way
+  to look at a layout change is to sign in as an admin — which is not always
+  possible, and is never possible for whoever is reviewing a CSS diff. Layout
+  is not typecheckable, and "it compiles" says nothing about whether a table
+  is readable at 380px.
+
+  This imports the REAL stylesheets and renders the real class names against
+  mock content, so the shell, the primitives and every state can be inspected
+  at any viewport without a login, a database, or a running API.
+
+  It is dev-only: Vite serves it at /design-preview.html, and it is not
+  referenced from the app, so it is never part of a production bundle.
+
+  Run:  cd admin && npm run dev  →  http://localhost:5174/design-preview.html
+-->
+<link rel="stylesheet" href="/src/app.css" />
+<style>
+  /* Harness-only chrome. Nothing here is part of the design system. */
+  .demo-section { margin-bottom: 40px; }
+  .demo-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--brand-text); margin-bottom: 12px; padding-bottom: 6px;
+    border-bottom: 1px dashed var(--brand-line);
+  }
+  .demo-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="admin-shell" data-collapsed="false">
+
+  <aside class="admin-sidebar" data-mobile-open="false">
+    <div class="admin-brand">
+      <svg class="admin-brand-mark" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#6366f1" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><circle cx="12" cy="12" r="3" fill="#6366f1"/></svg>
+      <span class="admin-brand-tag">Admin</span>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">Overview</span>
+        <button class="admin-nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-5"/></svg><span class="admin-nav-item-label">Analytics</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span class="admin-nav-item-label">Live ops</span></button>
+      </div>
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">People</span>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0"/><path d="M16 5a3 3 0 010 6"/></svg><span class="admin-nav-item-label">Users</span></button>
+      </div>
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">Moderation</span>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="admin-nav-item-label">Chat</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M3 13h5M16 13h5M5 8l3 2M19 8l-3 2M5 18l3-2M19 18l-3-2"/></svg><span class="admin-nav-item-label">Bug reports</span><span class="admin-nav-badge">7</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span class="admin-nav-item-label">Audit log</span></button>
+      </div>
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">Events</span>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg><span class="admin-nav-item-label">Tournaments</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/></svg><span class="admin-nav-item-label">Giveaways</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/></svg><span class="admin-nav-item-label">Mass gift</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20h-20"/></svg><span class="admin-nav-item-label">Polls</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11v3a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1z"/><path d="M16 8a5 5 0 010 8"/></svg><span class="admin-nav-item-label">Announcements</span></button>
+      </div>
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">Diagnostics</span>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l9 17H3z"/><path d="M12 10v4M12 17h.01"/></svg><span class="admin-nav-item-label">Error log</span><span class="admin-nav-badge">23</span></button>
+      </div>
+      <div class="admin-nav-group">
+        <span class="admin-nav-heading">Tools</span>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="admin-nav-item-label">Discord</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M6 6a8 8 0 000 12M18 6a8 8 0 010 12"/></svg><span class="admin-nav-item-label">Broadcast</span></button>
+        <button class="admin-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span class="admin-nav-item-label">Map editor</span></button>
+      </div>
+    </nav>
+    <div class="admin-foot">
+      <span class="admin-me"><span class="admin-avatar">p</span><span class="admin-me-name">phoenix</span></span>
+      <button class="admin-signout">Sign out</button>
+    </div>
+  </aside>
+
+  <div class="admin-body">
+    <header class="admin-topbar">
+      <button class="topbar-icon-btn topbar-burger" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <button class="topbar-icon-btn topbar-rail-toggle" aria-label="Collapse sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+      <span class="topbar-crumb">Analytics</span>
+      <span class="topbar-spacer"></span>
+      <div class="topbar-actions"><span class="topbar-env is-prod">Production</span></div>
+    </header>
+
+    <main class="admin-main">
+      <div class="page">
+
+        <div class="page-head">
+          <div>
+            <h1>Analytics</h1>
+            <p>Player growth, retention and activity across the whole game. Every figure is derived at read time — there is no analytics table to drift.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="btn-ghost btn-small">Last 30 days</button>
+            <button class="btn-primary btn-small">Export CSV</button>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">KPI tiles</div>
+          <div class="kpi-grid">
+            <div class="kpi"><span class="kpi-label">Total players</span><strong class="kpi-value">2,442</strong><span class="kpi-trend">▲ 4.2%</span></div>
+            <div class="kpi"><span class="kpi-label">Daily active</span><strong class="kpi-value">341</strong><span class="kpi-trend down">▼ 1.8%</span></div>
+            <div class="kpi"><span class="kpi-label">Signups (7d)</span><strong class="kpi-value">128</strong><span class="kpi-sub">18 per day</span></div>
+            <div class="kpi"><span class="kpi-label">Open bugs</span><strong class="kpi-value">7</strong><span class="kpi-trend flat">no change</span></div>
+            <div class="kpi"><span class="kpi-label">Avg level</span><strong class="kpi-value">59</strong><span class="kpi-sub">max 18,810</span></div>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">Two-column grid + cards</div>
+          <div class="grid grid-2">
+            <section class="card">
+              <div class="card-head">
+                <div><h2>Retention</h2><p>Cohort return rate by day.</p></div>
+                <div class="card-head-actions"><button class="btn-ghost btn-tiny">Details</button></div>
+              </div>
+              <div class="kv">
+                <div><span>Day 1</span><strong>42.1%</strong></div>
+                <div><span>Day 7</span><strong>18.4%</strong></div>
+                <div><span>Day 30</span><strong>9.2%</strong></div>
+                <div><span>Cohort size</span><strong>1,204</strong></div>
+              </div>
+            </section>
+            <section class="card">
+              <div class="card-head"><div><h2>Status messages</h2><p>Every inline state, at rest.</p></div></div>
+              <div class="page-err">Draw failed: 2 prize grants were refused — those players need paying by hand.</div>
+              <div class="page-ok">Saved. Thresholds take effect on the bot's next role sync.</div>
+              <div class="page-warn">The bot has stopped checking in — last heartbeat 2 hours ago.</div>
+            </section>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">Data table</div>
+          <section class="card">
+            <div class="card-head">
+              <div><h2>Linked accounts</h2><p>142 total</p></div>
+              <div class="card-head-actions"><button class="btn-ghost btn-small">Export</button></div>
+            </div>
+            <div class="toolbar">
+              <input class="search-input" placeholder="Search username or Discord ID…" />
+              <select><option>All</option><option>Banned</option><option>Admins</option></select>
+              <span class="toolbar-spacer"></span>
+              <button class="btn-secondary btn-small">Filters</button>
+            </div>
+            <div class="card-flush">
+              <div class="table-wrap" style="border-radius:0;border-left:0;border-right:0;border-bottom:0">
+                <table class="admin-table">
+                  <thead><tr><th>Trainer</th><th class="num">Level</th><th>Discord ID</th><th>Linked</th><th class="actions">Actions</th></tr></thead>
+                  <tbody>
+                    <tr><td><strong>@sak4i</strong> <span class="tag tag-brand">Discord</span></td><td class="num">3,615</td><td class="g-mono small">421337000000000000</td><td class="dim small">2h ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr><td><strong>@stratus_varius</strong></td><td class="num">1,119</td><td class="g-mono small">421337000000000001</td><td class="dim small">1d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr><td><strong>@phoenix</strong> <span class="tag tag-bad">banned</span></td><td class="num">87</td><td class="g-mono small">421337000000000002</td><td class="dim small">3d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                    <tr><td><strong>@kelsier</strong></td><td class="num">712</td><td class="g-mono small">421337000000000003</td><td class="dim small">6d ago</td><td class="actions"><button class="btn-ghost btn-tiny">Unlink</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">Buttons</div>
+          <div class="demo-row">
+            <button class="btn-primary">Primary</button>
+            <button>Default</button>
+            <button class="btn-secondary">Secondary</button>
+            <button class="btn-ghost">Ghost</button>
+            <button class="btn-warn">Warn</button>
+            <button class="btn-danger">Danger</button>
+            <button disabled>Disabled</button>
+          </div>
+          <div class="demo-row">
+            <button class="btn-primary btn-small">Small</button>
+            <button class="btn-ghost btn-tiny">Tiny</button>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">Badges</div>
+          <div class="demo-row">
+            <span class="tag">Neutral</span><span class="tag tag-good">Delivered</span>
+            <span class="tag tag-warn">Queued</span><span class="tag tag-bad">Failed</span>
+            <span class="tag tag-info">Info</span><span class="tag tag-brand">Discord</span>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <div class="demo-label">Forms</div>
+          <section class="card">
+            <div class="card-head"><div><h2>Role thresholds</h2><p>Who the bot automatically promotes.</p></div></div>
+            <div class="grid grid-3">
+              <label class="field"><span>Ace Trainer — min level</span><input type="number" value="250" /></label>
+              <label class="field"><span>Champion — min matches</span><input type="number" value="1" /></label>
+              <label class="field"><span>Announce channel</span><select><option>#general</option><option>#levels</option></select></label>
+            </div>
+            <label class="field" style="margin-top:16px"><span>Ignored channels</span><input placeholder="bot-commands, counting" /></label>
+            <label class="field" style="margin-top:16px"><span>Description</span><textarea rows="3" placeholder="Optional detail…"></textarea></label>
+          </section>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

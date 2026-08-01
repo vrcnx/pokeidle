@@ -198,9 +198,12 @@ function LinkedAccounts() {
         </p>
       )}
       {rows && rows.length > 0 && (
+        // .table-wrap scrolls the table horizontally on narrow viewports
+        // instead of letting it push the whole page sideways.
+        <div className="table-wrap">
         <table className="admin-table">
           <thead>
-            <tr><th>Trainer</th><th>Level</th><th>Discord ID</th><th>Linked</th><th></th></tr>
+            <tr><th>Trainer</th><th className="num">Level</th><th>Discord ID</th><th>Linked</th><th className="actions"></th></tr>
           </thead>
           <tbody>
             {rows.map((r) => (
@@ -211,16 +214,17 @@ function LinkedAccounts() {
                       so "why did they lose Trainer" is answered on this page. */}
                   {r.banned && <span className="bug-src-discord" style={{ background: "rgba(248,113,113,0.18)", color: "#fca5a5" }}>banned</span>}
                 </td>
-                <td className="tabular">{r.accountLevel}</td>
+                <td className="num">{r.accountLevel}</td>
                 <td className="g-mono small">{r.discordId}</td>
                 <td className="dim small">{ago(r.linkedAt)}</td>
-                <td>
+                <td className="actions">
                   <button className="btn-ghost btn-tiny" onClick={() => unlink(r)}>Unlink</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

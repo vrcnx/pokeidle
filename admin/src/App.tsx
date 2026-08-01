@@ -128,7 +128,38 @@ export function App() {
   // must clear any pending target — otherwise navigating Chat → Users
   // (focusing a player) and then clicking Users in the sidebar would
   // silently re-open that same player instead of the list.
-  const gotoPage = (p: Page) => navigateTo(p);
+  const gotoPage = (p: Page) => {
+    navigateTo(p);
+    // Always close the mobile drawer on navigate. Leaving it open covers
+    // the page the operator just asked for, which is the single most
+    // common way an off-canvas nav feels broken.
+    setMobileNav(false);
+  };
+
+  // ── Shell chrome ────────────────────────────────────────────────
+  // Rail collapse persists: an operator who wants the wide table area
+  // wants it on every visit, and re-collapsing on each load is the kind
+  // of small friction that makes a tool feel unfinished.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem("admin-nav-collapsed") === "1"; } catch { return false; }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("admin-nav-collapsed", next ? "1" : "0"); } catch { /* private mode */ }
+      return next;
+    });
+  };
+  const [mobileNav, setMobileNav] = useState(false);
+
+  // Escape closes the drawer. Expected of any overlay, and the only
+  // keyboard route out of it.
+  useEffect(() => {
+    if (!mobileNav) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileNav(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileNav]);
 
   const checkAuth = () => {
     setStatus("loading");
@@ -177,9 +208,27 @@ export function App() {
     return <NotAuthorized kind={status} />;
   }
 
+  const PAGE_TITLES: Record<Page, string> = {
+    analytics: "Analytics", liveops: "Live ops", users: "Users", map: "Map editor",
+    chat: "Chat", bugs: "Bug reports", errors: "Error log", tournaments: "Tournaments",
+    giveaways: "Giveaways", massgift: "Mass gift", polls: "Polls", audit: "Audit log",
+    announcements: "Announcements", broadcast: "Broadcast", discord: "Discord",
+  };
+  // Production is anything not served from localhost. An operations console
+  // should always answer "am I about to do this to real players?" without
+  // being asked — this dashboard writes to live saves.
+  const isProd = typeof window !== "undefined" && window.location.hostname !== "localhost";
+
   return (
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
+    <div className="admin-shell" data-collapsed={collapsed ? "true" : "false"}>
+      {mobileNav && (
+        <button
+          className="admin-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+      <aside className="admin-sidebar" data-mobile-open={mobileNav ? "true" : "false"}>
         <div className="admin-brand">
           <img src="/logos/Pokeidle.svg" alt="Pokémon Idle" className="admin-brand-mark" />
           <span className="admin-brand-tag">Admin</span>
@@ -220,13 +269,47 @@ export function App() {
           </div>
         </nav>
         <div className="admin-foot">
-          <span className="admin-me" title={me?.username}>{me?.username}</span>
+          <span className="admin-me" title={me?.username}>
+            <span className="admin-avatar" aria-hidden>{(me?.username ?? "?").slice(0, 1)}</span>
+            <span className="admin-me-name">{me?.username}</span>
+          </span>
           <button className="admin-signout" onClick={() => api.signOut().then(() => location.reload())}>
             Sign out
           </button>
         </div>
       </aside>
-      <main className="admin-main">
+
+      <div className="admin-body">
+        <header className="admin-topbar">
+          {/* Burger on mobile, rail toggle on desktop — same slot, so the
+              chrome does not reflow when the viewport crosses the breakpoint.
+              Which one shows is CSS, not conditional rendering. */}
+          <button
+            className="topbar-icon-btn topbar-burger"
+            aria-label="Open navigation"
+            aria-expanded={mobileNav}
+            onClick={() => setMobileNav(true)}
+          >
+            <IconMenu />
+          </button>
+          <button
+            className="topbar-icon-btn topbar-rail-toggle"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={toggleCollapsed}
+          >
+            <IconSidebar />
+          </button>
+          <span className="topbar-crumb">{PAGE_TITLES[page] ?? "Admin"}</span>
+          <span className="topbar-spacer" />
+          <div className="topbar-actions">
+            <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
+              {isProd ? "Production" : "Local"}
+            </span>
+          </div>
+        </header>
+
+        <main className="admin-main">
         {page === "analytics" && <AnalyticsPage />}
         {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
@@ -242,7 +325,8 @@ export function App() {
         {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
         {page === "broadcast" && <BroadcastPage />}
-      </main>
+        </main>
+      </div>
       <ConfirmHost />
     </div>
   );
@@ -280,6 +364,22 @@ function NavItem({ active, label, onClick, icon }: { active: boolean; label: str
 // ── Inline SVG icons ────────────────────────────────────────────────
 // Lucide-flavoured outline icons (16px). Inlining avoids pulling in
 // an icon library for ~6 glyphs.
+function IconMenu() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" />
+    </svg>
+  );
+}
+
+function IconSidebar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
+    </svg>
+  );
+}
+
 function IconChart() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
