@@ -44,6 +44,8 @@ import {
   profileCard,
   rankCard,
   teamCard,
+  xpCard,
+  xpLeaderboardCard,
 } from "./cards/index.js";
 
 /**
@@ -236,6 +238,50 @@ async function handlePrizes(i: ChatInputCommandInteraction): Promise<void> {
     await i.editReply({
       files: [cardFile(await prizesCard(res.username, res.grants), "prizes")],
     });
+  } catch (e) {
+    await fail(i, e);
+  }
+}
+
+// ── /xp and /levels ─────────────────────────────────────────────────
+//
+// Community XP is a SEPARATE currency from the game economy — it buys Discord
+// standing and nothing the game can see. The copy here says "Discord level"
+// rather than anything that might read as a game reward.
+
+async function handleXp(i: ChatInputCommandInteraction): Promise<void> {
+  await i.deferReply();
+  try {
+    const member = i.options.getUser("member") ?? i.user;
+    const res = await api.xp(member.id);
+    if (!res.found) {
+      await i.editReply(
+        member.id === i.user.id
+          ? "You haven't earned any XP yet — say something and you're on the board."
+          : `**${member.username}** hasn't earned any XP yet.`,
+      );
+      return;
+    }
+    const png = await xpCard(member.username, {
+      label: res.label ?? member.username,
+      xp: res.xp,
+      level: res.level,
+      intoLevel: res.intoLevel ?? 0,
+      neededForNext: res.neededForNext ?? 0,
+      messages: res.messages ?? 0,
+      rank: res.rank ?? 0,
+    });
+    await i.editReply({ files: [cardFile(png, `xp-${member.username}`)] });
+  } catch (e) {
+    await fail(i, e);
+  }
+}
+
+async function handleLevels(i: ChatInputCommandInteraction): Promise<void> {
+  await i.deferReply();
+  try {
+    const res = await api.xpLeaderboard(i.options.getInteger("limit") ?? 10);
+    await i.editReply({ files: [cardFile(await xpLeaderboardCard(res.leaderboard), "levels")] });
   } catch (e) {
     await fail(i, e);
   }
@@ -507,6 +553,8 @@ const HANDLERS: Record<string, (i: ChatInputCommandInteraction) => Promise<void>
   mon: handleMon,
   dex: handleDex,
   prizes: handlePrizes,
+  xp: handleXp,
+  levels: handleLevels,
   trade: handleTrade,
   giveaway: handleGiveaway,
 };

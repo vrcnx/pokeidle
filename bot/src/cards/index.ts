@@ -491,3 +491,83 @@ export async function prizesCard(
 
   return toPng(card);
 }
+
+// ── Community XP ────────────────────────────────────────────────────
+//
+// A SEPARATE currency from the game economy — see server/src/lib/discordXp.ts.
+// Nothing on these cards is a game reward, and the copy avoids implying it is.
+
+export interface XpStanding {
+  label: string | null;
+  xp: number;
+  level: number;
+  intoLevel: number;
+  neededForNext: number;
+  messages: number;
+  rank: number;
+}
+
+export async function xpCard(name: string, s: XpStanding): Promise<Buffer> {
+  const card = newCard(W, 260);
+  const { ctx } = card;
+  header(card, name, "Discord community level");
+
+  // The hero number is the LEVEL, not the XP. Level is the thing people
+  // compare; raw XP is the mechanism behind it and reads as noise up front.
+  panel(ctx, 32, 116, 240, 112, { accent: C.gold });
+  text(ctx, "LEVEL", 52, 146, { size: 12, weight: "bold", color: C.textDim });
+  text(ctx, String(s.level), 52, 208, { size: 58, weight: "bold", color: C.gold });
+
+  const px = 296;
+  const pw = W - px - 32;
+  panel(ctx, px, 116, pw, 112);
+  text(ctx, `Rank #${s.rank}`, px + 18, 146, { size: 16, weight: "bold" });
+  text(ctx, `${s.messages.toLocaleString()} messages counted`, px + 18, 168, {
+    size: 13, color: C.textFaint,
+  });
+
+  // Progress toward the NEXT level, not lifetime XP — "340 / 1,100" answers
+  // "how close am I", which is the only question this card is asked.
+  const frac = s.neededForNext > 0 ? s.intoLevel / s.neededForNext : 0;
+  bar(ctx, px + 18, 186, pw - 36, 14, s.intoLevel, s.neededForNext, C.gold);
+  text(ctx, `${s.intoLevel.toLocaleString()} / ${s.neededForNext.toLocaleString()} XP`, px + 18, 218, {
+    size: 13, color: C.textDim,
+  });
+  text(ctx, `${Math.floor(frac * 100)}% to level ${s.level + 1}`, W - 48, 218, {
+    size: 13, color: C.textDim, align: "right",
+  });
+
+  return toPng(card);
+}
+
+export async function xpLeaderboardCard(
+  rows: Array<{ rank: number; label: string | null; xp: number; level: number }>,
+): Promise<Buffer> {
+  const card = newCard(W, 120 + Math.max(rows.length, 1) * 52 + 24);
+  const { ctx } = card;
+  header(card, "Community levels", rows.length ? `Top ${rows.length}` : undefined);
+
+  if (rows.length === 0) {
+    panel(ctx, 32, 116, W - 64, 76);
+    text(ctx, "Nobody has earned XP yet.", W / 2, 162, { size: 18, color: C.textDim, align: "center" });
+    return toPng(card);
+  }
+
+  const top = rows[0].xp;
+  const medal = ["#f2c94c", "#c9d1d9", "#cd7f32"];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const y = 116 + i * 52;
+    const accent = i < 3 ? medal[i] : undefined;
+    panel(ctx, 32, y, W - 64, 44, { radius: 10, accent });
+    text(ctx, `#${r.rank}`, 52, y + 29, { size: 17, weight: "bold", color: accent ?? C.textDim });
+    // The label is a Discord display name the user chose, so it is bounded and
+    // ellipsized like any other player-supplied string on these cards.
+    text(ctx, r.label ?? "(unknown)", 104, y + 29, { size: 17, weight: "bold", maxWidth: 300 });
+    bar(ctx, 430, y + 16, 260, 12, r.xp, top, accent ?? C.blue);
+    text(ctx, `Lv ${r.level}`, 760, y + 29, { size: 16, weight: "bold", align: "right" });
+    text(ctx, `${r.xp.toLocaleString()} XP`, W - 52, y + 29, { size: 13, color: C.textDim, align: "right" });
+  }
+
+  return toPng(card);
+}

@@ -16,7 +16,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   profileCard, teamCard, monCard, rankCard, leaderboardCard, dexCard,
-  giveawayCard, prizesCard, type PrizeDescriptor,
+  giveawayCard, prizesCard, xpCard, xpLeaderboardCard, type PrizeDescriptor,
 } from "../src/cards/index.ts";
 import type { Identity, MonDetail, MonSummary, Rating } from "../src/api.ts";
 
@@ -91,5 +91,18 @@ await write("prizes.png", await prizesCard("phoenix", [
   { summary: "1x Master Ball", prizes: [masterball], delivered: false, stuck: false },
   { summary: "$50,000", prizes: [money], delivered: true, stuck: false },
   { summary: "Shiny Dratini", prizes: [shinyMon], delivered: false, stuck: true },
+]));
+await write("xp.png", await xpCard("phoenix", {
+  label: "phoenix", xp: 12_480, level: 18, intoLevel: 340, neededForNext: 1620, messages: 612, rank: 3,
+}));
+await write("xp-level0.png", await xpCard("newcomer", {
+  label: "newcomer", xp: 40, level: 0, intoLevel: 40, neededForNext: 100, messages: 2, rank: 41,
+}));
+await write("levels.png", await xpLeaderboardCard([
+  { rank: 1, label: "rasputin", xp: 48_120, level: 32 },
+  { rank: 2, label: "kelsier", xp: 31_004, level: 27 },
+  { rank: 3, label: "phoenix", xp: 12_480, level: 18 },
+  { rank: 4, label: "averyverylongdiscordnamehere", xp: 8_200, level: 14 },
+  { rank: 5, label: null, xp: 900, level: 5 },
 ]));
 console.log(`Done → ${out}`);

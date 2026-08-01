@@ -273,6 +273,7 @@ export interface DiscordStats {
   giveaways: { announced: number; entries: number };
   bugReports: { total: number; open: number };
   trade: { listings7d: number };
+  xp: { members: number; totalXp: number; totalMessages: number; topLabel: string | null; topLevel: number };
 }
 
 export interface DiscordLinkRow {
@@ -293,6 +294,12 @@ export interface DiscordConfig {
   linkRewardSummary: string | null;
   aceTrainerMinLevel: number;
   championMinMatches: number;
+  /** Community XP settings. A SEPARATE currency from the game economy —
+   *  nothing here converts into money, items or account level. */
+  xp: {
+    enabled: boolean; perMessageMin: number; perMessageMax: number;
+    cooldownSec: number; ignoredChannels: string;
+  };
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -491,6 +498,8 @@ export const api = {
   putDiscordConfig: (body: {
     linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[];
     aceTrainerMinLevel?: number; championMinMatches?: number;
+    xpEnabled?: boolean; xpPerMessageMin?: number; xpPerMessageMax?: number;
+    xpCooldownSec?: number; xpIgnoredChannels?: string;
   }) => req<DiscordConfig>("PUT", "/api/admin/discord-config", body),
   discordStats: () => req<DiscordStats>("GET", "/api/admin/discord-stats"),
   discordLinks: (q = "", limit = 50, offset = 0) =>

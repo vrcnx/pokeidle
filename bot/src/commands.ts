@@ -72,6 +72,22 @@ export const commands = [
     .setDMPermission(false),
 
   new SlashCommandBuilder()
+    .setName("xp")
+    .setDescription("Your Discord level and progress")
+    .setDMPermission(false)
+    .addUserOption((o) =>
+      o.setName("member").setDescription("Someone else (defaults to you)").setRequired(false),
+    ),
+
+  new SlashCommandBuilder()
+    .setName("levels")
+    .setDescription("Discord XP leaderboard")
+    .setDMPermission(false)
+    .addIntegerOption((o) =>
+      o.setName("limit").setDescription("How many (1-25, default 10)").setMinValue(1).setMaxValue(25),
+    ),
+
+  new SlashCommandBuilder()
     .setName("trade")
     .setDescription("Trade noticeboard")
     .addSubcommand((s) =>

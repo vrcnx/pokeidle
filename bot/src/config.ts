@@ -81,6 +81,9 @@ export const config = {
    * privileged intent — see src/bugReports.ts.
    */
   bugChannelId: optional("DISCORD_BUG_CHANNEL_ID", ""),
+  /** Where level-ups are announced. Blank = announce in the channel the XP was
+   *  earned in, which is the least surprising default. */
+  xpAnnounceChannelId: optional("DISCORD_XP_ANNOUNCE_CHANNEL_ID", ""),
 
   /**
    * Roles allowed to run /giveaway. Names, matched case-insensitively against

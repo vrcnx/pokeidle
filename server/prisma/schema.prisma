@@ -412,6 +412,22 @@ model DiscordConfig {
   aceTrainerMinLevel Int?
   championMinMatches Int?
 
+  /// ── Community XP ────────────────────────────────────────────────
+  /// Off until an operator turns it on. NULL on the numbers means "use the
+  /// built-in default", same per-field fallback as the role thresholds.
+  xpEnabled       Boolean @default(false)
+  xpPerMessageMin Int?
+  xpPerMessageMax Int?
+  /// Seconds between paid messages for one user. The anti-spam gate: without
+  /// it, XP measures typing speed rather than participation.
+  xpCooldownSec   Int?
+  /// Comma-separated channel ids that earn nothing — bot-command channels,
+  /// counting channels, anywhere volume is the point rather than conversation.
+  xpIgnoredChannels String?
+  /// Where level-ups are announced. NULL = announce in the channel they were
+  /// earned in, which is the least surprising default.
+  xpAnnounceChannelId String?
+
   /// ── Bot liveness ────────────────────────────────────────────────
   /// When the bot last checked in. The dashboard turns this into
   /// "connected" / "last seen 4 minutes ago" / "offline".
@@ -430,6 +446,56 @@ model DiscordConfig {
   /// is DISPLAY ONLY — nothing branches on it, so the bot can add a field
   /// without a migration and an older dashboard just ignores it.
   botStatus String?
+}
+
+/// Community XP: levels earned by talking and taking part in the Discord.
+///
+/// ── WHY THIS KEYS ON discordId AND NOT userId ───────────────────────
+/// It is deliberately NOT tied to a game account. Someone who has never
+/// played can join, chat, and level up — which is the point, because the
+/// server should be worth being in before you have linked anything. A
+/// userId key would mean the very people you are trying to convert earn
+/// nothing.
+///
+/// It also means there is no foreign key to User and no cascade. A Discord
+/// account that leaves keeps its row; if they come back, their level is
+/// still there. The row is small and the population is Discord-sized.
+///
+/// ── WHY THIS IS A SEPARATE CURRENCY FROM THE GAME ───────────────────
+/// XP here buys Discord standing and nothing else. It does not convert into
+/// money, items, account level, or anything the game economy can see.
+///
+/// That is a product decision and it is load-bearing: the alternative — chat
+/// XP paying out in-game currency — puts a faucet on the economy whose tap is
+/// "type in a text box", and no cooldown makes that safe against someone who
+/// wants it badly enough. Keeping the currencies separate means the worst case
+/// for an XP exploit is a wrong number on a leaderboard, not inflation.
+///
+/// If that ever changes, it must go through PendingGrant like every other
+/// payout, and this comment should be the thing that gets argued with.
+model DiscordXp {
+  /// Discord snowflake. No FK — see above.
+  discordId String @id
+  /// Lifetime XP. Level is DERIVED from this and never stored; see
+  /// lib/discordXp.ts. One number is one source of truth, and a stored level
+  /// is a second one that can disagree after any curve change.
+  xp        Int    @default(0)
+  /// Messages that actually earned XP — i.e. after the cooldown. Not a message
+  /// count: it is the number of times we paid, which is what makes the
+  /// cooldown's effect visible in the admin stats.
+  messages  Int    @default(0)
+  /// Last time this user was PAID for a message. The cooldown gate, held
+  /// server-side so a bot restart cannot reset it.
+  lastAwardAt DateTime?
+  /// Display label, refreshed on each award. Denormalised so the leaderboard
+  /// can render without the bot resolving every id against Discord — which
+  /// would be a per-row API call on a command that shows ten of them.
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The leaderboard: highest first.
+  @@index([xp])
 }
 
 model DiscordLink {

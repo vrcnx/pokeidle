@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type DiscordStats, type DiscordLinkRow } from "../api";
 import { DiscordRewardPanel } from "../components/DiscordRewardPanel";
+import { XpPanel } from "../components/XpPanel";
 import { confirm, notify } from "../components/Confirm";
 
 // The Discord control room: is the bot alive, how many people have linked,
@@ -287,10 +288,16 @@ export function DiscordPage() {
               tone={stats.bugReports.open > 0 ? "warn" : undefined}
             />
             <Tile label="TRADE LISTINGS" value={stats.trade.listings7d} hint="last 7 days" />
+            <Tile
+              label="XP MEMBERS"
+              value={stats.xp.members}
+              hint={stats.xp.topLabel ? `top: ${stats.xp.topLabel} (Lv ${stats.xp.topLevel})` : undefined}
+            />
           </div>
 
           <DiscordRewardPanel onSaved={load} />
           <Thresholds stats={stats} onSaved={load} />
+          <XpPanel onSaved={load} />
           <LinkedAccounts />
         </>
       )}

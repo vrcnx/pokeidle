@@ -23,6 +23,7 @@ import {
   unlinkUser,
 } from "../lib/discordLink.js";
 import { grantLinkReward } from "../lib/discordLinkReward.js";
+import { awardEventXp } from "../lib/discordXp.js";
 
 const app = new Hono();
 
@@ -126,6 +127,12 @@ app.post("/link/redeem", requireUser, blockStream, async (c) => {
   // explicitly best-effort — grantLinkReward never throws — so a promotion
   // problem can never turn a successful link into a failed one.
   const reward = await grantLinkReward(user.id, result.discordId);
+
+  // Community XP for linking. Reached only on a successful redeem, and a
+  // second redeem for an account that is already linked returns earlier — so
+  // this pays once per Discord account without needing its own guard.
+  // Best-effort: XP is a nicety and must never fail a link.
+  void awardEventXp(result.discordId, "link", result.discordLabel).catch(() => undefined);
 
   return c.json({
     ok: true,

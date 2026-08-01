@@ -18,6 +18,7 @@ import { handleButton, handleCommand } from "./handlers.js";
 import { startRoleSync } from "./roleSync.js";
 import { startGiveawaySync } from "./giveawaySync.js";
 import { startBugReportIngest } from "./bugReports.js";
+import { startXpListener } from "./xp.js";
 
 const client = new Client({
   intents: [
@@ -61,6 +62,10 @@ client.once(Events.ClientReady, (c) => {
   // set. Listens live AND sweeps recent history on boot, so a report posted
   // during a redeploy is not lost — see bugReports.ts.
   startBugReportIngest(client);
+  // Community XP. Fires on every message in the server, but reads no message
+  // text — only who posted and where. Off unless an operator enables it in the
+  // admin dashboard; the server decides and the bot just reports the event.
+  startXpListener(client);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

@@ -74,6 +74,7 @@ import { linkRewardPrizes } from "../lib/discordLinkReward.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
 import { parsePrizes, parsePrizesStrict, describePrizes } from "../lib/giveaway.js";
 import { checkPrizesDeliverable } from "../lib/prizeGrant.js";
+import { awardEventXp, awardMessageXp, xpFor, xpLeaderboard } from "../lib/discordXp.js";
 
 const app = new Hono();
 
@@ -567,6 +568,10 @@ app.post("/giveaways/:id/entries", async (c) => {
     // wanted is true; telling them it failed would just make them click again.
     return c.json({ ok: true, entered: true, duplicate: true });
   }
+  // Participation XP, on the FIRST entry only — the @@unique above is what
+  // makes that branch mean "first". A duplicate returns before reaching here.
+  // Best-effort: XP must never be able to fail an entry.
+  void awardEventXp(discordId, "giveawayEntry").catch(() => undefined);
   return c.json({ ok: true, entered: true, duplicate: false });
 });
 
@@ -777,6 +782,53 @@ app.get("/giveaways/:id", async (c) => {
   });
 });
 
+// ══ Community XP ════════════════════════════════════════════════════
+//
+// A SEPARATE CURRENCY from the game economy. XP buys Discord standing and
+// nothing else — no money, no items, no account level, nothing PendingGrant
+// can see. See lib/discordXp.ts for why that boundary is load-bearing and what
+// the rejected alternative would have cost.
+//
+// POST /api/bot/xp/message — one message, maybe worth XP.
+//
+// Called for EVERY message in the server, so it is the highest-traffic endpoint
+// here by a wide margin. It is also the cheapest: one indexed lookup and, most
+// of the time, a conditional update that matches nothing because the user is
+// still inside their cooldown.
+//
+// Note what it does NOT take: message content. XP is for showing up, not for
+// what you said, so the bot never sends the text and this endpoint could not
+// store it if it wanted to.
+app.post("/xp/message", async (c) => {
+  const body = await jsonObject(c);
+  const discordId = typeof body.discordId === "string" ? body.discordId.trim() : "";
+  if (!/^\d{5,32}$/.test(discordId)) return c.json({ error: "bad_discord_id" }, 400);
+  const channelId = typeof body.channelId === "string" ? body.channelId.trim() : "";
+  const label = sanitizeChatText(String(body.label ?? "")).slice(0, 60);
+
+  const res = await awardMessageXp(discordId, channelId, label);
+  return c.json(res);
+});
+
+app.get("/xp", async (c) => {
+  if (!readLimiter.consume(limitKey(c, "xp"))) return c.json({ error: "rate_limited" }, 429);
+  const discordId = c.req.query("discordId")?.trim() ?? "";
+  if (!discordId) return c.json({ error: "discordId required" }, 400);
+  const standing = await xpFor(discordId);
+  if (!standing) {
+    // Not an error — everybody starts here, and the bot renders it as level 0
+    // rather than as a failure.
+    return c.json({ found: false, level: 0, xp: 0 });
+  }
+  return c.json({ found: true, ...standing });
+});
+
+app.get("/xp/leaderboard", async (c) => {
+  if (!readLimiter.consume(limitKey(c, "xplb"))) return c.json({ error: "rate_limited" }, 429);
+  const limit = parseInt(c.req.query("limit") ?? "10", 10);
+  return c.json({ leaderboard: await xpLeaderboard(Number.isFinite(limit) ? limit : 10) });
+});
+
 // ══ Heartbeat ═══════════════════════════════════════════════════════
 //
 // POST /api/bot/heartbeat
@@ -883,6 +935,10 @@ app.post("/bug-reports", async (c) => {
       },
       select: { id: true },
     });
+    // Only on a genuinely new report. The duplicate branch below returns
+    // before this, so the boot sweep re-submitting the same message cannot pay
+    // twice.
+    if (discordId) void awardEventXp(discordId, "bugReport", discordName).catch(() => undefined);
     return c.json({ ok: true, id: row.id, duplicate: false, linkedTo: acct?.username ?? null });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -963,6 +1019,8 @@ app.post("/trade/offer", async (c) => {
       meta: { error: String((e as Error)?.message ?? e) },
     });
   }
+
+  void awardEventXp(discordId, "tradeListing").catch(() => undefined);
 
   const origin = (process.env.FRONTEND_ORIGIN ?? "http://localhost:5173").split(",")[0].trim();
   return c.json({

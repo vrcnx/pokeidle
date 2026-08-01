@@ -37,6 +37,7 @@ import {
 import { drawGiveaway } from "../lib/giveawayDraw.js";
 import { roleThresholds } from "../lib/discordRoles.js";
 import { LINK_REWARD_SOURCE } from "../lib/discordLinkReward.js";
+import { XP_DEFAULTS, levelFromXp } from "../lib/discordXp.js";
 import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
@@ -1808,6 +1809,13 @@ app.get("/discord-config", async (c) => {
     linkReward: row?.linkReward ? parsePrizes(row.linkReward) : [],
     linkRewardSummary: row?.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
     ...(await roleThresholds()),
+    xp: {
+      enabled: row?.xpEnabled ?? false,
+      perMessageMin: row?.xpPerMessageMin ?? XP_DEFAULTS.perMessageMin,
+      perMessageMax: row?.xpPerMessageMax ?? XP_DEFAULTS.perMessageMax,
+      cooldownSec: row?.xpCooldownSec ?? XP_DEFAULTS.cooldownSec,
+      ignoredChannels: row?.xpIgnoredChannels ?? "",
+    },
     updatedAt: row?.updatedAt?.toISOString() ?? null,
     updatedBy: row?.updatedBy ?? null,
   });
@@ -1822,6 +1830,14 @@ const DiscordConfigBody = z.object({
   // account level in production is already 18,810.
   aceTrainerMinLevel: z.number().int().min(1).max(1_000_000).optional(),
   championMinMatches: z.number().int().min(1).max(10_000).optional(),
+  // Community XP. A SEPARATE currency from the game economy — see
+  // lib/discordXp.ts. Nothing here can pay out anything the game can see, so
+  // the bounds are about sanity rather than about protecting the economy.
+  xpEnabled: z.boolean().optional(),
+  xpPerMessageMin: z.number().int().min(0).max(1000).optional(),
+  xpPerMessageMax: z.number().int().min(0).max(1000).optional(),
+  xpCooldownSec: z.number().int().min(0).max(86_400).optional(),
+  xpIgnoredChannels: z.string().max(2000).optional(),
 });
 
 app.put("/discord-config", async (c) => {
@@ -1863,6 +1879,11 @@ app.put("/discord-config", async (c) => {
       // so omitting a threshold is not the same as setting it to zero.
       aceTrainerMinLevel: d.aceTrainerMinLevel,
       championMinMatches: d.championMinMatches,
+      xpEnabled: d.xpEnabled ?? false,
+      xpPerMessageMin: d.xpPerMessageMin,
+      xpPerMessageMax: d.xpPerMessageMax,
+      xpCooldownSec: d.xpCooldownSec,
+      xpIgnoredChannels: d.xpIgnoredChannels,
       updatedBy: me.username,
     },
     update: {
@@ -1870,6 +1891,11 @@ app.put("/discord-config", async (c) => {
       linkRewardEnabled: d.linkRewardEnabled,
       ...(d.aceTrainerMinLevel !== undefined ? { aceTrainerMinLevel: d.aceTrainerMinLevel } : {}),
       ...(d.championMinMatches !== undefined ? { championMinMatches: d.championMinMatches } : {}),
+      ...(d.xpEnabled !== undefined ? { xpEnabled: d.xpEnabled } : {}),
+      ...(d.xpPerMessageMin !== undefined ? { xpPerMessageMin: d.xpPerMessageMin } : {}),
+      ...(d.xpPerMessageMax !== undefined ? { xpPerMessageMax: d.xpPerMessageMax } : {}),
+      ...(d.xpCooldownSec !== undefined ? { xpCooldownSec: d.xpCooldownSec } : {}),
+      ...(d.xpIgnoredChannels !== undefined ? { xpIgnoredChannels: d.xpIgnoredChannels } : {}),
       updatedBy: me.username,
     },
   });
@@ -1886,6 +1912,13 @@ app.put("/discord-config", async (c) => {
     linkReward: row.linkReward ? parsePrizes(row.linkReward) : [],
     linkRewardSummary: row.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
     ...(await roleThresholds()),
+    xp: {
+      enabled: row.xpEnabled,
+      perMessageMin: row.xpPerMessageMin ?? XP_DEFAULTS.perMessageMin,
+      perMessageMax: row.xpPerMessageMax ?? XP_DEFAULTS.perMessageMax,
+      cooldownSec: row.xpCooldownSec ?? XP_DEFAULTS.cooldownSec,
+      ignoredChannels: row.xpIgnoredChannels ?? "",
+    },
     updatedAt: row.updatedAt.toISOString(),
     updatedBy: row.updatedBy,
   });
@@ -1918,6 +1951,7 @@ app.get("/discord-stats", async (c) => {
     discordGiveaways, discordEntries,
     bugsFromDiscord, bugsOpenFromDiscord,
     tradeListings,
+    xpMembers, xpAgg, xpTop,
   ] = await Promise.all([
     prisma.discordConfig.findUnique({ where: { id: "singleton" } }),
     prisma.discordLink.count(),
@@ -1941,6 +1975,9 @@ app.get("/discord-stats", async (c) => {
     prisma.bugReport.count({ where: { source: "discord" } }),
     prisma.bugReport.count({ where: { source: "discord", status: "open" } }),
     prisma.chatMessage.count({ where: { kind: "tradeOffer", createdAt: { gte: weekAgo } } }),
+    prisma.discordXp.count(),
+    prisma.discordXp.aggregate({ _sum: { xp: true, messages: true } }),
+    prisma.discordXp.findFirst({ orderBy: { xp: "desc" }, select: { label: true, xp: true } }),
   ]);
 
   const championUser = topRating
@@ -1983,6 +2020,14 @@ app.get("/discord-stats", async (c) => {
     giveaways: { announced: discordGiveaways, entries: discordEntries },
     bugReports: { total: bugsFromDiscord, open: bugsOpenFromDiscord },
     trade: { listings7d: tradeListings },
+    xp: {
+      members: xpMembers,
+      totalXp: xpAgg._sum.xp ?? 0,
+      totalMessages: xpAgg._sum.messages ?? 0,
+      // Level is derived, never stored — one number is one source of truth.
+      topLabel: xpTop?.label ?? null,
+      topLevel: xpTop ? levelFromXp(xpTop.xp).level : 0,
+    },
   });
 });
 

@@ -227,6 +227,23 @@ export const api = {
       attempts: number; lastError: string | null;
     }> }>("GET", `/api/bot/prizes?discordId=${encodeURIComponent(discordId)}`),
 
+  // Community XP. A SEPARATE currency from the game economy — it buys Discord
+  // standing and nothing the game can see. Note what awardMessageXp does NOT
+  // take: message content.
+  awardMessageXp: (input: { discordId: string; channelId: string; label: string }) =>
+    call<{ awarded: number; xp: number; level: number; previousLevel: number; leveledUp: boolean; skipped?: string }>(
+      "POST", "/api/bot/xp/message", input,
+    ),
+  xp: (discordId: string) =>
+    call<{ found: boolean; discordId?: string; label?: string | null; xp: number; level: number;
+           intoLevel?: number; neededForNext?: number; messages?: number; rank?: number }>(
+      "GET", `/api/bot/xp?discordId=${encodeURIComponent(discordId)}`,
+    ),
+  xpLeaderboard: (limit: number) =>
+    call<{ leaderboard: Array<{ rank: number; discordId: string; label: string | null; xp: number; level: number }> }>(
+      "GET", `/api/bot/xp/leaderboard?limit=${limit}`,
+    ),
+
   // Liveness. Reported rather than probed: the game server cannot reach the
   // bot — no token, no address, outbound connections only.
   heartbeat: (input: Record<string, unknown>) =>
