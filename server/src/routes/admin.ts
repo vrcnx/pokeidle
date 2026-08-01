@@ -1844,7 +1844,19 @@ app.put("/discord-config", async (c) => {
   const me = c.get("user");
   const parsed = DiscordConfigBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+    // Name the offending field. A bare "invalid body" is what this used to
+    // return, and it is unactionable in a dashboard — the operator sees a red
+    // box with no indication of which of six inputs it is complaining about.
+    const first = parsed.error.issues[0];
+    const where = first?.path.length ? first.path.join(".") : "body";
+    return c.json(
+      {
+        error: "invalid body",
+        reason: `${where}: ${first?.message ?? "invalid"}`,
+        details: parsed.error.flatten(),
+      },
+      400,
+    );
   }
   const d = parsed.data;
 

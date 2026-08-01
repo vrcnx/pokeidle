@@ -21,7 +21,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   if (!res.ok) {
     let err: any = null;
     try { err = await res.json(); } catch { /* */ }
-    throw new ApiError(res.status, err?.error ?? res.statusText, err);
+    // Prefer `reason` — the human-readable half — over `error`, which is a
+    // machine code. Routes that write both were rendering only the code, so a
+    // rejected save showed "invalid body" while the server was sitting on a
+    // sentence explaining exactly which field was wrong.
+    throw new ApiError(res.status, err?.reason ?? err?.error ?? res.statusText, err);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

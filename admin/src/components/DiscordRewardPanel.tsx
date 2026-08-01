@@ -33,7 +33,13 @@ export function DiscordRewardPanel({ onSaved }: { onSaved?: () => void } = {}) {
     try {
       const d = await api.putDiscordConfig({
         linkRewardEnabled: nextEnabled,
-        linkReward: nextPrizes,
+        // OMITTED when empty, not sent as []. PrizeListSchema is .min(1), so an
+        // empty array is a schema violation — which meant ticking the checkbox
+        // before adding a prize failed with a bare "invalid body" instead of
+        // the server's actual guard ("Add at least one prize before turning the
+        // reward on"). Omitting it also means the toggle never clobbers a
+        // configured prize with nothing.
+        ...(nextPrizes.length > 0 ? { linkReward: nextPrizes } : {}),
       });
       setCfg(d); setPrizes(d.linkReward); setEnabled(d.linkRewardEnabled);
       void notify(
@@ -72,17 +78,27 @@ export function DiscordRewardPanel({ onSaved }: { onSaved?: () => void } = {}) {
       {err && <div className="page-err">{err}</div>}
 
       <div className="gv-dr-actions">
+        {/* Not tickable until a prize exists. The server refuses that state
+            anyway — a promotion that is "on" but pays nothing looks like a bug
+            to everyone downstream — so the checkbox should not offer it. A
+            disabled control with a reason beats a red error box after the
+            click. */}
         <label className="gv-field gv-check">
           <input
             type="checkbox"
             checked={enabled}
-            disabled={busy}
+            disabled={busy || prizes.length === 0}
             onChange={(e) => { setEnabled(e.target.checked); void save(e.target.checked, prizes); }}
           />
-          <span>Give a reward for linking</span>
+          <span>
+            Give a reward for linking
+            {prizes.length === 0 && (
+              <em className="dim"> — pick a prize first</em>
+            )}
+          </span>
         </label>
         <button className="btn-ghost btn-small" onClick={() => setOpen((o) => !o)}>
-          {open ? "Hide prize" : "Change prize"}
+          {open ? "Hide prize" : prizes.length === 0 ? "Pick a prize" : "Change prize"}
         </button>
       </div>
 
