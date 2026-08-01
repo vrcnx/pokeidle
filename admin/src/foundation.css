@@ -240,57 +240,60 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .btn-small { padding: 5px 10px; font-size: 11.5px; }
 .btn-block { width: 100%; }
 
-/* ── App shell ─────────────────────────────────────────────────
-   Sidebar + (topbar over scrolling content). The content column is
-   the ONLY scroll container, so the sidebar and topbar stay put — an
-   operator scrolling a 200-row table should never lose the nav. */
+/* ── App shell — top navigation ────────────────────────────────
+   A SIDEBAR WAS THE WRONG CALL. It reserved 248px of every viewport
+   for fifteen links that are read once and then ignored, in a tool
+   whose actual job is wide data: a 2,400-row user table, a bracket, a
+   chat log, a chart. On a 1440px laptop that is 17% of the screen
+   permanently spent on navigation.
+
+   Navigation moves to the top. Content gets the full width at every
+   size, the layout is identical on desktop and mobile (one bar, one
+   column), and there is no collapse state to remember or explain.
+
+   Fifteen destinations do not fit in a row, so they are grouped into
+   six menus. Every page is two clicks and the grouping is the same one
+   the sidebar used, so the mental model does not change.
+
+   Borders do the structural work now, and there are more of them: a
+   bar rule, a nav rule, card edges, table dividers, and a well behind
+   table headers. The previous pass leaned on tone and the result read
+   as flat. */
 
 .admin-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  /* The row track is explicit and bounded. Without it the implicit row is
-     `auto`, which grows to fit the tallest child — so a long page made the
-     whole DOCUMENT scroll and took the sidebar and topbar with it, which is
-     the one thing a fixed shell exists to prevent. */
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: var(--topbar-h) auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   background: var(--bg);
   overflow: hidden;
 }
-/* Grid children default to min-height:auto, which refuses to shrink below
-   their content and re-creates the same overflow one level down. */
-.admin-sidebar, .admin-body { min-height: 0; }
-.admin-shell[data-collapsed="true"] { grid-template-columns: var(--sidebar-rail) minmax(0, 1fr); }
-.admin-shell--centered { grid-template-columns: 1fr; place-items: center; }
+.admin-shell--centered { grid-template-rows: minmax(0, 1fr); place-items: center; }
 
-.admin-body {
-  display: grid;
-  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
-  min-width: 0;
-}
+/* ── Bar one: brand, environment, account ─────────────────────── */
 
-/* ── Sidebar ───────────────────────────────────────────────────── */
-
-.admin-sidebar {
-  background: var(--surface-1);
-  border-right: 1px solid var(--hairline);
+.admin-topbar {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-5);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+  z-index: 30;
 }
 
 .admin-brand {
-  height: var(--topbar-h);
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 0 var(--sp-4);
-  border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
+  padding-right: var(--sp-4);
+  margin-right: var(--sp-1);
+  border-right: 1px solid var(--line);
+  height: 28px;
 }
-.admin-brand-mark { height: 20px; width: auto; flex-shrink: 0; }
+.admin-brand-mark { height: 19px; width: auto; }
 .admin-brand-tag {
   font-size: 10px;
   font-weight: 700;
@@ -304,157 +307,6 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   white-space: nowrap;
 }
 
-.admin-nav {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--sp-3) var(--sp-3) var(--sp-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-}
-.admin-nav-group { display: flex; flex-direction: column; gap: 1px; }
-.admin-nav-heading {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  padding: 0 var(--sp-3) var(--sp-2);
-}
-
-.admin-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px var(--sp-3);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 500;
-  border: 1px solid transparent;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  position: relative;
-  transition: background 110ms var(--ease), color 110ms var(--ease);
-}
-.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.75; }
-.admin-nav-item:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: transparent; }
-.admin-nav-item.active {
-  background: var(--brand-soft);
-  color: var(--text);
-  font-weight: 600;
-}
-.admin-nav-item.active svg { opacity: 1; color: var(--brand-text); }
-/* The active marker is a left bar, which reads as "you are here" far
-   faster than a background tint alone at this density. */
-.admin-nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -var(--sp-3);
-  left: calc(var(--sp-3) * -1);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 18px;
-  border-radius: 0 3px 3px 0;
-  background: var(--brand);
-}
-.admin-nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Count/status chip on the right of a nav item — open bug reports, etc. */
-.admin-nav-badge {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--surface-3);
-  color: var(--text-muted);
-}
-.admin-nav-item.active .admin-nav-badge { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-
-.admin-foot {
-  flex-shrink: 0;
-  border-top: 1px solid var(--hairline);
-  padding: var(--sp-3);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.admin-me {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.admin-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--brand-soft);
-  border: 1px solid var(--brand-line);
-  color: var(--brand-text);
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-  text-transform: uppercase;
-}
-.admin-me-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-signout {
-  padding: 5px 8px;
-  font-size: 11px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-dim);
-  flex-shrink: 0;
-}
-.admin-signout:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
-
-/* ── Collapsed rail ───────────────────────────────────────────── */
-
-.admin-shell[data-collapsed="true"] .admin-brand { justify-content: center; padding: 0; }
-.admin-shell[data-collapsed="true"] .admin-brand-tag,
-.admin-shell[data-collapsed="true"] .admin-nav-heading,
-.admin-shell[data-collapsed="true"] .admin-nav-item-label,
-.admin-shell[data-collapsed="true"] .admin-nav-badge,
-.admin-shell[data-collapsed="true"] .admin-me-name,
-.admin-shell[data-collapsed="true"] .admin-signout { display: none; }
-.admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: center; padding: 9px 0; }
-.admin-shell[data-collapsed="true"] .admin-nav-item svg { width: 17px; height: 17px; }
-.admin-shell[data-collapsed="true"] .admin-nav-group { gap: 2px; }
-.admin-shell[data-collapsed="true"] .admin-foot { justify-content: center; }
-.admin-shell[data-collapsed="true"] .admin-me { flex: 0; }
-
-/* ── Topbar ────────────────────────────────────────────────────── */
-
-.admin-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 0 var(--sp-6);
-  border-bottom: 1px solid var(--hairline);
-  background: rgba(11, 13, 18, 0.82);
-  backdrop-filter: blur(10px);
-  position: relative;
-  z-index: 20;
-  min-width: 0;
-}
-.topbar-icon-btn {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-  padding: 6px;
-  border-radius: var(--radius-sm);
-}
-.topbar-icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
-.topbar-icon-btn svg { width: 16px; height: 16px; }
 .topbar-crumb {
   font-size: 13px;
   font-weight: 560;
@@ -466,6 +318,16 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 }
 .topbar-spacer { flex: 1; min-width: 0; }
 .topbar-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
+
+.topbar-icon-btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  padding: 6px;
+}
+.topbar-icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
+.topbar-icon-btn svg { width: 16px; height: 16px; }
+
 /* Environment marker. An operations console should always answer "am I
    about to do this to production?" without being asked. */
 .topbar-env {
@@ -476,31 +338,162 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--text-muted);
-  background: var(--surface-1);
+  background: var(--surface-2);
+  white-space: nowrap;
 }
-.topbar-env::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-}
-.topbar-env.is-prod { color: var(--warn-text); border-color: rgba(251, 191, 36, 0.3); background: var(--warn-soft); }
+.topbar-env::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.topbar-env.is-prod { color: var(--warn-text); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-soft); }
 .topbar-env.is-prod::before { background: var(--warn); }
 
-/* ── Content ───────────────────────────────────────────────────── */
+.admin-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--line);
+  height: 28px;
+}
+.admin-avatar {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-text);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.admin-me-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+.admin-signout { padding: 5px 9px; font-size: 11px; }
+
+/* ── Bar two: navigation ──────────────────────────────────────── */
+
+.admin-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 var(--sp-5);
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+  z-index: 25;
+}
+.admin-nav::-webkit-scrollbar { display: none; }
+
+.admin-nav-group { position: relative; display: flex; }
+
+/* A group button. The underline marks the group containing the current
+   page, so "where am I" is answerable without opening anything. */
+.admin-nav-trigger {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 520;
+  padding: 10px var(--sp-3) 9px;
+  white-space: nowrap;
+  gap: 5px;
+}
+.admin-nav-trigger:hover:not(:disabled) { background: var(--surface-1); color: var(--text); border-bottom-color: var(--line-strong); }
+.admin-nav-trigger[aria-expanded="true"] { background: var(--surface-1); color: var(--text); }
+.admin-nav-trigger.has-active { color: var(--text); font-weight: 600; border-bottom-color: var(--brand); }
+.admin-nav-trigger svg { width: 12px; height: 12px; opacity: 0.6; }
+
+/* ── Dropdown ─────────────────────────────────────────────────── */
+
+.admin-nav-menu {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 0;
+  min-width: 216px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--sp-1);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: menu-in 110ms var(--ease);
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+.admin-nav-item:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
+.admin-nav-item.active { background: var(--brand-soft); border-color: var(--brand-line); color: var(--text); font-weight: 600; }
+.admin-nav-item.active svg { opacity: 1; color: var(--brand-text); }
+.admin-nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.admin-nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+
+/* Click-catcher behind an open menu. Invisible, full-viewport, so a
+   click anywhere closes — without it the only way out is the trigger,
+   which every user tries second. */
+.admin-menu-scrim {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  z-index: 55;
+  cursor: default;
+}
+
+/* ── Content ──────────────────────────────────────────────────── */
 
 .admin-main {
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
-  padding: var(--sp-6) var(--sp-6) var(--sp-9);
+  padding: var(--sp-5) var(--sp-5) var(--sp-9);
 }
-.page { max-width: var(--content-max); margin: 0 auto; min-width: 0; }
+/* No max-width. The whole reason navigation moved to the top was to
+   give this the full viewport; capping it here would hand the space
+   straight back. Individual pages that genuinely read better narrow
+   (prose, forms) constrain themselves. */
+.page { min-width: 0; }
 
 .page-head {
   display: flex;
@@ -508,15 +501,12 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   justify-content: space-between;
   gap: var(--sp-4);
   flex-wrap: wrap;
-  margin-bottom: var(--sp-6);
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--hairline);
 }
-.page-head h1 { font-size: 21px; font-weight: 640; letter-spacing: -0.02em; margin: 0; }
-.page-head p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  max-width: 76ch;
-}
+.page-head h1 { font-size: 20px; font-weight: 640; letter-spacing: -0.02em; margin: 0; }
+.page-head p { margin: 5px 0 0; color: var(--text-muted); font-size: 12.5px; max-width: 92ch; }
 .page-head-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 
 .page-err, .page-ok, .page-warn {
@@ -529,16 +519,11 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   align-items: flex-start;
   gap: 8px;
 }
-.page-err  { background: var(--bad-soft);  border-color: rgba(248, 113, 113, 0.28); color: var(--bad-text); }
-.page-ok   { background: var(--good-soft); border-color: rgba(52, 211, 153, 0.28);  color: var(--good-text); }
-.page-warn { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.28);  color: var(--warn-text); }
+.page-err  { background: var(--bad-soft);  border-color: rgba(248, 113, 113, 0.32); color: var(--bad-text); }
+.page-ok   { background: var(--good-soft); border-color: rgba(52, 211, 153, 0.32);  color: var(--good-text); }
+.page-warn { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.32);  color: var(--warn-text); }
 
-.page-loading {
-  color: var(--text-dim);
-  padding: var(--sp-8) 0;
-  text-align: center;
-  font-size: 12.5px;
-}
+.page-loading { color: var(--text-dim); padding: var(--sp-8) 0; text-align: center; font-size: 12.5px; }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 
@@ -822,81 +807,42 @@ select {
 .tag-info { background: var(--info-soft); border-color: rgba(96, 165, 250, 0.28); color: var(--info-text); }
 .tag-brand{ background: var(--brand-soft);border-color: var(--brand-line);         color: var(--brand-text); }
 
-/* ── Mobile ────────────────────────────────────────────────────
-   The old sheet turned the sidebar into a horizontally-scrolling strip
-   of fifteen items, which is unusable on a phone: no grouping, no
-   labels visible at rest, and the target you want is always off-screen.
-   It is an off-canvas drawer now — the standard pattern, and the only
-   one that survives this many destinations. */
-
-.admin-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 40;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  animation: scrim-in 140ms var(--ease);
-}
-@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes drawer-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+/* ── Mobile ───────────────────────────────────────────────────
+   The layout does not change shape — it is one bar over one column at
+   every size, which is the main benefit of dropping the sidebar. Only
+   the nav row needs handling: six triggers do not fit at 390px, so it
+   scrolls horizontally. Six short labels is a real scroll; fifteen
+   destinations never was. */
 
 @media (max-width: 900px) {
-  .admin-shell,
-  .admin-shell[data-collapsed="true"] { grid-template-columns: minmax(0, 1fr); }
-
-  .admin-sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: min(280px, 84vw);
-    z-index: 50;
-    box-shadow: var(--shadow-3);
-    animation: drawer-in 180ms var(--ease);
-  }
-  /* Closed is the default on mobile; the drawer only exists while open. */
-  .admin-sidebar[data-mobile-open="false"] { display: none; }
-
-  /* The rail collapse is a desktop affordance — on mobile the drawer is
-     always full width, so the collapsed overrides must not apply. */
-  .admin-shell[data-collapsed="true"] .admin-brand-tag,
-  .admin-shell[data-collapsed="true"] .admin-nav-heading,
-  .admin-shell[data-collapsed="true"] .admin-nav-item-label,
-  .admin-shell[data-collapsed="true"] .admin-nav-badge,
-  .admin-shell[data-collapsed="true"] .admin-me-name,
-  .admin-shell[data-collapsed="true"] .admin-signout { display: revert; }
-  .admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: flex-start; padding: 7px var(--sp-3); }
-  .admin-shell[data-collapsed="true"] .admin-brand { justify-content: flex-start; padding: 0 var(--sp-4); }
-
-  .admin-main { padding: var(--sp-4) var(--sp-4) var(--sp-8); }
-  .page-head { margin-bottom: var(--sp-5); }
-  .page-head h1 { font-size: 19px; }
-  .card { padding: var(--sp-4); border-radius: var(--radius-lg); }
+  .admin-topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
+  .admin-nav { padding: 0 var(--sp-3); }
+  .admin-main { padding: var(--sp-4) var(--sp-3) var(--sp-8); }
+  .admin-brand { padding-right: var(--sp-3); }
+  .admin-brand-tag { display: none; }
+  .topbar-crumb { display: none; }
+  .admin-me-name { display: none; }
+  .admin-me { padding-left: var(--sp-2); }
+  .page-head h1 { font-size: 18px; }
+  .card { padding: var(--sp-4); }
   .card-flush { margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-4) * -1); }
-  .kpi-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-2); }
+  .kpi-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: var(--sp-2); }
   .kpi { padding: var(--sp-3) var(--sp-4); }
-  .kpi-value { font-size: 21px; }
-  .admin-topbar { padding: 0 var(--sp-4); }
+  .kpi-value { font-size: 20px; }
+  /* Anchor right so the last menus do not open off-screen. */
+  .admin-nav-group:nth-last-child(-n+2) .admin-nav-menu { left: auto; right: 0; }
 }
 
-@media (min-width: 901px) {
-  /* The burger is mobile-only; the rail toggle takes its place on
-     desktop. Hidden rather than not rendered so the markup is the same
-     at every size and there is no layout shift on resize. */
-  .topbar-burger { display: none; }
-  .admin-scrim { display: none; }
-}
-@media (max-width: 900px) {
-  .topbar-rail-toggle { display: none; }
+@media (max-width: 560px) {
+  .topbar-env { padding: 4px 8px; font-size: 10px; }
+  .topbar-env span { display: none; }
 }
 
-/* Touch targets. 15 destinations at 7px vertical padding is a 30px
-   target, under the 44px minimum, and this dashboard gets used on a
-   phone at 2am when something is on fire. */
+/* Touch targets. This dashboard gets used on a phone at 2am when
+   something is on fire. */
 @media (pointer: coarse) {
-  .admin-nav-item { padding: 11px var(--sp-3); }
+  .admin-nav-item { padding: 11px 9px; }
+  .admin-nav-trigger { padding: 12px var(--sp-3) 11px; }
   button { min-height: 36px; }
   .btn-tiny { min-height: 28px; }
 }
