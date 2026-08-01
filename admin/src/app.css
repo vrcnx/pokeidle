@@ -15,58 +15,61 @@
   align-items: center;
 }
 
-.users-table {
+/* The page tables are the same object as .admin-table and are styled by it
+   in foundation.css; what stays here is only what differs — the row-click
+   affordance and the first-column emphasis. Three near-identical table
+   implementations is how a dashboard ends up with three different header
+   greys. */
+.users-table, .chat-table, .snapshot-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--surface-1);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-1);
 }
-.users-table th {
-  padding: 12px 14px;
+.users-table th, .chat-table th, .snapshot-table th {
+  padding: 10px 14px;
   text-align: left;
   font-size: 10px;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.7px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--surface-2);
+  color: var(--text-dim);
+  /* A recessed well, matching .admin-table. --surface-2 read as a raised
+     row rather than a header. */
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
   font-weight: 700;
   position: sticky;
   top: 0;
   z-index: 1;
 }
-.users-table td {
-  padding: 12px 14px;
+.users-table td, .chat-table td, .snapshot-table td {
+  padding: 10px 14px;
   text-align: left;
   font-size: 12.5px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: middle;
 }
-.users-table tr:last-child td { border-bottom: 0; }
-.users-table tbody tr { transition: background 120ms var(--ease); }
-.users-table tbody tr:hover { background: var(--surface-2); cursor: pointer; }
+.users-table tr:last-child td, .chat-table tr:last-child td, .snapshot-table tr:last-child td { border-bottom: 0; }
+.users-table tbody tr, .chat-table tbody tr, .snapshot-table tbody tr { transition: background 100ms var(--ease); }
+.users-table tbody tr:hover, .chat-table tbody tr:hover { background: var(--surface-2); cursor: pointer; }
 .users-table tbody tr.selected { background: var(--brand-soft); }
 .users-table td:first-child { font-weight: 600; }
 .users-table td.tabular { font-variant-numeric: tabular-nums; color: var(--text-muted); }
 
-/* Tags / pills */
-.tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
-.tag.admin  { background: var(--brand-soft); color: var(--brand-hover); }
-.tag.banned { background: var(--bad-soft);   color: #fca5a5; margin-left: 4px; }
+/* Tag VARIANTS. The base .tag lives in foundation.css — it was duplicated
+   here, and because this file is imported after it, the copy silently won:
+   every tag in the app rendered without the border the design system
+   specifies. Only the colour variants belong at this layer. */
+.tag { text-transform: uppercase; }
+.tag.admin  { background: var(--brand-soft); border-color: var(--brand-line); color: var(--brand-text); }
+.tag.banned { background: var(--bad-soft);   border-color: rgba(248, 113, 113, 0.28); color: var(--bad-text); margin-left: 4px; }
 .tag.announcement,
-.tag.giveaway { background: var(--warn-soft); color: #fbbf24; }
-.tag.trade    { background: rgba(192, 132, 252, 0.16); color: #c084fc; }
-.tag.gift     { background: rgba(244, 114, 182, 0.16); color: #f9a8d4; }
+.tag.giveaway { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.28); color: var(--warn-text); }
+.tag.trade    { background: rgba(192, 132, 252, 0.14); border-color: rgba(192, 132, 252, 0.3); color: #c084fc; }
+.tag.gift     { background: rgba(244, 114, 182, 0.14); border-color: rgba(244, 114, 182, 0.3); color: #f9a8d4; }
 
 .pager {
   display: flex;
@@ -387,7 +390,10 @@
   vertical-align: middle;
 }
 
-.g-mono { font-family: ui-monospace, monospace; word-break: break-all; }
+/* Adds break-anywhere to the base .g-mono in foundation.css. Redeclaring
+   font-family here also dropped the base font-size, so ids rendered a
+   size larger than everything else monospaced. */
+.g-mono { word-break: break-all; }
 
 /* ── Map editor ──────────────────────────────────────────────── */
 
@@ -2383,7 +2389,9 @@
 
 /* Server-unreachable gate — shown instead of ejecting the operator to
    the game when /me fails for a non-auth reason. */
-.admin-shell--centered { display: grid; place-items: center; min-height: 100vh; }
+/* Centring and the grid come from foundation.css; this only needs to stop
+   the shell's fixed height from collapsing the message on a short screen. */
+.admin-shell--centered { min-height: 100vh; }
 .admin-unreachable {
   max-width: 420px;
   text-align: center;
