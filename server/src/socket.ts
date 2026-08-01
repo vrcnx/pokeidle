@@ -4,6 +4,7 @@ import { auth } from "./auth.js";
 import { prisma } from "./db.js";
 import { recordDailyActive } from "./lib/presence.js";
 import { canAccessChannel, GLOBAL_CHANNEL, TRADE_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
+import { sanitizeChatText } from "./lib/chatText.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
@@ -909,7 +910,11 @@ export function attachSocketServer(httpServer: HttpServer): Server {
         // renders somewhere, not just `content` — meta.offering/wanting
         // render straight into TradeOfferCard the same way and are
         // just as spoofable if this were skipped for them.
-        const sanitize = (s: string) => s.replace(/[\x00-\x1f\x7f‮]/g, "").trim();
+        //
+        // Moved to lib/chatText.ts so the Discord trade noticeboard
+        // (routes/bot.ts) sanitises identically. Two paths that write the
+        // same card must not have two definitions of what is safe in it.
+        const sanitize = sanitizeChatText;
         const trimmed = sanitize(content).slice(0, 500);
         if (!trimmed) {
           ack?.({ ok: false, error: "empty" });

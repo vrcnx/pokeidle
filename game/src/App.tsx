@@ -7,6 +7,7 @@ import { useCatchAnimation } from "./hooks/useCatchAnimation";
 import { useAutoEvolve } from "./hooks/useAutoEvolve";
 import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
 import { useStreamAutoPlay } from "./hooks/useStreamAutoPlay";
+import { useTradeDeepLink } from "./hooks/useTradeDeepLink";
 import { StarterSelect } from "./components/StarterSelect";
 import { GameShell } from "./components/GameShell";
 import { ContextMenuHost } from "./components/ContextMenu";
@@ -36,6 +37,9 @@ export function App() {
   useCatchAnimation();
   useStreamStartRoute();
   useStreamAutoPlay();
+  // `?trade=<username>` from a Discord noticeboard listing. One-shot, and it
+  // consumes the query param before firing so a refresh can't re-invite.
+  useTradeDeepLink();
 
   return (
     <>

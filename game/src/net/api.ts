@@ -85,6 +85,24 @@ export const api = {
       input,
     ),
 
+  // Discord account linking. The code is minted by the bot and DM'd to the
+  // player; this half of the flow is the player proving, from a signed-in
+  // session, that the game account is theirs. See server/src/lib/discordLink.ts
+  // for why the code travels Discord → player → site and not the other way.
+  discordLinkStatus: () =>
+    request<{ linked: boolean; discordId: string | null }>("GET", "/api/discord/link/me"),
+  // Preview only — does NOT consume the code. Lets the confirm button name the
+  // Discord account before the player commits to binding it.
+  discordLinkPeek: (code: string) =>
+    request<{ found: boolean; discordLabel?: string }>(
+      "GET",
+      `/api/discord/link/peek?code=${encodeURIComponent(code)}`,
+    ),
+  discordLinkRedeem: (input: { code: string }) =>
+    request<{ ok: true; discordLabel: string }>("POST", "/api/discord/link/redeem", input),
+  discordUnlink: () =>
+    request<{ ok: true; removed: boolean }>("DELETE", "/api/discord/link/me"),
+
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),
   publicProfile: (username: string) =>

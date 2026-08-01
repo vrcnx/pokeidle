@@ -47,6 +47,25 @@ type GiveawayWithEntries = Giveaway & { entries: GiveawayEntry[] };
  */
 export type DrawActor = { id: string; viaApiKey?: boolean };
 
+export interface DrawOptions {
+  /**
+   * The `source` label stamped on every PendingGrant this draw creates.
+   * Defaults to "giveaway"; the Discord bot passes "discord".
+   *
+   * An AUDIT LABEL and nothing else — PendingGrant.source is documented as
+   * free-form and explicitly never a control-flow key, and nothing in the fold
+   * path reads it. It exists so an operator sweeping the grant queue can tell a
+   * Discord giveaway's payouts from an in-game one's, and so
+   * `@@index([source, sourceId])` makes that a lookup instead of a scan.
+   *
+   * This parameter is why the bot reuses this function instead of shipping its
+   * own draw. Everything below — the atomic drawnAt compare-and-swap, the
+   * seeded verifiable pick, the paid-but-unrecorded handling — is load-bearing
+   * and would have been silently absent from a second implementation.
+   */
+  grantSource?: string;
+}
+
 export type GrantResult = { username: string; ok: boolean; error?: string };
 
 export interface DrawGiveawayResult {
@@ -82,6 +101,7 @@ function auditFor(actor: DrawActor | null, ownerId: string) {
 export async function drawGiveaway(
   giveawayId: string,
   actor: DrawActor | null = null,
+  opts: DrawOptions = {},
 ): Promise<DrawGiveawayResult> {
   const id = giveawayId;
   const g = await prisma.giveaway.findUnique({ where: { id }, include: { entries: true } });
@@ -159,7 +179,10 @@ export async function drawGiveaway(
       // enqueuePrizeGrant also emits `gift:pending`, which nudges an online
       // winner to sync immediately instead of waiting for the next autosave
       // tick; that emit is an optimisation and nothing depends on it.
-      await enqueuePrizeGrant(w.userId, prizes, { source: "giveaway", sourceId: g.id });
+      await enqueuePrizeGrant(w.userId, prizes, {
+        source: opts.grantSource ?? "giveaway",
+        sourceId: g.id,
+      });
       grantDelivered = true;
       await prisma.giveawayEntry.update({
         where: { id: w.id },

@@ -161,6 +161,12 @@ model User {
   pvpWinBonusClaim   PvpWinBonusClaim?
   pvpBadgeMilestones PvpBadgeMilestone[]
   pvpLadderBaseline  PvpLadderBaseline?
+  /// Discord account binding for the community bot. Optional — the
+  /// overwhelming majority of accounts will never have one. A relation
+  /// field only; it generates no DDL, so the hand-written migration
+  /// 20260731120000_add_discord_link remains the complete description
+  /// of the table.
+  discordLink        DiscordLink?
 }
 
 /// Per-account constant secret that lets an OBS/24-7 stream auto-login via
@@ -320,6 +326,54 @@ model PendingGrant {
   /// The table is append-only and a mass gift adds a row per account, so this
   /// lookup must not be a sequential scan.
   @@index([source, sourceId])
+}
+
+/// Binds a Discord account to a game account, for the community bot.
+///
+/// ── WHY THIS IS A TABLE AND NOT A COLUMN ON User ────────────────────
+/// Discord identity is not part of who an account IS. It is one optional
+/// integration that a small minority of accounts will ever use, it can be
+/// severed at any time from either side, and it must never end up in the
+/// select list of a route that is merely reading a profile. A separate
+/// table makes leaking it require an explicit join, which is the property
+/// worth having: everything the bot reads is assumed to end up screenshotted
+/// in a public Discord channel, and the mapping from game account to Discord
+/// account is the one piece of that graph a player has not consented to
+/// publish.
+///
+/// ── WHY BOTH SIDES ARE UNIQUE ───────────────────────────────────────
+/// `discordId` is the primary key and `userId` is UNIQUE, so the binding is
+/// strictly one-to-one in both directions. This is enforced by the database
+/// rather than by the link route, because both of the failure modes it
+/// prevents are ones an application-level check loses to a race:
+///
+///   * One Discord account claiming several game accounts turns every
+///     per-account limit the bot enforces (a giveaway entry, a trade
+///     listing, a role) into a per-account-times-N limit.
+///   * One game account claimed by several Discord accounts means a prize
+///     drawn for "that player" has no single Discord recipient, and role
+///     sync has no single member to reconcile.
+///
+/// Rebinding is therefore delete-then-create — `/unlink` then `/link` — and
+/// never an update, so there is no code path that silently moves a binding
+/// out from under someone.
+///
+/// ── WHY THE BOT CANNOT MOVE ANYTHING ────────────────────────────────
+/// This row is a lookup key and nothing else. It confers no capability: the
+/// bot's API surface is read-only apart from prize grants (which go through
+/// PendingGrant, never a save write) and trade LISTINGS (which are text, not
+/// custody). A phished Discord account therefore reaches a trainer card and
+/// a noticeboard post, and cannot reach a Pokémon. See the live trade flow
+/// in server/src/socket.ts for why asset movement stays there and only there.
+model DiscordLink {
+  /// Discord snowflake. The primary key, so one Discord account maps to at
+  /// most one game account by construction. Stored as text: snowflakes are
+  /// 64-bit and JavaScript numbers are not.
+  discordId String   @id
+  userId    String   @unique
+  linkedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Session {

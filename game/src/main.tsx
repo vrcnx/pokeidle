@@ -5,6 +5,7 @@ import { GameProvider } from "./state/GameContext";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginScreen } from "./auth/LoginScreen";
 import { ResetPasswordScreen } from "./auth/ResetPasswordScreen";
+import { LinkDiscordScreen } from "./auth/LinkDiscordScreen";
 import { FirstVisitDisclaimer } from "./components/FirstVisitDisclaimer";
 import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
@@ -39,6 +40,14 @@ function Root() {
   // authenticated if they reuse a stale browser tab).
   if (window.location.pathname.startsWith("/reset-password")) {
     return <ResetPasswordScreen />;
+  }
+  // Discord link landing — where /link in the Discord server sends people.
+  // Rendered ABOVE the auth gate for the same reason the reset screen is: it
+  // has its own handling for every auth status, and it explains why a signed-
+  // out visitor is being asked to sign in rather than dumping them on a bare
+  // login form with no context for how they got there.
+  if (window.location.pathname.startsWith("/link-discord")) {
+    return <LinkDiscordScreen />;
   }
   return (
     <>
