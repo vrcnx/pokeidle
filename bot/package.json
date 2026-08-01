@@ -14,7 +14,8 @@
     "deploy-commands": "tsx src/deployCommands.ts",
     "snapshot": "tsx scripts/snapshot.mts",
     "typecheck": "tsc --noEmit",
-    "samples": "tsx scripts/renderSamples.mts"
+    "samples": "tsx scripts/renderSamples.mts",
+    "smoke": "tsx scripts/smoke.mts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
