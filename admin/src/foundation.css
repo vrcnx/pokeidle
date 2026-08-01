@@ -124,8 +124,8 @@
   --radius-xl: 14px;
 
   /* ── Shell metrics ───────────────────────────────────────────*/
-  --sidebar-w:    248px;
-  --sidebar-rail: 68px;
+  --sidebar-w:    224px;
+  --sidebar-rail: 60px;
   --topbar-h:     56px;
   --content-max:  1600px;
 }
@@ -240,62 +240,74 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .btn-small { padding: 5px 10px; font-size: 11.5px; }
 .btn-block { width: 100%; }
 
-/* ── App shell — top navigation ────────────────────────────────
-   A SIDEBAR WAS THE WRONG CALL. It reserved 248px of every viewport
-   for fifteen links that are read once and then ignored, in a tool
-   whose actual job is wide data: a 2,400-row user table, a bracket, a
-   chat log, a chart. On a 1440px laptop that is 17% of the screen
-   permanently spent on navigation.
+/* ── App shell ─────────────────────────────────────────────────
+   Sidebar + (topbar over scrolling content).
 
-   Navigation moves to the top. Content gets the full width at every
-   size, the layout is identical on desktop and mobile (one bar, one
-   column), and there is no collapse state to remember or explain.
+   The content column is the ONLY scroll container, so the nav and the
+   topbar never move — an operator scrolling a 2,400-row user table
+   should not lose the navigation to do it.
 
-   Fifteen destinations do not fit in a row, so they are grouped into
-   six menus. Every page is two clicks and the grouping is the same one
-   the sidebar used, so the mental model does not change.
+   ── ON WIDTH ────────────────────────────────────────────────────
+   224px, down from 248. The longest label is "Announcements" and it
+   fits with room to spare; the extra 24px was doing nothing but
+   costing content width. The rail collapse is there for when even 224
+   is too much — persisted, so choosing it once is choosing it for
+   good.
 
-   Borders do the structural work now, and there are more of them: a
-   bar rule, a nav rule, card edges, table dividers, and a well behind
-   table headers. The previous pass leaned on tone and the result read
-   as flat. */
+   ── ON STRUCTURE ────────────────────────────────────────────────
+   The sidebar is a distinct surface with a real edge, and its three
+   regions (brand / nav / account) are separated by rules rather than
+   by whitespace alone. Groups are separated by a divider, not a gap,
+   because at this item count a gap alone reads as "these got spaced
+   oddly" rather than as a boundary. */
 
 .admin-shell {
   display: grid;
-  grid-template-rows: var(--topbar-h) auto minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  /* Explicit and bounded. An implicit `auto` row sizes to content, which
+     made the whole DOCUMENT scroll and took the nav with it. */
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   background: var(--bg);
   overflow: hidden;
 }
-.admin-shell--centered { grid-template-rows: minmax(0, 1fr); place-items: center; }
+.admin-shell[data-collapsed="true"] { grid-template-columns: var(--sidebar-rail) minmax(0, 1fr); }
+.admin-shell--centered { grid-template-columns: minmax(0, 1fr); place-items: center; }
+/* Grid children default to min-height:auto and refuse to shrink below
+   their content, re-creating the same overflow one level down. */
+.admin-sidebar, .admin-body { min-height: 0; }
 
-/* ── Bar one: brand, environment, account ─────────────────────── */
-
-.admin-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 0 var(--sp-5);
-  background: var(--surface-1);
-  border-bottom: 1px solid var(--line);
+.admin-body {
+  display: grid;
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
   min-width: 0;
-  z-index: 30;
 }
 
+/* ── Sidebar ───────────────────────────────────────────────────── */
+
+.admin-sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Brand sits at exactly topbar height so the two bars share a baseline
+   and the rule across the top is continuous. */
 .admin-brand {
+  height: var(--topbar-h);
   display: flex;
   align-items: center;
   gap: 9px;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
-  padding-right: var(--sp-4);
-  margin-right: var(--sp-1);
-  border-right: 1px solid var(--line);
-  height: 28px;
 }
-.admin-brand-mark { height: 19px; width: auto; }
+.admin-brand-mark { height: 19px; width: auto; flex-shrink: 0; }
 .admin-brand-tag {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -307,9 +319,173 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   white-space: nowrap;
 }
 
+.admin-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-2) 0 var(--sp-4);
+}
+
+/* A divider between groups rather than a gap. At fifteen items a gap
+   alone reads as inconsistent spacing; a rule reads as a boundary. */
+.admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--hairline);
+}
+.admin-nav-group:last-child { border-bottom: 0; }
+
+.admin-nav-heading {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 var(--sp-2) 6px;
+}
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px var(--sp-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  min-height: 0;
+  transition: background 110ms var(--ease), color 110ms var(--ease), border-color 110ms var(--ease);
+}
+.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+.admin-nav-item:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  color: var(--text);
+}
+.admin-nav-item:hover:not(:disabled) svg { opacity: 1; }
+
+/* Active: filled, outlined, and marked with a bar. Three signals rather
+   than one, because on a list this long a tint alone is easy to miss —
+   and this is the answer to "which page am I on" at a glance. */
+.admin-nav-item.active {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+  color: var(--text);
+  font-weight: 600;
+}
+.admin-nav-item.active svg { opacity: 1; color: var(--brand-text); }
+.admin-nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
+}
+
+.admin-nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+.admin-nav-item.active .admin-nav-badge { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+
+.admin-foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--surface-0);
+}
+.admin-me { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font-size: 12px; color: var(--text-muted); }
+.admin-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-text);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.admin-me-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--text); }
+.admin-signout {
+  padding: 5px 9px;
+  font-size: 11px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.admin-signout:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); color: var(--text); }
+
+/* ── Collapsed rail ───────────────────────────────────────────── */
+
+.admin-shell[data-collapsed="true"] .admin-brand { justify-content: center; padding: 0; }
+.admin-shell[data-collapsed="true"] .admin-brand-tag,
+.admin-shell[data-collapsed="true"] .admin-nav-heading,
+.admin-shell[data-collapsed="true"] .admin-nav-item-label,
+.admin-shell[data-collapsed="true"] .admin-nav-badge,
+.admin-shell[data-collapsed="true"] .admin-me-name,
+.admin-shell[data-collapsed="true"] .admin-signout { display: none; }
+.admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: center; padding: 9px 0; gap: 0; }
+.admin-shell[data-collapsed="true"] .admin-nav-item svg { width: 17px; height: 17px; }
+/* The left bar has nothing to sit beside on a centred icon, so the
+   active state becomes the fill alone. */
+.admin-shell[data-collapsed="true"] .admin-nav-item.active::before { display: none; }
+.admin-shell[data-collapsed="true"] .admin-nav-group { padding: var(--sp-2) var(--sp-2); }
+.admin-shell[data-collapsed="true"] .admin-foot { justify-content: center; padding: var(--sp-3) 0; }
+.admin-shell[data-collapsed="true"] .admin-me { flex: 0; }
+
+/* ── Topbar ────────────────────────────────────────────────────── */
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+}
+.topbar-icon-btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+}
+.topbar-icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
+.topbar-icon-btn svg { width: 16px; height: 16px; }
 .topbar-crumb {
-  font-size: 13px;
-  font-weight: 560;
+  font-size: 13.5px;
+  font-weight: 580;
   color: var(--text);
   min-width: 0;
   overflow: hidden;
@@ -319,17 +495,9 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .topbar-spacer { flex: 1; min-width: 0; }
 .topbar-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 
-.topbar-icon-btn {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-  padding: 6px;
-}
-.topbar-icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
-.topbar-icon-btn svg { width: 16px; height: 16px; }
-
 /* Environment marker. An operations console should always answer "am I
-   about to do this to production?" without being asked. */
+   about to do this to production?" without being asked — this dashboard
+   writes to live saves. */
 .topbar-env {
   display: inline-flex;
   align-items: center;
@@ -349,150 +517,17 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .topbar-env.is-prod { color: var(--warn-text); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-soft); }
 .topbar-env.is-prod::before { background: var(--warn); }
 
-.admin-me {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-muted);
-  padding-left: var(--sp-3);
-  border-left: 1px solid var(--line);
-  height: 28px;
-}
-.admin-avatar {
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  background: var(--brand-soft);
-  border: 1px solid var(--brand-line);
-  color: var(--brand-text);
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-  text-transform: uppercase;
-}
-.admin-me-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
-.admin-signout { padding: 5px 9px; font-size: 11px; }
-
-/* ── Bar two: navigation ──────────────────────────────────────── */
-
-.admin-nav {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 0 var(--sp-5);
-  background: var(--surface-0);
-  border-bottom: 1px solid var(--line);
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: none;
-  z-index: 25;
-}
-.admin-nav::-webkit-scrollbar { display: none; }
-
-.admin-nav-group { position: relative; display: flex; }
-
-/* A group button. The underline marks the group containing the current
-   page, so "where am I" is answerable without opening anything. */
-.admin-nav-trigger {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 520;
-  padding: 10px var(--sp-3) 9px;
-  white-space: nowrap;
-  gap: 5px;
-}
-.admin-nav-trigger:hover:not(:disabled) { background: var(--surface-1); color: var(--text); border-bottom-color: var(--line-strong); }
-.admin-nav-trigger[aria-expanded="true"] { background: var(--surface-1); color: var(--text); }
-.admin-nav-trigger.has-active { color: var(--text); font-weight: 600; border-bottom-color: var(--brand); }
-.admin-nav-trigger svg { width: 12px; height: 12px; opacity: 0.6; }
-
-/* ── Dropdown ─────────────────────────────────────────────────── */
-
-.admin-nav-menu {
-  position: absolute;
-  top: calc(100% + 1px);
-  left: 0;
-  min-width: 216px;
-  background: var(--surface-1);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-3);
-  padding: var(--sp-1);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  animation: menu-in 110ms var(--ease);
-}
-@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-
-.admin-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 500;
-  border: 1px solid transparent;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  white-space: nowrap;
-}
-.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
-.admin-nav-item:hover:not(:disabled) { background: var(--surface-2); color: var(--text); border-color: var(--line); }
-.admin-nav-item.active { background: var(--brand-soft); border-color: var(--brand-line); color: var(--text); font-weight: 600; }
-.admin-nav-item.active svg { opacity: 1; color: var(--brand-text); }
-.admin-nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.admin-nav-badge {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--surface-3);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
-}
-
-/* Click-catcher behind an open menu. Invisible, full-viewport, so a
-   click anywhere closes — without it the only way out is the trigger,
-   which every user tries second. */
-.admin-menu-scrim {
-  position: fixed;
-  inset: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  z-index: 55;
-  cursor: default;
-}
-
-/* ── Content ──────────────────────────────────────────────────── */
+/* ── Content ───────────────────────────────────────────────────── */
 
 .admin-main {
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
-  padding: var(--sp-5) var(--sp-5) var(--sp-9);
+  padding: var(--sp-5) var(--sp-6) var(--sp-9);
 }
-/* No max-width. The whole reason navigation moved to the top was to
-   give this the full viewport; capping it here would hand the space
-   straight back. Individual pages that genuinely read better narrow
-   (prose, forms) constrain themselves. */
+/* No max-width. With the sidebar already taking its share, capping the
+   content too would waste an ultrawide monitor twice. Pages that read
+   better narrow constrain themselves. */
 .page { min-width: 0; }
 
 .page-head {
@@ -524,6 +559,20 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .page-warn { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.32);  color: var(--warn-text); }
 
 .page-loading { color: var(--text-dim); padding: var(--sp-8) 0; text-align: center; font-size: 12.5px; }
+
+/* Scrim behind the mobile drawer. */
+.admin-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 40;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  animation: scrim-in 140ms var(--ease);
+}
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drawer-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 
@@ -808,29 +857,61 @@ select {
 .tag-brand{ background: var(--brand-soft);border-color: var(--brand-line);         color: var(--brand-text); }
 
 /* ── Mobile ───────────────────────────────────────────────────
-   The layout does not change shape — it is one bar over one column at
-   every size, which is the main benefit of dropping the sidebar. Only
-   the nav row needs handling: six triggers do not fit at 390px, so it
-   scrolls horizontally. Six short labels is a real scroll; fifteen
-   destinations never was. */
+   The sidebar becomes an off-canvas drawer. This block lives at the END
+   of the file on purpose: media queries carry no extra specificity, so
+   overrides placed before the base rules they override are silently
+   dead — which is exactly what happened on the previous pass, leaving
+   every mobile rule here inert. */
 
 @media (max-width: 900px) {
+  .admin-shell,
+  .admin-shell[data-collapsed="true"] { grid-template-columns: minmax(0, 1fr); }
+
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(272px, 84vw);
+    z-index: 50;
+    box-shadow: var(--shadow-3);
+    animation: drawer-in 180ms var(--ease);
+  }
+  /* Closed is the default; the drawer only exists while open. */
+  .admin-sidebar[data-mobile-open="false"] { display: none; }
+
+  /* The rail is a desktop affordance. On mobile the drawer is always
+     full width, so the collapsed overrides must not leak into it. */
+  .admin-shell[data-collapsed="true"] .admin-brand-tag,
+  .admin-shell[data-collapsed="true"] .admin-nav-heading,
+  .admin-shell[data-collapsed="true"] .admin-nav-item-label,
+  .admin-shell[data-collapsed="true"] .admin-nav-badge,
+  .admin-shell[data-collapsed="true"] .admin-me-name,
+  .admin-shell[data-collapsed="true"] .admin-signout { display: revert; }
+  .admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: flex-start; padding: 7px var(--sp-2); gap: 10px; }
+  .admin-shell[data-collapsed="true"] .admin-nav-item.active::before { display: block; }
+  .admin-shell[data-collapsed="true"] .admin-brand { justify-content: flex-start; padding: 0 var(--sp-4); }
+  .admin-shell[data-collapsed="true"] .admin-foot { justify-content: flex-start; padding: var(--sp-3); }
+
   .admin-topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
-  .admin-nav { padding: 0 var(--sp-3); }
   .admin-main { padding: var(--sp-4) var(--sp-3) var(--sp-8); }
-  .admin-brand { padding-right: var(--sp-3); }
-  .admin-brand-tag { display: none; }
-  .topbar-crumb { display: none; }
-  .admin-me-name { display: none; }
-  .admin-me { padding-left: var(--sp-2); }
   .page-head h1 { font-size: 18px; }
   .card { padding: var(--sp-4); }
   .card-flush { margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-4) * -1); }
   .kpi-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: var(--sp-2); }
   .kpi { padding: var(--sp-3) var(--sp-4); }
   .kpi-value { font-size: 20px; }
-  /* Anchor right so the last menus do not open off-screen. */
-  .admin-nav-group:nth-last-child(-n+2) .admin-nav-menu { left: auto; right: 0; }
+}
+
+@media (min-width: 901px) {
+  /* The burger is mobile-only and the rail toggle is desktop-only, but
+     both are always rendered — swapping by CSS rather than by condition
+     means no layout shift when the viewport crosses the breakpoint. */
+  .topbar-burger { display: none; }
+  .admin-scrim { display: none; }
+}
+@media (max-width: 900px) {
+  .topbar-rail-toggle { display: none; }
 }
 
 @media (max-width: 560px) {
@@ -841,8 +922,7 @@ select {
 /* Touch targets. This dashboard gets used on a phone at 2am when
    something is on fire. */
 @media (pointer: coarse) {
-  .admin-nav-item { padding: 11px 9px; }
-  .admin-nav-trigger { padding: 12px var(--sp-3) 11px; }
+  .admin-nav-item { padding: 11px var(--sp-2); }
   button { min-height: 36px; }
   .btn-tiny { min-height: 28px; }
 }

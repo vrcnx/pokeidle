@@ -171,20 +171,37 @@ export function App() {
   // must clear any pending target — otherwise navigating Chat → Users
   // (focusing a player) and then clicking Users in the sidebar would
   // silently re-open that same player instead of the list.
-  const gotoPage = (p: Page) => navigateTo(p);
+  const gotoPage = (p: Page) => {
+    navigateTo(p);
+    // Close the drawer on navigate — leaving it open covers the page the
+    // operator just asked for.
+    setMobileNav(false);
+  };
 
-  // Which nav menu is open, by group label. Null = none. Only one at a
-  // time: two open dropdowns is never what anybody meant.
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  // ── Shell chrome ────────────────────────────────────────────────
+  // Rail collapse persists: an operator who wants the wide table area
+  // wants it on every visit, and re-collapsing on each load is the kind
+  // of small friction that makes a tool feel unfinished.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem("admin-nav-collapsed") === "1"; } catch { return false; }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("admin-nav-collapsed", next ? "1" : "0"); } catch { /* private mode */ }
+      return next;
+    });
+  };
+  const [mobileNav, setMobileNav] = useState(false);
 
-  // Escape closes the menu. Expected of any popover, and the only
-  // keyboard route out of one.
+  // Escape closes the drawer. Expected of any overlay, and the only
+  // keyboard route out of it.
   useEffect(() => {
-    if (!openMenu) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenMenu(null); };
+    if (!mobileNav) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileNav(false); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openMenu]);
+  }, [mobileNav]);
 
   const checkAuth = () => {
     setStatus("loading");
@@ -233,24 +250,67 @@ export function App() {
     return <NotAuthorized kind={status} />;
   }
 
+  const PAGE_TITLES: Record<Page, string> = {
+    analytics: "Analytics", liveops: "Live ops", users: "Users", map: "Map editor",
+    chat: "Chat", bugs: "Bug reports", errors: "Error log", tournaments: "Tournaments",
+    giveaways: "Giveaways", massgift: "Mass gift", polls: "Polls", audit: "Audit log",
+    announcements: "Announcements", broadcast: "Broadcast", discord: "Discord",
+  };
   // Production is anything not served from localhost. An operations console
   // should always answer "am I about to do this to real players?" without
   // being asked — this dashboard writes to live saves.
   const isProd = typeof window !== "undefined" && window.location.hostname !== "localhost";
 
   return (
-    <div className="admin-shell">
-      <header className="admin-topbar">
+    <div className="admin-shell" data-collapsed={collapsed ? "true" : "false"}>
+      {mobileNav && (
+        <button
+          className="admin-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+      <aside className="admin-sidebar" data-mobile-open={mobileNav ? "true" : "false"}>
         <div className="admin-brand">
           <img src="/logos/Pokeidle.svg" alt="Pokémon Idle" className="admin-brand-mark" />
           <span className="admin-brand-tag">Admin</span>
         </div>
-        <span className="topbar-crumb">{PAGE_TITLES[page] ?? "Admin"}</span>
-        <span className="topbar-spacer" />
-        <div className="topbar-actions">
-          <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
-            <span>{isProd ? "Production" : "Local"}</span>
-          </span>
+        <nav className="admin-nav">
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Overview</span>
+            <NavItem active={page === "analytics"} onClick={() => gotoPage("analytics")} label="Analytics" icon={<IconChart />} />
+            <NavItem active={page === "liveops"} onClick={() => gotoPage("liveops")} label="Live ops" icon={<IconPulse />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">People</span>
+            <NavItem active={page === "users"} onClick={() => gotoPage("users")} label="Users" icon={<IconUsers />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Moderation</span>
+            <NavItem active={page === "chat"} onClick={() => gotoPage("chat")} label="Chat" icon={<IconChat />} />
+            <NavItem active={page === "bugs"} onClick={() => gotoPage("bugs")} label="Bug reports" icon={<IconBug />} />
+            <NavItem active={page === "audit"} onClick={() => gotoPage("audit")} label="Audit log" icon={<IconHistory />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Events</span>
+            <NavItem active={page === "tournaments"} onClick={() => gotoPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
+            <NavItem active={page === "giveaways"} onClick={() => gotoPage("giveaways")} label="Giveaways" icon={<IconGift />} />
+            <NavItem active={page === "massgift"} onClick={() => gotoPage("massgift")} label="Mass gift" icon={<IconGift />} />
+            <NavItem active={page === "polls"} onClick={() => gotoPage("polls")} label="Polls" icon={<IconPoll />} />
+            <NavItem active={page === "announcements"} onClick={() => gotoPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Diagnostics</span>
+            <NavItem active={page === "errors"} onClick={() => gotoPage("errors")} label="Error log" icon={<IconAlert />} />
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-heading">Tools</span>
+            <NavItem active={page === "discord"} onClick={() => gotoPage("discord")} label="Discord" icon={<IconChat />} />
+            <NavItem active={page === "broadcast"} onClick={() => gotoPage("broadcast")} label="Broadcast" icon={<IconBroadcast />} />
+            <NavItem active={page === "map"} onClick={() => gotoPage("map")} label="Map editor" icon={<IconMap />} />
+          </div>
+        </nav>
+        <div className="admin-foot">
           <span className="admin-me" title={me?.username}>
             <span className="admin-avatar" aria-hidden>{(me?.username ?? "?").slice(0, 1)}</span>
             <span className="admin-me-name">{me?.username}</span>
@@ -259,22 +319,39 @@ export function App() {
             Sign out
           </button>
         </div>
-      </header>
+      </aside>
 
-      <nav className="admin-nav">
-        {NAV_GROUPS.map((group) => (
-          <NavGroup
-            key={group.label}
-            group={group}
-            page={page}
-            open={openMenu === group.label}
-            onToggle={() => setOpenMenu((o) => (o === group.label ? null : group.label))}
-            onPick={(p) => { gotoPage(p); setOpenMenu(null); }}
-          />
-        ))}
-      </nav>
+      <div className="admin-body">
+        <header className="admin-topbar">
+          {/* Burger on mobile, rail toggle on desktop — same slot, so the
+              chrome does not reflow when the viewport crosses the breakpoint.
+              Which one shows is CSS, not conditional rendering. */}
+          <button
+            className="topbar-icon-btn topbar-burger"
+            aria-label="Open navigation"
+            aria-expanded={mobileNav}
+            onClick={() => setMobileNav(true)}
+          >
+            <IconMenu />
+          </button>
+          <button
+            className="topbar-icon-btn topbar-rail-toggle"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={toggleCollapsed}
+          >
+            <IconSidebar />
+          </button>
+          <span className="topbar-crumb">{PAGE_TITLES[page] ?? "Admin"}</span>
+          <span className="topbar-spacer" />
+          <div className="topbar-actions">
+            <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
+              {isProd ? "Production" : "Local"}
+            </span>
+          </div>
+        </header>
 
-      <main className="admin-main">
+        <main className="admin-main">
         {page === "analytics" && <AnalyticsPage />}
         {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
@@ -290,64 +367,9 @@ export function App() {
         {page === "massgift" && <MassGiftPage />}
         {page === "polls" && <PollsPage />}
         {page === "broadcast" && <BroadcastPage />}
-      </main>
-
-      {/* One invisible full-viewport catcher behind any open menu. Without
-          it the only way to dismiss is the trigger itself, which is the
-          second thing every user tries and the first thing they complain
-          about. */}
-      {openMenu && (
-        <button
-          className="admin-menu-scrim"
-          aria-hidden
-          tabIndex={-1}
-          onClick={() => setOpenMenu(null)}
-        />
-      )}
+        </main>
+      </div>
       <ConfirmHost />
-    </div>
-  );
-}
-
-/** One top-level nav menu: a trigger plus its dropdown. */
-function NavGroup({
-  group, page, open, onToggle, onPick,
-}: {
-  group: NavGroupDef;
-  page: Page;
-  open: boolean;
-  onToggle: () => void;
-  onPick: (p: Page) => void;
-}) {
-  // The group containing the current page is underlined, so "where am I"
-  // is answerable without opening anything.
-  const hasActive = group.items.some((i) => i.page === page);
-  return (
-    <div className="admin-nav-group">
-      <button
-        className={`admin-nav-trigger${hasActive ? " has-active" : ""}`}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={onToggle}
-      >
-        {group.label}
-        <IconChevron />
-      </button>
-      {open && (
-        <div className="admin-nav-menu" role="menu">
-          {group.items.map((item) => (
-            <button
-              key={item.page}
-              role="menuitem"
-              className={`admin-nav-item${item.page === page ? " active" : ""}`}
-              onClick={() => onPick(item.page)}
-            >
-              {item.icon}
-              <span className="admin-nav-item-label">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -384,6 +406,23 @@ function NavItem({ active, label, onClick, icon }: { active: boolean; label: str
 // ── Inline SVG icons ────────────────────────────────────────────────
 // Lucide-flavoured outline icons (16px). Inlining avoids pulling in
 // an icon library for ~6 glyphs.
+function IconMenu() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" />
+    </svg>
+  );
+}
+
+/** Panel-with-rail glyph for the collapse toggle. */
+function IconSidebar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
+    </svg>
+  );
+}
+
 function IconChevron() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
