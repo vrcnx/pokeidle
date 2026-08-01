@@ -117,186 +117,148 @@ export function AnalyticsPage() {
   const totalUsers = data.totals.users;
   const avgLevel = data.averages.accountLevel;
 
+  const r = data.retention;
+  const pct = (v: number | null) => (v === null ? "—" : `${v.toFixed(0)}%`);
+
   return (
     <div className="page analytics-cadence">
-      {/* Page header */}
-      <header className="analytics-header">
-        <div className="analytics-header__title">
-          <span className="analytics-header__eyebrow">Analytics</span>
-          <h1>Operator overview</h1>
+      <header className="page-head">
+        <div>
+          <h1>Overview</h1>
+          <p>
+            Every figure is derived at read time — there is no analytics table
+            to drift out of sync with the game.
+          </p>
         </div>
-        <div className="analytics-header__meta">
-          {lastFetched && (
-            <span className="analytics-header__updated">Updated {formatRelative(lastFetched)}</span>
-          )}
-          <span className="scope-pill">Last 30 days</span>
-          <button className="btn-secondary btn-small" onClick={load} title="Re-fetch analytics">
-            Refresh
-          </button>
+        <div className="page-head-actions">
+          {lastFetched && <span className="dim small">Updated {formatRelative(lastFetched)}</span>}
+          <span className="tag">Last 30 days</span>
+          <button className="btn-secondary btn-small" onClick={load}>Refresh</button>
         </div>
       </header>
 
-      {/* Retention — the metric an idle/collection game lives or dies on.
-          Signups with no retention only tell you how many people arrived,
-          not whether a single one stayed. Rendered above the pulse row
-          because it outranks every count below it. */}
-      <RetentionRow
-        retention={data.retention}
-        collectingSince={data.dauCollectingSince}
+      {/* Signal bar — the three numbers that mean "go and do something".
+          These were a 370x433 column beside the chart: an enormous amount of
+          screen for three values whose main job is to say whether they are
+          zero. As one row they stay glanceable and the chart gets its width
+          back. */}
+      <SignalBar
+        items={[
+          { label: "Errors · 24h", value: data.totals.errorsLast24h, state: data.totals.errorsLast24h > 0 ? "danger" : "ok", page: "errors" },
+          { label: "Open bugs", value: data.totals.bugReportsOpen, state: data.totals.bugReportsOpen > 0 ? "warn" : "ok", page: "bugs" },
+          { label: "Banned", value: data.totals.bannedUsers, state: "neutral", page: "users" },
+        ]}
       />
 
-      {/* Pulse row — 1 hero KPI + 4 compact KPIs */}
-      <section className="analytics-grid pulse-row">
-        <article className="kpi-card kpi-card--hero" style={{ gridColumn: "span 4" }}>
-          <span className="kpi-label">Active today</span>
-          <strong className="kpi-value kpi-value--xl">{activeToday.toLocaleString()}</strong>
-          {activeWeek > 0 && (
-            <span className="kpi-sub" title="Share of the last 7 days' active players who were online in the last 24h. Higher means your weekly players are showing up daily.">
-              {stickiness.toFixed(0)}% of weekly actives · stickiness
-            </span>
-          )}
-          <Sparkline counts={logins.counts} color="var(--brand)" />
-        </article>
-        <KpiCompact label="Active 7d"   value={data.activity.activeWeek} />
-        <KpiCompact label="Active 30d"  value={data.activity.activeMonth} />
-        <KpiCompact label="Signups 7d"  value={data.activity.signups7d}  sub={`${data.activity.signups30d.toLocaleString()} in 30d`} />
-        <KpiCompact label="Total users" value={totalUsers} sub={data.totals.bannedUsers > 0 ? `${data.totals.bannedUsers} banned` : undefined} />
+      {/* One uniform strip. Activity and retention belong on the same line —
+          they answer the same question, "are people here and do they come
+          back" — and splitting them across a hero tile, four compacts and a
+          separate retention band made three sizes of the same object while
+          costing a whole row of height. */}
+      <section className="kpi-strip">
+        <Kpi label="Active today" value={activeToday.toLocaleString()} accent
+             sub={activeWeek > 0 ? `${stickiness.toFixed(0)}% of weekly` : undefined}
+             hint="Rolling 24h. Stickiness is the share of the last 7 days' actives who showed up today." />
+        <Kpi label="Active 7d"  value={data.activity.activeWeek.toLocaleString()} />
+        <Kpi label="Active 30d" value={data.activity.activeMonth.toLocaleString()} />
+        <Kpi label="Signups 7d" value={data.activity.signups7d.toLocaleString()}
+             sub={`${data.activity.signups30d.toLocaleString()} in 30d`} />
+        {/* Retention reads as unknown rather than as zero when the check day
+            predates collection — 0% would claim every player churned. */}
+        <Kpi label="D1 retention"  value={r ? pct(r.d1) : "—"}  sub={r ? `${r.cohortSizes.d1} cohort` : "not collecting"}
+             hint="Share of the cohort that signed up 2 days ago and came back the next day. The best single predictor of whether the game compounds." />
+        <Kpi label="D7 retention"  value={r ? pct(r.d7) : "—"}  sub={r ? `${r.cohortSizes.d7} cohort` : "not collecting"} />
+        <Kpi label="D30 retention" value={r ? pct(r.d30) : "—"} sub={r && r.cohortSizes.d30 === 0 ? "no cohort" : "collecting"} />
+        <Kpi label="Total players" value={totalUsers.toLocaleString()} sub={`avg Lv ${avgLevel}`} />
       </section>
 
-      {/* Primary chart + Health stack */}
-      <section className="analytics-grid primary-row">
-        <article className="chart-card chart-card--primary" style={{ gridColumn: "span 8" }}>
-          <header className="chart-card__header">
-            <h3>Trend · {heroOption.label}</h3>
-            <div className="seg-toggle" role="tablist" aria-label="Hero series">
-              {heroOptions.map((o) => (
-                <button
-                  key={o.key}
-                  role="tab"
-                  aria-selected={effectiveHero === o.key}
-                  className={`seg-tab ${effectiveHero === o.key ? "active" : ""}`}
-                  onClick={() => setHeroSeries(o.key)}
-                  title={o.note}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </header>
-          {/* A series whose shape is an artefact of how we store the data
-              carries its caveat inline. The operator should never have to
-              already know that "Last seen" is not activity. */}
-          {heroOption.note && (
-            <p className="chart-card__caveat">{heroOption.note}</p>
-          )}
-          <div className="chart-card__body">
-            <LineChart days={heroChart.days} counts={heroChart.counts} color={heroColor} height={280} />
+      {/* Primary chart, now full width. It is the centrepiece of the page and
+          it was rendering into 764px because a column of three numbers sat
+          beside it. */}
+      <section className="card chart-card chart-card--primary">
+        <header className="card-head">
+          <div>
+            <h2>{heroOption.label}</h2>
+            <p>{heroOption.note ?? "Daily totals across the last 30 days."}</p>
           </div>
-        </article>
-
-        <aside className="alert-stack" style={{ gridColumn: "span 4" }}>
-          <AlertCard
-            label="Errors · 24h"
-            value={data.totals.errorsLast24h}
-            state={data.totals.errorsLast24h > 0 ? "danger" : "neutral"}
-            cta="Open logs →"
-            onClick={() => navigateTo("errors")}
-          />
-          <AlertCard
-            label="Open bug reports"
-            value={data.totals.bugReportsOpen}
-            state={data.totals.bugReportsOpen > 0 ? "warn" : "neutral"}
-            cta="Review →"
-            onClick={() => navigateTo("bugs")}
-          />
-          <AlertCard
-            label="Admins · Banned"
-            value={data.totals.admins}
-            sub={`${data.totals.bannedUsers} banned`}
-            state="neutral"
-            cta="View users →"
-            onClick={() => navigateTo("users")}
-          />
-        </aside>
+          <div className="seg-toggle" role="tablist" aria-label="Series">
+            {heroOptions.map((o) => (
+              <button
+                key={o.key}
+                role="tab"
+                aria-selected={effectiveHero === o.key}
+                className={`seg-tab ${effectiveHero === o.key ? "active" : ""}`}
+                onClick={() => setHeroSeries(o.key)}
+                title={o.note}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </header>
+        <LineChart days={heroChart.days} counts={heroChart.counts} color={heroColor} height={300} />
       </section>
 
-      {/* Secondary trends — PvP & Trades */}
-      <section className="analytics-grid secondary-row">
-        <article className="chart-card chart-card--compact" style={{ gridColumn: "span 6", "--chart-accent": "#fbbf24" } as React.CSSProperties}>
-          <header className="chart-card__header">
-            <h3>PvP matches</h3>
-            <div className="chart-card__headline">
-              <span><strong>{data.totals.pvpMatches7d.toLocaleString()}</strong><small className="dim"> · 7d</small></span>
-              <span className="dim small">{data.totals.pvpMatchesTotal.toLocaleString()} all-time</span>
+      {/* Three up. PvP, trades and the level curve are peers — none earns half
+          the page, and side by side they can be read against one another. */}
+      <section className="grid grid-3 analytics-row">
+        <article className="card chart-card">
+          <header className="card-head">
+            <div>
+              <h2>PvP matches</h2>
+              <p>{data.totals.pvpMatches7d.toLocaleString()} in 7d · {data.totals.pvpMatchesTotal.toLocaleString()} all-time</p>
             </div>
           </header>
-          <LineChart days={seriesFromMap(data.pvpSeries).days} counts={seriesFromMap(data.pvpSeries).counts} color="#fbbf24" height={160} />
+          <LineChart days={seriesFromMap(data.pvpSeries).days} counts={seriesFromMap(data.pvpSeries).counts} color="#fbbf24" height={150} />
         </article>
-        <article className="chart-card chart-card--compact" style={{ gridColumn: "span 6", "--chart-accent": "#14b8a6" } as React.CSSProperties}>
-          <header className="chart-card__header">
-            <h3>Trade volume</h3>
-            <div className="chart-card__headline">
-              <span><strong>{data.totals.trades7d.toLocaleString()}</strong><small className="dim"> · 7d</small></span>
-              <span className="dim small">{data.totals.tradesTotal.toLocaleString()} all-time</span>
+        <article className="card chart-card">
+          <header className="card-head">
+            <div>
+              <h2>Trades</h2>
+              <p>{data.totals.trades7d.toLocaleString()} in 7d · {data.totals.tradesTotal.toLocaleString()} all-time</p>
             </div>
           </header>
-          <LineChart days={seriesFromMap(data.tradeSeries).days} counts={seriesFromMap(data.tradeSeries).counts} color="#14b8a6" height={160} />
+          <LineChart days={seriesFromMap(data.tradeSeries).days} counts={seriesFromMap(data.tradeSeries).counts} color="#14b8a6" height={150} />
         </article>
-      </section>
-
-      {/* Distribution + Catalog */}
-      <section className="analytics-grid distribution-row">
-        <article className="chart-card" style={{ gridColumn: "span 8" }}>
-          <header className="chart-card__header">
-            <h3>Account level distribution</h3>
-            <span className="dim small">{totalUsers.toLocaleString()} players · avg Lv {avgLevel}</span>
+        <article className="card chart-card">
+          <header className="card-head">
+            <div>
+              <h2>Level distribution</h2>
+              <p>{totalUsers.toLocaleString()} players · avg Lv {avgLevel}</p>
+            </div>
           </header>
           <Histogram buckets={data.levelBuckets ?? []} highlightLevel={avgLevel} />
         </article>
-        <article className="stat-list" style={{ gridColumn: "span 4" }}>
-          <header className="chart-card__header">
-            <h3>Catalog &amp; community</h3>
-          </header>
-          <ul className="stat-list__list">
-            <StatRow label="Avg Pokédex" valueText={`${data.averages.pokedexCaught} / 151`}>
-              <ProgressBar pct={(data.averages.pokedexCaught / 151) * 100} />
-            </StatRow>
-            <StatRow label="Σ Pokémon caught"  valueText={data.totals.pokemonCaughtSum.toLocaleString()} />
-            <StatRow label="Σ Pokémon levels"  valueText={data.totals.pokemonLevelsSum.toLocaleString()} />
-            <StatRow label="Friendships"       valueText={data.totals.friendships.toLocaleString()} />
-            <StatRow label="Chat · 7d"         valueText={`${data.totals.chatMessages7d.toLocaleString()} / ${data.totals.chatMessagesTotal.toLocaleString()}`} />
-          </ul>
-        </article>
       </section>
 
-      {/* Leaderboards */}
-      <section className="analytics-grid leaderboards-row">
-        <article className="leaderboard-card" style={{ gridColumn: "span 6" }}>
-          <header className="chart-card__header">
-            <h3>Top Pokédex completion</h3>
-          </header>
+      <section className="grid grid-3 analytics-row">
+        <article className="card">
+          <header className="card-head"><div><h2>Top Pokédex</h2></div></header>
           <ol className="leaderboard__list">
             {data.leaderboards.pokedex.map((u, i) => (
               <li key={u.id} className="leaderboard__row">
                 <span className="leaderboard__rank">{i + 1}</span>
-                <span className="leaderboard__name"><strong>{u.name ?? u.username}</strong><small className="dim">@{u.username}</small></span>
+                <span className="leaderboard__name">
+                  <strong>{u.name ?? u.username}</strong><small className="dim">@{u.username}</small>
+                </span>
                 <ProgressBar pct={(u.pokedexCaughtCount / 151) * 100} />
                 <span className="leaderboard__value tabular">{u.pokedexCaughtCount}<span className="dim"> / 151</span></span>
               </li>
             ))}
           </ol>
         </article>
-        <article className="leaderboard-card" style={{ gridColumn: "span 6" }}>
-          <header className="chart-card__header">
-            <h3>Top trainers by Σ levels</h3>
-          </header>
+
+        <article className="card">
+          <header className="card-head"><div><h2>Top trainers by Σ levels</h2></div></header>
           <ol className="leaderboard__list">
             {data.leaderboards.sigmaLevels.map((u, i, arr) => {
               const top = arr[0]?.totalCaughtLevels ?? 1;
               return (
                 <li key={u.id} className="leaderboard__row">
                   <span className="leaderboard__rank">{i + 1}</span>
-                  <span className="leaderboard__name"><strong>{u.name ?? u.username}</strong><small className="dim">@{u.username}</small></span>
+                  <span className="leaderboard__name">
+                    <strong>{u.name ?? u.username}</strong><small className="dim">@{u.username}</small>
+                  </span>
                   <ProgressBar pct={(u.totalCaughtLevels / Math.max(1, top)) * 100} />
                   <span className="leaderboard__value tabular">{u.totalCaughtLevels.toLocaleString()}</span>
                 </li>
@@ -304,131 +266,61 @@ export function AnalyticsPage() {
             })}
           </ol>
         </article>
-      </section>
 
-      <footer className="analytics-footer">
-        <span>Data refreshed manually · 30-day window · pokeidle.com</span>
-      </footer>
+        <article className="card">
+          <header className="card-head"><div><h2>Catalog &amp; community</h2></div></header>
+          <ul className="stat-list__list">
+            <StatRow label="Avg Pokédex" valueText={`${data.averages.pokedexCaught} / 151`}>
+              <ProgressBar pct={(data.averages.pokedexCaught / 151) * 100} />
+            </StatRow>
+            <StatRow label="Σ Pokémon caught" valueText={data.totals.pokemonCaughtSum.toLocaleString()} />
+            <StatRow label="Σ Pokémon levels" valueText={data.totals.pokemonLevelsSum.toLocaleString()} />
+            <StatRow label="Friendships"      valueText={data.totals.friendships.toLocaleString()} />
+            <StatRow label="Chat · 7d"        valueText={`${data.totals.chatMessages7d.toLocaleString()} / ${data.totals.chatMessagesTotal.toLocaleString()}`} />
+          </ul>
+        </article>
+      </section>
     </div>
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────
-
-function KpiCompact({ label, value, sub }: { label: string; value: number; sub?: string }) {
+/** One tile in the KPI strip. Uniform by construction — every headline number
+ *  on this page is the same object and should be the same size. */
+function Kpi({ label, value, sub, hint, accent }: {
+  label: string; value: string; sub?: string; hint?: string; accent?: boolean;
+}) {
   return (
-    <article className="kpi-card" style={{ gridColumn: "span 2" }}>
+    <article className={`kpi${accent ? " kpi--accent" : ""}`} title={hint}>
       <span className="kpi-label">{label}</span>
-      <strong className="kpi-value">{value.toLocaleString()}</strong>
+      <strong className="kpi-value">{value}</strong>
       {sub && <span className="kpi-sub">{sub}</span>}
     </article>
   );
 }
 
-// Retention — D1/D7/D30 for the trailing signup cohorts.
-//
-// Every value can legitimately be "unknown", and each reason is
-// different, so this never renders a number it cannot stand behind:
-//   * no DailyActive table yet  → tell the operator how to start it
-//   * check-day predates collection → "collecting" (NOT 0%, which would
-//     read as every player churning)
-//   * empty cohort (nobody signed up that day) → "no cohort"
-function RetentionRow({
-  retention, collectingSince,
-}: {
-  retention: Analytics["retention"];
-  collectingSince: string | null;
+/** Compact clickable status row: the numbers that mean "go and do something".
+ *  Each one navigates to the page that can action it, because a count with no
+ *  route to the thing it counts makes the operator go and find it by hand. */
+function SignalBar({ items }: {
+  items: { label: string; value: number; state: "danger" | "warn" | "ok" | "neutral"; page: Page }[];
 }) {
-  if (!retention || !collectingSince) {
-    return (
-      <section className="retention-row retention-row--empty">
-        <div>
-          <span className="kpi-label">Retention</span>
-          <p className="dim small" style={{ margin: "4px 0 0" }}>
-            Not collecting yet. Retention needs per-day activity rows, which
-            start accumulating once the <code>DailyActive</code> table exists —
-            run <code>npx tsx scripts/ensure-daily-active.ts</code> on the
-            server. Historical retention cannot be backfilled.
-          </p>
-        </div>
-      </section>
-    );
-  }
-  const cells: { label: string; value: number | null; size: number; hint: string }[] = [
-    { label: "D1",  value: retention.d1,  size: retention.cohortSizes.d1,
-      hint: "Share of players who signed up 2 days ago and came back the next day. The single best predictor of whether the game compounds." },
-    { label: "D7",  value: retention.d7,  size: retention.cohortSizes.d7,
-      hint: "Share of the 8-days-ago signup cohort still playing on day 7." },
-    { label: "D30", value: retention.d30, size: retention.cohortSizes.d30,
-      hint: "Share of the 31-days-ago signup cohort still playing on day 30." },
-  ];
   return (
-    <section className="retention-row">
-      <div className="retention-row__head">
-        <span className="kpi-label">Retention</span>
-        <span className="dim small">collecting since {collectingSince}</span>
-      </div>
-      <div className="retention-cells">
-        {cells.map((c) => (
-          <div key={c.label} className="retention-cell" title={c.hint}>
-            <span className="retention-cell__label">{c.label}</span>
-            {c.value === null ? (
-              <>
-                <strong className="retention-cell__value retention-cell__value--na">
-                  {c.size === 0 ? "—" : "…"}
-                </strong>
-                <span className="dim small">
-                  {c.size === 0 ? "no cohort" : "collecting"}
-                </span>
-              </>
-            ) : (
-              <>
-                <strong className="retention-cell__value">{c.value.toFixed(0)}%</strong>
-                <span className="dim small">{c.size} signup{c.size === 1 ? "" : "s"}</span>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
+    <div className="signal-bar">
+      {items.map((it) => (
+        <button
+          key={it.label}
+          className={`signal signal--${it.state}`}
+          onClick={() => navigateTo(it.page)}
+        >
+          <span className="signal-dot" aria-hidden />
+          <span className="signal-label">{it.label}</span>
+          <strong className="signal-value">{it.value.toLocaleString()}</strong>
+        </button>
+      ))}
+    </div>
   );
 }
 
-function AlertCard({
-  label, value, sub, state, cta, onClick,
-}: {
-  label: string;
-  value: number;
-  sub?: string;
-  state: "danger" | "warn" | "neutral";
-  cta?: string;
-  onClick?: () => void;
-}) {
-  const interactive = !!onClick;
-  return (
-    <article
-      className={`alert-card alert-card--${state} ${interactive ? "is-clickable" : ""}`}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (!interactive) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick?.();
-        }
-      }}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-    >
-      <div className="alert-card__row">
-        <span className="alert-card__dot" aria-hidden />
-        <span className="alert-card__label">{label}</span>
-      </div>
-      <strong className="alert-card__value">{value.toLocaleString()}</strong>
-      {sub && <span className="alert-card__sub">{sub}</span>}
-      {cta && <span className="alert-card__cta dim small">{cta}</span>}
-    </article>
-  );
-}
 
 function StatRow({ label, valueText, children }: { label: string; valueText: string; children?: React.ReactNode }) {
   return (
@@ -529,7 +421,17 @@ function LineChart({ days, counts, color, height = 240 }: { days: string[]; coun
 
   return (
     <div className="chart-wrap">
-      <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg" preserveAspectRatio="none">
+      {/* Explicit CSS height. `.chart-svg` sets `height: auto`, which with
+          preserveAspectRatio="none" derives the height from the viewBox
+          ratio — so the wider the card, the taller the chart. Once the
+          primary chart went full-width that turned a requested 300px into
+          554px and pushed the rest of the page off the fold. */}
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="chart-svg"
+        preserveAspectRatio="none"
+        style={{ height: H }}
+      >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.32" />

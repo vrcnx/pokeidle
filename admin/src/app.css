@@ -2871,3 +2871,83 @@
   font-size: 13px;
   min-width: 260px;
 }
+
+/* =================================================================
+   Analytics — overview layout
+   -----------------------------------------------------------------
+   Measured before the rework, at 1440x900: the page was 1962px tall
+   in an 844px viewport — 2.3 screens of scroll on the FIRST thing an
+   operator sees. Three things caused it, and all three were structural
+   rather than stylistic:
+
+     * a 370x433 column of three status numbers parked beside the
+       primary chart, which squeezed the chart into 764px;
+     * retention — the metric this game lives or dies on — given a
+       95px band of its own, the shortest row on the page;
+     * three different tile sizes (hero / compact / retention cell)
+       for what is fundamentally one object: a headline number.
+
+   The fix is one uniform KPI strip, a one-line signal bar, and a
+   full-width chart. Same data, roughly 40% less height, and the part
+   that matters is above the fold.
+   ================================================================= */
+
+/* Compact status row. Each item navigates to the page that can action
+   it — a count with no route to the thing it counts just makes the
+   operator go and find it by hand. */
+.signal-bar {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.signal:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line-strong); color: var(--text); }
+.signal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+.signal-value { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); }
+/* Colour carries the state, but the label and count are always legible —
+   a red pill that cannot be read is decoration. */
+.signal--danger { border-color: rgba(248, 113, 113, 0.35); background: var(--bad-soft); }
+.signal--danger .signal-dot  { background: var(--bad); }
+.signal--danger .signal-value { color: var(--bad-text); }
+.signal--warn   { border-color: rgba(251, 191, 36, 0.35); background: var(--warn-soft); }
+.signal--warn .signal-dot  { background: var(--warn); }
+.signal--warn .signal-value { color: var(--warn-text); }
+.signal--ok .signal-dot { background: var(--good); }
+
+/* The KPI strip. auto-fit so the column count follows the viewport
+   rather than a breakpoint somebody has to remember to update: eight
+   tiles land 8-up on a wide monitor and 2-up on a phone with nothing
+   in between to maintain. */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.kpi-strip .kpi { min-width: 0; }
+/* One tile is emphasised — "active today" is the number the page exists
+   to answer — but it is the same SIZE as its neighbours. Making it
+   bigger is what forced the old three-tile-size layout. */
+.kpi--accent { border-color: var(--brand-line); background: linear-gradient(180deg, var(--brand-soft), transparent 70%), var(--surface-1); }
+.kpi--accent .kpi-value { color: var(--brand-text); }
+
+.analytics-row { margin-bottom: var(--sp-5); }
+
+.chart-card--primary .card-head { align-items: center; }
+
+@media (max-width: 900px) {
+  .kpi-strip { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--sp-2); }
+  .signal-bar { gap: var(--sp-1); }
+  .signal { padding: 5px 10px; font-size: 11.5px; }
+}
