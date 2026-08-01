@@ -344,19 +344,30 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--text-faint);
-  padding: 0 var(--sp-2) 6px;
+  /* 12px = the item's 2px left border + 10px padding, so the heading sits on
+     the same optical line as the icons below it. */
+  padding: 0 var(--sp-2) 6px 12px;
 }
 
 .admin-nav-item {
   display: flex;
   align-items: center;
+  /* EXPLICIT. The base `button` rule centres its content, and without this
+     override every label floated in the middle of the sidebar while the group
+     headings sat left — nothing lined up, and it was the single biggest reason
+     the nav looked unfinished. */
+  justify-content: flex-start;
   gap: 10px;
-  padding: 7px var(--sp-2);
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-size: 12.5px;
   font-weight: 500;
   border: 1px solid transparent;
+  /* The accent lives on the item's own left edge rather than on a pseudo
+     element hanging outside it — the nav clips overflow, so the old bar was
+     invisible anyway. */
+  border-left: 2px solid transparent;
   background: transparent;
   width: 100%;
   text-align: left;
@@ -364,7 +375,8 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   min-height: 0;
   transition: background 110ms var(--ease), color 110ms var(--ease), border-color 110ms var(--ease);
 }
-.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+/* A fixed icon column, so labels start on the same x no matter the glyph. */
+.admin-nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.65; }
 .admin-nav-item:hover:not(:disabled) {
   background: var(--surface-2);
   border-color: var(--hairline);
@@ -378,21 +390,11 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .admin-nav-item.active {
   background: var(--brand-soft);
   border-color: var(--brand-line);
+  border-left-color: var(--brand);
   color: var(--text);
   font-weight: 600;
 }
 .admin-nav-item.active svg { opacity: 1; color: var(--brand-text); }
-.admin-nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -9px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
-  border-radius: 0 3px 3px 0;
-  background: var(--brand);
-}
 
 .admin-nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-nav-badge {
@@ -452,11 +454,8 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .admin-shell[data-collapsed="true"] .admin-nav-badge,
 .admin-shell[data-collapsed="true"] .admin-me-name,
 .admin-shell[data-collapsed="true"] .admin-signout { display: none; }
-.admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: center; padding: 9px 0; gap: 0; }
+.admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: center; padding: 9px 0; gap: 0; border-left-color: transparent; }
 .admin-shell[data-collapsed="true"] .admin-nav-item svg { width: 17px; height: 17px; }
-/* The left bar has nothing to sit beside on a centred icon, so the
-   active state becomes the fill alone. */
-.admin-shell[data-collapsed="true"] .admin-nav-item.active::before { display: none; }
 .admin-shell[data-collapsed="true"] .admin-nav-group { padding: var(--sp-2) var(--sp-2); }
 .admin-shell[data-collapsed="true"] .admin-foot { justify-content: center; padding: var(--sp-3) 0; }
 .admin-shell[data-collapsed="true"] .admin-me { flex: 0; }
