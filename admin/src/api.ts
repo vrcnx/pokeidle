@@ -648,6 +648,12 @@ export interface BugReport {
   context: string | null;
   status: "open" | "investigating" | "resolved" | "wontfix";
   adminNotes: string | null;
+  /** "game" (the in-game Report Bug modal) or "discord" (ingested from the
+   *  community server's bug channel by the bot). */
+  source?: string;
+  /** Set for Discord-sourced reports. `page` holds a jump link to the original
+   *  message, so triage can read the thread and reply to the reporter. */
+  discordMessageId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

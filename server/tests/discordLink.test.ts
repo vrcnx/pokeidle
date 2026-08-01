@@ -10,12 +10,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = {
   rows: new Map<string, { discordId: string; userId: string }>(),
+  /** Lets one test make the pre-check miss, so the P2002 catch is reachable. */
+  findUniqueOverride: null as null | (() => null),
 };
 
-vi.mock("../src/db.js", () => ({
+// ASYNC factory so the REAL Prisma error class can be imported. A plain Error
+// with `.code = "P2002"` bolted on does not satisfy redeemLinkCode's
+// `instanceof Prisma.PrismaClientKnownRequestError`, so a hand-rolled one would
+// silently skip the branch it is meant to cover.
+vi.mock("../src/db.js", async () => {
+  const { Prisma } = await import("@prisma/client");
+  return {
   prisma: {
     discordLink: {
       findUnique: async ({ where }: { where: { discordId?: string; userId?: string } }) => {
+        if (db.findUniqueOverride) return db.findUniqueOverride();
         if (where.discordId) return db.rows.get(where.discordId) ?? null;
         if (where.userId) {
           for (const r of db.rows.values()) if (r.userId === where.userId) return r;
@@ -25,10 +34,11 @@ vi.mock("../src/db.js", () => ({
       create: async ({ data }: { data: { discordId: string; userId: string } }) => {
         for (const r of db.rows.values()) {
           if (r.userId === data.userId) {
-            const e = new Error("Unique constraint failed") as Error & { code?: string; meta?: unknown };
-            e.code = "P2002";
-            e.meta = { target: ["userId"] };
-            throw e;
+            throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+              code: "P2002",
+              clientVersion: "5.22.0",
+              meta: { target: ["userId"] },
+            });
           }
         }
         db.rows.set(data.discordId, data);
@@ -47,7 +57,8 @@ vi.mock("../src/db.js", () => ({
       },
     },
   },
-}));
+  };
+});
 
 import {
   LINK_CODE_TTL_MS,
@@ -73,6 +84,7 @@ function mint(discordId = DISCORD_A, label = "trainer#0001"): string {
 beforeEach(() => {
   _resetCodesForTest();
   db.rows.clear();
+  db.findUniqueOverride = null;
   vi.useRealTimers();
 });
 
@@ -160,16 +172,23 @@ describe("redeemLinkCode", () => {
   });
 
   it("maps a P2002 race to the same answer the pre-check would have given", async () => {
-    // The pre-check is only for the error message; the UNIQUE constraint is
-    // the guard. Simulate the race by seeding the row after the code is minted
-    // but making the pre-check miss it — the fake throws P2002 on userId.
-    const code = mint(DISCORD_B);
-    db.rows.set("pre-existing", { discordId: "pre-existing", userId: "user-a" });
-    // findUnique(userId) will now find it, so we get the pre-check answer.
-    expect(await redeemLinkCode(code, "user-a")).toEqual({
-      ok: false,
-      reason: "account_already_linked",
-    });
+    // The pre-check exists only to produce a good message; the UNIQUE
+    // constraint is the guard. This drives the CATCH rather than the check:
+    // findUnique is stubbed to report "nothing there" so the pre-check passes,
+    // exactly as it would for two concurrent redeems, and create then loses to
+    // the constraint.
+    db.rows.set("racer", { discordId: "racer", userId: "user-a" });
+    const findUnique = db.findUniqueOverride;
+    db.findUniqueOverride = () => null; // pre-check sees a clear field
+    try {
+      const code = mint(DISCORD_B);
+      expect(await redeemLinkCode(code, "user-a")).toEqual({
+        ok: false,
+        reason: "account_already_linked",
+      });
+    } finally {
+      db.findUniqueOverride = findUnique;
+    }
   });
 
   it("rejects an expired code", async () => {

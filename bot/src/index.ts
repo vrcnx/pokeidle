@@ -17,6 +17,7 @@ import { config } from "./config.js";
 import { handleButton, handleCommand } from "./handlers.js";
 import { startRoleSync } from "./roleSync.js";
 import { startGiveawaySync } from "./giveawaySync.js";
+import { startBugReportIngest } from "./bugReports.js";
 
 const client = new Client({
   intents: [
@@ -28,12 +29,23 @@ const client = new Client({
     // covers a fraction of the server. roleSync.ts detects the failure and
     // says so rather than reconciling a partial list.
     GatewayIntentBits.GuildMembers,
+    // GuildMessages + MessageContent are needed for ONE feature: ingesting bug
+    // reports from the configured bug channel into the admin dashboard's
+    // triage queue (src/bugReports.ts).
+    //
+    // MessageContent is PRIVILEGED and must also be enabled in the Developer
+    // Portal. It is requested unconditionally here rather than conditionally
+    // on DISCORD_BUG_CHANNEL_ID, because a gateway identify with a different
+    // intent set than the portal grants is a connection error rather than a
+    // degraded mode — and a bot that will not connect at all is a much worse
+    // failure than one that reads a channel it has been told to ignore.
+    //
+    // The bot still looks at exactly one channel: the MessageCreate handler
+    // returns immediately for any other channelId, and with the id unset it is
+    // never registered at all.
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
-  // No MessageContent intent, deliberately. The bot never reads message text —
-  // everything arrives as a slash command or a button — so requesting it would
-  // be asking for a privileged capability with no use, and constraint 5 of the
-  // brief (no Discord message content in the game database) is easier to keep
-  // when the content never enters the process at all.
 });
 
 client.once(Events.ClientReady, (c) => {
@@ -44,6 +56,11 @@ client.once(Events.ClientReady, (c) => {
   // ticked. Polled rather than pushed — the game server holds no Discord
   // token. See giveawaySync.ts.
   startGiveawaySync(client);
+  // Bug reports posted in the community bug channel, into the admin
+  // dashboard's existing triage queue. Off unless DISCORD_BUG_CHANNEL_ID is
+  // set. Listens live AND sweeps recent history on boot, so a report posted
+  // during a redeploy is not lost — see bugReports.ts.
+  startBugReportIngest(client);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

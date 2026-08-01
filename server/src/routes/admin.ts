@@ -2652,7 +2652,7 @@ app.get("/bug-reports", async (c) => {
   // a Prisma.sql conditional. Prisma's tagged template interpolates safely.
   const rows = status
     ? await prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","createdAt","updatedAt"
+        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","source","discordMessageId","createdAt","updatedAt"
            FROM "BugReport"
           WHERE "status" = $1
           ORDER BY "createdAt" DESC
@@ -2660,7 +2660,7 @@ app.get("/bug-reports", async (c) => {
         status
       )
     : await prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","createdAt","updatedAt"
+        `SELECT "id","reporterId","reporterName","title","description","page","userAgent","context","status","adminNotes","source","discordMessageId","createdAt","updatedAt"
            FROM "BugReport"
           ORDER BY "createdAt" DESC
           LIMIT ${limit} OFFSET ${offset}`

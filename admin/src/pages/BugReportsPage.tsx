@@ -94,7 +94,13 @@ function RowGroup({
     <>
       <tr onClick={onToggle} style={{ cursor: "pointer" }}>
         <td className="dim small">{new Date(report.createdAt).toLocaleString()}</td>
-        <td><strong>{report.reporterName}</strong></td>
+        <td>
+          <strong>{report.reporterName}</strong>
+          {/* Where it came from, at a glance. A Discord report has no game
+              state snapshot and no user agent, so triage that knows the source
+              knows what to expect before expanding the row. */}
+          {report.source === "discord" && <span className="bug-src-discord">Discord</span>}
+        </td>
         <td>{report.title}</td>
         <td>
           <span className={`bug-status bug-status-${report.status}`}>{report.status}</span>
@@ -113,8 +119,21 @@ function RowGroup({
               </div>
               {report.page && (
                 <div>
-                  <strong style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Page</strong>
-                  <div className="g-mono small">{report.page}</div>
+                  <strong style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    {report.source === "discord" ? "Discord thread" : "Page"}
+                  </strong>
+                  {/* For a Discord report this is a jump link to the original
+                      message — where the screenshots and the follow-up
+                      conversation are, and where you reply to the reporter. */}
+                  {report.source === "discord" ? (
+                    <div>
+                      <a href={report.page} target="_blank" rel="noreferrer noopener">
+                        Open in Discord
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="g-mono small">{report.page}</div>
+                  )}
                 </div>
               )}
               {report.userAgent && (

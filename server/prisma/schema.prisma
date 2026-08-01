@@ -525,6 +525,26 @@ model BugReport {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  /// Where this report came from: "game" (the in-game Report Bug modal) or
+  /// "discord" (a post in the community server's bug channel, ingested by the
+  /// bot). Free-form like PendingGrant.source — an audit label, never a
+  /// control-flow key — so a third source later needs no migration.
+  source String @default("game")
+
+  /// The Discord message this was ingested from, when source is "discord".
+  ///
+  /// UNIQUE, and that is the whole idempotency story. The bot both listens
+  /// live AND sweeps recent history on boot (to pick up anything posted while
+  /// it was down), so the same message reliably arrives more than once. A
+  /// unique constraint means the duplicate is refused by the database rather
+  /// than by a check that a race can lose — the same shape as
+  /// GiveawayEntry's one-entry-per-user rule.
+  ///
+  /// Nullable because in-game reports have no Discord message, and Postgres
+  /// unique indexes permit many NULLs — so this constrains exactly the rows it
+  /// should and ignores the rest.
+  discordMessageId String? @unique
+
   @@index([status, createdAt])
   @@index([reporterId])
 }

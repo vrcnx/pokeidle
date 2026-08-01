@@ -46,6 +46,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { timingSafeEqual } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 import { recordError } from "../lib/errorReporting.js";
@@ -774,6 +775,88 @@ app.get("/giveaways/:id", async (c) => {
       stuck: !x.deliveredAt && x.attempts > 0,
     })),
   });
+});
+
+// ══ Bug reports from Discord ════════════════════════════════════════
+//
+// POST /api/bot/bug-reports
+//
+// A post in the community server's bug channel becomes a row in the SAME
+// BugReport table the in-game Report Bug modal writes to, so it lands in the
+// existing admin triage queue rather than in a second place nobody checks.
+//
+// ── THIS IS THE ONE PLACE DISCORD TEXT ENTERS THE DATABASE ───────────
+// Everything else the bot does treats Discord as a rendering surface: commands
+// in, embeds out, no message content stored. Bug reports are a deliberate
+// exception, because the whole value of a bug report IS its text and copying
+// it by hand is what stops it happening at all.
+//
+// What that costs, stated plainly: the bot needs the MessageContent privileged
+// intent to read the channel, and player-written text from Discord now lives
+// in the game database. Both are bounded to the ONE configured channel — the
+// bot ignores every other channel, every DM, and every bot message.
+//
+// Idempotency is `discordMessageId UNIQUE`, not a check: the bot listens live
+// AND sweeps history on boot, so the same message arrives more than once by
+// construction. See the migration.
+app.post("/bug-reports", async (c) => {
+  const body = await jsonObject(c);
+  const discordMessageId = typeof body.discordMessageId === "string" ? body.discordMessageId.trim() : "";
+  if (!discordMessageId) return c.json({ error: "discordMessageId required" }, 400);
+  if (!writeLimiter.consume(`bug:${discordMessageId.slice(0, 8)}`)) {
+    return c.json({ error: "rate_limited" }, 429);
+  }
+
+  // Bounds mirror the in-game ReportBody (routes/bugReports.ts) so a Discord
+  // report cannot be a shape the triage UI has never had to render.
+  const title = sanitizeChatText(String(body.title ?? "")).slice(0, 120);
+  const description = sanitizeChatText(String(body.description ?? "")).slice(0, 4000);
+  if (!title || description.length < 10) {
+    return c.json(
+      { error: "too_short", reason: "A report needs a title and at least a sentence of detail." },
+      400,
+    );
+  }
+
+  // Attribute to a game account when the reporter has linked one. This is the
+  // reason to route bug ingest through the bot API at all rather than a plain
+  // webhook: a report that names a real account is one an operator can act on
+  // — check their save, look at their level — where "some Discord handle" is a
+  // dead end.
+  const discordId = typeof body.discordId === "string" ? body.discordId.trim() : "";
+  const discordName = sanitizeChatText(String(body.discordName ?? "")).slice(0, 60) || "Discord user";
+  const userId = discordId ? await userIdForDiscord(discordId) : null;
+  const acct = userId ? await resolveAccount({ userId }) : null;
+
+  // A link back to the original message, so triage can read the thread, see
+  // the screenshots, and reply to the reporter. Stored in `page`, which the
+  // admin UI already renders for in-game reports as "where it happened".
+  const messageUrl = typeof body.messageUrl === "string" ? body.messageUrl.slice(0, 500) : null;
+
+  try {
+    const row = await prisma.bugReport.create({
+      data: {
+        reporterId: acct?.id ?? null,
+        // Both identities when we have them: the operator needs the game
+        // account to investigate and the Discord handle to reply.
+        reporterName: acct ? `${acct.username} (@${discordName})` : `@${discordName}`,
+        title,
+        description,
+        page: messageUrl,
+        source: "discord",
+        discordMessageId,
+      },
+      select: { id: true },
+    });
+    return c.json({ ok: true, id: row.id, duplicate: false, linkedTo: acct?.username ?? null });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      // Already ingested. Success-shaped: the state the caller wanted is true,
+      // and the bot's boot sweep hits this on every restart by design.
+      return c.json({ ok: true, duplicate: true });
+    }
+    throw e;
+  }
 });
 
 // ══ Trade noticeboard ═══════════════════════════════════════════════

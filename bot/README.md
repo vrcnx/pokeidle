@@ -32,6 +32,11 @@ that was built, shipped, destroyed real prizes, and was removed.
 `server/src/lib/botProfile.ts`, which is an explicit allowlist. No email, no
 session data, no save blob, no ban reasons, no admin flags.
 
+**It reads message text in exactly one channel.** Bug-report ingest
+(`DISCORD_BUG_CHANNEL_ID`) is the sole exception to "Discord is a rendering
+surface" — everything else is slash commands in, cards out. Unset that id and
+the bot never looks at a message. See [Bug reports](#bug-reports).
+
 ---
 
 ## Setup
@@ -46,8 +51,10 @@ session data, no save blob, no ban reasons, no admin flags.
    role sync would silently cover a fraction of the server. The reconciler
    detects this and logs it rather than reconciling a partial list.
 
-   **Do not** enable Message Content. The bot never reads message text —
-   everything arrives as a slash command or a button.
+   Also enable **Message Content Intent** *if* you want Discord bug reports
+   ingested (`DISCORD_BUG_CHANNEL_ID`). That is the only feature that reads
+   message text; leave the channel id unset and the bot never looks at a
+   message. See "Bug reports" below.
 4. **OAuth2 → URL Generator** → scopes `bot` + `applications.commands`,
    permission **Manage Roles**. Open the generated URL and invite it.
 5. **Server Settings → Roles** → drag the bot's own role **above** Trainer,
@@ -344,6 +351,47 @@ Outcomes are posted to `#mod-log` with the draw seed. The durable audit is
 
 ---
 
+## Bug reports
+
+Set `DISCORD_BUG_CHANNEL_ID` and posts in that channel land in the admin
+dashboard's existing bug triage queue, tagged **Discord**, with a jump link back
+to the original message.
+
+Both channel shapes work:
+
+| Channel type | One report is | Title comes from |
+|---|---|---|
+| text channel | one message | the first line, or a truncation of the body |
+| forum | one thread | the thread title the reporter chose |
+
+Reporters who have linked their game account are attributed to it, so the row
+shows `ash (@someone)` and triage can go and look at their save. Unlinked
+reporters still work; they are just named by their Discord handle.
+
+**This is the only feature that reads message text.** It needs the
+MessageContent privileged intent, and it means player-written Discord text now
+lives in the game database — a deliberate reversal of the original "no Discord
+message content in the game DB" rule, because the whole value of a bug report
+*is* its text. It is bounded to the one configured channel: every other channel,
+every DM, every bot message and every reply is ignored. Leave the channel id
+unset and none of it happens.
+
+Noise control: replies are skipped (they are follow-up discussion, not new
+reports) and anything under ten characters is dropped, because bug channels are
+full of "+1" and "same here".
+
+**Idempotency is `discordMessageId UNIQUE`.** The bot listens live *and* sweeps
+the last 50 messages on boot, so a report posted while it was redeploying is not
+lost — which means the same message is submitted more than once by design. The
+duplicate is refused by the database and reported as success, so a restart is
+quiet rather than a wall of errors.
+
+If reports arrive with blank descriptions, the MessageContent intent is off.
+Discord returns an empty string rather than an error, so the bot detects that
+case and logs it loudly.
+
+---
+
 ## Rotating `BOT_TOKEN`
 
 The token is a bearer secret shared between the game server and this bot. It is
@@ -375,12 +423,16 @@ restart. It fails closed.
 bot/
 ├── src/
 │   ├── index.ts           gateway client, interaction routing, shutdown
+│   ├── bugReports.ts      the one feature that reads message text
 │   ├── config.ts          env parsing — validated loudly at boot
 │   ├── api.ts             the ONLY place that calls the game server
 │   ├── commands.ts        slash command definitions
 │   ├── handlers.ts        command + button handlers
 │   ├── embeds.ts          embed builders
 │   ├── roleSync.ts        the reconciler
+│   ├── giveawaySync.ts    polls for admin-dashboard giveaways
+│   ├── sprites.ts         sprite URLs + catalog lookups
+│   ├── cards/             PNG renderers
 │   └── deployCommands.ts  one-shot command registration
 ├── Dockerfile
 └── railway.json

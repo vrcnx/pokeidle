@@ -924,6 +924,23 @@ input[type="checkbox"], input[type="radio"] {
 .bug-status-resolved      { background: var(--good-soft); color: #86efac; }
 .bug-status-wontfix       { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
 
+/* Source badge on a Discord-ingested report. Discord blurple, and deliberately
+   quieter than .bug-status — the status is the thing an operator triages on,
+   the source is context. */
+.bug-src-discord {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(88, 101, 242, 0.18);
+  color: #a5b4fc;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .g-mono { font-family: ui-monospace, monospace; word-break: break-all; }
 
 /* ── Map editor ──────────────────────────────────────────────── */

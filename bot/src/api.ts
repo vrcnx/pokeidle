@@ -277,6 +277,17 @@ export const api = {
       "POST", `/api/bot/giveaways/${encodeURIComponent(id)}/reported`, {},
     ),
 
+  // Bug reports ingested from the community server's bug channel. The one
+  // place Discord message text enters the game database — see the endpoint's
+  // comment in server/src/routes/bot.ts.
+  submitBugReport: (input: {
+    discordMessageId: string; discordId: string; discordName: string;
+    messageUrl: string; title: string; description: string;
+  }) =>
+    call<{ ok: true; id?: string; duplicate: boolean; linkedTo?: string | null }>(
+      "POST", "/api/bot/bug-reports", input,
+    ),
+
   // Trade noticeboard — TEXT ONLY. There is deliberately no endpoint that
   // moves an asset; see the header of server/src/routes/bot.ts.
   postTradeOffer: (input: { discordId: string; offering: string; wanting: string }) =>

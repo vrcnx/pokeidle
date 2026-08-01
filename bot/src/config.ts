@@ -71,6 +71,16 @@ export const config = {
   tradeChannelId: optional("DISCORD_TRADE_CHANNEL_ID", ""),
   /** #mod-log — where giveaway outcomes are posted for audit. */
   modLogChannelId: optional("DISCORD_MOD_LOG_CHANNEL_ID", ""),
+  /**
+   * The bug-report channel, whose posts are ingested into the admin
+   * dashboard's triage queue. Text channel or forum, both work.
+   *
+   * Blank = ingest is OFF, and that default matters: this is the only feature
+   * that reads message content, so leaving it unset means the bot never looks
+   * at a single message. Setting it also requires the MessageContent
+   * privileged intent — see src/bugReports.ts.
+   */
+  bugChannelId: optional("DISCORD_BUG_CHANNEL_ID", ""),
 
   /**
    * Roles allowed to run /giveaway. Names, matched case-insensitively against
