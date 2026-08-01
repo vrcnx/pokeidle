@@ -226,7 +226,7 @@ app.post("/link/start", async (c) => {
   // eligible is decided at redeem time, and saying "you'll get X" here to
   // somebody relinking a second account would be a lie. The bot's copy hedges
   // accordingly.
-  const reward = linkRewardPrizes();
+  const reward = await linkRewardPrizes();
 
   return c.json({
     code: minted.code,

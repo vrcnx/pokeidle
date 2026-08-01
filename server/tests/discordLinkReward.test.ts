@@ -20,6 +20,8 @@ const { state, enqueueSpy } = vi.hoisted(() => {
     grants: [] as Array<{ userId: string; source: string; sourceId: string | null }>,
     accountLevel: 50,
     enqueueThrows: false,
+    /** The DiscordConfig singleton, or null when no row exists yet. */
+    config: null as { linkReward: string | null; linkRewardEnabled: boolean } | null,
   };
   const enqueueSpy = vi.fn(
     async (userId: string, _prizes: unknown, meta: { source: string; sourceId?: string | null }) => {
@@ -35,6 +37,9 @@ vi.mock("../src/db.js", () => ({
   prisma: {
     user: {
       findUnique: async () => ({ accountLevel: state.accountLevel }),
+    },
+    discordConfig: {
+      findUnique: async () => state.config,
     },
     pendingGrant: {
       count: async ({ where }: { where: { userId?: string; source?: string; sourceId?: string } }) =>
@@ -54,62 +59,82 @@ import {
   LINK_REWARD_SOURCE,
   grantLinkReward,
   linkRewardPrizes,
-  _resetLinkRewardCache,
 } from "../src/lib/discordLinkReward.js";
 
 const MASTERBALL = '[{"kind":"item","itemId":"masterball","quantity":1}]';
 const DISCORD_A = "111111111111111111";
 const DISCORD_B = "222222222222222222";
 
+/** Set the DiscordConfig singleton the way the admin dashboard would. */
+function configure(linkReward: string | null, linkRewardEnabled = true) {
+  state.config = { linkReward, linkRewardEnabled };
+}
+
 beforeEach(() => {
   state.grants = [];
   state.accountLevel = 50;
   state.enqueueThrows = false;
+  state.config = null;
   enqueueSpy.mockClear();
-  delete process.env.DISCORD_LINK_REWARD;
-  delete process.env.DISCORD_LINK_REWARD_MIN_LEVEL;
-  _resetLinkRewardCache();
 });
 
 describe("configuration", () => {
-  it("is OFF when DISCORD_LINK_REWARD is unset", async () => {
-    // The default must be inert, so a deploy that has never heard of this
-    // feature hands out nothing.
-    expect(linkRewardPrizes()).toBeNull();
+  it("is OFF when no DiscordConfig row exists at all", async () => {
+    // Absent and disabled are the SAME state — the migration seeds nothing, so
+    // a deploy that has never touched the dashboard hands out nothing.
+    expect(await linkRewardPrizes()).toBeNull();
     expect(await grantLinkReward("u1", DISCORD_A)).toEqual({ granted: false, reason: "disabled" });
     expect(enqueueSpy).not.toHaveBeenCalled();
   });
 
-  it("is OFF (and logs) when the value is malformed, rather than throwing per link", async () => {
-    process.env.DISCORD_LINK_REWARD = "{not json";
-    _resetLinkRewardCache();
+  it("is OFF when a prize is configured but the switch is off", async () => {
+    // Pausing must not require clearing the prize — losing the configuration
+    // in order to turn something off is how an operator turns it back on with
+    // the wrong thing in it.
+    configure(MASTERBALL, false);
+    expect(await linkRewardPrizes()).toBeNull();
+    expect(await grantLinkReward("u1", DISCORD_A)).toEqual({ granted: false, reason: "disabled" });
+  });
+
+  it("is OFF when enabled with an empty prize list", async () => {
+    configure("[]", true);
+    expect(await linkRewardPrizes()).toBeNull();
+  });
+
+  it("is OFF (and logs) when the stored row is malformed, rather than throwing per link", async () => {
+    configure("{not json", true);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(linkRewardPrizes()).toBeNull();
+    expect(await linkRewardPrizes()).toBeNull();
     expect(await grantLinkReward("u1", DISCORD_A)).toEqual({ granted: false, reason: "disabled" });
     expect(err).toHaveBeenCalled();
   });
 
   it("refuses a prize that the strict schema rejects", async () => {
-    // parsePrizesStrict, not parsePrizes: this is operator input that has
-    // never been validated anywhere else.
-    process.env.DISCORD_LINK_REWARD = '[{"kind":"item","itemId":"masterball"}]'; // no quantity
-    _resetLinkRewardCache();
+    // parsePrizesStrict, not parsePrizes: the row is operator input. The
+    // lenient reader is only for rows something else already validated.
+    configure('[{"kind":"item","itemId":"masterball"}]', true); // no quantity
     vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(linkRewardPrizes()).toBeNull();
+    expect(await linkRewardPrizes()).toBeNull();
   });
 
-  it("parses a valid prize list", () => {
-    process.env.DISCORD_LINK_REWARD = MASTERBALL;
-    _resetLinkRewardCache();
-    expect(linkRewardPrizes()).toEqual([{ kind: "item", itemId: "masterball", quantity: 1 }]);
+  it("reads a valid row", async () => {
+    configure(MASTERBALL, true);
+    expect(await linkRewardPrizes()).toEqual([{ kind: "item", itemId: "masterball", quantity: 1 }]);
+  });
+
+  it("picks up a change with no restart — the whole point of leaving env", async () => {
+    configure(MASTERBALL, true);
+    expect(await linkRewardPrizes()).toHaveLength(1);
+    configure('[{"kind":"money","amount":5000}]', true);
+    // No cache to invalidate: an operator who saves a new prize and
+    // immediately tests /link must get the new one, or the dashboard looks
+    // broken.
+    expect(await linkRewardPrizes()).toEqual([{ kind: "money", amount: 5000 }]);
   });
 });
 
 describe("granting", () => {
-  beforeEach(() => {
-    process.env.DISCORD_LINK_REWARD = MASTERBALL;
-    _resetLinkRewardCache();
-  });
+  beforeEach(() => configure(MASTERBALL, true));
 
   it("pays on a first link, stamping source and the Discord id", async () => {
     const res = await grantLinkReward("u1", DISCORD_A);
@@ -168,23 +193,12 @@ describe("granting", () => {
 });
 
 describe("optional level gate", () => {
-  beforeEach(() => {
-    process.env.DISCORD_LINK_REWARD = MASTERBALL;
-  });
+  beforeEach(() => configure(MASTERBALL, true));
 
   it("is off by default — shipped behaviour is no gate", async () => {
+    // The product decision was to ship frictionless. A level-0 account, which
+    // is what a brand-new signup is, must still be paid.
     state.accountLevel = 0;
-    _resetLinkRewardCache();
     expect((await grantLinkReward("u1", DISCORD_A)).granted).toBe(true);
-  });
-
-  it("blocks below the threshold when configured", async () => {
-    // The env is read at MODULE LOAD for the level (unlike the prize, which is
-    // lazily cached), so this asserts the shipped default rather than trying
-    // to re-read it. Documented here so the next person does not mistake the
-    // missing case for an untested one: changing the gate needs a restart,
-    // which is the same as every other tuning knob in this codebase.
-    const { linkRewardPrizes: p } = await import("../src/lib/discordLinkReward.js");
-    expect(p()).not.toBeNull();
   });
 });

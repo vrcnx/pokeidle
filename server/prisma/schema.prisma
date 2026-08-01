@@ -365,6 +365,41 @@ model PendingGrant {
 /// custody). A phished Discord account therefore reaches a trainer card and
 /// a noticeboard post, and cannot reach a Pokémon. See the live trade flow
 /// in server/src/socket.ts for why asset movement stays there and only there.
+/// Operator-editable Discord settings. A singleton control row, exactly like
+/// BroadcastState — same `@default("singleton")` id, same reason: there is one
+/// of it, and a table with one row is simpler than a key-value store nobody
+/// can typecheck.
+///
+/// ── WHY THIS IS NOT ENVIRONMENT VARIABLES ───────────────────────────
+/// It was, briefly. Env is the wrong home for anything an operator changes as
+/// a JUDGEMENT CALL rather than as configuration: changing the link reward
+/// meant editing Railway's env and waiting for a redeploy, which is a lot of
+/// ceremony for "let's try a Rare Candy instead this week", and it means the
+/// value lives somewhere the admin dashboard cannot show. Deployment config
+/// (tokens, URLs) stays in env; promotion content lives here.
+model DiscordConfig {
+  id String @id @default("singleton")
+
+  /// JSON array of Prize (see lib/giveaway.ts) — paid ONCE the first time an
+  /// account links its Discord. Null or an empty array means no reward is
+  /// configured.
+  ///
+  /// Stored as JSON text rather than a relation for the same reason
+  /// Giveaway.prizes is: prizes are small, never queried independently, and
+  /// their shape follows the game's catalog rather than the database's.
+  linkReward String?
+
+  /// Master switch, separate from `linkReward` being set, so a promotion can
+  /// be PAUSED without losing its configuration. Clearing the prize to turn it
+  /// off and re-entering it to turn it back on is how an operator ends up
+  /// giving away the wrong thing.
+  linkRewardEnabled Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+  /// The admin who last saved. Display only — AdminAudit is the real ledger.
+  updatedBy String?
+}
+
 model DiscordLink {
   /// Discord snowflake. The primary key, so one Discord account maps to at
   /// most one game account by construction. Stored as text: snowflakes are

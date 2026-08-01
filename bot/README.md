@@ -249,25 +249,27 @@ not selectable, not translatable, invisible to a screen reader.
 
 ## The link reward
 
-Set `DISCORD_LINK_REWARD` on the **game server** to a JSON prize array and the
-first link on an account pays out:
+Configured in the **admin dashboard** → Giveaways → *Discord link reward*,
+using the same prize picker as a giveaway. Not an environment variable: it is
+promotion content an operator changes as a judgement call, and env would put it
+behind a redeploy, somewhere the dashboard cannot show it.
 
-```bash
-DISCORD_LINK_REWARD='[{"kind":"item","itemId":"masterball","quantity":1}]'
-```
+A separate on/off switch means a promotion can be **paused without losing its
+prize** — clearing the prize to disable it is how you turn it back on with the
+wrong thing in it.
 
-Blank or unset = off, which is the default. The prize is named in the `/link`
-DM (so it can actually persuade someone to link) and confirmed on the
-`/link-discord` page after redeeming.
-
-It pays through the `PendingGrant` inbox like every other grant, so it lands on
-the player's next save upload and cannot be raced away.
+The prize is named in the `/link` DM (so it can actually persuade someone to
+link) and confirmed on the `/link-discord` page after redeeming. It pays through
+the `PendingGrant` inbox like every other grant, so it lands on the player's
+next save upload and cannot be raced away.
 
 **Idempotency uses no extra table.** `PendingGrant` is append-only and indexed
 on `(source, sourceId)`, so the grant *is* the receipt: a reward is refused
 when a `discord-link` grant already exists for the game account (`userId`) **or**
 the Discord account (`sourceId`). That blocks unlink-then-relink in both
-directions and survives restarts, because the rows are never deleted.
+directions and survives restarts, because the rows are never deleted. The
+obvious alternative — a `rewardedAt` column on `DiscordLink` — fails, because
+that row is deleted on `/unlink`.
 
 What it does **not** block is N throwaway Discord accounts paired with N
 throwaway game accounts — nothing short of an eligibility gate does, and this
@@ -279,8 +281,10 @@ SELECT date_trunc('day',"createdAt"), count(*) FROM "PendingGrant"
 WHERE source = 'discord-link' GROUP BY 1 ORDER BY 1 DESC;
 ```
 
-…raise `DISCORD_LINK_REWARD_MIN_LEVEL` above 0. That is an env change, not a
-deploy.
+…set `DISCORD_LINK_REWARD_MIN_LEVEL` above 0 on the game server. That gate is
+the one part that stays in env, deliberately: the prize is content, but the gate
+is a policy lever and should be harder to move than a text box on a page anyone
+with admin can reach.
 
 ---
 

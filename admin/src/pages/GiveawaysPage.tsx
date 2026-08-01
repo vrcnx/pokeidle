@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminGiveaway, type GiveawayPrizeInput } from "../api";
-import { POKEMON_LIST, ITEM_LIST, createPokemon } from "../data/gameCatalog";
-import { Combobox } from "../components/Combobox";
+import { PrizeBuilder } from "../components/PrizeBuilder";
+import { DiscordRewardPanel } from "../components/DiscordRewardPanel";
 
 // Giveaway operations.
 //
@@ -99,6 +99,12 @@ export function GiveawaysPage() {
       </header>
 
       {err && <div className="page-err">{err}</div>}
+
+      {/* Not strictly a giveaway, but it is the other way this game hands out
+          free prizes, and it uses the same prize picker — so an operator looking
+          for "how do I give something away" finds both in one place. */}
+      <DiscordRewardPanel />
+
       {creating && (
         <CreateGiveaway
           onCancel={() => setCreating(false)}
@@ -226,37 +232,6 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Prize builder inputs
-  const [pKind, setPKind] = useState<"item" | "money" | "pokemon">("item");
-  const [itemId, setItemId] = useState("masterball");
-  const [itemQuery, setItemQuery] = useState("Master Ball");
-  const [qty, setQty] = useState(1);
-  const [amount, setAmount] = useState(50000);
-  const [species, setSpecies] = useState("mew");
-  const [speciesQuery, setSpeciesQuery] = useState("Mew");
-  const [level, setLevel] = useState(50);
-  const [shiny, setShiny] = useState(false);
-
-  const addPrize = () => {
-    if (pKind === "item") {
-      setPrizes((p) => [...p, { kind: "item", itemId, quantity: qty }]);
-    } else if (pKind === "money") {
-      setPrizes((p) => [...p, { kind: "money", amount }]);
-    } else {
-      // Build the REAL mon here — the admin owns the stat formula. The
-      // server has no Pokemon table and would have to fabricate stats,
-      // which is exactly how the save editor used to hand out a Lv50
-      // Charizard with 24 HP.
-      const mon = createPokemon(species, level, Date.now() % 1_000_000, shiny);
-      const sp = POKEMON_LIST.find((x) => x.speciesKey === species);
-      setPrizes((p) => [...p, {
-        kind: "pokemon",
-        label: `${shiny ? "Shiny " : ""}${sp?.name ?? species} Lv${level}`,
-        mon: mon as unknown as Record<string, unknown>,
-      }]);
-    }
-  };
-
   const submit = async () => {
     if (!title.trim()) { setErr("Give it a title."); return; }
     if (prizes.length === 0) { setErr("Add at least one prize."); return; }
@@ -344,79 +319,7 @@ function CreateGiveaway({ onCancel, onCreated }: { onCancel: () => void; onCreat
         />
       </label>
 
-      <div className="gv-prize-builder">
-        <h3>Prizes</h3>
-        {prizes.length > 0 && (
-          <ul className="gv-prize-list">
-            {prizes.map((p, i) => (
-              <li key={i}>
-                <span>
-                  {p.kind === "item" ? `${p.quantity}x ${p.itemId}`
-                    : p.kind === "money" ? `$${p.amount?.toLocaleString()}`
-                    : p.label}
-                </span>
-                <button className="btn-ghost btn-tiny" onClick={() => setPrizes((x) => x.filter((_, j) => j !== i))}>×</button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="gv-prize-add">
-          <div className="seg-tabs">
-            {(["item", "money", "pokemon"] as const).map((k) => (
-              <button key={k} className={`seg-tab ${pKind === k ? "active" : ""}`} onClick={() => setPKind(k)}>
-                {k}
-              </button>
-            ))}
-          </div>
-
-          {pKind === "item" && (
-            <>
-              <Combobox
-                value={itemQuery}
-                onChange={(t) => { setItemQuery(t); }}
-                onSelect={(i) => { setItemId(i.id); setItemQuery(i.name); }}
-                options={ITEM_LIST}
-                placeholder="Search items…"
-                getKey={(i) => i.id}
-                getSearchText={(i) => `${i.name} ${i.id} ${i.category}`}
-                renderOption={(i, hl) => (
-                  <div className={`combo-opt ${hl ? "hl" : ""}`}>
-                    <strong>{i.name}</strong> <span className="dim small">{i.category}</span>
-                  </div>
-                )}
-              />
-              <input type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={{ width: 80 }} />
-            </>
-          )}
-          {pKind === "money" && (
-            <input type="number" min={1} value={amount} onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))} />
-          )}
-          {pKind === "pokemon" && (
-            <>
-              <Combobox
-                value={speciesQuery}
-                onChange={(t) => setSpeciesQuery(t)}
-                onSelect={(sp) => { setSpecies(sp.speciesKey); setSpeciesQuery(`${sp.name} (#${sp.id})`); }}
-                options={POKEMON_LIST}
-                placeholder="Search Pokemon…"
-                getKey={(sp) => sp.speciesKey}
-                getSearchText={(sp) => `${sp.name} ${sp.speciesKey}`}
-                renderOption={(sp, hl) => (
-                  <div className={`combo-opt ${hl ? "hl" : ""}`}>
-                    <strong>{sp.name}</strong> <span className="dim small">#{sp.id}</span>
-                  </div>
-                )}
-              />
-              <input type="number" min={1} max={100} value={level} onChange={(e) => setLevel(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} style={{ width: 70 }} />
-              <label className="gv-shiny-toggle">
-                <input type="checkbox" checked={shiny} onChange={(e) => setShiny(e.target.checked)} /> Shiny
-              </label>
-            </>
-          )}
-          <button className="btn-secondary btn-small" onClick={addPrize}>Add prize</button>
-        </div>
-      </div>
+      <PrizeBuilder prizes={prizes} setPrizes={setPrizes} />
 
       <footer className="gv-create-foot">
         <button className="btn-ghost" onClick={onCancel}>Cancel</button>

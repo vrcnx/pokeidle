@@ -39,9 +39,15 @@
 // one to make the promotion as frictionless as possible.
 //
 // MIN_ACCOUNT_LEVEL exists and defaults to 0 (off) so that decision can be
-// revisited with an env var rather than a deploy, if farming shows up in the
-// grant ledger. `SELECT count(*) FROM "PendingGrant" WHERE source =
-// 'discord-link'` grouped by day is how you would see it.
+// revisited if farming shows up in the grant ledger. `SELECT count(*) FROM
+// "PendingGrant" WHERE source = 'discord-link'` grouped by day is how you
+// would see it.
+//
+// The GATE stays in the environment while the PRIZE moved to the database, and
+// that split is deliberate rather than an oversight: the prize is content an
+// operator changes weekly from the dashboard, whereas the gate is a policy
+// lever that should be harder to move than a text box on a page anyone with
+// admin can reach.
 
 import { prisma } from "../db.js";
 import { parsePrizesStrict, describePrizes, type Prize } from "./giveaway.js";
@@ -60,43 +66,46 @@ const MIN_ACCOUNT_LEVEL = Math.max(
 );
 
 /**
- * The prize, as a JSON Prize[] in the env.
+ * The configured prize, or null when the promotion is off.
  *
- * Parsed once, lazily, with parsePrizesStrict — the STRICT reader, because
- * this is operator input that has never been validated, and the lenient one is
- * only for rows we validated on the way in. A malformed value disables the
- * promotion and logs, rather than throwing on every link attempt.
+ * Read from the DiscordConfig singleton, NOT from the environment. An operator
+ * changes this as a judgement call — "let's do a Rare Candy this week" — and
+ * env would put that behind a Railway edit and a redeploy, in a place the
+ * admin dashboard cannot display.
  *
- * Unset or empty → the promotion is off and linkReward() is a no-op. That is
- * the default, so a deploy that has never heard of this feature does nothing.
+ * Read fresh every call, with no cache. Two reasons, and the first is the
+ * point of moving it out of env at all:
+ *
+ *   * A change must take effect immediately. A cache means an operator saves
+ *     the new prize, tests /link, gets the old one, and reasonably concludes
+ *     the dashboard is broken.
+ *   * It costs a single indexed row read on a path that runs at most a few
+ *     times an hour. There is nothing to optimise.
+ *
+ * parsePrizesStrict, never parsePrizes: the row is operator input. The lenient
+ * reader is only for rows something else already validated, and its doc comment
+ * says so. A malformed row disables the promotion and logs rather than throwing
+ * on every link.
  */
-let cached: { prizes: Prize[] | null } | null = null;
+export async function linkRewardPrizes(): Promise<Prize[] | null> {
+  const row = await prisma.discordConfig
+    .findUnique({ where: { id: "singleton" } })
+    .catch(() => null);
+  // A missing row and a disabled one are the same state, deliberately — see
+  // the migration for why nothing is seeded.
+  if (!row || !row.linkRewardEnabled) return null;
+  const raw = row.linkReward?.trim();
+  if (!raw) return null;
 
-export function linkRewardPrizes(): Prize[] | null {
-  if (cached) return cached.prizes;
-  const raw = process.env.DISCORD_LINK_REWARD?.trim();
-  if (!raw) {
-    cached = { prizes: null };
-    return null;
-  }
   const parsed = parsePrizesStrict(raw);
   if (!parsed.ok) {
     console.error(
-      `[discord-link-reward] DISCORD_LINK_REWARD is set but invalid (${parsed.reason}) — ` +
-        "the link reward is DISABLED. Expected a JSON Prize array, e.g. " +
-        '[{"kind":"item","itemId":"masterball","quantity":1}]',
+      `[discord-link-reward] DiscordConfig.linkReward is invalid (${parsed.reason}) — ` +
+        "the link reward is DISABLED until it is fixed in the admin dashboard.",
     );
-    cached = { prizes: null };
     return null;
   }
-  cached = { prizes: parsed.prizes };
   return parsed.prizes;
-}
-
-/** Test seam — the env is read once and cached, so a test that changes it
- *  needs a way to invalidate. */
-export function _resetLinkRewardCache(): void {
-  cached = null;
 }
 
 export type LinkRewardResult =
@@ -116,7 +125,7 @@ export async function grantLinkReward(
   userId: string,
   discordId: string,
 ): Promise<LinkRewardResult> {
-  const prizes = linkRewardPrizes();
+  const prizes = await linkRewardPrizes();
   if (!prizes || prizes.length === 0) return { granted: false, reason: "disabled" };
 
   try {

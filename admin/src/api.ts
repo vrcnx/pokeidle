@@ -262,6 +262,16 @@ export interface AdminGiveaway {
   discordResultsAt?: string | null;
 }
 
+export interface DiscordConfig {
+  /** Master switch, separate from the prize being set, so a promotion can be
+   *  paused without losing its configuration. */
+  linkRewardEnabled: boolean;
+  linkReward: GiveawayPrizeInput[];
+  linkRewardSummary: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 export interface AdminMe { id: string; username: string; isAdmin: boolean }
 
 export const api = {
@@ -449,6 +459,12 @@ export const api = {
   }) => req<{ announcement: AdminAnnouncement }>("POST", "/api/admin/announcements", body),
   clearAnnouncement: () =>
     req<{ ok: true; deactivated: number }>("POST", "/api/admin/announcements/clear"),
+
+  // Discord settings. The link-reward prize lives in the database rather than
+  // the environment so it can be changed here, without a redeploy.
+  getDiscordConfig: () => req<DiscordConfig>("GET", "/api/admin/discord-config"),
+  putDiscordConfig: (body: { linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[] }) =>
+    req<DiscordConfig>("PUT", "/api/admin/discord-config", body),
 
   // Giveaways
   listGiveawaysAdmin: () => req<{ giveaways: AdminGiveaway[] }>("GET", "/api/admin/giveaways"),

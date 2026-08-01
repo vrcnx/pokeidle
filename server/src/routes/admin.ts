@@ -1790,6 +1790,90 @@ app.delete("/chat/:id", async (c) => {
 // numbers. They used to be a private const in this file, and the tournament
 // routes below quietly did not use them — see the comment on PrizeSchema for
 // what that let through.
+// ── Discord settings ────────────────────────────────────────────────
+//
+// The link-reward prize, editable from the dashboard rather than from the
+// environment. Deployment config (BOT_TOKEN, channel ids) stays in env; this
+// is promotion CONTENT, which an operator changes as a judgement call and
+// needs to be able to see.
+
+app.get("/discord-config", async (c) => {
+  const row = await prisma.discordConfig.findUnique({ where: { id: "singleton" } });
+  return c.json({
+    // A missing row and a disabled one are the same state — see the migration
+    // for why nothing is seeded. The dashboard renders both as "off".
+    linkRewardEnabled: row?.linkRewardEnabled ?? false,
+    linkReward: row?.linkReward ? parsePrizes(row.linkReward) : [],
+    linkRewardSummary: row?.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
+    updatedAt: row?.updatedAt?.toISOString() ?? null,
+    updatedBy: row?.updatedBy ?? null,
+  });
+});
+
+const DiscordConfigBody = z.object({
+  linkRewardEnabled: z.boolean(),
+  // Optional so the toggle can be flipped without re-sending the prize.
+  linkReward: PrizeListSchema.optional(),
+});
+
+app.put("/discord-config", async (c) => {
+  const me = c.get("user");
+  const parsed = DiscordConfigBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const d = parsed.data;
+
+  // Refuse a prize that can never be delivered, HERE, while an operator is
+  // looking at the form — not on the first player who links, where it would
+  // become a grant that is silently refused on every save upload forever and
+  // is invisible to everyone. Same guard, same reason, as giveaway create.
+  if (d.linkReward && d.linkReward.length > 0) {
+    const bad = checkPrizesDeliverable(d.linkReward);
+    if (bad) return c.json({ error: "prize rejected", reason: bad }, 400);
+  }
+
+  // Enabling with no prize configured is a promotion that silently pays
+  // nothing — the exact state that looks like a bug to everyone downstream.
+  const existing = await prisma.discordConfig.findUnique({ where: { id: "singleton" } });
+  const effective = d.linkReward ?? (existing?.linkReward ? parsePrizes(existing.linkReward) : []);
+  if (d.linkRewardEnabled && effective.length === 0) {
+    return c.json(
+      { error: "no prize", reason: "Add at least one prize before turning the reward on." },
+      400,
+    );
+  }
+
+  const linkRewardJson = d.linkReward ? JSON.stringify(d.linkReward) : existing?.linkReward ?? null;
+  const row = await prisma.discordConfig.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      linkReward: linkRewardJson,
+      linkRewardEnabled: d.linkRewardEnabled,
+      updatedBy: me.username,
+    },
+    update: {
+      linkReward: linkRewardJson,
+      linkRewardEnabled: d.linkRewardEnabled,
+      updatedBy: me.username,
+    },
+  });
+
+  void makeAudit(c)(me.id, "discord.config_update", null, {
+    linkRewardEnabled: row.linkRewardEnabled,
+    linkReward: row.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
+  });
+
+  return c.json({
+    linkRewardEnabled: row.linkRewardEnabled,
+    linkReward: row.linkReward ? parsePrizes(row.linkReward) : [],
+    linkRewardSummary: row.linkReward ? describePrizes(parsePrizes(row.linkReward)) : null,
+    updatedAt: row.updatedAt.toISOString(),
+    updatedBy: row.updatedBy,
+  });
+});
+
 const GiveawayBody = z.object({
   title: z.string().min(1).max(120),
   description: z.string().max(2000),
