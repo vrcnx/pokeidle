@@ -781,7 +781,13 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
   };
 
   return (
-    <section className="ctx-section">
+    // --grow: the one card in the route phases allowed to absorb the
+    // column's leftover height. It is also the one whose height varies most
+    // (2 species on some routes, 21 in the Safari Zone), so growing it means a
+    // short route fills the column instead of leaving a gap, and a long one
+    // scrolls inside its own card rather than pushing the catch card away.
+    // Exactly one flexible sibling — see the growth policy in app.css.
+    <section className="ctx-section ctx-section--grow">
       <header className="ctx-row-head">
         <h4>{t("Wild Pokémon")}</h4>
         <button

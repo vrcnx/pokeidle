@@ -74,12 +74,40 @@
   --sp-6: 24px;
   --sp-8: 32px;
 
-  /* ── Radii ────────────────────────────────────────────────── */
-  --r-sm: 4px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+  /* ── Radii ────────────────────────────────────────────────────
+     THE radius scale. There is one.
+
+     There used to be two: this block, and a second :root in the FLAT DESIGN
+     PASS (~line 9090) that redefined --r-sm/md/lg/xl to the values below.
+     CSS custom properties are resolved at use time, not at declaration time,
+     so that second block applied to the whole document — including every rule
+     written ABOVE it. Anyone who wrote `border-radius: var(--r-md)` up here
+     meaning 8px silently rendered 4px, and had no way to tell from reading
+     their own rule.
+
+     These are the values that were actually in effect, so nothing moves.
+     The point is that they are now stated once, where they are read. */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --r-xl: 8px;
   --r-pill: 999px;
+
+  /* ── Layout rhythm ────────────────────────────────────────────
+     ONE gap between cards, everywhere on desktop: between the three
+     columns, between cards inside each column, and between cards inside the
+     context panel.
+
+     It was five values (0, 6, 8, 10, 12) across twelve declarations, six of
+     which were already dead — so the left rail sat at 8px, the right rail at
+     12px and the centre at 6px, and no two columns agreed. Nothing about the
+     content wanted them different; they diverged because each redesign pass
+     set the ones it happened to touch. */
+  --gap: 12px;
+  /* Inside a card, between its own blocks. Deliberately smaller than --gap so
+     "these belong to the same card" and "these are different cards" are
+     distinguishable without reading a border. */
+  --gap-in: 8px;
 
   /* ── Elevation ────────────────────────────────────────────── */
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -342,15 +370,12 @@ a:focus-visible {
   font-size: 10px;
 }
 
+/* The grid columns, height and max-width declared here were dead: a later
+   .dashboard block (in the MODERN REDESIGN LAYER) redeclares all of them at
+   the same specificity and wins. Only the properties that block does NOT set
+   survive here, so what is left is what actually applies. */
 .dashboard {
   display: grid;
-  /* Twitch-stream layout — equal side rails kill the "not even"
-     complaint at the layout primitive. Chat (left) absorbs all
-     vertical slack so the rail never reads half-empty. */
-  grid-template-columns: 300px minmax(640px, 1fr) 300px;
-  gap: 12px;
-  height: calc(100vh - 16px);
-  max-width: 1600px;
   margin: 0 auto;
 }
 
@@ -364,7 +389,7 @@ a:focus-visible {
      instead of swallowing them. */
   overflow-y: auto;
   overflow-x: hidden;
-  gap: 8px;
+  gap: var(--gap);
   padding: 0;
   background: transparent;
   border: 0;
@@ -378,7 +403,7 @@ a:focus-visible {
   padding: 0;
   background: transparent;
   border: 0;
-  gap: 6px;
+  gap: var(--gap);
 }
 .chat-column > .mini-chat {
   flex: 1;
@@ -540,7 +565,7 @@ a:focus-visible {
    party in the middle, NextGoal collapsed, profile pinned to the
    bottom via auto-margin on the InventoryRibbon. */
 .control-column {
-  gap: 10px;
+  gap: var(--gap);
 }
 .control-column > .meta-dock-strip { flex-shrink: 0; }
 .control-column > .party-card { flex: 0 0 auto; }
@@ -584,7 +609,7 @@ a:focus-visible {
   border-radius: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--gap);
   overflow: hidden;
 }
 .center-column > .battle-area,
@@ -2373,10 +2398,12 @@ body.dnd-active {
 
 /* ---------- Center column ---------- */
 
+/* `gap: 0` removed — it was a third opinion about the centre column's
+   spacing, sandwiched between two others, and it lost anyway. The gap comes
+   from --gap now, like every other column. */
 .center-column {
   display: flex;
   flex-direction: column;
-  gap: 0;
   min-height: 0;
 }
 .center-column > * { flex-shrink: 0; }
@@ -3079,12 +3106,36 @@ body.dnd-active {
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--gap);
 }
+/* ── The context card ─────────────────────────────────────────────
+   THE card in the right-hand column. Gym leader, wild encounters, raid,
+   league, "currently battling", town — every one of them is this.
+
+   It had six competing definitions across the file's redesign layers, which
+   between them asked for radius 3, 4, 6 and 8px and padding 10x12, 12x14 and
+   12 — so which card you were looking at decided how it looked, and no two
+   passes agreed. Everything is stated here once and reads the --card-*
+   tokens; the later blocks that used to redeclare it now only say what is
+   genuinely different about their context.
+
+   `gap` is --gap-in, deliberately smaller than the --gap BETWEEN cards, so
+   "these are two blocks of one card" and "these are two cards" are legible
+   without inspecting borders. */
 .ctx-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--gap-in);
+  background: var(--panel);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-pad-default);
+  /* Cards are their own height. Exactly one card in the column is allowed to
+     absorb slack — see the growth policy near the wide-layout rules — and
+     letting every card flex is what produced the "sometimes huge gaps,
+     sometimes scrolling" the column suffers from. */
+  flex: 0 0 auto;
+  min-height: 0;
 }
 .ctx-section h4 {
   margin: 0;
@@ -3114,6 +3165,10 @@ body.dnd-active {
   background: rgba(255,255,255,0.04);
   border-color: var(--border-strong);
 }
+/* A block INSIDE a context card, not a card of its own — so it is a tint and
+   a hairline, one step lighter than the card it sits in, with the same radius
+   family. It previously had four definitions between them asking for
+   rgba-white / --panel-2 / transparent and radius 6px / 5px. */
 .ctx-trainer-card {
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -3123,10 +3178,10 @@ body.dnd-active {
     "action action";
   gap: 4px 10px;
   align-items: center;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: var(--card-pad-tight);
+  background: var(--panel-2);
+  border: var(--card-border);
+  border-radius: var(--r-lg);
 }
 .ctx-trainer-card > img { grid-area: sprite; }
 .ctx-trainer-card > div { grid-area: info; min-width: 0; }
@@ -7969,7 +8024,7 @@ body.dnd-active {
      the 901px minimum this layout is ever asked for — below that the shell
      switches to mobile). */
   grid-template-columns: minmax(220px, 280px) minmax(360px, 520px) minmax(240px, 320px);
-  gap: var(--sp-3);
+  gap: var(--gap);
   padding: 0 var(--sp-1);
   max-width: 1160px;
   margin: 0 auto;
@@ -7988,25 +8043,17 @@ body.dnd-active {
 .tab-pane-head { padding: 6px 10px !important; margin: 0 !important; }
 .town-map-header { padding: 4px 10px !important; }
 
+/* The card chrome this block gave the three columns is stripped again by the
+   FLAT DESIGN PASS below (background/border/radius/shadow/padding all reset
+   to nothing), because a column should be layout, not a card — otherwise
+   every card in it is a card inside a card. Only the flex/gap/min-height
+   survive, so only those are declared. */
 .party-column,
-.location-column {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-card);
-  padding: var(--sp-3);
+.location-column,
+.center-column {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  min-height: 0;
-}
-.center-column {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-card);
-  padding: var(--sp-3);
-  gap: var(--sp-3);
+  gap: var(--gap);
   min-height: 0;
 }
 
@@ -8821,14 +8868,11 @@ body.dnd-active {
 .context-panel-body {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  gap: var(--gap);
 }
-.ctx-section {
-  background: var(--panel-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: var(--sp-3);
-}
+/* Card chrome removed — it is declared once, at the .ctx-section definition
+   near the top of the file. This copy asked for --panel-3 and --r-md while
+   two other copies asked for --panel/--r-sm and --panel/8px. */
 .ctx-section h4 {
   margin: 0 0 var(--sp-2);
   font-size: var(--fs-2xs);
@@ -8862,10 +8906,7 @@ body.dnd-active {
 
 /* Background/padding tweaks only — keep the grid layout from the
    earlier rule so the action button drops to its own row. */
-.ctx-trainer-card {
-  background: var(--panel-2);
-  font-size: var(--fs-xs);
-}
+.ctx-trainer-card { font-size: var(--fs-xs); }
 
 /* League roster (Indigo Plateau side panel) */
 .league-roster {
@@ -9087,12 +9128,10 @@ small.dim { color: var(--text-dim); }
 /* Override the previous "lifted" treatment: no gradients on flat
    surfaces, smaller radii, no inset highlights, hairline borders only. */
 
-:root {
-  --r-sm: 3px;
-  --r-md: 4px;
-  --r-lg: 6px;
-  --r-xl: 8px;
-}
+/* The radius scale this pass introduced has moved into the single :root at
+   the top of the file. It lived here, several thousand lines below the rules
+   that read it, and silently reinterpreted every one of them — see the note
+   there. Values are unchanged. */
 
 /* Columns are pure layout containers — no card chrome, no border, no
    background. Each inner piece (party row, ctx-section, chat, etc.) is
@@ -9233,10 +9272,13 @@ input, textarea, select {
 
 /* ── Right column layout (account/social) ─────────────────────── */
 .location-column {
-  /* Stack: dock → chat (flex 1) → profile strip */
+  /* Stack: dock → chat (flex 1) → profile strip.
+     This was the fourth and final word on the left rail's gap, and it set 8px
+     while the right rail sat at 12 — the visible unevenness between the two
+     rails came from exactly here. Both read --gap now. */
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--gap);
 }
 /* Twitch-stream layout: ActionDock at the top of the RIGHT rail. One
    tight 44px horizontal row of icon+label buttons, sharing one panel
@@ -9328,12 +9370,9 @@ input, textarea, select {
    The ctx-section IS the only card here, so its inner buttons and grids
    render flat (no second-level card chrome). */
 .party-column .context-panel { gap: var(--sp-2); }
-.party-column .ctx-section {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 10px 12px;
-}
+/* A context card in the classic rail is the same card as one in the wide
+   layout's centre column. It used to be a different radius (--r-sm, 3px)
+   and a different padding, so moving between layouts changed the card. */
 .party-column .context-panel-head { padding: 0; }
 .party-column .context-panel-head h3 { font-size: var(--fs-sm); }
 
@@ -9351,11 +9390,9 @@ input, textarea, select {
 }
 
 /* Trainer-card style row inside a section — same treatment, no nested card. */
-.party-column .ctx-trainer-card,
-.location-column .ctx-trainer-card {
-  background: transparent;
-  padding: 6px 0;
-}
+/* Removed: this stripped the trainer block's surface and padding in the
+   classic rail only, so the SAME card looked like a tinted panel in the wide
+   layout and like bare text in the narrow one. One definition now, above. */
 
 /* Goal panel inside ctx-section: keep the amber stripe but drop the
    surface background since it sits in another card already. */
@@ -10291,17 +10328,25 @@ input, textarea, select {
 
 /* ── Tokens specifically for the design pass ─────────────────────── */
 :root {
+  /* Card chrome. These are read by the CARD UNIFORMITY block further down,
+     which is the only place they are applied.
+
+     --card-radius said 6px and the block that used it hardcoded `8px
+     !important`, so the token described a value nothing rendered. It is 8px
+     now, and the block reads it — which means changing the app's card radius
+     is one edit rather than a search for hardcoded eights.
+
+     --card-pad-loose and --section-gap were declared and never referenced by
+     anything; they are gone rather than left as decoys. */
   --card-pad-tight:   10px 12px;
-  --card-pad-default: 12px 14px;
-  --card-pad-loose:   16px 18px;
-  --card-radius:      6px;
+  --card-pad-default: 12px;
+  --card-radius:      8px;
   --card-border:      1px solid var(--border);
 
   --modal-width-sm: 380px;
   --modal-width-md: 480px;
   --modal-width-lg: 640px;
 
-  --section-gap:     14px;
   --section-title-size: 10px;
   --section-title-letter: 1px;
 }
@@ -11354,8 +11399,11 @@ input:focus, textarea:focus, select:focus {
    or shadow is normalized here. Highest specificity in the file so
    nothing else wins. */
 
-/* The canonical card */
-.party-column .ctx-section,
+/* The canonical card.
+   `.party-column .ctx-section` is no longer listed: the .ctx-section
+   definition near the top of the file now states this exact chrome from the
+   same tokens, so repeating it here — at higher specificity and with
+   !important — only made the card's real definition harder to find. */
 .party-row,
 .profile-strip,
 .mini-chat,
@@ -11367,8 +11415,8 @@ input:focus, textarea:focus, select:focus {
 .bottom-tabs,
 .battle-area {
   background: var(--panel) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
   box-shadow: none !important;
 }
 
@@ -11376,13 +11424,12 @@ input:focus, textarea:focus, select:focus {
    party). Every card uses the same outer padding so they read uniformly.
    Dock + profile-strip have their own tighter padding because they're
    compact bars. */
-.party-column .ctx-section,
 .unlock-hint,
 .party-column .unlock-hint,
 .party-card,
 .mini-chat,
 .moves-panel-wrap {
-  padding: 12px !important;
+  padding: var(--card-pad-default) !important;
 }
 .profile-strip { padding: 10px 14px !important; }
 .dock-btn { padding: 12px 8px !important; }
@@ -11454,12 +11501,9 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Also flatten any sub-card chrome inside ctx-section content */
-.ctx-trainer-card {
-  background: transparent !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 5px !important;
-  padding: 10px !important;
-}
+/* Declared once, with the rest of the context-card chrome. This copy set a
+   fifth radius (5px) for a block nested INSIDE a card that had already been
+   given four different ones. */
 
 /* Dex section blocks (Type, Abilities, Base Stats, Where to Find) inside
    the species modal use the same panel surface as everything else. */
@@ -14901,7 +14945,10 @@ html, body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* Carries (0,2,0), so it beat every single-class rule and made the classic
+     rail's cards 8px apart while the same cards in the wide layout sat at 6
+     and everything around them at 12. */
+  gap: var(--gap);
 }
 
 
@@ -18701,7 +18748,10 @@ html, body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  gap: 6px;
+  /* The wide layout's own gap was 6px, so the arena / moves / context grid
+     was tighter than the rails either side of it — the "spacing isn't even"
+     you see between the moves card and the context card in the screenshot. */
+  gap: var(--gap);
 }
 .dashboard-wide .center-column > .battle-area,
 .dashboard-wide .center-column > .moves-toolbar { grid-column: 1 / -1; }
@@ -18780,7 +18830,7 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--gap);
   overflow-y: auto;
 }
 /* `flex-grow: 1` here is what made the gym cards "flash". Every .ctx-section
@@ -18806,13 +18856,31 @@ html, body {
   flex: 0 0 auto;
   min-height: 0;
 }
-/* The raid card is the one section that genuinely needs the extra height: its
-   two-column mode (@container min-width: 370px) stretches .raid-layout to the
-   card and scrolls the spawn list inside it, which only works if the card is
-   taller than its content. It is always the sole section in the raid phase, so
-   it can grow without any sibling to redistribute against. */
-.dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section--raid {
+/* ── The one card that may grow ────────────────────────────────────
+   Exactly one section per phase carries --grow, and it absorbs the row's
+   leftover height. That is what keeps the column from reading half-empty on a
+   short route without reintroducing the pulse above: the flash came from
+   EVERY card sharing the slack, so the size of each depended on how many
+   siblings happened to be mounted. With a single flexible item there is
+   nothing to redistribute against, so a sibling appearing or disappearing
+   cannot resize the others.
+
+   Raid: its two-column mode (@container min-width: 370px) stretches
+   .raid-layout to the card and scrolls the spawn list inside, which only
+   works if the card is taller than its content.
+
+   Wild encounters: the tall card on every route, and the one whose height
+   varies most (Safari Zone lists 21 species, some routes list 2). Growing it
+   means a short route fills the column instead of leaving a gap under it, and
+   a long one scrolls inside its own card rather than pushing the manual-catch
+   card out of reach. Manual catch stays fixed beside it, so the pair is still
+   one flexible item. */
+.dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section--raid,
+.dashboard-wide .center-column > .context-panel > .context-panel-body > .ctx-section--grow,
+.party-column .context-panel-body > .ctx-section--grow {
   flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Fade the incoming trainer in rather than hard-swapping it. */
