@@ -118,7 +118,7 @@
   background: var(--ctl-bg-hover);
   color: var(--ctl-fg-hover);
 }
-.hub-tab:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
+.hub-tab:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
 .hub-tab.is-active {
   background: var(--ctl-on-bg);
   border-color: var(--ctl-on-line);

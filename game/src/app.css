@@ -122,13 +122,27 @@
   --ctl-fg:       var(--text-muted);
   --ctl-fg-hover: var(--text);
   --ctl-line:     var(--border);
-  /* Selected. ONE colour, everywhere: gold already meant "selected" on the
-     bottom tabs and the region pills, so it is the rule rather than a new
-     idea. Colour that is not gold means "what KIND of thing this is" — the
-     teal on a free reward, the red on a delete — and never "you are here". */
-  --ctl-on-fg:    var(--gold);
-  --ctl-on-bg:    rgba(251, 191, 36, 0.10);
-  --ctl-on-line:  var(--gold);
+  /* Selected. A SOLID raised fill with a white label — the same treatment
+     as a button, because a selected tab is a filled shape too.
+
+     It was a 10%-gold tint behind a hard gold outline, which made the one
+     selected item in every tab row the only outlined control left in the
+     game after the solid pass. On a near-black ground an outline is a
+     hairline around nothing; the fill has to do the work.
+
+     "You are here" is now carried by ELEVATION rather than hue — the
+     selected item is a step lighter than its siblings, which are
+     transparent. That is the axis with the most room on a black UI, and it
+     leaves gold to mean exactly one thing: the primary action.
+
+     --ctl-on-line is kept and pointed at the fill so any rule still asking
+     for a selected border draws an invisible one rather than a gold ring. */
+  --ctl-on-fg:    #ffffff;
+  --ctl-on-bg:    var(--panel-4);
+  --ctl-on-line:  transparent;
+  /* Focus rings still need to be visible, and they are the one ring worth
+     drawing. Kept separate so "no outlines" never reaches the keyboard. */
+  --ctl-focus:    var(--gold);
 
   /* ── Layout rhythm ────────────────────────────────────────────
      ONE gap between cards, everywhere on desktop: between the three
@@ -2280,7 +2294,7 @@ header.tab-pane-head.v2 .mart-wallet {
   transition: background 0.1s, border-color 0.1s;
 }
 .party-row:hover { background: rgba(255,255,255,0.07); }
-.party-row.active { border-color: var(--gold); background: rgba(246,200,74,0.1); }
+.party-row.active { border-color: transparent; background: var(--panel-4); }
 .party-row.fainted { opacity: 0.5; cursor: not-allowed; }
 .party-row {
   transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -3022,7 +3036,7 @@ body.dnd-active {
   font-size: 13px;
 }
 .swap-row:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: var(--border-strong); }
-.swap-row.active { border-color: var(--gold); background: rgba(251, 191, 36, 0.10); }
+.swap-row.active { border-color: transparent; background: var(--panel-4); }
 .swap-row.fainted { opacity: 0.5; }
 .swap-row img {
   width: 36px;
@@ -3420,9 +3434,9 @@ body.dnd-active {
   color: #fff;
 }
 .more-actions-tabs button.active {
-  color: var(--gold);
-  background: rgba(251, 191, 36, 0.06);
-  box-shadow: inset 0 -2px 0 var(--gold);
+  color: #fff;
+  background: var(--panel-4);
+  box-shadow: none;
 }
 .more-actions-tabs button:disabled {
   opacity: 0.35;
@@ -7008,9 +7022,9 @@ body.dnd-active {
   overflow: hidden;
 }
 .mobile-tabbar button.active {
-  color: var(--gold);
-  background: rgba(246,200,74,0.12);
-  box-shadow: inset 0 2px 0 var(--gold);
+  color: #fff;
+  background: var(--panel-4);
+  box-shadow: none;
 }
 .tab-icon { font-size: 18px; line-height: 1; }
 .tab-label { font-size: 8px; }
@@ -14348,10 +14362,14 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab {
   cursor: pointer;
   line-height: 1.4;
 }
+/* Solid, like every other selected control. This selector is (0,3,1) and
+   so outranks the shared primitive whatever the source order, which is why
+   it has to be corrected in place rather than left to the block at the end
+   of this file. */
 header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
-  color: var(--gold);
-  border-color: var(--gold);
-  background: rgba(248, 208, 48, 0.1);
+  color: #fff;
+  border-color: transparent;
+  background: var(--panel-4);
 }
 /* Single column, always — every card is a uniform horizontal row
    (name | mons | progress | action) so the list reads as one ordered
@@ -19610,7 +19628,7 @@ button.wb-card:active { transform: translateY(1px); }
 .route-region-tab:focus-visible,
 .mini-chat-tab:focus-visible,
 .social-tab:focus-visible {
-  outline: 2px solid var(--ctl-on-line);
+  outline: 2px solid var(--ctl-focus);
   outline-offset: 1px;
 }
 /* Selected: tinted fill, gold text, gold hairline. One treatment, so a
@@ -19689,7 +19707,7 @@ button.wb-card:active { transform: translateY(1px); }
 .g-btn:focus-visible,
 .dock-btn:focus-visible,
 .town-action-btn:focus-visible {
-  outline: 2px solid var(--ctl-on-line);
+  outline: 2px solid var(--ctl-focus);
   outline-offset: 1px;
 }
 .g-btn:disabled,
@@ -19774,7 +19792,7 @@ button.wb-card:active { transform: translateY(1px); }
 .g-btn-primary:focus-visible,
 .g-btn-ghost:focus-visible,
 .g-btn-danger-ghost:focus-visible,
-.g-btn-small:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
+.g-btn-small:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
 
 /* Touch: the shared floor, applied once to the primitives rather than
    re-derived per widget. 900px is the app's own touch breakpoint â€”
