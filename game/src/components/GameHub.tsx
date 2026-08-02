@@ -4,6 +4,8 @@ import { SocialPane } from "./SocialPanel";
 import { PvpHubPane, PvpHeaderRight } from "./PvpHubModal";
 import { SettingsPane } from "./GlobalDock";
 import { usePvpState } from "../state/pvp";
+import { useGame } from "../state/GameContext";
+import { useAuth } from "../auth/AuthContext";
 import { useT } from "../i18n/useT";
 
 // Where the four sections meet the frame.
@@ -43,6 +45,34 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   },
 };
 
+/**
+ * The player, at the top of the rail.
+ *
+ * The frame takes this as a slot rather than reading it, so HubModal.tsx
+ * still knows nothing about saves, auth or currency — but the rail's first
+ * block is the one place in this dialog where naming the person looking at
+ * it is worth more than naming the dialog.
+ */
+function HubIdentity() {
+  const { state } = useGame();
+  const { me } = useAuth();
+  const t = useT();
+  const name = me?.name ?? me?.username ?? t("Trainer");
+  const initial = name[0]?.toUpperCase() ?? "?";
+  return (
+    <div className="hub-me">
+      <span className="hub-me-avatar" aria-hidden>{initial}</span>
+      <span className="hub-me-text">
+        <span className="hub-me-name">{name}</span>
+        <span className="hub-me-meta">
+          <span>{t("Lv")} <strong>{me?.accountLevel ?? 1}</strong></span>
+          <span className="is-gold">${state.money.toLocaleString()}</span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
 export function GameHub() {
   const t = useT();
   const pvp = usePvpState();
@@ -53,5 +83,5 @@ export function GameHub() {
   // player to guess.
   const disabled = pvp.room ? { pvp: t("You're already in a PvP battle") } : undefined;
 
-  return <HubModal sections={SECTIONS} disabled={disabled} />;
+  return <HubModal sections={SECTIONS} disabled={disabled} identity={<HubIdentity />} />;
 }

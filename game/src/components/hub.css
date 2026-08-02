@@ -1,8 +1,8 @@
 /* =====================================================================
    The Hub frame
    =====================================================================
-   One dialog for PvP, Rewards, Social and Settings. Everything here is
-   the frame; the four panes style themselves and know nothing about
+   One dialog for Battle, Rewards, Social and Settings. Everything here
+   is the frame; the four panes style themselves and know nothing about
    this file.
 
    Scoped stylesheet, imported by HubModal.tsx, following the
@@ -11,22 +11,63 @@
    was spent unpicking exactly that.
 
    Every control below is the shared primitive from the CONTROL
-   PRIMITIVES block at the end of app.css — the --ctl-* scale, and gold
-   for "you are here". A hub whose own navigation did not follow the
-   game's control rules would be a poor advertisement for them.
+   PRIMITIVES block at the end of app.css — the --ctl-* scale, solid
+   fills, elevation for "you are here". A hub whose own navigation did
+   not follow the game's control rules would be a poor advertisement
+   for them.
+
+   ── WHAT CHANGED IN THE REDESIGN ────────────────────────────────
+   The first version was 960x640 with a 208px rail and a single-column
+   pane, and it read as a settings dialog that happened to have four
+   sections. Three things were wrong with it:
+
+     * too small for a destination. A hub is where a player goes
+       between sessions; at 960x640 it could show about six rows of
+       anything before scrolling, so every section felt like a preview
+       of itself.
+     * one column at every width. At 1180px that is a strip of cards
+       with 500px of nothing beside it — the same empty space the
+       context panel was rebuilt to fix, reproduced inside a dialog.
+     * the rail's only content above the nav was a wordmark reading
+       "Hub", which is a label for the screen you are already on.
+
+   So: bigger, a column system the panes opt into rather than reinvent,
+   the player's own identity where the wordmark was, and a real
+   full-screen treatment on phones instead of a shrunken desktop
+   dialog.
    ===================================================================== */
 
-/* A hub needs a stable frame. Its whole promise is that the furniture
-   stays put while the content changes, so the dialog is a fixed panel
-   and the pane is what scrolls — a shell that resized on every section
-   change would undo the thing it exists to provide.
+/* ── Centred, not top-pinned ───────────────────────────────────────
+   The shared .modal-overlay anchors its children 8vh from the top,
+   with a comment explaining why: modals whose body changes size were
+   jumping vertically when you switched tabs. That is a real problem
+   and the fix is right — for a modal sized by its content.
 
-   960px because the widest pane (Battle) carries a 6-mon team strip and
-   a match history side by side; 620px because Social's chat needs a
-   readable column of messages above the composer. */
+   The hub is a fixed-height panel. It cannot jump, so the reasoning
+   does not reach it, and a destination that sits high and left of
+   centre looks like it missed. A class on the OVERLAY rather than a
+   rule about .hub-modal, because centring is the parent's job. */
+.modal-overlay.hub-overlay {
+  align-items: center;
+  padding: 24px;
+  /* The panel manages its own scrolling; letting the overlay scroll too
+     produces two scrollbars racing on short viewports. */
+  overflow: hidden;
+}
+
+/* A hub needs a stable frame — the furniture stays put while the
+   content changes — so the dialog is a fixed panel and the pane is
+   what scrolls.
+
+   1180px is set by the widest thing any pane holds: a two-column card
+   grid at a comfortable 340px minimum, plus a 232px rail and the
+   gutters. 860px tall for the same reason in the other direction — the
+   archive and the leaderboard are both long lists, and this is where
+   they stop feeling truncated. Both cap against the viewport, so a
+   laptop at 900px tall still gets air around the dialog. */
 .g-modal.hub-modal {
-  width: min(960px, 96vw);
-  height: min(640px, 88vh);
+  width: min(1180px, 94vw);
+  height: min(860px, 88vh);
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -38,7 +79,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
+  grid-template-columns: 232px minmax(0, 1fr);
 }
 
 /* ── The rail ──────────────────────────────────────────────────────
@@ -50,18 +91,64 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 12px;
+  gap: 16px;
+  padding: 16px 14px;
   border-right: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.24);
 }
 
-.hub-brand {
+/* ── Who you are ───────────────────────────────────────────────────
+   The rail's first block. A wordmark saying "Hub" was a label for the
+   screen you are already on; this is the same space spent on the name
+   a player chose and the two numbers they check constantly. */
+.hub-me {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px 2px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--panel-2);
 }
+.hub-me-avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--panel-4);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+.hub-me-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hub-me-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hub-me-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hub-me-meta strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.hub-me-meta .is-gold { color: var(--gold); }
+
+/* Kept for the harness and any caller that supplies no identity. */
+.hub-brand { display: flex; align-items: center; gap: 8px; padding: 2px 4px; }
 .hub-brand-mark { font-size: 11px; color: var(--gold); line-height: 1; }
 .hub-brand-text {
   font-size: 12px;
@@ -72,14 +159,14 @@
 }
 
 /* Scrolls independently of the rail, so a future fifth section cannot
-   push the whole rail into overflow. */
+   push the identity block out of view. */
 .hub-nav-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   scrollbar-gutter: stable;
 }
 .hub-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -99,26 +186,28 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   width: 100%;
-  min-height: var(--ctl-h-lg);
-  padding: 0 10px;
+  min-height: 40px;
+  padding: 0 11px;
   border: 1px solid transparent;
   border-radius: var(--ctl-r);
   background: none;
   color: var(--ctl-fg);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 .hub-tab:hover:not(.is-active):not(:disabled) {
   background: var(--ctl-bg-hover);
   color: var(--ctl-fg-hover);
 }
 .hub-tab:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+/* Solid fill, white label — the same "selected" as every other control
+   in the game. Elevation carries it, not a ring. */
 .hub-tab.is-active {
   background: var(--ctl-on-bg);
   border-color: var(--ctl-on-line);
@@ -130,12 +219,11 @@
    tooltip explaining why. */
 .hub-tab:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.hub-tab-icon { flex: 0 0 auto; width: 17px; font-size: 13px; line-height: 1; text-align: center; }
+.hub-tab-icon { flex: 0 0 auto; width: 18px; font-size: 13px; line-height: 1; text-align: center; }
 .hub-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Gold would be wrong: on the rail gold already means "you are here",
-   and a badge means "something is waiting", which is a different claim.
-   Red is the one colour in this app that already means "unread" (the
-   dock's request badge), so it stays red. 5.9:1 on #7f1d1d. */
+/* Red, not gold: on this rail gold is the primary action and elevation
+   is "you are here", so "something is waiting" needs a third signal of
+   its own. Red already meant unread in this app. 6.9:1 on #7f1d1d. */
 .hub-tab-badge {
   flex: 0 0 auto;
   min-width: 18px;
@@ -165,20 +253,20 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px 12px 20px;
+  gap: 16px;
+  padding: 16px 18px 14px 24px;
   border-bottom: 1px solid var(--border);
 }
 .hub-head-text { flex: 1 1 auto; min-width: 0; }
 .hub-head h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 .hub-head-note {
   margin: 3px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--text-dim);
 }
@@ -186,7 +274,7 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 /* Static, not absolutely positioned: the close button is a flex item in
@@ -198,7 +286,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 20px 18px;
+  padding: 18px 24px 22px;
   scrollbar-gutter: stable;
 }
 /* Sections that lay out to the full height and scroll their own
@@ -213,53 +301,142 @@
 
 /* ── The shared pane header row ────────────────────────────────────
    Level two of the structure rule: the sidebar said which AREA, this
-   says which VIEW. Every pane that has more than one view uses this,
-   so the tab row is in the same place with the same metrics in all
-   four sections. */
+   says which VIEW. Every pane with more than one view uses this, so
+   the tab row is in the same place with the same metrics in all four
+   sections. */
 .hub-views {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
-.hub-pane--fill .hub-views { margin: 0; padding: 12px 16px 10px; }
+.hub-pane--fill .hub-views { margin: 0; padding: 14px 18px 12px; }
 
-/* ── Mobile: the rail becomes a strip ──────────────────────────────
-   760px, because below that 208px of rail stops being a fifth of the
-   dialog and starts being a third. The DOM does not change — the rail
-   is still the rail, it just runs across the top and scrolls sideways.
-   Group headings go: "Play" and "You" earn their space in a column and
-   cost more than they are worth in a 44px strip. */
+/* ── The column system ─────────────────────────────────────────────
+   Two helpers, offered by the frame so no pane invents its own
+   breakpoint. This is the whole reason the dialog got wider: a single
+   column at 1180px is a strip of cards with half the dialog empty
+   beside it.
+
+   auto-fit + minmax, not a fixed `1fr 1fr`, so the same markup is two
+   columns in the hub and one on a phone with no media query and no
+   second code path. 340px is the width below which a promo card's
+   prize chips start wrapping under its title. */
+.hub-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+/* Something that must span the grid — a heading, an empty state, a
+   wide table. */
+.hub-cols > .is-wide { grid-column: 1 / -1; }
+
+/* Main content with a narrower companion: an archive beside its
+   lifetime totals, a ladder beside your own rank. */
+.hub-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 20px;
+  align-items: start;
+}
+.hub-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.hub-aside-head {
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ── Mobile: a full-screen sheet ───────────────────────────────────
+   Below 760px the hub stops being a dialog and becomes the screen. A
+   640px panel floating inside a 700px viewport with a blurred strip
+   around it is the worst of both: too small to use, too big to see
+   past. Games take the screen; this takes the screen.
+
+   100dvh rather than 100vh, so the panel is not sized against a
+   viewport that includes browser chrome which slides away as you
+   scroll — the classic iOS "the bottom of the dialog is under the
+   address bar" bug.
+
+   The !important matches the app.css rule at (max-width: 480px) that
+   already forces `width/max-width: 100% !important` on every .g-modal.
+   That rule is right for the modals it was written for, and this one
+   only needs to add a height — but an !important can only be answered
+   by another one. */
 @media (max-width: 760px) {
-  .g-modal.hub-modal { width: 96vw; height: min(640px, 90vh); max-height: 90vh; }
+  /* !important because app.css has THREE .modal-overlay definitions and the
+     last one, inside its own (max-width: 480px) block, sets
+     `padding: 6px !important`. An !important is answerable only by another
+     one, whatever the specificity — and 6px of gutter is exactly what stops
+     a full-bleed sheet from being full-bleed. */
+  .modal-overlay.hub-overlay { padding: 0 !important; align-items: stretch; }
+  .g-modal.hub-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0;
+    border: 0;
+  }
   .hub-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+
+  /* The rail becomes a strip, and the identity block goes with it: a
+     name and a level are worth a line in a column, not a third of a
+     56px bar the four destinations have to share. The pane header
+     already names the section, and the player's own numbers are on the
+     game screen behind this. */
   .hub-side {
     flex-direction: row;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 10px;
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .hub-brand { display: none; }
+  .hub-me, .hub-brand { display: none; }
   .hub-nav-scroll { flex-direction: row; gap: 6px; overflow-x: auto; overflow-y: hidden; }
   .hub-nav { flex-direction: row; gap: 4px; }
   .hub-nav-head { display: none; }
-  .hub-tab { width: auto; min-height: 40px; padding: 0 12px; white-space: nowrap; }
-  .hub-head { padding: 12px 12px 10px 16px; }
-  .hub-head h2 { font-size: 15px; }
-  .hub-pane { padding: 12px 14px 16px; }
-  .hub-pane--fill .hub-views { padding: 10px 12px 8px; }
+  .hub-tab { width: auto; min-height: 44px; padding: 0 13px; white-space: nowrap; }
+
+  .hub-head { padding: 12px 12px 10px 16px; gap: 10px; }
+  .hub-head h2 { font-size: 16px; }
+  .hub-head-note { display: none; }
+  .hub-pane { padding: 14px 14px 20px; }
+  .hub-pane--fill .hub-views { padding: 12px 14px 10px; }
+  /* One column, and the split's aside drops UNDER its main rather than
+     beside it — it is a summary of what is above, so that is the order
+     it should be read in anyway. */
+  .hub-cols { grid-template-columns: minmax(0, 1fr); }
+  .hub-split { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 }
 
-/* Below this the two groups' worth of tabs stop fitting even sideways
-   without the labels crowding the badges. Icons keep their labels — an
-   icon-only rail is a memory test — but the padding tightens. */
+/* Between the phone sheet and the full dialog the pane is too narrow
+   for the split's 264px companion to leave its main content a usable
+   width. */
+@media (max-width: 1040px) and (min-width: 761px) {
+  .hub-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Small phones: four tabs stop fitting side by side without the labels
+   crowding their badges. Icons keep their labels — an icon-only rail is
+   a memory test — and the padding tightens instead. */
 @media (max-width: 420px) {
-  .hub-tab { padding: 0 9px; gap: 7px; font-size: 12px; }
+  .hub-tab { padding: 0 10px; gap: 8px; font-size: 12.5px; }
   .hub-head { gap: 8px; }
+  .hub-pane { padding: 12px 12px 18px; }
 }
 
 /* =====================================================================

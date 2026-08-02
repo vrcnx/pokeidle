@@ -133,13 +133,15 @@ function Filler({ label, rows = 14 }: { label: string; rows?: number }) {
           <button className="g-tab">Third view</button>
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* On the frame's column system, like a real pane — a stand-in that
+          renders one column would certify a layout the app never uses. */}
+      <div className="hub-cols">
         {Array.from({ length: rows }, (_, i) => (
           <div key={i} style={{
-            padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)",
+            padding: "14px 16px", borderRadius: 10, background: "var(--panel-2)",
             fontSize: 12, color: "var(--text-muted)",
           }}>
-            {label} row {i + 1}
+            {label} card {i + 1}
           </div>
         ))}
       </div>
@@ -265,6 +267,18 @@ function Harness() {
           </p>
         : <HubFrame
             key={i}
+            identity={
+              <div className="hub-me">
+                <span className="hub-me-avatar">K</span>
+                <span className="hub-me-text">
+                  <span className="hub-me-name">koruem</span>
+                  <span className="hub-me-meta">
+                    <span>Lv <strong>514</strong></span>
+                    <span className="is-gold">$129,010,829</span>
+                  </span>
+                </span>
+              </div>
+            }
             active={active}
             onSelect={setActive}
             onClose={() => setClosed(true)}

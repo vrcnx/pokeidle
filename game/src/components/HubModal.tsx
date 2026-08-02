@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import { useIncomingRequestCount } from "../state/friendRequests";
@@ -116,12 +116,16 @@ export function useHubSection(): HubSection | null {
 
 export interface HubModalProps {
   sections: Record<HubSection, HubSectionContent>;
+  /** Who the player is, for the top of the rail. A slot rather than
+   *  something this file reads, so the frame still knows nothing about
+   *  saves, auth or currency. */
+  identity?: ReactNode;
   /** Sections that cannot be entered right now, with the reason. PvP is not
    *  useful mid-battle. */
   disabled?: Partial<Record<HubSection, string>>;
 }
 
-export function HubModal({ sections, disabled }: HubModalProps) {
+export function HubModal({ sections, disabled, identity }: HubModalProps) {
   const [active, setActive] = useState<HubSection | null>(null);
   const badges = useHubBadges();
   const t = useT();
@@ -168,6 +172,7 @@ export function HubModal({ sections, disabled }: HubModalProps) {
       sections={sections}
       disabled={disabled}
       badges={badges}
+      identity={identity}
       title={t("Hub")}
     />
   );
@@ -201,7 +206,7 @@ export function pickLanding(
  * mounts this with the real stylesheet.
  */
 export function HubFrame({
-  active, onSelect, onClose, sections, disabled, badges, title,
+  active, onSelect, onClose, sections, disabled, badges, identity, title,
 }: {
   active: HubSection;
   onSelect: (s: HubSection) => void;
@@ -209,6 +214,7 @@ export function HubFrame({
   sections: Record<HubSection, HubSectionContent>;
   disabled?: Partial<Record<HubSection, string>>;
   badges?: Partial<Record<HubSection, number>>;
+  identity?: ReactNode;
   title: string;
 }) {
   const t = useT();
@@ -294,7 +300,12 @@ export function HubFrame({
   }, [active, disabled, onSelect]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    // hub-overlay, because the shared overlay pins its children 8vh from the
+    // top — a rule written for content-sized modals that jump when their body
+    // grows. The hub is a fixed-height panel, so that reasoning does not apply
+    // to it and it should sit in the middle of the screen like the destination
+    // it is.
+    <div className="modal-overlay hub-overlay" onClick={onClose}>
       <div
         ref={dialogRef}
         className="g-modal hub-modal"
@@ -306,10 +317,16 @@ export function HubFrame({
       >
         <div className="hub-shell">
           <aside className="hub-side">
-            <div className="hub-brand">
-              <span className="hub-brand-mark" aria-hidden>◆</span>
-              <span className="hub-brand-text">{title}</span>
-            </div>
+            {/* The player, not a logo. A hub's rail had a wordmark in it
+                saying "Hub" — a label for the thing you are already looking
+                at. Who you are, what level, how much money is the same space
+                spent on something worth reading. */}
+            {identity ?? (
+              <div className="hub-brand">
+                <span className="hub-brand-mark" aria-hidden>◆</span>
+                <span className="hub-brand-text">{title}</span>
+              </div>
+            )}
 
             <div className="hub-nav-scroll" ref={navRef} onKeyDown={onNavKey}>
               {GROUPS.map((grp) => {

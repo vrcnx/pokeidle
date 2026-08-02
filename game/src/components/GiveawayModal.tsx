@@ -299,7 +299,7 @@ export function RewardsPane({
     ? <FreePane promos={promos} />
     : active === "live"
     ? (
-      <div className="rw-list">
+      <div className="hub-cols">
         {live.map((g) => (
           <LiveGiveawayCard
             key={g.id}
@@ -335,25 +335,28 @@ export function RewardsPane({
             {t("Winners are picked by hashing a random draw seed against every entry and taking the lowest results — nobody, including us, can change the outcome after the seed is set. Each drawn giveaway below publishes its seed so the result can be checked.")}
           </p>
         )}
-        <div className="gw-past">
-          {past.map((g) => (
-            <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} viewerName={viewerName} />
-          ))}
-          {canLoadMore && (
-            <button
-              type="button"
-              className="gw-more"
-              onClick={onLoadMore}
-              disabled={moreState === "loading"}
-            >
-              {moreState === "loading" ? t("Loading…") : t("Show more")}
-            </button>
-          )}
+        {/* The archive, with the feature's lifetime totals beside it rather
+            than buried under thirty rows. They answer "is this real, does it
+            keep happening?", which is a question you want answered while you
+            are reading the evidence — not after scrolling past all of it. */}
+        <div className="hub-split">
+          <div className="gw-past">
+            {past.map((g) => (
+              <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} viewerName={viewerName} />
+            ))}
+            {canLoadMore && (
+              <button
+                type="button"
+                className="gw-more"
+                onClick={onLoadMore}
+                disabled={moreState === "loading"}
+              >
+                {moreState === "loading" ? t("Loading…") : t("Show more")}
+              </button>
+            )}
+          </div>
+          <LifetimeAside stats={stats} />
         </div>
-        {/* The feature's lifetime totals, under the archive they describe.
-            They used to sit in the dialog header, where four numbers
-            competed with the section title for the same glance and lost. */}
-        <LifetimeLine stats={stats} />
       </>
     );
 
@@ -462,7 +465,7 @@ function FreePane({ promos }: { promos: Promo[] }) {
           </span>
         </span>
       </div>
-      <div className="rw-list">
+      <div className="hub-cols">
         {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
       </div>
     </>
@@ -493,20 +496,30 @@ function historyTime(g: PublicGiveaway): number {
  * ("is this real, does it keep happening?") is one you ask after reading,
  * not before.
  */
-function LifetimeLine({ stats }: { stats: GiveawayStats | null }) {
+function LifetimeAside({ stats }: { stats: GiveawayStats | null }) {
   const t = useT();
   if (!stats || stats.total === 0) return null;
   return (
-    <p className="rw-lifetime">
-      <span><strong>{stats.total}</strong> {t("giveaways held")}</span>
-      {stats.prizesAwarded > 0 && (
-        <span>
-          <strong>{stats.prizesAwarded}</strong>{t(" prizes to ")}
-          <strong>{stats.distinctWinners}</strong>{t(" trainers")}
+    <aside className="hub-aside">
+      <span className="hub-aside-head">{t("Since we started")}</span>
+      <div className="rw-figures">
+        <span className="rw-figure">
+          <strong>{stats.total}</strong>
+          <em>{t("giveaways")}</em>
         </span>
+        <span className="rw-figure">
+          <strong>{stats.prizesAwarded}</strong>
+          <em>{t("prizes")}</em>
+        </span>
+        <span className="rw-figure">
+          <strong>{stats.distinctWinners}</strong>
+          <em>{t("winners")}</em>
+        </span>
+      </div>
+      {stats.firstAt && (
+        <p className="rw-since">{t("Running since ")}{shortDate(stats.firstAt)}</p>
       )}
-      {stats.firstAt && <span>{t("since ")}{shortDate(stats.firstAt)}</span>}
-    </p>
+    </aside>
   );
 }
 

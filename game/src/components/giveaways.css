@@ -432,18 +432,28 @@
 }
 .rw-pane-note { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
 
-/* Lifetime totals, under the archive they describe. */
-.rw-lifetime {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin: 14px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+/* Lifetime totals, in the Results view's companion column. As a line of
+   small grey text under thirty archive rows they were something you only
+   met after you had stopped reading; as three figures beside the archive
+   they answer "is this real, does it keep happening?" while the evidence
+   is still on screen. */
+.rw-figures { display: flex; flex-direction: column; gap: 10px; }
+.rw-figure { display: flex; align-items: baseline; gap: 6px; }
+.rw-figure strong {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.rw-figure em { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--text-dim); }
+.rw-since {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
   font-size: 10.5px;
   color: var(--text-dim);
 }
-.rw-lifetime strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 /* Free rewards are a finite, completable set — the one thing on this
    screen a progress bar is allowed to describe. */
