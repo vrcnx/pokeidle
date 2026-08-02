@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
 import { PromoCard } from "./PromoCard";
 import { openHub, HubViews } from "./HubModal";
+import { WelcomeBackModal } from "./WelcomeBackModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
 import {
   useGiveaways,
@@ -366,6 +367,13 @@ export function RewardsPane({
           this says which VIEW. A horizontal row of the shared .g-tab, so
           it is the same control as the region pills and the chat channels
           rather than a fourth idea about what a tab is. */}
+      {/* A returning player's summary — the daily to claim, gifts waiting, a
+          giveaway win — at the top of the page whose subject all of that
+          already is. It was a popup that arrived over the game in front of
+          whatever they had come back to do. It renders nothing when there is
+          nothing to say. */}
+      <WelcomeBackModal inline />
+
       <HubViews>
         <div className="g-tabs" role="tablist" aria-label={t("Rewards")}>
           {tabs.map((x) => (

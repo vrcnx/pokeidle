@@ -11,6 +11,7 @@ import {
 import { PokemonSprite } from "./Sprite";
 import "./raidTiers.css";
 import "./routeMap.css";
+import { rememberRaidReturn } from "../hooks/useRaidReturn";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
 import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
@@ -329,6 +330,8 @@ function RaidTierList() {
     // location does not matter. Two dispatches, applied in order by the
     // reducer, so the raid begins in the place it belongs to.
     if (state.currentLocation !== "raidIsland") {
+      // So the raid can put you back where it found you — see useRaidReturn.
+      rememberRaidReturn(state.currentLocation);
       dispatch({ type: "TRAVEL", payload: { locationId: "raidIsland" } });
     }
     dispatch({ type: "START_RAID", payload: { tier: tier.id } });

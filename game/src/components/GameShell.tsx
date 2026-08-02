@@ -22,7 +22,7 @@ import { RegionStarterSelect } from "./RegionStarterSelect";
 import { ChangelogModal } from "./ChangelogModal";
 import { HowToPlayModal } from "./HowToPlayModal";
 import { DailyRewardModal } from "./DailyRewardModal";
-import { WelcomeBackModal } from "./WelcomeBackModal";
+import { WelcomeBackRouter } from "./WelcomeBackModal";
 import { beginWelcomeBack } from "../state/welcomeBack";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { UseItemMount } from "./UseItemModal";
@@ -114,7 +114,7 @@ export function GameShell() {
           decide independently, so they stacked — see state/welcomeBack.ts.
           DailyRewardModal and ChangelogModal are still mounted because both
           are reachable from Settings; neither auto-opens any more. */}
-      <WelcomeBackModal />
+      <WelcomeBackRouter />
       <ChangelogModal />
       <HowToPlayModal />
       <DailyRewardModal />

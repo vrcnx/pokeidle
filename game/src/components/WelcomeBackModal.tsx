@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { openHub } from "./HubModal";
 import { useGame } from "../state/GameContext";
 import { api } from "../net/api";
 import { setDailyStatus } from "../state/dailies";
@@ -71,7 +72,32 @@ function humanDuration(ms: number): string {
  * unclaimed daily, which is not a loop anyone can iterate a layout in. The
  * REAL component is previewed; only the wiring is replaced.
  */
-export function WelcomeBackModal() {
+/**
+ * Takes a returning player to the Rewards page instead of interrupting them.
+ *
+ * This was a popup. It arrived over the game, unasked, in front of whatever
+ * the player had come back to do — and everything in it (a daily to claim,
+ * a giveaway win, gifts waiting) is Rewards' subject already. A modal that
+ * duplicates a page is a page that opens itself.
+ *
+ * Renders nothing. It only decides where you land; RewardsBody draws it.
+ */
+export function WelcomeBackRouter() {
+  const { open } = useWelcomeBack();
+  // Once per arrival. `open` stays true until the player deals with it, so
+  // reacting to the value rather than the EDGE would reopen the hub every
+  // time they closed it to go and play.
+  const sent = useRef(false);
+  useEffect(() => {
+    if (!open) { sent.current = false; return; }
+    if (sent.current) return;
+    sent.current = true;
+    openHub("rewards");
+  }, [open]);
+  return null;
+}
+
+export function WelcomeBackModal({ inline = false }: { inline?: boolean } = {}) {
   const { open, data } = useWelcomeBack();
   const { dispatch } = useGame();
   // Read live rather than collected: an announcement never JUSTIFIES opening
@@ -124,6 +150,7 @@ export function WelcomeBackModal() {
 
   return (
     <WelcomeBackDialog
+      inline={inline}
       data={data}
       announcement={announcement}
       giveaways={giveaways}
@@ -139,7 +166,9 @@ export function WelcomeBackModal() {
 /** Presentation. No stores, no network — everything it shows is a prop. */
 export function WelcomeBackDialog({
   data, announcement, giveaways, busy, onFinish, onClose, onOpenChangelog, onOpenGiveaway,
+  inline = false,
 }: {
+  inline?: boolean;
   data: WelcomeBackData;
   announcement: Announcement | null;
   giveaways: PublicGiveaway[] | null;
@@ -183,7 +212,14 @@ export function WelcomeBackDialog({
   const twoUp = hasMain && asideContent;
 
   return (
-    <div className="modal-overlay wb-overlay" onClick={() => closeWelcomeBack()}>
+    // Inline: no overlay and no backdrop. It is a card at the top of the
+    // Rewards pane, inside a dialog that already has both — a second scrim
+    // over the first would dim the hub twice, and there is nothing behind
+    // this to dismiss by clicking anyway.
+    <div
+      className={inline ? "wb-inline" : "modal-overlay wb-overlay"}
+      onClick={inline ? undefined : () => closeWelcomeBack()}
+    >
       <div
         className={`g-modal wb-modal${twoUp ? " has-aside" : ""}`}
         ref={ref}

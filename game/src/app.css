@@ -20181,3 +20181,18 @@ strong, b { font-variant-numeric: tabular-nums; }
   text-transform: none !important;
   color: var(--text) !important;
 }
+
+/* The welcome-back summary, as a card in the Rewards pane rather than a
+   popup over the game. The dialog inside it was sized against the VIEWPORT
+   — its own width cap, its own max-height, a shadow and a radius that only
+   make sense on a scrim. In here the pane is the frame, so it fills the
+   width it is given and stops trying to be a window. */
+.wb-inline { display: block; margin-bottom: 14px; }
+.wb-inline > .g-modal.wb-modal {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  border-radius: var(--card-radius, 8px);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
