@@ -9409,7 +9409,12 @@ input, textarea, select {
   grid-template-columns: repeat(3, 1fr) !important;
   gap: 0 !important;
   padding: 3px !important;
-  background: var(--panel-2);
+  /* --panel, not --panel-2. Every card in these rails is --panel (#0d0d0e)
+     and this housing was --panel-2 (#151516) — one step lighter, sitting
+     directly under the stat strip, so the dock read as a different KIND of
+     surface rather than another card. The tabs inside it supply their own
+     contrast when selected; the container does not need to. */
+  background: var(--panel);
   border: 1px solid var(--border);
   /* Concentric with the 6px tabs inside it: an outer radius should be the
      inner radius plus the padding between them, or the two curves visibly

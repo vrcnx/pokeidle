@@ -23,7 +23,6 @@ import {
   levelEvolutionTargets,
 } from "../utils/evolution";
 import { useDragAndDrop } from "../hooks/useDrag";
-import { MetaDock } from "./GlobalDock";
 import { PlayerCard } from "./PlayerCard";
 import { InventoryRibbon } from "./InventoryRibbon";
 import { PvpRail } from "./PvpArena";
@@ -116,7 +115,7 @@ function statusBadgeClass(s: StatusCondition): string {
 }
 
 // RIGHT rail (Twitch-stream layout): control panel. Order top→bottom:
-//   1. MetaDock (PvP / Social / Settings / Trade — 44px icon row)
+//   1. PlayerCard (who you are, and one way into the hub)
 //   2. Party list (the player's team)
 //   3. ContextPanel (status hints + battle log)
 //   4. UnlockHint (Next Goal card — collapsed by default)
@@ -144,12 +143,15 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
   if (pvpBattle) return <PvpRail />;
   return (
     <div className="party-column control-column">
-      {/* Wide: this rail becomes navigation + inventory — the tabs lead, and
-          the dock actions move to the left rail under the trainer card. */}
-      {/* Wide layout put the five-tab strip here; it is hub sections now, so
-          this corner gets the player card for the same reason the centre
-          column's does. See PlayerCard.tsx. */}
-      {wide ? <PlayerCard /> : <MetaDock />}
+      {/* TOP OF THE RIGHT RAIL, in both layouts.
+          This slot held the five-tab strip in wide and the PvP/Settings/
+          Social dock in classic. Both are gone for the same reason: every
+          destination they pointed at is a hub section now, so two toolbars
+          were pointing at one dialog from two different corners.
+          The player card replaces them — it opens the hub, it carries the
+          five shortcuts the strip had, and it says who you are, which
+          neither of them did. */}
+      <PlayerCard />
       <section className="ctx-section party-card">
         {/* Heal moved here from the moves toolbar at the bottom of the centre
             column (br_27cfd612ddd30485fc). It is a PARTY action — it restores

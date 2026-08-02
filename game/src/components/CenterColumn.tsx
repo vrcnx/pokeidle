@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
-import { PlayerCard } from "./PlayerCard";
 import { ContextPanel } from "./ContextPanel";
 import { PvpCenter } from "./PvpArena";
 import { useIsPvpBattle } from "../state/pvp";
@@ -46,9 +45,12 @@ export function CenterColumn({ wide = false }: { wide?: boolean }) {
       {/* Wide layout keeps the centre purely about the fight: what you're
           battling sits under your moves, and the Map/Mart/Bag/PC/Dex tabs
           move to the right rail (see GameShell). */}
-      {/* The five-tab strip that used to live here is now hub sections; the
-          corner is a player card with one way in. See PlayerCard.tsx. */}
-      {wide ? <ContextPanel /> : <PlayerCard />}
+      {/* Classic used to end with the five-tab strip here. It is hub
+          sections now, and the player card that replaced it belongs at the
+          top of the RIGHT rail rather than the bottom of this column — a
+          card about you, under the moves you are about to use, was in the
+          wrong place for both of them. */}
+      {wide && <ContextPanel />}
     </div>
   );
 }

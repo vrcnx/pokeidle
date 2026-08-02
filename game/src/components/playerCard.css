@@ -14,6 +14,11 @@
    of the dex is actually filled.
    ===================================================================== */
 .player-card {
+  /* Full width of the rail it sits at the top of. It was floating with
+     space around it because it inherited nothing about the column's
+     width — a card about the player, small and adrift in the corner
+     that is supposed to be about the player. */
+  width: 100%;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -50,8 +55,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -96,11 +101,14 @@
 
    Deliberately smaller and quieter than the strip was. They are a way
    back to somewhere, not the primary furniture of the screen. */
+/* The five spread across the full width rather than huddling. They are
+   the row that replaced a five-tab strip, and the strip filled its
+   container — losing that would make them look like leftovers. */
 .player-card-links {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 2px;
-  padding: 0 6px 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  padding: 0 8px 8px;
 }
 .player-card-link {
   display: flex;

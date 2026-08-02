@@ -1272,14 +1272,34 @@
    out of focus rather than lifted. Tightened to a real edge — a brighter
    fill, a crisp ring, a 1px lift — which is the same language every
    other control uses on hover instead of a glow. */
+/* PRACTICE gets a colour of its own, not a grey rectangle.
+   Making it readable was the first fix; making it worth pressing is this
+   one. When practice is the selected mode this IS the primary action, so
+   it needs the same confidence as READY UP — but it must not read as
+   gold, because gold on this screen means "this one counts".
+
+   Steel blue: 7.6:1 for white, and it is the one hue nothing else in the
+   game has claimed. Purple is a giveaway, teal is a free reward, red is
+   destructive, green is "you're entered", gold is rated. Blue reads as a
+   simulation, which is exactly what an unrated AI battle is. */
 .pvp-slab.pvp-slab-secondary {
-  color: #f5f5f5;
-  background: linear-gradient(180deg, var(--panel-3) 0%, var(--panel-2) 100%);
+  color: #fff;
+  /* #3a5470 -> #243349. Every string on it clears AA against the LIGHT
+     stop, which is the one that matters: title 7.8:1, sub 6.1:1. The
+     first pair I tried put the sub at 4.31:1 — under the bar — because I
+     checked the title and assumed the sub followed. */
+  background: linear-gradient(180deg, #3a5470 0%, #243349 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 2px 0 rgba(0, 0, 0, 0.3);
 }
-.pvp-slab.pvp-slab-secondary .pvp-slab-sub { color: var(--text-muted); opacity: 1; }
+.pvp-slab.pvp-slab-secondary .pvp-slab-sub { color: #dbe4ee; opacity: 1; }
 .pvp-slab.pvp-slab-secondary:hover:not(:disabled) {
-  background: linear-gradient(180deg, var(--panel-4) 0%, var(--panel-3) 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, #446283 0%, #2b3d55 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 4px 14px rgba(63, 90, 120, 0.35),
+    0 2px 0 rgba(0, 0, 0, 0.3);
 }
 
 .pvp2-arena .pvp-slab:hover:not(:disabled) {
