@@ -238,6 +238,10 @@ function BottleCapDialog({ itemId }: { itemId: "goldbottlecap" | "silverbottleca
     || p.name.toLowerCase().includes(needle)
     || (p.nickname?.toLowerCase().includes(needle) ?? false));
 
+  const pickedMon = picked
+    ? (picked.source === "party" ? state.party[picked.index] : state.box[picked.index])
+    : undefined;
+
   const apply = (source: "party" | "box", index: number, stat?: IvKey) => {
     dispatch({ type: "USE_BOTTLE_CAP", payload: { itemId, source, index, stat } });
     pushToast({ kind: "success", icon: "⭐", text: t("Hyper Training complete") });
@@ -251,6 +255,21 @@ function BottleCapDialog({ itemId }: { itemId: "goldbottlecap" | "silverbottleca
         ? `${t("Makes every IV perfect. You have")} ${have}.`
         : `${t("Makes one stat's IV perfect. You have")} ${have}.`}
     >
+      {picked && !gold && pickedMon ? (
+        // STEP TWO. A whole view, not a strip that unfolded under one row and
+        // pushed the rest of the list down while you read it — with the six
+        // stats squeezed into the width of a list item and the Pokemon you
+        // were choosing for scrolled halfway off the top.
+        //
+        // The dialog changes subject instead: who, then which stat, with a
+        // way back. Two questions, one at a time.
+        <StatStep
+          mon={pickedMon}
+          onBack={() => setPicked(null)}
+          onPick={(stat) => apply(picked.source, picked.index, stat)}
+        />
+      ) : (
+      <>
       <input
         className="use-item-search"
         type="search"
@@ -298,30 +317,6 @@ function BottleCapDialog({ itemId }: { itemId: "goldbottlecap" | "silverbottleca
                 </span>
               </button>
 
-              {/* Silver caps perfect ONE stat, so the choice of which is the
-                  whole decision. It opens under the Pokémon it belongs to
-                  rather than as a second dialog. */}
-              {isPicked && !gold && (
-                <div className="use-item-stats" role="group" aria-label={t("Which stat")}>
-                  {STATS.map((s) => {
-                    const at = p.ivs?.[s.key] ?? 0;
-                    const done = at >= IV_MAX;
-                    return (
-                      <button
-                        key={s.key}
-                        type="button"
-                        className="use-item-stat"
-                        disabled={done}
-                        title={done ? t("Already perfect") : `${at} → ${IV_MAX}`}
-                        onClick={() => apply(source, index, s.key)}
-                      >
-                        {t(s.label)}
-                        <span className="use-item-stat-n">{at}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </li>
           );
         })}
@@ -333,6 +328,86 @@ function BottleCapDialog({ itemId }: { itemId: "goldbottlecap" | "silverbottleca
           {t("Showing the first 120. Search to narrow it down.")}
         </p>
       )}
+      </>
+      )}
     </Shell>
+  );
+}
+
+/**
+ * Step two: which stat a silver cap perfects.
+ *
+ * Its own view rather than a strip that unfolded inside the list. The strip
+ * pushed everything below it down while you read it, squeezed six stats into
+ * the width of a list row, and left the Pokemon you were choosing for
+ * scrolled halfway off the top — so the one thing the decision needed on
+ * screen was the one thing that was not.
+ */
+function StatStep({
+  mon, onBack, onPick,
+}: {
+  mon: Pokemon;
+  onBack: () => void;
+  onPick: (stat: IvKey) => void;
+}) {
+  const t = useT();
+  const total = ivTotal(mon);
+  return (
+    <div className="use-item-step">
+      <button type="button" className="use-item-back" onClick={onBack}>
+        &larr; {t("Pick a different Pokemon")}
+      </button>
+
+      {/* Who this is for, held at the top of the step so it cannot scroll
+          away from the decision it belongs to. */}
+      <div className="use-item-subject">
+        <PokemonSprite
+          speciesKey={mon.speciesKey}
+          isShiny={!!mon.isShiny}
+          alt=""
+          width={48}
+          height={48}
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div className="use-item-subject-text">
+          <strong>{mon.nickname ?? mon.name}</strong>
+          <span>{t("Lv")} {mon.level} &middot; {t("IV total")} {total}/{IV_MAX * 6}</span>
+        </div>
+      </div>
+
+      <p className="use-item-step-q">{t("Which stat should it perfect?")}</p>
+
+      <ul className="use-item-statlist">
+        {STATS.map((s) => {
+          const at = mon.ivs?.[s.key] ?? 0;
+          const done = at >= IV_MAX;
+          const pct = Math.round((at / IV_MAX) * 100);
+          return (
+            <li key={s.key}>
+              <button
+                type="button"
+                className="use-item-statrow"
+                disabled={done}
+                onClick={() => onPick(s.key)}
+              >
+                <span className="use-item-statrow-name">{t(s.label)}</span>
+                {/* The current IV as a bar as well as a number. The decision
+                    is "which of these is worst", and six numbers in a column
+                    do not answer that at a glance. */}
+                <span className="use-item-statrow-bar">
+                  <span style={{ width: `${pct}%` }} className={done ? "is-done" : ""} />
+                </span>
+                <span className="use-item-statrow-n">
+                  {at}<span className="dim">/{IV_MAX}</span>
+                </span>
+                <span className="use-item-statrow-go">
+                  {done ? t("Perfect") : `→ ${IV_MAX}`}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

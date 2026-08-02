@@ -193,20 +193,22 @@ export function PvpHubPane() {
   const tier = tierFor(ratingValue);
   const toNext = ratingToNextTier(ratingValue);
 
+  // Your party, in party order. Queueing used to close this dialog and open
+  // the team builder — a second "pick a team, then pick your lead" dialog for
+  // a team you had already picked and ordered, in the pane that has an Edit
+  // team button of its own. Two dialogs deep to press one button.
+  //
+  // Party order IS the answer to both questions the builder asked: which six,
+  // and which one leads. It is the order the game already fights in.
   const startMatch = () => {
     if (noTeam) return;
-    closePvpHub();
-    openTeamBuilder({
-      mode: "queue",
-      levelCap: 50,
-      onConfirm: (team) => {
-        joinRandomQueue(team, (res) => {
-          if (!res.ok) {
-            window.alert(res.error ? `Couldn't queue: ${res.error}` : t("Couldn't queue."));
-            leaveRandomQueue();
-          }
-        });
-      },
+    const team = game.state.party.slice(0, 6);
+    if (team.length < 1) return;
+    joinRandomQueue(team, (res) => {
+      if (!res.ok) {
+        window.alert(res.error ? `Couldn't queue: ${res.error}` : t("Couldn't queue."));
+        leaveRandomQueue();
+      }
     });
   };
   const cancelQueue = () => leaveRandomQueue();
@@ -226,16 +228,12 @@ export function PvpHubPane() {
   // whole party is under 50.
   const startPractice = (trainer?: string) => {
     if (noTeam) return;
-    closePvpHub();
-    openTeamBuilder({
-      mode: "queue",
-      onConfirm: (team) => {
-        startBotBattle(team, { trainer }, (res) => {
-          if (!res.ok) {
-            window.alert(res.error ? `Couldn't start practice: ${res.error}` : t("Couldn't start practice."));
-          }
-        });
-      },
+    const team = game.state.party.slice(0, 6);
+    if (team.length < 1) return;
+    startBotBattle(team, { trainer }, (res) => {
+      if (!res.ok) {
+        window.alert(res.error ? `Couldn't start practice: ${res.error}` : t("Couldn't start practice."));
+      }
     });
   };
 

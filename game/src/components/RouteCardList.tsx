@@ -10,7 +10,6 @@ import {
 } from "../data/raidLegendaries";
 import { PokemonSprite } from "./Sprite";
 import "./raidTiers.css";
-import "./routeMap.css";
 import { rememberRaidReturn } from "../hooks/useRaidReturn";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
@@ -169,14 +168,7 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
   const caughtCount = enc.filter((e) => state.pokedexCaught.includes(e.speciesKey)).length;
 
   return (
-    <div
-      className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}
-      // The kind of place, for the card's colour. It was the first thing a
-      // player wants off a map and the only thing the old list did not show
-      // at all — a town with nothing in it looked exactly like a route with
-      // six species on it.
-      data-type={route.type}
-    >
+    <div className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
       <div className="route-card-head">
         <span className="route-card-icon">{iconForType(route.type)}</span>
         <strong className="route-card-name" title={unlocked ? route.name : undefined}>{unlocked ? route.name : t("???")}</strong>
@@ -238,29 +230,19 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
               )}
             </div>
           )}
-          {/* Progress and the action on one line, pinned to the bottom, so
-              every card in a row ends together however many species it
-              holds. */}
-          <div className="route-card-foot">
-            {enc.length > 0 && (
-              <div className="route-card-progress">
-                <span>{caughtCount}/{enc.length} {t("Caught")}</span>
-                {/* A bar as well as the fraction. "5/5" and "1/5" are the
-                    same shape at a glance; a bar is not. */}
-                <span className={`route-card-bar${caughtCount >= enc.length ? " is-done" : ""}`}>
-                  <span style={{ width: `${(caughtCount / enc.length) * 100}%` }} />
-                </span>
-              </div>
-            )}
-            <button
-              type="button"
-              className="route-card-go"
-              disabled={current}
-              onClick={() => onTravel(route.id)}
-            >
-              {current ? t("Here") : t("Go")}
-            </button>
-          </div>
+          {enc.length > 0 && (
+            <div className="route-card-progress dim small">
+              {caughtCount}/{enc.length} {t("Caught")}
+            </div>
+          )}
+          <button
+            type="button"
+            className={`g-btn-small ${current ? "g-btn-ghost" : "g-btn-primary"}`}
+            disabled={current}
+            onClick={() => onTravel(route.id)}
+          >
+            {current ? t("Here") : t("Go")}
+          </button>
         </>
       ) : (
         <ul className="route-card-reqs">

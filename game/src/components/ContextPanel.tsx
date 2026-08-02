@@ -630,7 +630,7 @@ export function UnlockHint() {
         <strong>{t("All locations unlocked!")}</strong>
         {state.championDefeated ? (
           <>
-            <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, lineHeight: 1.5 }} className="dim">
+            <ul className="dim unlock-endgame">
               <li>{t("Battle legendaries at ")}<strong>{t("Raid Island")}</strong>{t(" (top-right of the map).")}</li>
               <li>{t("Spend Victory Tokens at the ")}<strong>{t("Reward Shop")}</strong>.</li>
               {/* This is the prompt players follow to the end of the game, so

@@ -205,3 +205,96 @@
   color: var(--text-dim);
 }
 .use-item-empty { padding: 18px 2px; }
+
+/* ── Step two: which stat ──────────────────────────────────────────
+   A view, not a strip. What was here unfolded inside the Pokemon list,
+   pushed everything below it down while you read it, squeezed six stats
+   into the width of a list row, and left the Pokemon you were choosing
+   for scrolled halfway off the top — so the one thing the decision
+   needed on screen was the one thing that was not. */
+.use-item-step { display: flex; flex-direction: column; gap: 12px; }
+.use-item-back {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.use-item-back:hover { color: var(--text); }
+.use-item-back:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+
+/* Who the cap is for, pinned above the choice rather than scrolling with
+   the list of stats it applies to. */
+.use-item-subject {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: var(--card-radius, 8px);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.use-item-subject img { display: block; }
+.use-item-subject-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.use-item-subject-text strong { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+.use-item-subject-text span { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.use-item-step-q {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.use-item-statlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.use-item-statrow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 68px minmax(60px, 1fr) 54px 62px;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.use-item-statrow:hover:not(:disabled) { background: var(--panel-3); }
+.use-item-statrow:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.use-item-statrow:disabled { opacity: 0.45; cursor: not-allowed; }
+.use-item-statrow-name { font-size: 12px; font-weight: 600; }
+/* The decision is "which of these is worst", and six numbers in a column do
+   not answer that at a glance. */
+.use-item-statrow-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.use-item-statrow-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold);
+}
+.use-item-statrow-bar > span.is-done { background: #86efac; }
+.use-item-statrow-n { font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.use-item-statrow-go {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--gold);
+}
+.use-item-statrow:disabled .use-item-statrow-go { color: #86efac; }

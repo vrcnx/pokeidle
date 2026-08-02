@@ -20196,3 +20196,27 @@ strong, b { font-variant-numeric: tabular-nums; }
   border-radius: var(--card-radius, 8px);
   box-shadow: inset 0 0 0 1px var(--border);
 }
+
+/* The post-Champion goal card.
+   Its list was inheriting `.unlock-hint li` — `display: grid` with three
+   columns, written for the requirement rows ("Battles at Route 41 | bar |
+   0/22"). These are SENTENCES, so every <strong> in them became its own grid
+   cell: "Battle legendaries at | Raid Island | (top-right of the map)" laid
+   out as three columns, with the longest line wrapping into a 60px ribbon.
+   Prose, laid out as a table, because it happened to be in the same card. */
+.unlock-hint ul.unlock-endgame,
+.party-column .unlock-hint ul.unlock-endgame {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+  gap: 7px;
+}
+.unlock-hint ul.unlock-endgame li,
+.party-column .unlock-hint ul.unlock-endgame li {
+  display: list-item;
+  grid-template-columns: none;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.unlock-hint ul.unlock-endgame li strong { color: var(--text); font-weight: 700; }
