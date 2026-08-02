@@ -13,6 +13,7 @@ import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { openPokemonDetail } from "./PokemonDetailModal";
 import { HubViews } from "./HubModal";
+import { openBottleCap } from "./UseItemModal";
 import { createPortal } from "react-dom";
 import { DexSpeciesModal } from "./DexSpeciesModal";
 import { getItemInfo, itemSpriteSlug } from "../utils/items";
@@ -308,6 +309,9 @@ function MartCard({
         />
       </div>
 
+      {/* Every card's actions sit in one block pinned to the bottom, so the
+          buttons line up across a row however much text is above them. */}
+      <div className="mart-card-actions">
       {locked ? (
         <p className="mart-card-lock">
           {t("Unlocks at")} <strong>{need}</strong> {t("wild battles")}
@@ -383,6 +387,7 @@ function MartCard({
           </button>
         </>
       )}
+      </div>
     </li>
   );
 }
@@ -567,32 +572,40 @@ export function BagTab() {
               return (
                 <li
                   key={`${eff.itemId}|${eff.speciesKey}|${eff.routeKey ?? ""}`}
-                  className={`mart-card${eff.paused ? " mart-locked" : ""}`}
+                  className={`bag-effect${eff.paused ? " is-paused" : ""}`}
                 >
-                  <div className="mart-card-head">
-                    <img
-                      className="mart-card-sprite"
-                      src={itemSpriteUrl(eff.itemId, itemSpriteSlug(eff.itemId))}
-                      alt=""
-                      width={32}
-                      height={32}
-                      style={{ imageRendering: "pixelated" }}
-                    />
+                  <div className="bag-effect-head">
+                    <span className="bag-effect-icon">
+                      <img
+                        src={itemSpriteUrl(eff.itemId, itemSpriteSlug(eff.itemId))}
+                        alt=""
+                        width={28}
+                        height={28}
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    </span>
                     <div className="mart-card-text">
                       <strong className="mart-card-name">{info.name}</strong>
                       <span className="bag-effect-target">
                         {target || t("Everywhere")}
                       </span>
                     </div>
+                    {/* Running or held. The old card said "paused" in grey
+                        text at the end of a sentence; this is the state, so
+                        it reads as one. */}
+                    <span className="bag-effect-state">
+                      {eff.paused ? t("Paused") : t("Active")}
+                    </span>
                   </div>
                   <div className="bag-effect-foot">
                     <span className="bag-effect-left">
-                      {eff.battlesRemaining.toLocaleString()} {t("battles")}
-                      {eff.paused && <span className="dim"> - {t("paused")}</span>}
+                      {/* The number is the point — it is what runs out. */}
+                      <strong>{eff.battlesRemaining.toLocaleString()}</strong>
+                      {t("battles left")}
                     </span>
                     <button
                       type="button"
-                      className="mart-qty-preset"
+                      className="bag-effect-btn"
                       onClick={() =>
                         dispatch({
                           type: "TOGGLE_EFFECT_PAUSED",
@@ -656,14 +669,13 @@ function BagCard({
   // use the bottle caps" — and the answer was that you can, from a Pokémon's
   // detail sheet, where a Hyper Training card appears once you own one. The
   // Bag never said so, and the Bag is where you go holding the item.
-  const useHere = itemId === "expShare";
+  const isCap = itemId === "goldbottlecap" || itemId === "silverbottlecap";
+  const useHere = itemId === "expShare" || isCap;
   const useHint = useHere
     ? null
     : usedFromWildPanel
       ? t("Use it from the Wild Pokémon panel — pick the species to apply it to.")
-      : itemId === "goldbottlecap" || itemId === "silverbottlecap"
-        ? t("Open a Pokémon's details — Hyper Training is at the bottom.")
-        : cat?.category === "stone"
+      : cat?.category === "stone"
           ? t("Open a Pokémon's details, or use the party menu's Evolve action.")
           : null;
 
@@ -709,6 +721,8 @@ function BagCard({
 
       {useHint && <p className="bag-use-hint">{useHint}</p>}
 
+      <div className="mart-card-actions">
+
       {/* The only item that is used FROM the bag. Its button lived in
           BagPanel.tsx, which nothing has rendered for a long time — so
           USE_EXP_SHARE existed, worked, and had no way to be reached. */}
@@ -717,12 +731,21 @@ function BagCard({
           type="button"
           className="mart-buy-btn-v2 bag-use-v2"
           onClick={() => {
+            if (isCap) {
+              // Pick the Pokémon here rather than sending the player to find
+              // a button that only appears on a detail sheet once they
+              // happen to own one of these.
+              openBottleCap(itemId as "goldbottlecap" | "silverbottlecap");
+              return;
+            }
             dispatch({ type: "USE_EXP_SHARE" });
             pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
           }}
-          title={t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
+          title={isCap
+            ? t("Choose which Pokémon to Hyper Train")
+            : t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
         >
-          {t("Use")}
+          {isCap ? t("Use on…") : t("Use")}
         </button>
       )}
 
@@ -791,6 +814,7 @@ function BagCard({
         // shape so the grid stays a grid; it just has nothing to offer.
         <p className="mart-card-lock">{t("Can't be sold")}</p>
       )}
+      </div>
     </li>
   );
 }

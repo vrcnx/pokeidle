@@ -25,6 +25,7 @@ import { DailyRewardModal } from "./DailyRewardModal";
 import { WelcomeBackModal } from "./WelcomeBackModal";
 import { beginWelcomeBack } from "../state/welcomeBack";
 import { PokemonDetailModal } from "./PokemonDetailModal";
+import { UseItemMount } from "./UseItemModal";
 import { ManageMovesModal } from "./ManageMovesModal";
 import { CatchSettingsModal } from "./CatchSettingsModal";
 import { AppBackground } from "./AppBackground";
@@ -118,6 +119,7 @@ export function GameShell() {
       <HowToPlayModal />
       <DailyRewardModal />
       <PokemonDetailModal />
+      <UseItemMount />
       <ManageMovesModal />
       <CatchSettingsModal />
       <RewardShopModal />

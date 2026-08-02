@@ -25,6 +25,7 @@ import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
+import { openHeldItemPicker } from "./UseItemModal";
 import "./releaseControls.css";
 
 // Stat keys for Silver Bottle Cap hyper-training buttons.
@@ -41,28 +42,16 @@ const HYPER_STATS: { key: "hp" | "attack" | "defense" | "spAttack" | "spDefense"
 // item from the open Pokémon. The picker filters the player's inventory
 // to held-category items with implemented effects.
 function HeldItemRow({ pokemon }: { pokemon: Pokemon }) {
-  const { state, dispatch } = useGame();
   const t = useT();
-  const [picking, setPicking] = useState(false);
   const heldId = pokemon.heldItem;
   const heldDef = heldId ? itemsCatalog[heldId] : null;
 
-  // Available held items the player owns.
-  const ownedHeld = Object.entries(state.inventory ?? {})
-    .filter(([id, qty]) => qty > 0 && itemsCatalog[id]?.category === "held")
-    .map(([id]) => itemsCatalog[id])
-    .filter((it): it is NonNullable<typeof it> => !!it && it.implemented !== false)
-    // Exclude items that are non-equippable utility (Exp Share, Shiny Charm).
-    .filter((it) => it.id !== "expShare" && it.id !== "shinycharm");
-
-  const give = (itemId: string) => {
-    dispatch({ type: "GIVE_HELD_ITEM", payload: { pokemonId: pokemon.id, itemId } });
-    setPicking(false);
-  };
-  const take = () => {
-    dispatch({ type: "TAKE_HELD_ITEM", payload: { pokemonId: pokemon.id } });
-  };
-
+  // One button, opening a real dialog. What was here was a picker that
+  // expanded INSIDE this sheet, pushing the stats down, with no description
+  // and no count — and when the bag held none of them, a full-width bar
+  // reading "No held items in bag." where the control used to be. That was
+  // the only route to a held item, so an empty bag left the player looking
+  // at an error message with nothing to do about it.
   return (
     <div className="detail-held">
       <span className="dim">{t("Held:")}</span>{" "}
@@ -79,37 +68,14 @@ function HeldItemRow({ pokemon }: { pokemon: Pokemon }) {
           <span className="detail-held-name" title={heldDef.description}>
             {heldDef.name}
           </span>
-          <button className="detail-held-btn" onClick={take}>{t("Take")}</button>
+          <button className="detail-held-btn" onClick={() => openHeldItemPicker(pokemon.id)}>
+            {t("Change")}
+          </button>
         </>
       ) : (
-        <button className="detail-held-btn" onClick={() => setPicking(!picking)}>
-          {picking ? t("Cancel") : t("Give item…")}
+        <button className="detail-held-btn" onClick={() => openHeldItemPicker(pokemon.id)}>
+          {t("Give item…")}
         </button>
-      )}
-      {picking && (
-        <div className="detail-held-picker">
-          {ownedHeld.length === 0 ? (
-            <span className="dim small">{t("No held items in bag.")}</span>
-          ) : (
-            ownedHeld.map((it) => (
-              <button
-                key={it.id}
-                className="detail-held-pick"
-                title={it.description}
-                onClick={() => give(it.id)}
-              >
-                <img
-                  src={itemSpriteUrl(it.id, it.spriteOverride)}
-                  alt=""
-                  width={24}
-                  height={24}
-                  style={{ imageRendering: "pixelated" }}
-                />
-                <span>{it.name}</span>
-              </button>
-            ))
-          )}
-        </div>
       )}
     </div>
   );
@@ -214,7 +180,20 @@ export function PokemonDetailModal({ inline = false }: { inline?: boolean } = {}
   useEffect(() => {
     if (!inline) return;
     _hosts++; publishHosts();
-    return () => { _hosts--; publishHosts(); };
+    return () => {
+      _hosts--; publishHosts();
+      // Close the sheet as the host goes away. Without this, switching from
+      // the PC to any other hub section unmounted the inline copy, released
+      // the claim, and the GLOBAL mount immediately rendered the same
+      // selection as a full-screen overlay — so the sheet you were reading
+      // inside the PC reappeared on top of the section you had just opened,
+      // and would not go away.
+      //
+      // Closing is the honest behaviour and not just the fix that works:
+      // this sheet is a child action of the PC pane, and leaving the pane is
+      // leaving the thing it was showing you.
+      closePokemonDetail();
+    };
   }, [inline]);
 
   // Escape closes the modal — matches the rest of the modal surfaces

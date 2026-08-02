@@ -33,6 +33,17 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
+/* Every card's controls in one block, pushed to the bottom. Cards in a grid
+   row already stretch to the tallest one; without this the buttons sat at
+   whatever height the text above them happened to end, so a row of six read
+   as six different cards rather than one shelf. */
+.mart-card-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .mart-card-head {
   display: flex;
   align-items: center;
@@ -256,6 +267,56 @@
   text-transform: uppercase !important;
   color: var(--text-muted) !important;
 }
+/* ── An active effect ──────────────────────────────────────────────
+   Not an item card. An item is a thing you own; this is a thing already
+   RUNNING, with a countdown that moves on its own, and it was wearing the
+   same chrome as a Poké Ball you might sell.
+
+   Teal, because nothing else in these two panes is: the Mart is gold, the
+   Bag's sell action is green, and an effect is neither buying nor selling.
+   Paused drops to amber — held, not finished. */
+.bag-effect {
+  --fx: #2dd4bf;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 12px 15px;
+  border-radius: var(--card-radius, 8px);
+  background:
+    linear-gradient(140deg, rgba(45, 212, 191, 0.11) 0%, transparent 60%),
+    var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+.bag-effect::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--fx);
+}
+.bag-effect.is-paused {
+  --fx: #d97706;
+  background: linear-gradient(140deg, rgba(217, 119, 6, 0.1) 0%, transparent 60%), var(--panel-2);
+  opacity: 0.78;
+}
+
+.bag-effect-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* The sprite on a disc, so an effect never reads as a loose item icon. */
+.bag-effect-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--fx);
+}
+.bag-effect-icon img { display: block; }
+
 /* Where a repel is running — a species and a route, not a price. */
 .bag-effect-target {
   font-size: 11.5px;
@@ -265,17 +326,59 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bag-effect-state {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px var(--fx);
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--fx);
+}
+
 .bag-effect-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
+/* The figure carries the weight — it is the thing that runs out. */
 .bag-effect-left {
-  font-size: 11.5px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.bag-effect-left strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   color: var(--text);
 }
+.bag-effect-btn {
+  flex: 0 0 auto;
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 13px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.bag-effect-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.bag-effect-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+
 /* Selling is not buying. Same button, the other direction — green rather
    than the neutral fill, so a mis-click in the wrong pane is visible before
    it is pressed rather than after. */
