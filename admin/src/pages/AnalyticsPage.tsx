@@ -3,6 +3,7 @@ import { api, type Analytics } from "../api";
 import { navigateTo, type Page } from "../App";
 import { PageActions, PageNote } from "../components/PageChrome";
 import { AcquisitionPanel } from "../components/AcquisitionPanel";
+import { Kpi, SectionHead } from "../components/Section";
 
 // "Cadence" layout — design panel winner.
 // One focal point per row. 12-column grid, 24px gutters, 32px between
@@ -302,42 +303,6 @@ export function AnalyticsPage() {
         </article>
       </section>
     </div>
-  );
-}
-
-/**
- * A named band of the page.
- *
- * ── WHY THE PAGE NEEDED THESE ───────────────────────────────────────
- * Before this it was fourteen cards in a column, every one the same weight,
- * with nothing saying that the top three answer "who is here", the next four
- * answer "where did they come from", and the last three are reference data. A
- * reader had to reconstruct that grouping from the card titles on every visit.
- *
- * The rule is what does the separating — a heading alone at this density reads
- * as one more card title. It is drawn as a hairline through the whole width so
- * the eye gets a hard stop, which is the thing that was missing.
- */
-function SectionHead({ title, blurb }: { title: string; blurb: string }) {
-  return (
-    <div className="section-head">
-      <h2 className="section-head__title">{title}</h2>
-      <p className="section-head__blurb dim">{blurb}</p>
-    </div>
-  );
-}
-
-/** One tile in the KPI strip. Uniform by construction — every headline number
- *  on this page is the same object and should be the same size. */
-function Kpi({ label, value, sub, hint, accent }: {
-  label: string; value: string; sub?: string; hint?: string; accent?: boolean;
-}) {
-  return (
-    <article className={`kpi${accent ? " kpi--accent" : ""}`} title={hint}>
-      <span className="kpi-label">{label}</span>
-      <strong className="kpi-value">{value}</strong>
-      {sub && <span className="kpi-sub">{sub}</span>}
-    </article>
   );
 }
 

@@ -2833,7 +2833,16 @@ app.get("/live-ops", async (c) => {
   const userIds = snapshot.map((s) => s.userId);
   const since = new Date(Date.now() - 30 * 60 * 1000);
 
-  const [users, recentMessages, recentSignups, recentTrades, recentPvP] = await Promise.all([
+  // ── WHY THE COUNTS ARE QUERIED SEPARATELY ─────────────────────────
+  // The lists below are capped (50 chat, 20 each of the rest) so the payload
+  // stays small on a 5-second poll. The dashboard used to derive its headline
+  // numbers from the LENGTH of those lists, which meant a busy half hour
+  // reported "50 chat messages" — pinned to the cap, indistinguishable from a
+  // quiet one that genuinely had 50, and wrong in exactly the direction that
+  // makes an incident look smaller than it is. These are the real numbers; the
+  // lists stay capped and are labelled as a recent sample.
+  const [users, recentMessages, recentSignups, recentTrades, recentPvP,
+         chatCount, signupCount, tradeCount, pvpCount] = await Promise.all([
     userIds.length === 0
       ? []
       : prisma.user.findMany({
@@ -2868,6 +2877,10 @@ app.get("/live-ops", async (c) => {
       take: 20,
       select: { id: true, createdAt: true, winnerId: true },
     }).catch(() => [] as any[]),
+    prisma.chatMessage.count({ where: { createdAt: { gte: since } } }),
+    prisma.user.count({ where: { createdAt: { gte: since } } }),
+    prisma.tradeRecord.count({ where: { createdAt: { gte: since } } }).catch(() => 0),
+    prisma.pvpMatch.count({ where: { createdAt: { gte: since } } }).catch(() => 0),
   ]);
   const userMap = new Map(users.map((u) => [u.id, u]));
   const onlineUsers = snapshot.map((s) => ({
@@ -2905,6 +2918,14 @@ app.get("/live-ops", async (c) => {
         winnerUserId: p.winnerId,
       })),
     },
+    /** True totals over the window. The lists above are a capped sample of
+     *  these — see the comment on the query fan-out. */
+    counts: { chat: chatCount, signups: signupCount, trades: tradeCount, pvp: pvpCount },
+    /** How many of each kind the lists will return at most, so the dashboard
+     *  can tell "this is everything" from "this is the most recent N" without
+     *  hardcoding the server's limits. */
+    caps: { chat: 50, signups: 20, trades: 20, pvp: 20 },
+    windowMinutes: 30,
     serverTime: new Date().toISOString(),
   });
 });

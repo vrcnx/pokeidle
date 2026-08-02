@@ -126,9 +126,70 @@ const ACQUISITION = {
   ],
 };
 
+// Live ops, generated at call time so the ages tick and the pulse chart is
+// exercised. Chat is deliberately AT its cap of 50 while the true count is
+// 214 — the truncation case is the one the page has to handle honestly, and a
+// mock that never saturates would never show it.
+const NAMES = ["sak4i", "stratus_varius", "koruem2", "tokyofuck", "phoenix", "averyverylongtrainername", "ash_k", "misty"];
+function liveOpsMock() {
+  const now = Date.now();
+  const pick = (i: number) => NAMES[i % NAMES.length];
+  const at = (minsAgo: number) => new Date(now - minsAgo * 60_000 - (minsAgo % 7) * 3000).toISOString();
+  const chat = Array.from({ length: 50 }, (_, i) => ({
+    id: `c${i}`, kind: "chat" as const,
+    // Bunched into the last 12 minutes: 50 rows is the cap, so the sample
+    // cannot reach further back than that and the chart must say so.
+    createdAt: at(i * 0.24),
+    channelId: i % 4 === 0 ? "global" : i % 4 === 1 ? "area:Viridian Forest" : "dm:abc",
+    content: i % 5 === 0
+      ? "does anyone have a spare thunderstone, i'll trade a shiny eevee for it honestly"
+      : "gg",
+    user: { id: `u${i}`, username: pick(i), name: null },
+  }));
+  const signups = Array.from({ length: 6 }, (_, i) => ({
+    id: `s${i}`, kind: "signup" as const, createdAt: at(i * 4 + 1),
+    user: { id: `n${i}`, username: `newbie${i}`, name: null },
+  }));
+  const trades = Array.from({ length: 9 }, (_, i) => ({
+    id: `t${i}`, kind: "trade" as const, createdAt: at(i * 3 + 0.5),
+    species: [["Pikachu", "Eevee", "Gengar"][i % 3], ["Charmander", "Snorlax", "Abra"][i % 3]],
+  }));
+  const pvp = Array.from({ length: 4 }, (_, i) => ({
+    id: `p${i}`, kind: "pvp" as const, createdAt: at(i * 6 + 2),
+    winnerUserId: i % 3 === 0 ? null : "u1",
+  }));
+  return {
+    online: Array.from({ length: 14 }, (_, i) => ({
+      userId: `o${i}`,
+      sessionCount: i === 2 ? 3 : i === 5 ? 2 : 1,
+      user: {
+        id: `o${i}`, username: pick(i), name: i % 3 === 0 ? null : pick(i),
+        accountLevel: [3615, 87, 12, 611, 1119, 4, 902, 45][i % 8],
+        lastSeenAt: new Date(now).toISOString(),
+        pokedexCaughtCount: 84,
+        isAdmin: i === 4,
+        bannedUntil: i === 7 ? new Date(now + 86400000).toISOString() : null,
+      },
+    })),
+    activity: { chat, signups, trades, pvp },
+    counts: { chat: 214, signups: 6, trades: 9, pvp: 4 },
+    caps: { chat: 50, signups: 20, trades: 20, pvp: 20 },
+    windowMinutes: 30,
+    serverTime: new Date(now).toISOString(),
+  };
+}
+
 Object.assign(api, {
   analytics: async () => ANALYTICS,
   acquisition: async () => ACQUISITION,
+  // `__failLiveOps = true` in the console makes every poll reject, which is
+  // the only way to see the stale/disconnected states the page was rebuilt
+  // for. Those states are unreachable from a mock that always succeeds, and
+  // an error path nobody can look at is an error path nobody has checked.
+  liveOps: async () => {
+    if ((window as any).__failLiveOps) throw new Error("simulated: network unreachable");
+    return liveOpsMock();
+  },
   me: async () => ({ id: "u1", username: "phoenix", isAdmin: true }),
   // Enough for the command palette to render its player rows, including a
   // banned one — the row that carries an extra hint and is the easiest to
@@ -148,15 +209,20 @@ Object.assign(api, {
 // The real shell, so pages are judged inside the layout they ship in.
 
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { CommandPalette } from "./components/CommandPalette";
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
 const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "analytics", label: "Analytics", render: () => <AnalyticsPage /> },
+  { key: "liveops",   label: "Live ops",  render: () => <LiveOpsPage /> },
 ];
 
 function Harness() {
-  const [page] = useState(PAGES[0]);
+  // ?page=liveops picks one. The preview exists to be looked at, and clicking
+  // through a nav to reach the page under review is friction on every reload.
+  const initial = PAGES.find((p) => p.key === new URLSearchParams(location.search).get("page")) ?? PAGES[0];
+  const [page, setPage] = useState(initial);
   useScrollbarWidthVar();
   return (
     <div className="admin-shell">
@@ -170,11 +236,11 @@ function Harness() {
         <nav className="admin-nav">
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Overview</span>
-            <button className="admin-nav-item active">
+            <button className={`admin-nav-item ${page.key === "analytics" ? "active" : ""}`} onClick={() => setPage(PAGES[0])}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M3 3v18h18" /><path d="M7 14l3-3 3 3 5-5" /></svg>
               <span className="admin-nav-item-label">Analytics</span>
             </button>
-            <button className="admin-nav-item">
+            <button className={`admin-nav-item ${page.key === "liveops" ? "active" : ""}`} onClick={() => setPage(PAGES[1])}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
               <span className="admin-nav-item-label">Live ops</span>
             </button>
@@ -219,6 +285,11 @@ function Harness() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode><Harness /></StrictMode>,
-);
+// The root is cached across hot reloads. Calling createRoot again on a
+// container that already has one logs a React warning on EVERY edit, and a
+// console full of warnings is a console where a real error goes unread —
+// which defeats the point of a harness you check the console of.
+const el = document.getElementById("root")!;
+const g = window as unknown as { __previewRoot?: ReturnType<typeof createRoot> };
+g.__previewRoot ??= createRoot(el);
+g.__previewRoot.render(<StrictMode><Harness /></StrictMode>);

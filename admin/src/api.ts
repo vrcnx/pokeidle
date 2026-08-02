@@ -57,12 +57,20 @@ export interface LiveOpsActivityItem {
 }
 export interface LiveOps {
   online: LiveOpsUser[];
+  /** A capped, most-recent sample. Compare each list's length against `caps`
+   *  to know whether it is the whole window or the top of it — the headline
+   *  numbers must come from `counts`, never from these lengths. */
   activity: {
     chat: LiveOpsActivityItem[];
     signups: LiveOpsActivityItem[];
     trades: LiveOpsActivityItem[];
     pvp: LiveOpsActivityItem[];
   };
+  /** True totals over the window. */
+  counts: { chat: number; signups: number; trades: number; pvp: number };
+  /** The server's per-kind list limits. */
+  caps: { chat: number; signups: number; trades: number; pvp: number };
+  windowMinutes: number;
   serverTime: string;
 }
 
