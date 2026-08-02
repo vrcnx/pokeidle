@@ -31,22 +31,31 @@ export function DailyRewardModal() {
     bindDailies(() => setOpen(true));
   }, []);
 
-  // Stream auto-login sessions never show the daily popup. Silently claim
-  // once (so the streak keeps ticking on the streamed account), then close
-  // — an unattended OBS box can't click "Claim".
+  // Stream auto-login sessions never show a daily popup — an unattended OBS
+  // box cannot click "Claim" and would sit behind the dialog. Claim silently
+  // instead, so the streak keeps ticking on the streamed account.
+  //
+  // Deliberately NOT gated on `open` any more. It used to be, which worked
+  // only because bindDailies auto-opened this modal; now the welcome dialog
+  // owns that moment and skips itself entirely in stream mode, so an
+  // open-gated claim would never run and a streamed account would quietly
+  // lose its streak.
   useEffect(() => {
-    if (!open || !isStream) return;
-    if (status && !status.claimedToday && !streamClaimed.current) {
-      streamClaimed.current = true;
-      api.claimDaily()
-        .then((res) => {
-          dispatch({ type: "APPLY_DAILY_REWARD", payload: { money: res.reward.money, items: res.reward.items } });
-          setDailyStatus(res.status);
-        })
-        .catch(() => undefined);
-    }
-    setOpen(false);
-  }, [open, isStream, status, dispatch]);
+    if (!isStream || streamClaimed.current) return;
+    if (!status || status.claimedToday) return;
+    streamClaimed.current = true;
+    api.claimDaily()
+      .then((res) => {
+        dispatch({ type: "APPLY_DAILY_REWARD", payload: { money: res.reward.money, items: res.reward.items } });
+        setDailyStatus(res.status);
+      })
+      .catch(() => undefined);
+  }, [isStream, status, dispatch]);
+
+  // Belt and braces: if something does open it on a stream box, close it.
+  useEffect(() => {
+    if (open && isStream) setOpen(false);
+  }, [open, isStream]);
 
   useEffect(() => {
     if (!open) return;

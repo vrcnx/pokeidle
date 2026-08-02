@@ -18943,3 +18943,258 @@ html, body {
 .rename-locked { color: var(--gold, #eab308); }
 .rename-saved { color: #86efac; }
 .rename-error { margin-top: 8px; }
+
+
+/* =================================================================
+   Welcome back
+   -----------------------------------------------------------------
+   One dialog replacing four competing ones (daily reward, away stipend,
+   release notes, gift toast). See components/WelcomeBackModal.tsx.
+
+   The layout is a single column of optional sections, each with the same
+   internal shape — a title row, then rows of icon + value + caption. That
+   sameness is the point: the sections appear and disappear depending on what
+   happened while the player was gone, and a dialog whose blocks are all built
+   the same way still reads as one object no matter which ones are present.
+   ================================================================= */
+
+/* Centred, unlike the app's other overlays which pin to the top. This is the
+   first thing seen on return and it is short — top-pinned, it floats in the
+   upper third with a lot of nothing under it.
+
+   Doubled-up selectors (.modal-overlay.wb-overlay) throughout: .modal-overlay
+   and .g-modal are each declared several times in this file, including inside
+   their own @media blocks, and a single-class override loses to whichever copy
+   happens to come last. These are deliberate overrides of the shared modal
+   primitives, so they say so with their specificity rather than depending on
+   source order. */
+.modal-overlay.wb-overlay { align-items: center; padding: 4vh 16px; }
+
+.g-modal.wb-modal {
+  width: min(440px, calc(100vw - 24px));
+  max-width: none;
+  max-height: min(86vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wb-head {
+  padding: 22px 22px 16px;
+  text-align: center;
+  /* A warm wash at the top, fading out. Enough to feel like an occasion
+     without becoming a coloured band that fights the content under it. */
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(251, 191, 36, 0.13), transparent 70%);
+  border-bottom: 1px solid var(--border);
+}
+.wb-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--gold, #fbbf24);
+}
+.wb-head h2 {
+  margin: 5px 0 0;
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+
+.wb-body {
+  padding: 4px 20px 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sections are separated by a rule rather than by whitespace alone. With a
+   variable number of them, whitespace alone reads as "these got spaced oddly"
+   rather than as a boundary — the same reasoning as the admin dashboard's
+   section heads. */
+.wb-section { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.wb-section:last-child { border-bottom: 0; }
+.wb-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.wb-section-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wb-section-head .wb-section-title { margin: 0; }
+
+/* ── Reward rows ────────────────────────────────────────────────── */
+.wb-rewards { display: flex; flex-direction: column; gap: 8px; }
+.wb-reward,
+.wb-daily-prize {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.wb-reward-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 26px;
+  text-align: center;
+}
+.wb-reward-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wb-reward-text > strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold, #fbbf24);
+  overflow-wrap: anywhere;
+}
+.wb-reward-sub { font-size: 11.5px; color: var(--text-muted); }
+.wb-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── Streak ─────────────────────────────────────────────────────── */
+.wb-streak {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.wb-streak-best { color: var(--text-muted); font-weight: 500; }
+
+.wb-week { display: flex; gap: 5px; margin-bottom: 10px; }
+.wb-day {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.wb-day.is-past {
+  color: #34d399;
+  border-color: color-mix(in srgb, #34d399 34%, transparent);
+  background: color-mix(in srgb, #34d399 10%, var(--panel-2));
+}
+.wb-day.is-today {
+  color: #0a0a0a;
+  background: var(--gold, #fbbf24);
+  border-color: var(--gold, #fbbf24);
+  /* The only saturated element in the dialog, so "today" is findable in the
+     strip without reading it. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold, #fbbf24) 22%, transparent);
+}
+/* Day 7 is the bonus. Marked even when it is neither past nor today, so the
+   streak reads as something with a destination rather than seven equal days. */
+.wb-day.is-bonus:not(.is-today):not(.is-past) {
+  border-color: color-mix(in srgb, var(--gold, #fbbf24) 38%, transparent);
+  color: var(--gold, #fbbf24);
+}
+
+/* ── What's new ─────────────────────────────────────────────────── */
+.wb-version {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.wb-news {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.wb-news li::marker { color: var(--gold, #fbbf24); }
+.wb-link {
+  margin-top: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.wb-link:hover { color: var(--text); }
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+.wb-foot {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+/* One button, full width. Two actions ("Claim", then "Close") would make the
+   player confirm twice that they would like their reward — the stacked-modal
+   problem in miniature. */
+.wb-cta {
+  width: 100%;
+  /* The shared .g-btn-* rule sets a fixed `height: 32px`, so padding alone
+     does nothing — the button silently stayed 32px tall no matter what was
+     asked of it. This is the primary action of the dialog and wants a real
+     target, so the height is released back to the content. */
+  height: auto;
+  min-height: 46px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 800;
+  background: var(--gold, #fbbf24);
+  border-color: var(--gold, #fbbf24);
+  color: #0a0a0a;
+}
+.wb-cta:disabled { opacity: 0.7; }
+
+@media (max-width: 480px) {
+  /* `!important` here is not enthusiasm — it is matching. `.modal-overlay` is
+     declared three times in this file, and the third copy carries
+     `padding: 6px !important` (line ~10383) specifically to beat the earlier
+     two. Importance beats specificity, so nothing an ordinary rule can say
+     overrides it; a bottom-sheet cannot reach the screen edges without
+     answering in kind. The real fix is to collapse those three declarations
+     into one, which is a wider change than this dialog. */
+  .modal-overlay.wb-overlay { align-items: flex-end; padding: 0 !important; }
+  /* Sheet from the bottom on a phone: it puts the single call to action
+     under the thumb instead of in the middle of the screen. */
+  .g-modal.wb-modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .wb-head { padding-top: 18px; }
+  .wb-head h2 { font-size: 20px; }
+  .wb-day { height: 28px; font-size: 11.5px; }
+  /* The shared .g-modal-* mobile paddings do not apply here — this dialog
+     uses its own head/body/foot classes — so the gutters are set explicitly
+     rather than inherited by accident. */
+  .wb-body { padding-left: 16px; padding-right: 16px; }
+  .wb-head, .wb-foot { padding-left: 16px; padding-right: 16px; }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type AwayProgress } from "../net/api";
+import { contributeAway } from "./welcomeBack";
 
 // Away-time catch-up progress — the client half of br_876bae56ef21c9021c
 // ("its annoying to always have to keep the game open… if the PC shuts down
@@ -79,10 +80,16 @@ export async function settleAwayProgress(): Promise<void> {
     if (res.claimed && res.money > 0) {
       _report = res;
       emit();
+      contributeAway(res);
+    } else {
+      contributeAway(null);
     }
   } catch {
     /* Offline, signed out, or a server that predates this route. The stipend
        is not progress the player can lose: nothing was consumed, so the next
        boot measures the same away period and pays it then. */
+    // Reported either way: the welcome dialog WAITS on this source, and a
+    // silent failure would hold it open until the timeout for no reason.
+    contributeAway(null);
   }
 }

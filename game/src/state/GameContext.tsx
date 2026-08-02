@@ -24,6 +24,7 @@ import { getSocket } from "../net/socket";
 import { pushToast } from "../components/Toast";
 import { pushAuctionNotification } from "./auctions";
 import { settleAwayProgress } from "./awayProgress";
+import { captureBootGift } from "./welcomeBack";
 import { pendingRegionStarter } from "../utils/unlocks";
 import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
 import { grandfatherShinyCharm } from "../utils/shinyCharm";
@@ -734,6 +735,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const prizes = Array.isArray(res?.grantsApplied) ? res.grantsApplied : [];
     if (prizes.length === 0) return;
     dispatch({ type: "RECEIVE_GIFT", payload: { prizes: prizes as any } });
+    const summary = res.grantsSummary ?? "a gift";
+    // A grant folded in during boot is part of coming back, so it goes in the
+    // welcome dialog rather than firing a toast over the top of a dialog that
+    // is about the same thing. captureBootGift returns false once that window
+    // has passed (or once the dialog decided not to show), and then this is an
+    // ordinary live event and a toast is exactly right.
+    if (captureBootGift(summary)) return;
     pushToast({
       kind: "success",
       icon: "🎁",

@@ -22,7 +22,8 @@ import { RegionStarterSelect } from "./RegionStarterSelect";
 import { ChangelogModal } from "./ChangelogModal";
 import { HowToPlayModal } from "./HowToPlayModal";
 import { DailyRewardModal } from "./DailyRewardModal";
-import { AwayProgressModal } from "./AwayProgressModal";
+import { WelcomeBackModal } from "./WelcomeBackModal";
+import { beginWelcomeBack } from "../state/welcomeBack";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { ManageMovesModal } from "./ManageMovesModal";
 import { CatchSettingsModal } from "./CatchSettingsModal";
@@ -61,6 +62,10 @@ export function GameShell() {
     bindAnnouncementSocket();
     bindPvpSocket();
     bindAuctionUiSocket();
+    // Arms the welcome-back collection window. Order-independent: the sources
+    // may already have reported by now (React runs child effects first), and
+    // the decision reads everything it needs when it is made.
+    beginWelcomeBack();
   }, []);
   // Warm Pokémon-sprite browser cache for everything the player is
   // likely to see soon: party (both facings + shiny variant) on every
@@ -104,10 +109,15 @@ export function GameShell() {
 
       <EvolutionModal />
       <RegionStarterSelect />
+      {/* The one surface allowed to open itself on return. The daily reward,
+          the away stipend, the release notes and the gift toast used to each
+          decide independently, so they stacked — see state/welcomeBack.ts.
+          DailyRewardModal and ChangelogModal are still mounted because both
+          are reachable from Settings; neither auto-opens any more. */}
+      <WelcomeBackModal />
       <ChangelogModal />
       <HowToPlayModal />
       <DailyRewardModal />
-      <AwayProgressModal />
       <PokemonDetailModal />
       <ManageMovesModal />
       <CatchSettingsModal />

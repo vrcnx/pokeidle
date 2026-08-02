@@ -51,35 +51,24 @@ export function ChangelogModal() {
     return () => { _openFull = null; };
   }, []);
 
-  useEffect(() => {
-    // Stream auto-login sessions never get the What's New popup — an
-    // unattended OBS box would just sit on it. Mark caught-up so it stays
-    // quiet, and bail before any auto-open.
-    if (isStreamMode()) { writeSeen(CURRENT_VERSION); return; }
-
-    const seen = readSeen();
-    if (seen === CURRENT_VERSION) return;         // already caught up
-
-    if (!seen) {
-      // Brand-new player (or someone who cleared storage). Do not greet
-      // them with release notes — they have never played, so "we fixed
-      // the Safari Zone Dratini bug" is meaningless and in the way.
-      // Mark them current so their first real update is the first thing
-      // they ever see.
-      writeSeen(CURRENT_VERSION);
-      return;
-    }
-
-    const fresh = changesSince(seen);
-    if (fresh.length === 0) {
-      // Version moved but nothing player-facing to report (or their
-      // stored version is somehow ahead of ours). Record and stay quiet.
-      writeSeen(CURRENT_VERSION);
-      return;
-    }
-    setNewEntries(fresh);
-    setMode("auto");
-  }, []);
+  // No auto-open any more.
+  //
+  // "What's new" is a section of the welcome-back dialog now
+  // (state/welcomeBack.ts), which summarises it and offers a link here for
+  // the full text. This modal used to fire on mount, synchronously from
+  // localStorage — so it opened FIRST and was then covered by the daily and
+  // away modals as their requests resolved, leaving release notes the player
+  // never saw underneath two overlays they had to clear.
+  //
+  // The three rules the old auto-open enforced still hold; they moved rather
+  // than disappeared. Brand-new players are marked current without being
+  // shown anything (welcomeBack.beginWelcomeBack), dismissal sticks until the
+  // next version (welcomeBack.closeWelcomeBack writes the seen version), and
+  // a returning player sees only what shipped since they were last here
+  // (changesSince, called there).
+  //
+  // `openChangelog()` from Settings and from the welcome dialog is now the
+  // only way in — hence "full" being the only reachable mode.
 
   // Escape closes, like every other modal in the app.
   useEffect(() => {

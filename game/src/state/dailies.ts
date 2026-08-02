@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type DailyStatus } from "../net/api";
 import { pushToast } from "../components/Toast";
+import { contributeDaily } from "./welcomeBack";
 
 // Module store for the daily-reward status, mirroring the presence /
 // announcement stores. Fetched once on bind and after each claim; a hook
@@ -29,8 +30,15 @@ export async function refreshDailyStatus(): Promise<void> {
   catch { /* offline / not signed in — retried on next bind */ }
 }
 
-// Registers the modal opener and does the first fetch. Auto-opens the reward
-// modal once if a claim is available, so the player sees it on login.
+// Registers the modal opener and does the first fetch.
+//
+// It no longer auto-opens. A claimable daily is now one section of the
+// welcome-back dialog (state/welcomeBack.ts), which is the only thing in the
+// app allowed to open itself at boot — four surfaces each deciding
+// independently to pop up is what produced the stack of overlays a returning
+// player had to clear before playing. The status is CONTRIBUTED there instead,
+// including when the fetch fails, because the collector waits on this source
+// and a silent failure would hold the dialog until its timeout.
 export function bindDailies(openOnClaimable: () => void) {
   _openModal = openOnClaimable;
   if (_fetched) return;
@@ -38,9 +46,13 @@ export function bindDailies(openOnClaimable: () => void) {
   api.dailyStatus()
     .then((s) => {
       setDailyStatus(s);
-      if (!s.claimedToday) _openModal?.();
+      contributeDaily(s);
     })
-    .catch(() => { /* offline at boot — openDailyReward() below retries */ });
+    .catch(() => {
+      // Offline at boot. openDailyReward() below retries on demand; tell the
+      // collector so it stops waiting on us.
+      contributeDaily(null);
+    });
 }
 
 // The Settings "Daily reward" button. This used to just flip the modal
