@@ -443,6 +443,17 @@ app.get("/tournaments", async (c) => {
   return c.json({ v: BOT_DTO_VERSION, linked: viewerId !== null, tournaments });
 });
 
+// GET /api/bot/tournaments/pending — the announce poll.
+//
+// MUST be registered before /tournaments/:id. Hono matches in registration
+// order, so with :id first the literal path "pending" is captured as an id and
+// the poll gets a 404 that reads like "no tournament with that id" — which is
+// exactly what shipped once. Every literal segment under a parameterised
+// sibling has to come first; the same applies to anything added below.
+app.get("/tournaments/pending", async (c) => {
+  return c.json(await botTournamentsPending());
+});
+
 // GET /api/bot/tournaments/:id?discordId=
 app.get("/tournaments/:id", async (c) => {
   if (!readLimiter.consume(limitKey(c, "tinfo"))) return c.json({ error: "rate_limited" }, 429);
@@ -455,12 +466,6 @@ app.get("/tournaments/:id", async (c) => {
     );
   }
   return c.json({ v: BOT_DTO_VERSION, linked: viewerId !== null, tournament });
-});
-
-// GET /api/bot/tournaments/pending — the announce poll.
-// Registered BEFORE /tournaments/:id or "pending" would be read as an id.
-app.get("/tournaments/pending", async (c) => {
-  return c.json(await botTournamentsPending());
 });
 
 // POST /api/bot/tournaments/:id/announced { messageId, channelId }
