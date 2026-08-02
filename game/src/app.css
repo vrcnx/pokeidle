@@ -93,6 +93,43 @@
   --r-xl: 8px;
   --r-pill: 999px;
 
+  /* ── Controls ─────────────────────────────────────────────────
+     THE control scale. Every button, tab and pill in the game is built
+     from these six numbers and these seven colours.
+
+     There used to be no scale at all. `.dock-btn` alone had SEVEN
+     definitions scattered across the file, each from a different era and
+     each using different tokens — 6px vs var(--r-md) vs var(--r-sm) for
+     the radius, --panel-2 vs --panel-3 for the surface, `6px 4px 4px` vs
+     var(--sp-2) vs `8px 4px` for the padding. Tabs were worse: the bottom
+     strip, the region pills, the chat channels and the social tabs were
+     four unrelated implementations at four heights with three different
+     ideas about what "selected" looks like. Nothing was wrong with any
+     one of them; together they were the reason the UI felt assembled
+     rather than designed.
+
+     Anything that does not fit these numbers is a deliberate exception
+     and should say so at its own declaration. */
+  --ctl-h:      32px;  /* default: dock buttons, footer buttons, tabs */
+  --ctl-h-sm:   26px;  /* dense row actions — Go, Heal, inline tabs */
+  --ctl-h-lg:   38px;  /* sidebar nav, primary calls to action */
+  --ctl-r:       6px;  /* one radius for every control */
+  --ctl-fs:     12px;
+  --ctl-fs-sm:  11px;
+
+  --ctl-bg:       var(--panel-2);
+  --ctl-bg-hover: var(--panel-3);
+  --ctl-fg:       var(--text-muted);
+  --ctl-fg-hover: var(--text);
+  --ctl-line:     var(--border);
+  /* Selected. ONE colour, everywhere: gold already meant "selected" on the
+     bottom tabs and the region pills, so it is the rule rather than a new
+     idea. Colour that is not gold means "what KIND of thing this is" — the
+     teal on a free reward, the red on a delete — and never "you are here". */
+  --ctl-on-fg:    var(--gold);
+  --ctl-on-bg:    rgba(251, 191, 36, 0.10);
+  --ctl-on-line:  var(--gold);
+
   /* ── Layout rhythm ────────────────────────────────────────────
      ONE gap between cards, everywhere on desktop: between the three
      columns, between cards inside each column, and between cards inside the
@@ -8089,9 +8126,9 @@ body.dnd-active {
    + tab pane head + padding to stay under 900px total. */
 .center-column .moves-panel-wrap { padding: 8px !important; }
 .moves-panel-header { margin-bottom: 6px !important; }
-.bottom-tab { padding: 6px 4px !important; }
-.bottom-tab-icon { font-size: 13px; }
-.bottom-tab-label { font-size: 9px; }
+/* .bottom-tab sizing moved to the CONTROL PRIMITIVES block at the end of
+   this file. It carried `padding: 6px 4px !important` here, which is
+   exactly the kind of declaration that made one class mean five things. */
 .tab-pane-head { padding: 6px 10px !important; margin: 0 !important; }
 .town-map-header { padding: 4px 10px !important; }
 
@@ -9347,55 +9384,70 @@ input, textarea, select {
   flex-shrink: 0;
   margin: 0;
 }
+/* The meta dock — PvP / Settings / Social.
+   This is the row in the top-left of the desktop shell, and it is a
+   SELECTION: exactly one of its popups is open at a time. So it looks like
+   a tab set, because it is one.
+
+   It used to be borderless, transparent, --text-muted, with --panel-4 as
+   its "active" — which read as a hover rather than a state, and made the
+   three most-used buttons in the game the only controls with no frame at
+   all. Every declaration below was !important; they are plain now, and the
+   selector's own (0,3,0) is what keeps it ahead of the shared primitive.
+
+   Horizontal, not the stacked icon-over-label of the party dock: this is a
+   28px bar, and stacking in it is what forced the 9px labels. */
 .control-column .dock-meta .dock-btn,
 .party-column .dock-meta .dock-btn,
 .location-column .dock-meta .dock-btn {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 6px !important;
-  padding: 0 8px !important;
-  font-size: 11.5px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.2px !important;
-  text-transform: none !important;
-  border: 0 !important;
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  height: 100% !important;
-  width: 100% !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
-  transition: background 120ms ease, color 120ms ease;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 8px;
+  font-size: var(--ctl-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r);
+  background: transparent;
+  color: var(--ctl-fg);
+  box-shadow: none;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
-.control-column .dock-meta .dock-btn:hover:not(:disabled),
-.party-column .dock-meta .dock-btn:hover:not(:disabled),
-.location-column .dock-meta .dock-btn:hover:not(:disabled) {
-  background: var(--panel-3) !important;
-  color: var(--text) !important;
-  border-color: transparent !important;
+.control-column .dock-meta .dock-btn:hover:not(:disabled):not(.active),
+.party-column .dock-meta .dock-btn:hover:not(:disabled):not(.active),
+.location-column .dock-meta .dock-btn:hover:not(:disabled):not(.active) {
+  background: var(--ctl-bg-hover);
+  color: var(--ctl-fg-hover);
 }
+/* Gold, like every other selected control. */
 .control-column .dock-meta .dock-btn.active,
 .party-column .dock-meta .dock-btn.active,
 .location-column .dock-meta .dock-btn.active {
-  background: var(--panel-4) !important;
-  color: var(--text) !important;
-  box-shadow: none !important;
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+  box-shadow: none;
 }
 .control-column .dock-meta .dock-btn-icon,
 .party-column .dock-meta .dock-btn-icon,
 .location-column .dock-meta .dock-btn-icon {
   display: inline-flex;
-  font-size: 14px !important;
+  font-size: 14px;
   line-height: 1;
 }
 .control-column .dock-meta .dock-btn-label,
 .party-column .dock-meta .dock-btn-label,
 .location-column .dock-meta .dock-btn-label {
-  font-size: 11.5px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.2px !important;
+  font-size: var(--ctl-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 /* Mobile header meta buttons — PvP, Settings, Social — sit in ONE row.
@@ -10409,7 +10461,9 @@ input, textarea, select {
 .context-panel,
 .party-row,
 .profile-strip,
-.dock-btn,
+/* .dock-btn was here, taking a CARD's surface and 8px card radius. It is a
+   button: it belongs to the --ctl-* scale in the CONTROL PRIMITIVES block at
+   the end of this file, not to the card scale. */
 .mini-chat,
 .unlock-hint,
 .moves-panel-wrap,
@@ -11461,7 +11515,9 @@ input:focus, textarea:focus, select:focus {
 .mini-chat,
 .unlock-hint,
 .party-column .unlock-hint,
-.dock-btn,
+/* .dock-btn: see above. This one was !important, so it was the rule actually
+   winning — a button rendered with a card's radius because it happened to be
+   in a list of cards. */
 .friend-row,
 .moves-panel-wrap,
 .bottom-tabs,
@@ -11484,7 +11540,8 @@ input:focus, textarea:focus, select:focus {
   padding: var(--card-pad-default) !important;
 }
 .profile-strip { padding: 10px 14px !important; }
-.dock-btn { padding: 12px 8px !important; }
+/* .dock-btn padding: see CONTROL PRIMITIVES at the end of this file. The
+   !important that used to live here is gone with it. */
 .party-row { padding: 10px 12px !important; }
 .friend-row { padding: 10px 12px !important; }
 .battle-area, .bottom-tabs { padding: 0 !important; }
@@ -19443,4 +19500,252 @@ button.wb-card:active { transform: translateY(1px); }
     border-top: 1px solid var(--border);
   }
   .has-aside .wb-main .wb-section:last-child { border-bottom: 0; }
+}
+
+/* =====================================================================
+   CONTROL PRIMITIVES â€” the last word on buttons and tabs
+   =====================================================================
+   Deliberately at the END of the file. Every rule below is a plain
+   declaration at ordinary specificity, so it wins over the older
+   scattered definitions on source order alone. There is no !important
+   anywhere in this block, and none is needed.
+
+   Two primitives, built from the --ctl-* scale in :root:
+
+     .g-tab   â€” one member of a set you pick ONE of
+     .g-btn   â€” a thing you press to make something happen
+
+   Existing class names are aliased into them rather than rewritten in
+   twenty .tsx files. That keeps this change reviewable as one diff and
+   means a component's markup still reads the way its author wrote it;
+   the alias lists below ARE the inventory of every tab and button set in
+   the game, which is a useful thing to be able to read in one place.
+
+   -- THE ONE RULE ABOUT COLOUR --
+   Gold means "you are here" and nothing else. Any other colour on a
+   control describes what KIND of thing it is: teal for a free reward,
+   red for a destructive action, white for the primary action in a
+   dialog. Before this, the bottom tabs used gold for selection, the
+   region pills used gold-plus-a-tinted-fill, the chat channels used a
+   white dot, and the rewards sidebar used three different accents. All
+   four meant the same thing and looked like four things.
+   ===================================================================== */
+
+/* -- Tab sets --
+   The row. `gap: 2px` and no dividers: a rule between every tab is a
+   1px line the eye has to parse before it gets to the words, and the
+   selected state is doing that job already. */
+.g-tabs,
+.route-region-tabs,
+.mini-chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.g-tab,
+.bottom-tab,
+.route-region-tab,
+.mini-chat-tab,
+.social-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ctl-h-sm);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r);
+  background: transparent;
+  color: var(--ctl-fg);
+  font-family: inherit;
+  font-size: var(--ctl-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.g-tab:hover:not(.active):not(:disabled),
+.bottom-tab:hover:not(.active),
+.route-region-tab:hover:not(.active),
+.mini-chat-tab:hover:not(.active),
+.social-tab:hover:not(.active) {
+  background: var(--ctl-bg-hover);
+  color: var(--ctl-fg-hover);
+}
+.g-tab:focus-visible,
+.bottom-tab:focus-visible,
+.route-region-tab:focus-visible,
+.mini-chat-tab:focus-visible,
+.social-tab:focus-visible {
+  outline: 2px solid var(--ctl-on-line);
+  outline-offset: 1px;
+}
+/* Selected: tinted fill, gold text, gold hairline. One treatment, so a
+   tab reads as selected the same way in the map strip, the region row,
+   the chat channels and the social panel. The bottom strip's old
+   `inset 0 -2px 0` underline is gone: an underline only works when the
+   strip has a shared baseline, which stopped being true the moment the
+   same class was reused in a floating row. */
+.g-tab.active,
+.bottom-tab.active,
+.route-region-tab.active,
+.mini-chat-tab.active,
+.social-tab.active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+  box-shadow: none;
+}
+
+/* The bottom strip is the one tab set that fills its container: five
+   equal segments across the full width of the centre column, which is
+   what makes it read as the app's primary navigation rather than a row
+   of chips. The strip keeps its own frame; only the tabs inside it are
+   now the shared primitive. */
+.bottom-tab-strip {
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.bottom-tab {
+  flex: 1;
+  height: var(--ctl-h);
+  border-right: 0;
+}
+.bottom-tab-icon { font-size: 14px; line-height: 1; }
+.bottom-tab-label { font-size: var(--ctl-fs-sm); letter-spacing: 0.2px; text-transform: none; }
+
+/* -- Buttons --
+   `.dock-btn` and `.town-action-btn` keep their stacked icon-over-label
+   shape (they are big touch targets in a grid, not row actions) but
+   they take the shared surface, radius, border and hover, so they stop
+   being three different greys next to each other. */
+.g-btn,
+.dock-btn,
+.town-action-btn {
+  border: 1px solid var(--ctl-line);
+  border-radius: var(--ctl-r);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg-hover);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.g-btn:hover:not(:disabled),
+.dock-btn:hover:not(:disabled),
+.town-action-btn:hover:not(:disabled) {
+  background: var(--ctl-bg-hover);
+  border-color: var(--border-strong);
+}
+.g-btn:focus-visible,
+.dock-btn:focus-visible,
+.town-action-btn:focus-visible {
+  outline: 2px solid var(--ctl-on-line);
+  outline-offset: 1px;
+}
+.g-btn:disabled,
+.dock-btn:disabled,
+.town-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* An active dock button means "this panel is open", which is a
+   selection, so it takes the same gold as a tab. It used to be a
+   white-ish fill with a box-shadow, which read as "hovered". */
+.dock-btn.active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+  box-shadow: none;
+}
+
+.dock-btn,
+.town-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--ctl-h-lg);
+  padding: 6px 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.dock-btn-icon,
+.town-action-icon { font-size: 16px; line-height: 1; }
+.dock-btn-label,
+.town-action-label { font-size: 9.5px; letter-spacing: 0.3px; }
+
+/* The two row-action sizes, restated once. `.g-btn-small` and
+   `.g-btn-primary`/`.g-btn-ghost` were each defined twice, ~2,500 lines
+   apart, at 26px/5px and 32px/6px, so the same pair of buttons in one
+   row could disagree about its own height. */
+.g-btn-primary,
+.g-btn-ghost,
+.g-btn-danger-ghost,
+.g-btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--ctl-h);
+  padding: 0 14px;
+  border-radius: var(--ctl-r);
+  border: 1px solid var(--ctl-line);
+  font-family: inherit;
+  font-size: var(--ctl-fs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.g-btn-small,
+.g-btn-small.g-btn-primary,
+.g-btn-small.g-btn-ghost {
+  height: var(--ctl-h-sm);
+  padding: 0 11px;
+  font-size: var(--ctl-fs-sm);
+}
+/* Primary stays white-on-black. It is the only control in the game that
+   inverts, which is exactly why it reads as "this is the one", and it
+   is never a selection, so it does not compete with gold. */
+.g-btn-primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: #0a0a0a;
+}
+.g-btn-primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
+.g-btn-ghost {
+  background: var(--ctl-bg);
+  color: var(--ctl-fg);
+}
+.g-btn-ghost:hover:not(:disabled) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.g-btn-primary:disabled,
+.g-btn-ghost:disabled,
+.g-btn-small:disabled { opacity: 0.5; cursor: not-allowed; }
+.g-btn-primary:focus-visible,
+.g-btn-ghost:focus-visible,
+.g-btn-danger-ghost:focus-visible,
+.g-btn-small:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
+
+/* Touch: the shared floor, applied once to the primitives rather than
+   re-derived per widget. 900px is the app's own touch breakpoint â€”
+   GameShell swaps to MobileShell at exactly (max-width: 900px). */
+@media (max-width: 900px) {
+  .g-tab,
+  .bottom-tab,
+  .route-region-tab,
+  .mini-chat-tab,
+  .social-tab,
+  .g-btn-primary,
+  .g-btn-ghost,
+  .g-btn-danger-ghost,
+  .g-btn-small,
+  .g-btn-small.g-btn-primary,
+  .g-btn-small.g-btn-ghost { min-height: 40px; }
+  .dock-btn,
+  .town-action-btn { min-height: 44px; }
 }

@@ -433,34 +433,34 @@
   width: 100%;
   min-height: 38px;
   padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r);
   background: none;
-  color: var(--text-muted);
+  color: var(--ctl-fg);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
-.rw-tab:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
-.rw-tab:focus-visible { outline: 2px solid #5eead4; outline-offset: 1px; }
-.rw-tab.is-active { background: var(--panel-2); color: var(--text); font-weight: 700; }
-.rw-tab.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 2px;
+.rw-tab:hover:not(.is-active) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.rw-tab:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
+/* Gold, like every other selected control in the game. This started out
+   with a different accent per tab — teal, purple, gold — which was three
+   answers to "you are here" in one 194px column, and the exact thing the
+   control-primitives pass exists to stop. Colour that is not gold means
+   what KIND of thing something is, which is why the free-reward ICON is
+   still teal and the card below it still is too. */
+.rw-tab.is-active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+  font-weight: 700;
 }
-.rw-tab--promo.is-active::before { background: #2dd4bf; }
-.rw-tab--live.is-active::before  { background: #a855f7; }
-.rw-tab--past.is-active::before  { background: #fbbf24; }
 .rw-tab-icon { flex: 0 0 auto; width: 17px; font-size: 13px; line-height: 1; text-align: center; }
 .rw-tab--promo .rw-tab-icon { color: #5eead4; }
+.rw-tab--promo.is-active .rw-tab-icon { color: inherit; }
 .rw-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Counts what is ACTIONABLE, so it is always worth looking at. Teal on
@@ -695,7 +695,6 @@
      hunting for. */
   .rw-nav { flex-direction: row; flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; }
   .rw-tab { width: auto; white-space: nowrap; padding: 0 12px; min-height: 40px; }
-  .rw-tab.is-active::before { left: 8px; right: 8px; top: auto; bottom: 3px; width: auto; height: 2px; }
   .rw-haul {
     margin-top: 0;
     flex: 0 0 auto;
