@@ -4,6 +4,7 @@ import { useIsPvpBattle } from "./state/pvp";
 import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
+import { useShinyAnnounce } from "./hooks/useShinyAnnounce";
 import { useAutoEvolve } from "./hooks/useAutoEvolve";
 import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
 import { useStreamAutoPlay } from "./hooks/useStreamAutoPlay";
@@ -35,6 +36,10 @@ export function App() {
   useAutoProceed();
   useAutoEvolve(pvpBattle);
   useCatchAnimation();
+  // Announces a shiny catch in global chat. Mounted here beside the other
+  // consumers rather than inside a chat component: it must fire whether or
+  // not the chat panel is on screen, and on mobile it usually is not.
+  useShinyAnnounce();
   useStreamStartRoute();
   useStreamAutoPlay();
   // `?trade=<username>` from a Discord noticeboard listing. One-shot, and it

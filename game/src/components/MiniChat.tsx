@@ -247,6 +247,15 @@ function SystemCard({ message }: { message: ChatMessage }) {
             {t("View Giveaway")}
           </button>
         )}
+        {message.kind === "shiny" && message.meta?.username && (
+          <button
+            type="button"
+            className="mini-chat-system-action"
+            onClick={() => openPublicTrainerCard(message.meta!.username!)}
+          >
+            {t("View Trainer")}
+          </button>
+        )}
         {message.kind === "gift" && message.meta?.username && (
           <button
             type="button"

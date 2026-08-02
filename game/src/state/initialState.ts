@@ -45,6 +45,7 @@ export const initialState: GameState = {
   pokedexSeen: [],
   pokedexCaught: [],
   shinyCaught: [],
+  lastCatch: null,
   shinySeen: [],
   defeatedGyms: [],
   defeatedEliteFour: [],

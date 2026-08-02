@@ -536,6 +536,19 @@ function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean)
     next = { ...next, box: [...next.box, caught] };
   }
   next = registerAcquired(next, caught);
+  // The event, for subscribers outside the reducer (see GameState.lastCatch).
+  // Set on the shared path so both the instant catch and the animated one
+  // report it — the two have drifted apart before.
+  next = {
+    ...next,
+    lastCatch: {
+      key: (next.lastCatch?.key ?? 0) + 1,
+      speciesKey: caught.speciesKey,
+      name: caught.name,
+      level: caught.level,
+      isShiny: !!caught.isShiny,
+    },
+  };
   next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
   next = maybeRaidBottleCapDrop(next, wasInRaid);
   next = applyCatchExp(next, enemy);

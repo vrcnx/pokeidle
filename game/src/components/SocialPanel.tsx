@@ -367,6 +367,15 @@ function ChatTab({
                         {t("View Giveaway")}
                       </button>
                     )}
+                    {m.kind === "shiny" && m.meta?.username && (
+                      <button
+                        type="button"
+                        className="mini-chat-system-action"
+                        onClick={() => openPublicTrainerCard(m.meta!.username!)}
+                      >
+                        {t("View Trainer")}
+                      </button>
+                    )}
                     {m.kind === "gift" && m.meta?.username && (
                       <button
                         type="button"

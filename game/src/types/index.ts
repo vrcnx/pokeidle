@@ -512,6 +512,25 @@ export interface GameState {
   // out (white-out / raid wipe / defensive auto-heal). Cleared by the
   // overlay component itself after ~1.6s.
   whiteoutAnim: { key: number } | null;
+  // The most recent successful catch, for anything outside the reducer that
+  // has to REACT to one rather than read the result of one. Today that is a
+  // single subscriber: the shiny announcement in global chat.
+  //
+  // Transient — deliberately absent from PERSISTED_KEYS, so it never
+  // survives a reload. If it did, every refresh would re-announce the last
+  // shiny you ever caught.
+  //
+  // `key` is what makes two catches of the same species distinguishable:
+  // shinyCaught is an append-only SET, so watching it would announce only
+  // the first Gyarados and stay silent for the second. A monotonic counter
+  // changes on every catch, which is the event this describes.
+  lastCatch: {
+    key: number;
+    speciesKey: string;
+    name: string;
+    level: number;
+    isShiny: boolean;
+  } | null;
 }
 
 export interface GymLeader {

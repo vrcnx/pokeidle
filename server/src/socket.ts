@@ -5,6 +5,7 @@ import { prisma } from "./db.js";
 import { recordDailyActive } from "./lib/presence.js";
 import { canAccessChannel, GLOBAL_CHANNEL, TRADE_CHANNEL, parseDmChannel } from "./lib/chatChannels.js";
 import { sanitizeChatText } from "./lib/chatText.js";
+import { buildShinyAnnouncement } from "./lib/shinyAnnounce.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { validateSave } from "./lib/saveValidation.js";
 import { getLiveAnnouncement, toPublic } from "./lib/announcements.js";
@@ -60,6 +61,13 @@ import type { BotTier } from "./lib/pvpBotBrain.js";
 // - Trade actions (offer/lock/cancel): 60/min — UI generates a few per
 //   trade naturally; well above that is misuse.
 const chatLimiter = makeRateLimiter({ tokens: 20, windowMs: 30_000 });
+// Shiny announcements. Deliberately mean: a shiny is a roughly 1-in-4096
+// event, so a legitimate player will never come near ten in an hour, and
+// this is the ONLY thing standing between global chat and a modified client
+// claiming one every second. The save is client-authoritative — the server
+// cannot verify a catch it never saw — so the honest defence is a ceiling
+// low enough that abuse is boring, not a check that pretends to be proof.
+const shinyAnnounceLimiter = makeRateLimiter({ tokens: 10, windowMs: 3_600_000 });
 const tradeInviteLimiter = makeRateLimiter({ tokens: 5, windowMs: 60_000 });
 const tradeActionLimiter = makeRateLimiter({ tokens: 60, windowMs: 60_000 });
 // PvP rate limits — invites mirror trade invites (anti-spam) and per-
@@ -989,6 +997,70 @@ export function attachSocketServer(httpServer: HttpServer): Server {
             for (const sid of sockets) io.to(sid).emit("chat:message", payload);
           }
         }
+        ack?.({ ok: true, id: stored.id });
+      }
+    );
+
+    // ── Shiny catches ────────────────────────────────────────────────
+    // The client says it caught one; this composes and posts the notice.
+    //
+    // A SEPARATE event, not a `kind` on chat:send. The client never gets to
+    // name the kind of a chat row — that rule already exists for
+    // "announcement" and "giveaway" and it exists for a reason. Here it
+    // matters twice over, because the sentence is written server-side from
+    // the AUTHENTICATED username: a player cannot announce someone else's
+    // shiny, or word their own announcement however they like.
+    //
+    // What this cannot do is verify the catch. The save lives on the client,
+    // so there is no server-side record of an encounter to check against —
+    // exactly as with a trade offer's free-text "offering". The mitigations
+    // are the ones actually available: a hard hourly ceiling, a species key
+    // that has to look like a species key, and a display name that goes
+    // through the same sanitiser as every other player-supplied string that
+    // reaches a chat bubble.
+    socket.on(
+      "shiny:announce",
+      async (
+        { speciesKey, name, level }: { speciesKey?: string; name?: string; level?: number },
+        ack?: (r: any) => void,
+      ) => {
+        const notice = buildShinyAnnouncement({
+          speciesKey, name, level,
+          username: user.username,
+          displayName: user.name,
+        });
+        if (!notice) {
+          ack?.({ ok: false, error: "bad species" });
+          return;
+        }
+        // Silent on refusal: a rate-limited announcement is a non-event, not
+        // something to retry. Consumed AFTER validation so a stream of
+        // malformed payloads cannot burn a real catch's budget.
+        if (!shinyAnnounceLimiter.consume(user.id)) {
+          ack?.({ ok: true, skipped: "rate_limited" });
+          return;
+        }
+        const stored = await prisma.chatMessage.create({
+          data: {
+            channelId: GLOBAL_CHANNEL,
+            userId: user.id,
+            content: notice.content,
+            kind: "shiny",
+            meta: JSON.stringify(notice.meta),
+          },
+          include: {
+            user: { select: { id: true, username: true, name: true, accountLevel: true, isAdmin: true } },
+          },
+        });
+        io.to(GLOBAL_CHANNEL).emit("chat:message", {
+          id: stored.id,
+          channelId: GLOBAL_CHANNEL,
+          content: stored.content,
+          kind: stored.kind,
+          meta: JSON.parse(stored.meta!),
+          createdAt: stored.createdAt,
+          user: stored.user,
+        });
         ack?.({ ok: true, id: stored.id });
       }
     );
