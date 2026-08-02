@@ -53,11 +53,22 @@ function useRequest(): OpenRequest | null {
   return r;
 }
 
-// ── Modal ───────────────────────────────────────────────────────────
-export function TeamBuilderModal() {
-  const req = useRequest();
+/**
+ * The builder itself - two columns, no dialog chrome.
+ *
+ * Left: the team you are taking, in order. Right: everything you own. It
+ * used to be one column of full-width rows above a five-across grid, so the
+ * thing you were BUILDING and the parts you were building it from could not
+ * be on screen together - every pick was a scroll up to see what it did.
+ */
+export function TeamBuilderPane({
+  levelCap, onConfirm, onCancel,
+}: {
+  levelCap?: number;
+  onConfirm: (team: Pokemon[]) => void;
+  onCancel: () => void;
+}) {
   const { state } = useGame();
-  const dialogRef = useModalEnter(".g-card");
   const t = useT();
   // Selected Pokémon ids — order matters for lead vs. bench. We store
   // ids rather than indices because the box can be re-sorted.
@@ -71,11 +82,9 @@ export function TeamBuilderModal() {
   // before confirming. Re-runs on each new request (not on party
   // changes mid-modal) so toggling a row doesn't bounce back.
   useEffect(() => {
-    if (req) setPicked(state.party.slice(0, 6).map((p) => p.id));
+    setPicked(state.party.slice(0, 6).map((p) => p.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [req]);
-
-  if (!req) return null;
+  }, []);
 
   const all = [
     ...state.party.map((p) => ({ source: "party" as const, mon: p })),
@@ -107,47 +116,24 @@ export function TeamBuilderModal() {
       .map((id) => all.find((x) => x.mon.id === id)?.mon)
       .filter((p): p is Pokemon => !!p);
     if (team.length < 1) return;
-    req.onConfirm(team);
-    closeTeamBuilder();
+    onConfirm(team);
   };
-
-  const cancel = () => {
-    req.onCancel?.();
-    closeTeamBuilder();
-  };
-
-  const title =
-    req.mode === "invite"     ? t("Pick a team to send")
-    : req.mode === "accept"   ? t("Accept battle — pick a team")
-    : req.mode === "queue"    ? t("Random battle — pick a team")
-    :                            t("Tournament — pick a team");
 
   const ready = picked.length >= 1;
 
   return (
-    <div className="modal-overlay">
-      <div
-        ref={dialogRef}
-        className="g-modal team-builder-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={title}
-      >
-        <header className="g-modal-head">
-          <h2>{title}</h2>
-          <button className="g-modal-close" onClick={cancel} aria-label={t("Cancel")}>×</button>
-        </header>
-
-        <div className="g-modal-body">
-          {req.levelCap != null && (
+    <div className="tb-pane">
+        <div className="tb-body">
+          {levelCap != null && (
             <p className="dim small team-builder-cap">
-              {t("Levels in this match are capped to")} <strong>{t("Lv")} {req.levelCap}</strong>
+              {t("Levels in this match are capped to")} <strong>{t("Lv")} {levelCap}</strong>
               {t(". Your saved Pokémon are unchanged.")}
             </p>
           )}
 
-          {/* Picked-team strip */}
-          <section className="g-card g-card-full team-builder-strip">
+          <div className="tb-cols">
+          {/* LEFT: what you are taking, in order. */}
+          <section className="g-card team-builder-strip">
             <h3>{t("Your team")} <span className="dim small">({picked.length}/6)</span></h3>
             {picked.length === 0 ? (
               <p className="dim small team-builder-empty">
@@ -200,8 +186,9 @@ export function TeamBuilderModal() {
             )}
           </section>
 
-          {/* Available pool — party first, then box */}
-          <section className="g-card g-card-full team-builder-pool">
+          {/* RIGHT: everything you own, beside the team rather than under
+              it, so a pick and its effect are visible at the same time. */}
+          <section className="g-card team-builder-pool">
             <h3>{t("Pick from your party + box")}</h3>
             <div className="team-builder-pool-grid">
               {all.length === 0 && <p className="dim">{t("No Pokémon yet.")}</p>}
@@ -232,11 +219,12 @@ export function TeamBuilderModal() {
               })}
             </div>
           </section>
+          </div>
         </div>
 
-        <footer className="g-modal-foot">
-          <button className="g-btn-ghost" onClick={cancel}>{t("Cancel")}</button>
-          <span style={{ flex: 1 }} />
+        <footer className="tb-foot">
+          <button className="g-btn-ghost" onClick={onCancel}>{t("Cancel")}</button>
+          <span className="tb-foot-spacer" />
           <button
             className="g-btn-primary"
             onClick={confirm}
@@ -246,6 +234,54 @@ export function TeamBuilderModal() {
             {t("Confirm team")}
           </button>
         </footer>
+    </div>
+  );
+}
+
+/**
+ * The modal wrapper, for callers OUTSIDE the hub - an incoming battle
+ * invite, a rematch from the result dialog, a challenge from a trainer
+ * card. Those arrive while the player is doing something else, so they
+ * need their own overlay.
+ *
+ * Inside the hub the same builder renders as a pane, because stacking a
+ * second dialog on top of the one dialog the hub exists to be is exactly
+ * the pile the hub replaced.
+ */
+export function TeamBuilderModal() {
+  const req = useRequest();
+  const dialogRef = useModalEnter(".g-card");
+  const t = useT();
+  if (!req) return null;
+
+  const title =
+    req.mode === "invite"     ? t("Pick a team to send")
+    : req.mode === "accept"   ? t("Accept battle — pick a team")
+    : req.mode === "queue"    ? t("Random battle — pick a team")
+    :                            t("Tournament — pick a team");
+
+  return (
+    <div className="modal-overlay">
+      <div
+        ref={dialogRef}
+        className="g-modal team-builder-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={title}
+      >
+        <header className="g-modal-head">
+          <h2>{title}</h2>
+          <button
+            className="g-modal-close"
+            onClick={() => { req.onCancel?.(); closeTeamBuilder(); }}
+            aria-label={t("Cancel")}
+          >×</button>
+        </header>
+        <TeamBuilderPane
+          levelCap={req.levelCap}
+          onConfirm={(team) => { req.onConfirm(team); closeTeamBuilder(); }}
+          onCancel={() => { req.onCancel?.(); closeTeamBuilder(); }}
+        />
       </div>
     </div>
   );

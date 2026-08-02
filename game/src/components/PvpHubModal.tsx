@@ -16,7 +16,7 @@ import {
   joinSpectator,
   type LiveBattleSummary,
 } from "../state/pvp";
-import { openTeamBuilder } from "./TeamBuilderModal";
+import { openTeamBuilder, TeamBuilderPane } from "./TeamBuilderModal";
 import { openReplay } from "./PvpReplayModal";
 import { IconSwords, IconCrown, IconClose } from "./Icon";
 import { PokemonSprite } from "./Sprite";
@@ -67,6 +67,10 @@ export function closePvpHub() { closeHub(); }
  */
 export function PvpHubPane() {
   const isOpen = true;
+  // Editing the team is a MODE of this pane, not another dialog on top of
+  // it. The hub exists because four stacked modals were a pile; opening a
+  // fifth from inside it would be the same mistake one level down.
+  const [editingTeam, setEditingTeam] = useState(false);
   const pvp = usePvpState();
   const game = useGame();
   const { me } = useAuth();
@@ -91,7 +95,6 @@ export function PvpHubPane() {
   // has chosen instead. null = "use the recommendation", which is what the
   // permanent PRACTICE slab sends.
   const [botRecommended, setBotRecommended] = useState<string | null>(null);
-  const [botPick, setBotPick] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) { setLoaded(false); return; }
@@ -129,7 +132,6 @@ export function PvpHubPane() {
       if (!res.ok) return;
       setBotTrainers(res.trainers ?? []);
       setBotRecommended(res.recommended ?? null);
-      setBotPick(null);
     });
     const refreshLive = () => {
       listLiveBattles((res) => { if (res.ok) setLiveBattles(res.battles ?? []); });
@@ -217,13 +219,6 @@ export function PvpHubPane() {
    *  WHY an unmatched one is unmatched, and every entry gets a note: an opponent
    *  the matcher could not fit to your team with no explanation attached is the
    *  silent version of the problem this picker exists to fix. */
-  const trainerNote = (tr: BotTrainerOption): string => {
-    if (tr.id === botRecommended) return t("matched to your team");
-    if (tr.matched) return t("fair fight");
-    if ((tr.edge ?? 0) > 0.5) return t("type advantage to the AI");
-    if ((tr.edge ?? 0) < -0.5) return t("type advantage to you");
-    return t("not matched to your team");
-  };
 
   // AI practice. Deliberately NO levelCap on the picker: the server matches the
   // bot to your team slot-for-slot, so there is nothing to normalise and
@@ -267,6 +262,24 @@ export function PvpHubPane() {
 
   // Player's 6-mon team for the strip.
   const teamForStrip = game.state.party.slice(0, 6);
+
+  if (editingTeam) {
+    return (
+      <div className="pvp-hub-pane pvp-hub-pane--editing">
+        <header className="pvp2-edit-head">
+          <button className="g-btn-ghost g-btn-small" onClick={() => setEditingTeam(false)}>
+            {"←"} {t("Back to Battle")}
+          </button>
+          <h3>{t("Your battle team")}</h3>
+        </header>
+        <TeamBuilderPane
+          levelCap={50}
+          onConfirm={() => setEditingTeam(false)}
+          onCancel={() => setEditingTeam(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`pvp-hub-pane ${inQueue ? "is-queued" : ""}`}>
@@ -389,33 +402,18 @@ export function PvpHubPane() {
             stake={mode === "ranked" && !isUnranked ? EVEN_MATCH_SWING : null}
             onReady={
               mode === "practice"
-                ? () => startPractice(botPick ?? botRecommended ?? undefined)
+                ? () => startPractice(botRecommended ?? undefined)
                 : startMatch
             }
             onCancel={cancelQueue}
           />
-          {/* WHO you fight, and how fair it is — the finding this closes is that
-              the player was told which trainer was being proposed but had no way
-              to pick one, while the trainers were not equally strong. */}
-          {mode === "practice" && !inBattle && !inQueue && botTrainers.length > 0 && (
-            <div className="pvp2-bot-picker">
-              <label htmlFor="pvp-bot-trainer">{t("Opponent")}</label>
-              <select
-                id="pvp-bot-trainer"
-                value={botPick ?? botRecommended ?? ""}
-                onChange={(e) => setBotPick(e.target.value || null)}
-              >
-                {botTrainers.map((tr) => (
-                  <option key={tr.id} value={tr.id}>
-                    {tr.label} — {trainerNote(tr)}
-                  </option>
-                ))}
-              </select>
-              <span className="dim small">
-                {t("Their Pokémon are matched to your team's levels and power. Never rated.")}
-              </span>
-            </div>
-          )}
+          {/* The opponent picker is gone. The server already ranks the bot
+              roster against the player's party and names a fair one — the
+              dropdown existed only to expose that ranking, and what it
+              actually showed was one recommended trainer above seven lines
+              reading "not matched to your team". Offering seven bad choices
+              to make one good one look good is not a choice. Practice now
+              takes the recommendation. */}
           </div>
           {/* RIGHT: the team, and a way in to change it.
               Six sprites in the corner that did nothing. Every other game
@@ -427,10 +425,7 @@ export function PvpHubPane() {
           <button
             type="button"
             className="pvp2-team"
-            onClick={() => {
-              closePvpHub();
-              openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } });
-            }}
+            onClick={() => setEditingTeam(true)}
             title={t("Edit your battle team")}
           >
             <span className="pvp2-team-head">
@@ -923,10 +918,12 @@ function ReadyUpSlab({
   // deliberate choice, so RANKED remains the default chip.
   if (mode === "practice") {
     return (
-      <button className="pvp-slab pvp-slab-secondary" onClick={onReady}>
-        <span className="pvp-slab-title">{t("PRACTICE VS AI")}</span>
-        <span className="pvp-slab-sub">{t("Not rated · matched to your team")}</span>
-      </button>
+      <div className="pvp-slab-wrap">
+        <button className="pvp-slab pvp-slab-secondary" onClick={onReady}>
+          <span className="pvp-slab-title">{t("PRACTICE VS AI")}</span>
+          <span className="pvp-slab-sub">{t("Not rated · fair fight, picked for you")}</span>
+        </button>
+      </div>
     );
   }
   return (

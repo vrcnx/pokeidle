@@ -1150,3 +1150,68 @@
   .pvp2-mode { min-height: 48px; }
   .pvp2-slot-lv { font-size: 8.5px; }
 }
+
+/* ── The team builder, as a pane ───────────────────────────────────
+   Editing your team is a MODE of the Battle pane, not another dialog on
+   top of it. The hub exists because four stacked modals were a pile;
+   opening a fifth from inside it would be the same mistake one level
+   down.
+
+   Two columns. It was one column of full-width rows sitting above a
+   five-across grid, which meant the team you were BUILDING and the
+   Pokémon you were building it from could not be on screen together —
+   so every pick was a scroll up to see what it did. */
+.tb-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.tb-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.tb-cols {
+  display: grid;
+  /* The team is a fixed, finite six; the pool is unbounded. So the team
+     column is sized and the pool takes the rest. */
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+/* Both columns scroll independently and stop at the same line, so the
+   footer never moves and the pool never pushes the team off screen. */
+.tb-cols > .g-card { margin: 0; max-height: 46vh; overflow-y: auto; }
+
+.tb-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.tb-foot-spacer { flex: 1; }
+
+/* The way back. A pane you can enter and not leave is a trap, and the
+   hub's own × would close the whole dialog rather than the editor. */
+.pvp2-edit-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pvp2-edit-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pvp-hub-pane--editing { gap: 12px; }
+
+@media (max-width: 900px) {
+  .tb-cols { grid-template-columns: minmax(0, 1fr); }
+  .tb-cols > .g-card { max-height: none; }
+}
