@@ -12,6 +12,7 @@ import { buildUnifiedShop } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { openPokemonDetail } from "./PokemonDetailModal";
+import { HubViews } from "./HubModal";
 import { DexSpeciesModal } from "./DexSpeciesModal";
 import { getItemInfo, itemSpriteSlug } from "../utils/items";
 import {
@@ -37,6 +38,7 @@ import {
 } from "../utils/releaseConfirm";
 import { decideRelease } from "../utils/releaseAtClick";
 import "./releaseControls.css";
+import "./mart.css";
 import type { GameState, Pokemon, PokemonType } from "../types";
 import type { MutableRefObject, ReactNode } from "react";
 
@@ -94,22 +96,40 @@ export function BottomTabs() {
 // the player has unlocked (any town they've visited). Per-item
 // wildBattlesWon gates still fire on top.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Poke Mart.
+//
+// -- WHAT IT WAS ------------------------------------------------------
+// One flat list of every item the player had ever seen for sale, sorted by
+// price, with SIX controls on every row: minus, a quantity readout, plus,
+// +10, Max and Buy. Buying twenty Poke Balls meant "+10, +10, Buy" - and
+// buying ONE meant reading past five controls you did not want to find the
+// one you did. Nothing was grouped, so Ultra Balls sat between a Full Heal
+// and a Repel because of what they happened to cost.
+//
+// -- WHAT IT IS -------------------------------------------------------
+// Categories on the dialog's header bar, and a grid of cards with the
+// quantities AS the buttons: x1, x5, x10, Max, each one a purchase. The
+// stepper is gone. Choosing an amount and then confirming it were two steps
+// to do one thing, and the amounts people actually ask for are few enough
+// to name.
+//
+// Each card says what it costs and how many you already own - the question
+// that used to send people to the Bag and back mid-restock.
+// ---------------------------------------------------------------------------
+
+/** The amounts a shopper actually asks for. `null` is "as many as I can
+ *  afford" - the only one whose number is not known in advance. */
+const MART_QUANTITIES: Array<number | null> = [1, 5, 10, null];
+
 export function MartTab() {
   const { state, dispatch } = useGame();
   const t = useT();
   const here = state.currentLocation;
-  const route = routes[here];
-  // When the player hits Buy, the row swaps into a quantity adjuster so
-  // they can buy in bulk. Only one row can be pending at a time.
-  const [pending, setPending] = useState<{ itemId: string; qty: number } | null>(null);
+  const [shelf, setShelf] = useState<ItemCategory | "all">("all");
 
-  // Cancel the pending row whenever the player travels — prevents the row
-  // sticking around when the shop changes underneath it.
-  useEffect(() => { setPending(null); }, [here]);
-
-  // Unified inventory across every shop the player has visited. Each
-  // entry remembers the first town that stocked it so we can show a
-  // small "First found at Pewter Mart" hint.
+  // Unified inventory across every shop the player has visited. Each entry
+  // remembers the first town that stocked it, for the info tooltip.
   const unified = useMemo(
     () => buildUnifiedShop(state.unlockedLocations),
     [state.unlockedLocations],
@@ -127,8 +147,8 @@ export function MartTab() {
     return null;
   };
 
-  // Sort items by price ascending so the cheapest balls / repels land
-  // at the top of the list — typical buy-bulk-of-cheap-balls flow.
+  // Cheapest first, still - but now within a shelf, which puts the everyday
+  // stock at the top of the one you opened rather than of everything.
   const sortedItems = useMemo(() => {
     return unified.items.slice().sort((a, b) => {
       const ra = resolve(a.itemId)?.price ?? Infinity;
@@ -137,171 +157,192 @@ export function MartTab() {
     });
   }, [unified]);
 
+  // Only shelves with something on them. A tab that opens an empty shelf is
+  // worse than no tab: it reads as stock you have lost rather than stock
+  // that was never there.
+  const shelves = useMemo(() => {
+    const present = new Set<ItemCategory>();
+    for (const e of sortedItems) {
+      const c = itemsCatalog[e.itemId]?.category;
+      if (c) present.add(c);
+    }
+    return CATEGORY_ORDER.filter((c) => present.has(c));
+  }, [sortedItems]);
+
+  // A shelf can disappear under the player - travel changes the stock - and
+  // a filter pointing at nothing shows an empty mart with no explanation.
+  useEffect(() => {
+    if (shelf !== "all" && !shelves.includes(shelf)) setShelf("all");
+  }, [shelves, shelf]);
+  useEffect(() => { setShelf("all"); }, [here]);
+
+  const shown = shelf === "all"
+    ? sortedItems
+    : sortedItems.filter((e) => itemsCatalog[e.itemId]?.category === shelf);
+
+  const buy = (itemId: string, qty: number, name: string) => {
+    if (qty < 1) return;
+    const can = state.money >= (resolve(itemId)?.price ?? Infinity) * qty;
+    dispatch({ type: "BUY_ITEM", payload: { itemId, quantity: qty } });
+    if (can) {
+      pushToast({
+        kind: "success",
+        icon: "\u{1F6D2}",
+        text: qty > 1 ? `Bought ${qty}x ${name}` : `Bought ${name}`,
+      });
+    }
+  };
+
   return (
     <div className="tab-pane mart-tab">
-      <TabPaneHead
-        title={t("Poké Mart")}
-        meta={
-          <span className="mart-wallet">
-            💰 ${state.money.toLocaleString()}
-            <span className="dim small" style={{ marginLeft: 8 }}>
-              · {unified.visitedTownsWithMart} {t("town")}{unified.visitedTownsWithMart === 1 ? "" : "s"} {t("visited")}
-            </span>
-          </span>
-        }
-      />
+      {/* The shelves go on the dialog's header bar - see HubViews. Outside
+          the hub they render here, which is where they were going anyway. */}
+      <HubViews>
+        <div className="g-tabs" role="tablist" aria-label={t("Mart shelves")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={shelf === "all"}
+            className={`g-tab${shelf === "all" ? " active" : ""}`}
+            onClick={() => setShelf("all")}
+          >
+            {t("All")}
+          </button>
+          {shelves.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="tab"
+              aria-selected={shelf === c}
+              className={`g-tab${shelf === c ? " active" : ""}`}
+              onClick={() => setShelf(c)}
+            >
+              {t(CATEGORY_LABELS[c])}
+            </button>
+          ))}
+        </div>
+        {/* What you can spend, beside the shelves you are spending it on. It
+            used to sit at the top of the pane, above a list that scrolled
+            away from it. */}
+        <span className="mart-wallet-chip" title={t("Your money")}>
+          ${state.money.toLocaleString()}
+        </span>
+      </HubViews>
+
       {unified.visitedTownsWithMart === 0 ? (
-        <p className="dim small">{t("No mart has opened to you yet. Visit Viridian City to unlock your first stock.")}</p>
-      ) : sortedItems.length === 0 ? (
-        <p className="dim small">{t("No items available yet.")}</p>
+        <p className="mart-note">{t("No mart has opened to you yet. Visit Viridian City to unlock your first stock.")}</p>
+      ) : shown.length === 0 ? (
+        <p className="mart-note">{t("No items available yet.")}</p>
       ) : (
-        <ul className="mart-list">
-          {sortedItems.map((entry) => {
+        <ul className="mart-grid">
+          {shown.map((entry) => {
             const resolved = resolve(entry.itemId);
             if (!resolved) return null;
-            const locked =
-              entry.unlockWildBattlesWon !== undefined &&
-              state.wildBattlesWon < entry.unlockWildBattlesWon;
-            const info = getItemInfo(entry.itemId);
-            const maxAffordable = Math.max(1, Math.floor(state.money / resolved.price));
-            const isPending = pending?.itemId === entry.itemId;
-            const qty = isPending ? pending!.qty : 1;
-            const total = resolved.price * qty;
-            const cantBuy = locked || total > state.money;
             return (
-              <li key={entry.itemId} className={`mart-row ${locked ? "locked" : ""}`} title={resolved.description}>
-                <img
-                  src={itemSpriteUrl(entry.itemId, itemSpriteSlug(entry.itemId))}
-                  alt=""
-                  width={28}
-                  height={28}
-                  style={{ imageRendering: "pixelated" }}
-                />
-                <div className="mart-row-info">
-                  <strong>
-                    {info.name}
-                    {/* Descriptions are long and pushed every row tall enough
-                        that only a few items fit on screen. Behind an info
-                        icon they're one hover away without costing the list
-                        its density. The row still carries `title` for touch. */}
-                    <span
-                      className="mart-info"
-                      tabIndex={0}
-                      /* Native title, not a positioned element: the mart list
-                         scrolls, so an absolutely-positioned tooltip was
-                         clipped by that overflow and showed as a stray bar.
-                         The browser renders `title` outside any clipping
-                         context, so it works everywhere. */
-                      title={`${resolved.description}
-
-${t("First found at")} ${entry.firstSoldAtName}`}
-                      aria-label={`${resolved.description}. ${t("First found at")} ${entry.firstSoldAtName}`}
-                    >
-                      <span aria-hidden>i</span>
-                    </span>
-                  </strong>
-                  {locked ? (
-                    <small className="dim">
-                      {t("Unlocks at")} {entry.unlockWildBattlesWon} {t("wild battles")} ({state.wildBattlesWon}/{entry.unlockWildBattlesWon})
-                    </small>
-                  ) : null}
-                </div>
-                <span className="mart-price">${resolved.price.toLocaleString()}</span>
-                {/* Restocking 99 balls used to be 98 clicks on "+".
-                    maxAffordable was already computed and only used as a
-                    cap, so the shortcuts below cost nothing to offer.
-                    Shift/Ctrl-click steps by 10 for people who never find
-                    the ×10 button. */}
-                <div className="mart-qty-controls">
-                  <button
-                    type="button"
-                    className="mart-qty-step"
-                    onClick={(e) =>
-                      setPending({
-                        itemId: entry.itemId,
-                        qty: Math.max(1, qty - (e.shiftKey || e.ctrlKey ? 10 : 1)),
-                      })
-                    }
-                    disabled={qty <= 1 || locked}
-                    title={t("Shift-click for −10")}
-                    aria-label={t("Decrease quantity")}
-                  >
-                    −
-                  </button>
-                  <span className="mart-qty-value">{qty}</span>
-                  <button
-                    type="button"
-                    className="mart-qty-step"
-                    onClick={(e) =>
-                      setPending({
-                        itemId: entry.itemId,
-                        qty: Math.min(maxAffordable, qty + (e.shiftKey || e.ctrlKey ? 10 : 1)),
-                      })
-                    }
-                    disabled={qty >= maxAffordable || locked}
-                    title={t("Shift-click for +10")}
-                    aria-label={t("Increase quantity")}
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    className="mart-qty-jump"
-                    onClick={() =>
-                      setPending({ itemId: entry.itemId, qty: Math.min(maxAffordable, qty + 10) })
-                    }
-                    disabled={qty >= maxAffordable || locked}
-                    aria-label={t("Add ten")}
-                  >
-                    +10
-                  </button>
-                  <button
-                    type="button"
-                    className="mart-qty-jump"
-                    onClick={() => setPending({ itemId: entry.itemId, qty: maxAffordable })}
-                    disabled={qty >= maxAffordable || locked}
-                    title={`Buy as many as you can afford (${maxAffordable})`}
-                    aria-label={t("Maximum affordable")}
-                  >
-                    {t("Max")}
-                  </button>
-                  <button
-                    type="button"
-                    className="mart-buy-btn"
-                    disabled={cantBuy}
-                    onClick={() => {
-                      const can = state.money >= total;
-                      dispatch({
-                        type: "BUY_ITEM",
-                        payload: { itemId: entry.itemId, quantity: qty },
-                      });
-                      if (can) {
-                        const itemName = info?.name ?? entry.itemId;
-                        pushToast({
-                          kind: "success",
-                          icon: "🛒",
-                          text: qty > 1
-                            ? `Bought ${qty}× ${itemName}`
-                            : `Bought ${itemName}`,
-                        });
-                      }
-                      // Reset stepper back to 1 after a purchase so the
-                      // next buy starts fresh — no surprise multi-buys.
-                      setPending(null);
-                    }}
-                    title={qty === 1
-                      ? `Buy 1 for $${resolved.price.toLocaleString()}`
-                      : `Buy ${qty} for $${total.toLocaleString()}`}
-                  >
-                    {t("Buy")}{qty > 1 ? ` ${qty}` : ""}
-                  </button>
-                </div>
-              </li>
+              <MartCard
+                key={entry.itemId}
+                entry={entry}
+                price={resolved.price}
+                description={resolved.description}
+                money={state.money}
+                owned={state.inventory[entry.itemId] ?? 0}
+                wildBattlesWon={state.wildBattlesWon}
+                onBuy={buy}
+              />
             );
           })}
         </ul>
       )}
     </div>
+  );
+}
+
+function MartCard({
+  entry, price, description, money, owned, wildBattlesWon, onBuy,
+}: {
+  entry: { itemId: string; firstSoldAtName: string; unlockWildBattlesWon?: number };
+  price: number;
+  description: string;
+  money: number;
+  owned: number;
+  wildBattlesWon: number;
+  onBuy: (itemId: string, qty: number, name: string) => void;
+}) {
+  const t = useT();
+  const info = getItemInfo(entry.itemId);
+  const need = entry.unlockWildBattlesWon;
+  const locked = need !== undefined && wildBattlesWon < need;
+  const maxAffordable = Math.floor(money / Math.max(1, price));
+
+  return (
+    <li className={`mart-card${locked ? " mart-locked" : ""}`}>
+      <div className="mart-card-head">
+        <img
+          className="mart-card-sprite"
+          src={itemSpriteUrl(entry.itemId, itemSpriteSlug(entry.itemId))}
+          alt=""
+          width={32}
+          height={32}
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div className="mart-card-text">
+          <strong className="mart-card-name">{info.name}</strong>
+          <span className="mart-card-price">
+            ${price.toLocaleString()}
+            {/* How many you already have, on the card that sells them.
+                Silent at zero - "have 0" is noise on every card you have
+                never bought from. */}
+            {owned > 0 && <span className="mart-card-owned"> - {t("have")} {owned}</span>}
+          </span>
+        </div>
+        {/* Native title, not a positioned element: this grid scrolls, and an
+            absolutely-positioned tooltip is clipped by that overflow. */}
+        <span
+          className="mart-info"
+          tabIndex={0}
+          title={`${description}\n\n${t("First found at")} ${entry.firstSoldAtName}`}
+          aria-label={`${description}. ${t("First found at")} ${entry.firstSoldAtName}`}
+        >
+          <span aria-hidden>i</span>
+        </span>
+      </div>
+
+      {locked ? (
+        <p className="mart-card-lock">
+          {t("Unlocks at")} <strong>{need}</strong> {t("wild battles")}
+          <span className="dim"> ({wildBattlesWon}/{need})</span>
+        </p>
+      ) : (
+        // Each button IS the purchase. The stepper this replaced made every
+        // buy two decisions - how many, then confirm - in a shop where the
+        // amounts people ask for can simply be named.
+        <div className="mart-buy-row">
+          {MART_QUANTITIES.map((q) => {
+            const qty = q ?? maxAffordable;
+            const label = q === null ? t("Max") : `x${q}`;
+            const total = price * qty;
+            const cant = qty < 1 || total > money;
+            return (
+              <button
+                key={q ?? "max"}
+                type="button"
+                className={`mart-buy-qty${q === null ? " is-max" : ""}`}
+                disabled={cant}
+                onClick={() => onBuy(entry.itemId, qty, info.name)}
+                title={cant
+                  ? t("You can't afford this")
+                  : `${t("Buy")} ${qty} - $${total.toLocaleString()}`}
+              >
+                {label}
+                {q === null && maxAffordable > 0 && (
+                  <span className="mart-buy-max-n"> {maxAffordable}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </li>
   );
 }
 

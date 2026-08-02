@@ -1,0 +1,140 @@
+/* =====================================================================
+   THE POKE MART
+
+   Cards, not rows. The list this replaces put six controls on every line
+   — a stepper, two jump buttons and a Buy — so the pane read as a
+   spreadsheet with a form on each row. What a shop actually shows is a
+   thing, its price, and how to take it.
+
+   Every class below was checked against app.css first: `.mart-card*`,
+   `.mart-grid`, `.mart-buy-row`, `.mart-buy-qty`, `.mart-locked`,
+   `.mart-wallet-chip` and `.mart-note` matched nothing. `.mart-info` DID,
+   and is deliberately reused — it is the same info affordance, unchanged.
+   ===================================================================== */
+.mart-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* 232px is the width at which a name, a price and four quantity buttons
+     all fit on one line each. Below that the buttons wrap and the card
+     stops being one glance. */
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 10px;
+}
+
+.mart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--card-radius, 8px);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.mart-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.mart-card-sprite { flex: 0 0 auto; display: block; }
+.mart-card-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mart-card-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  /* One line. A two-line name would make one card in the grid taller than
+     its neighbours, and the row's buttons would stop lining up across it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mart-card-price {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+/* How many you already own. Quieter than the price — it is context for the
+   decision, not the decision. */
+.mart-card-owned { color: var(--text-dim); }
+
+/* ── Buying ────────────────────────────────────────────────────────
+   Four buttons, four purchases. Equal columns so the row is a single
+   control rather than four differently-sized ones, and so Max sits in a
+   predictable place however long its count is. */
+.mart-buy-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.mart-buy-qty {
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.mart-buy-qty:hover:not(:disabled) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.mart-buy-qty:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+/* Disabled means "you cannot afford this", which is the most common state
+   in a shop and must not look broken. Dimmed, not greyed out of existence. */
+.mart-buy-qty:disabled { opacity: 0.35; cursor: not-allowed; }
+/* Max is the only one whose amount is not in its label, so it gets the
+   emphasis — it is also the button that spends the most. */
+.mart-buy-qty.is-max { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }
+.mart-buy-qty.is-max:hover:not(:disabled) { background: var(--ctl-on-bg); filter: brightness(1.15); }
+.mart-buy-max-n { opacity: 0.7; font-weight: 500; }
+
+/* ── Not for sale yet ──────────────────────────────────────────────
+   The card stays, at half strength, with the requirement where the buy
+   buttons would be. Hiding it would mean the shelf silently grows as you
+   play, and the count you remembered is wrong every time you come back. */
+.mart-locked { opacity: 0.55; }
+.mart-card-lock {
+  margin: 0;
+  min-height: var(--ctl-h-sm, 26px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+.mart-card-lock strong { color: var(--text-muted); }
+
+/* ── The wallet, in the header ─────────────────────────────────────
+   Beside the shelves rather than above a list that scrolls away from it. */
+.mart-wallet-chip {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  height: var(--ctl-h-sm, 26px);
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.mart-note {
+  margin: 0;
+  padding: 24px 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
