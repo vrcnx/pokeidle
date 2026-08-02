@@ -328,8 +328,20 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 12px;
-  align-items: start;
+  /* STRETCH, not start. Two giveaway cards side by side had whatever
+     height their own prize list gave them, so a five-stone bundle sat
+     80px taller than a single Master Ball and the row read as broken
+     rather than as two things of different lengths. Cards in a grid are
+     a set; a set with ragged bottoms looks like a mistake. */
+  align-items: stretch;
 }
+/* …which only works if the cards themselves fill the track. */
+.hub-cols > .giveaway-card,
+.hub-cols > .promo-card { height: 100%; }
+/* With equal heights the shorter card has slack, so its action goes to
+   the bottom edge and every card's button lands on the same line. */
+.hub-cols > .giveaway-card { justify-content: flex-start; }
+.hub-cols > .giveaway-card .giveaway-card-foot { margin-top: auto; }
 /* Something that must span the grid — a heading, an empty state, a
    wide table. */
 .hub-cols > .is-wide { grid-column: 1 / -1; }
@@ -1215,3 +1227,39 @@
   .tb-cols { grid-template-columns: minmax(0, 1fr); }
   .tb-cols > .g-card { max-height: none; }
 }
+
+/* ── The READY UP slab ─────────────────────────────────────────────
+   Two problems, one of them provable.
+
+   PRACTICE was unreadable. `.pvp-slab` sets `color: #1a0e00` — correct
+   on a gold gradient at 11.4:1 — and `.pvp-slab-secondary` overrides
+   only the BACKGROUND to a dark panel gradient, leaving near-black text
+   on near-black. Measured: 1.22:1 against --panel-3 and 1.04:1 against
+   --panel-2. Not "hard to read"; invisible. Every other solid button in
+   the game took a white label in the control pass and this one was
+   missed because it lives in pvpArena.css.
+
+   And the hover was a 24px diffuse gold bloom that made the button look
+   out of focus rather than lifted. Tightened to a real edge — a brighter
+   fill, a crisp ring, a 1px lift — which is the same language every
+   other control uses on hover instead of a glow. */
+.pvp-slab.pvp-slab-secondary {
+  color: #f5f5f5;
+  background: linear-gradient(180deg, var(--panel-3) 0%, var(--panel-2) 100%);
+}
+.pvp-slab.pvp-slab-secondary .pvp-slab-sub { color: var(--text-muted); opacity: 1; }
+.pvp-slab.pvp-slab-secondary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--panel-4) 0%, var(--panel-3) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pvp2-arena .pvp-slab:hover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 4px 14px rgba(251, 191, 36, 0.22),
+    0 2px 0 rgba(0, 0, 0, 0.3);
+}
+/* The shine sweep runs forever on the loudest element on the screen. A
+   permanent animation is a permanent request for attention, and this one
+   is already gold, 72px tall and centre stage. */
+.pvp2-arena .pvp-slab::before { display: none; }

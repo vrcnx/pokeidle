@@ -372,8 +372,7 @@ function Harness() {
           <span className="rw-record-fig"><strong>{stats.you.entered}</strong>entry</span>
         </span>
       ),
-      note: "Everything you can get for free — no purchase, ever.",
-    },
+      },
     social: { Body: ChatFiller, fill: true },
     settings: { Body: () => <Filler label="Stats" rows={20} />, note: "Your account, your game, and the knobs." },
   };

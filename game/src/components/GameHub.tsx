@@ -31,7 +31,6 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   rewards: {
     Body: RewardsBody,
     HeaderRight: RewardsHeaderRight,
-    note: "Everything you can get for free — no purchase, ever.",
   },
   social: {
     Body: SocialPane,

@@ -107,10 +107,12 @@
 .gw-rail--calm { border-color: rgba(134, 239, 172, 0.3); }
 .gw-rail--calm .gw-rail-pill { background: rgba(134, 239, 172, 0.16); color: #86efac; }
 
-.gw-rail--urgent {
-  border-color: rgba(192, 132, 252, 0.5);
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.14), var(--panel) 70%);
-}
+/* No coloured wash. The rail sits in a column of plain --panel cards, and
+   a purple gradient behind one of them made it look like a different KIND
+   of card rather than the same card in a different state. The border and
+   the pill already carry the tone, and they carry it without repainting
+   the surface every neighbour shares. */
+.gw-rail--urgent { border-color: rgba(192, 132, 252, 0.5); }
 /* The pill's label is 9px/800 — nowhere near WCAG's "large text" threshold
    (18.66px bold), so it needs the full 4.5:1. The gradient used to run
    #a855f7 → #7c3aed, and white on the #a855f7 end measures 3.96:1: the one
@@ -139,18 +141,14 @@
    laptop and another on a phone. */
 .gw-rail--promo .gw-rail-pill { background: rgba(45, 212, 191, 0.16); color: #5eead4; }
 
-.gw-rail--won {
-  border-color: rgba(251, 191, 36, 0.6);
-  background: linear-gradient(90deg, rgba(251, 191, 36, 0.18), var(--panel) 70%);
-}
+.gw-rail--won { border-color: rgba(251, 191, 36, 0.6); }
 .gw-rail--won .gw-rail-label { color: #fde68a; }
 .gw-rail--won .gw-rail-pill { background: linear-gradient(180deg, #fbbf24, #f59e0b); color: #1a0e00; }
-/* The won row is the one tone whose wash LIGHTENS the background: the gold
-   at 18% composites to rgb(56,45,18), where --text-dim (#888) measures
-   3.82:1 — under AA. Every other tone stays dark enough that #888 passes,
-   so this lifts the two dim strings one step to --text-muted (4.93:1) for
-   this tone only, rather than re-colouring the rail everywhere to fix one
-   state. */
+/* These two were lifted from --text-dim because the gold wash behind them
+   composited to rgb(56,45,18), where #888 measured 3.82:1. The wash is
+   gone, so #888 would pass again — but --text-muted is what every other
+   rail tone uses for these strings, and one row differing by a shade of
+   grey is not worth the inconsistency. Kept deliberately. */
 .gw-rail--won .gw-rail-sub,
 .gw-rail--won .gw-rail-chev { color: var(--text-muted); }
 
@@ -214,20 +212,13 @@
   padding: 0 12px;
 }
 /* …but a borderless strip needs a surface of its own, and the rail's base
-   background is --panel, which is ALSO .mobile-content's background. In the
-   two tones that carry no wash that would render the control as bare text on
-   the page. --panel-2 is the app's raised-surface token and the one
-   .mini-chat directly below already uses, so the strip reads as part of the
-   same stack. Scoped to those two tones on purpose: writing `background`
-   into the rule above would out-specify --urgent and --won and delete their
-   gradients, which are the whole reason those states are noticeable. */
-.gw-chat-tab > .gw-rail--quiet,
-.gw-chat-tab > .gw-rail--calm,
-/* --promo belongs in this list, not with --urgent/--won: it carries no
-   gradient wash either, so without a surface of its own the free-reward row
-   would render as bare text on the page — the one state where that matters
-   most, since it is the row that has something to offer. */
-.gw-chat-tab > .gw-rail--promo { background: var(--panel-2); }
+   background is --panel, which is ALSO .mobile-content's background — the
+   control would render as bare text on the page. --panel-2 is the app's
+   raised-surface token and the one .mini-chat directly below already uses,
+   so the strip reads as part of the same stack.
+   Now that no tone carries a gradient this applies to ALL of them, which is
+   simpler than the old list of exceptions. */
+.gw-chat-tab > .gw-rail { background: var(--panel-2); }
 .gw-chat-tab > .mini-chat {
   flex: 1 1 auto;
   min-height: 0;
