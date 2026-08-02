@@ -29,7 +29,7 @@
 // It also runs BEFORE the sync loops start, so the report is not interleaved
 // with reconcile output.
 
-import { PermissionFlagsBits, type Client, type Guild } from "discord.js";
+import { PermissionFlagsBits, Routes, type Client, type Guild } from "discord.js";
 import { api } from "./api.js";
 import { config } from "./config.js";
 
@@ -202,8 +202,42 @@ async function checkGameApi(): Promise<void> {
   }
 }
 
+/**
+ * Today's remaining gateway identifies.
+ *
+ * Reported on every boot, not just when it is already a problem. A budget
+ * quietly draining is the earliest visible symptom of a second instance
+ * crash-looping somewhere, and by the time it hits zero the bot is offline for
+ * up to a day. Seeing "998/1000" in the log is how you notice at 2 instead
+ * of at 1000.
+ */
+async function checkIdentifyBudget(client: Client): Promise<void> {
+  try {
+    const g = (await client.rest.get(Routes.gatewayBot())) as {
+      session_start_limit: { remaining: number; total: number; reset_after: number };
+    };
+    const l = g.session_start_limit;
+    const used = l.total - l.remaining;
+    const detail = `${l.remaining}/${l.total} identifies left today (used ${used})`;
+    if (l.remaining <= 10) {
+      fail("identify budget", detail, "something is crash-looping — find it before the reset");
+    } else if (used > 100) {
+      warn(
+        "identify budget",
+        detail,
+        "a healthy bot uses a handful a day; this many means repeated reconnects",
+      );
+    } else {
+      ok("identify budget", detail);
+    }
+  } catch {
+    warn("identify budget", "could not read it — REST call failed");
+  }
+}
+
 export async function preflight(client: Client): Promise<void> {
   lines.length = 0;
+  await checkIdentifyBudget(client);
 
   const guild = await client.guilds.fetch(config.guildId).catch(() => null);
   if (!guild) {

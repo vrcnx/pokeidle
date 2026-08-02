@@ -12,7 +12,7 @@
 //     out here it holds a bearer token for /api/bot and can do exactly what
 //     that surface allows. The renderer is separated for the same reason.
 
-import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, MessageFlags, REST, Routes } from "discord.js";
 import { config } from "./config.js";
 import { handleButton, handleCommand } from "./handlers.js";
 import { startRoleSync } from "./roleSync.js";
@@ -171,7 +171,67 @@ function diagnose(message: string): string | null {
   return null;
 }
 
+/**
+ * How many identifies are left today, asked over REST.
+ *
+ * THIS IS THE ACTUAL FIX FOR THE BUDGET PROBLEM, and it is better than the
+ * backoff below rather than an addition to it. The backoff limits the damage of
+ * retrying blindly; this removes the need to retry blindly at all.
+ *
+ * GET /gateway/bot is a plain REST call. It does NOT consume an identify, so
+ * asking "may I connect?" is free, while finding out by attempting a connection
+ * costs one of the thousand — and costs it precisely when there are none left.
+ *
+ * Returns null if the check itself fails, and the caller then proceeds to a
+ * normal login attempt: a REST blip must never be the reason the bot stays
+ * offline.
+ */
+async function budget(): Promise<{ remaining: number; total: number; resetAfterMs: number } | null> {
+  try {
+    const rest = new REST({ version: "10" }).setToken(config.discordToken);
+    const g = (await rest.get(Routes.gatewayBot())) as {
+      session_start_limit: { remaining: number; total: number; reset_after: number };
+    };
+    const l = g.session_start_limit;
+    return { remaining: l.remaining, total: l.total, resetAfterMs: l.reset_after };
+  } catch {
+    return null;
+  }
+}
+
+/** Leave headroom rather than spending the last identify. If the budget is
+ *  nearly gone something is wrong, and the few remaining are worth keeping for
+ *  a human doing a deliberate restart to fix it. */
+const LOW_WATER = 10;
+
 async function login(attempt = 0): Promise<void> {
+  // Ask before knocking.
+  const b = await budget();
+  if (b && b.remaining <= LOW_WATER) {
+    const mins = Math.ceil(b.resetAfterMs / 60_000);
+    const when = new Date(Date.now() + b.resetAfterMs).toISOString();
+    console.error(
+      `[bot] NOT attempting to connect: ${b.remaining}/${b.total} identifies left today.`,
+    );
+    console.error(
+      `[bot] Waiting ${mins} min for the reset at ${when} rather than spending what's left. ` +
+        "A connection attempt now would fail AND cost an identify.",
+    );
+    if (b.remaining === 0) {
+      console.error(
+        "[bot] A spent budget means something identified ~1000 times today — almost " +
+          "always a crash-looping instance. Check for a second deploy before the reset.",
+      );
+    }
+    // Wake just after the reset, with a little jitter so two instances coming
+    // back at the same moment do not collide on the first identify.
+    setTimeout(() => void login(0), b.resetAfterMs + 5_000 + Math.floor(Math.random() * 20_000));
+    return;
+  }
+  if (b && b.remaining < b.total / 4) {
+    console.warn(`[bot] identify budget is low: ${b.remaining}/${b.total} left today.`);
+  }
+
   try {
     await client.login(config.discordToken);
   } catch (e) {
