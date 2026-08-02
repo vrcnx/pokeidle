@@ -20024,3 +20024,75 @@ strong, b { font-variant-numeric: tabular-nums; }
 .hub-tab:not(.is-active) {
   color: var(--ctl-fg);
 }
+
+
+/* =================================================================== */
+/* ===   NEXT GOAL — legibility pass                              === */
+/* =================================================================== */
+/* The card was built to be small: the requirement rows were 9px, the
+   numbers beside them 9px mono, and the "NEXT GOAL" eyebrow 8px. Nine
+   pixels is not a size text is read at — it is a size text is recognised
+   at, and the difference shows the moment a row says something a player
+   actually needs, like "Battles at Route 41  0/22".
+   Nothing here changes what the card SAYS. It changes what size it says
+   it at, and it takes the height that requires.
+
+   At the end of the file on purpose: every rule below targets a selector
+   already defined earlier at equal weight (.party-column .unlock-hint li
+   is 0,2,1 both times), so load order is what settles it. Raising the
+   specificity instead would work once and then lose to the next block
+   somebody appends.
+
+   Contrast, measured against --panel #0d0d0e:
+     --text        17.82:1     --text-muted   7.08:1
+     li.done       13.96:1     --text-dim     5.48:1  (kept for the eyebrow
+                                                       only, which is a label
+                                                       and not content) */
+/* Padding is NOT touched. Every content card in the app shares
+   `var(--card-pad-default)` from the CARD UNIFORMITY block above, with an
+   !important, and that uniformity is worth more than a couple of pixels
+   here. The height comes from the type and the row gaps instead — 136px
+   to 175px measured, with the same 12px inset as its neighbours. */
+
+/* Header row: the route name is the headline of this card and was set
+   smaller than a party Pokemon's name. It carries the display face like
+   every other bold heading in the app. */
+.party-column .unlock-hint .unlock-header {
+  grid-template-columns: auto 1fr 72px 16px;
+  gap: 11px;
+}
+.party-column .unlock-header-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.party-column .unlock-header-target {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+.party-column .unlock-header-bar { height: 6px; border-radius: var(--r-pill); }
+
+/* Requirement rows: 9px dim -> 12px muted. The bar is wider and the
+   number is no longer the smallest thing on screen. */
+.party-column .unlock-body { margin-top: 11px; }
+.party-column .unlock-hint ul { gap: 8px; }
+.party-column .unlock-hint li {
+  grid-template-columns: 1fr 84px auto;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.party-column .unlock-req-bar { width: 84px; height: 6px; }
+.party-column .unlock-req-num {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+/* "After this — Route 42": a real sentence, so it reads at body size. */
+.party-column .unlock-peek {
+  margin-top: 11px;
+  padding-top: 9px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
