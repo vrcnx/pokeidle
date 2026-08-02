@@ -242,17 +242,106 @@ export function RewardsDialog({
   canLoadMore, moreState, onLoadMore, viewerName, onClose,
 }: RewardsDialogProps) {
   const t = useT();
-  const dialogRef = useModalEnter(".giveaway-card");
+  const dialogRef = useModalEnter(".rw-pane");
   const [showFair, setShowFair] = useState(false);
+  // null = "whatever the data says is most worth looking at". It stops being
+  // null the moment the player picks a tab, and never goes back — a dialog
+  // that re-picks your tab under you on a background refresh is infuriating.
+  const [picked, setPicked] = useState<TabId | null>(null);
 
-  const nothingAtAll =
-    !loading && !error && promos.length === 0 && live.length === 0 && past.length === 0;
+  const freeOpen = promos.filter((p) => p.state === "available").length;
+  const unentered = live.filter((g) => !g.hasEntered).length;
+
+  // Free rewards is ALWAYS a tab, even at zero. It is the standing half of
+  // this screen and the half a player has to know exists; the other two are
+  // event-driven and simply absent when there are no events.
+  const tabs: Tab[] = [
+    { id: "free", icon: "✦", label: t("Free rewards"), badge: freeOpen || null, tone: "promo" },
+    ...(live.length ? [{ id: "live" as const, icon: "🎟", label: t("Giveaways"), badge: unentered || null, tone: "live" as const }] : []),
+    ...(past.length ? [{ id: "past" as const, icon: "🏆", label: t("Results"), badge: null, tone: "past" as const }] : []),
+  ];
+
+  // Land on the thing with something to DO, in the order it is worth doing:
+  // a free reward nobody has collected, then a giveaway nobody has entered,
+  // then whatever exists at all.
+  const fallback: TabId =
+    freeOpen > 0 ? "free"
+    : unentered > 0 ? "live"
+    : promos.length > 0 ? "free"
+    : live.length > 0 ? "live"
+    : past.length > 0 ? "past"
+    : "free";
+  // Guard against a tab that has disappeared since it was picked (the last
+  // live giveaway drew while the dialog was open).
+  const active = picked && tabs.some((x) => x.id === picked) ? picked : fallback;
+
+  const body = loading
+    ? <p className="dim">{t("Loading…")}</p>
+    : error
+    ? <p className="giveaway-err">{error}</p>
+    : active === "free"
+    ? <FreePane promos={promos} />
+    : active === "live"
+    ? (
+      <div className="rw-list">
+        {live.map((g) => (
+          <LiveGiveawayCard
+            key={g.id}
+            g={g}
+            busy={entering === g.id}
+            onEnter={() => onEnter(g)}
+            highlighted={g.id === highlightId}
+          />
+        ))}
+      </div>
+    )
+    : (
+      <>
+        <div className="rw-pane-head">
+          <p className="rw-pane-note">
+            {t("Every giveaway that has already been drawn, and who won it.")}
+          </p>
+          <button
+            type="button"
+            className="gw-fair-link"
+            onClick={() => setShowFair((v) => !v)}
+            aria-expanded={showFair}
+          >
+            {t("How winners are picked")}
+          </button>
+        </div>
+        {/* Standing, not buried in each row's <details>. A visible history
+            makes repeat winners visible too, and an argument about that is
+            much easier to have with the proof already on screen than after
+            somebody has started it in chat. */}
+        {showFair && (
+          <p className="gw-fair-note">
+            {t("Winners are picked by hashing a random draw seed against every entry and taking the lowest results — nobody, including us, can change the outcome after the seed is set. Each drawn giveaway below publishes its seed so the result can be checked.")}
+          </p>
+        )}
+        <div className="gw-past">
+          {past.map((g) => (
+            <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} viewerName={viewerName} />
+          ))}
+          {canLoadMore && (
+            <button
+              type="button"
+              className="gw-more"
+              onClick={onLoadMore}
+              disabled={moreState === "loading"}
+            >
+              {moreState === "loading" ? t("Loading…") : t("Show more")}
+            </button>
+          )}
+        </div>
+      </>
+    );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         ref={dialogRef}
-        className="g-modal giveaway-modal"
+        className="g-modal giveaway-modal rewards-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={t("Rewards")}
@@ -267,146 +356,94 @@ export function RewardsDialog({
           <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
-        <div className="giveaway-body">
-          {error && <p className="giveaway-err">{error}</p>}
-          {loading && <p className="dim">{t("Loading…")}</p>}
-
-          {/* ── Free rewards ──────────────────────────────────────────
-              First, and above giveaways, because these are the only things
-              on this screen that are guaranteed. A player who reads one
-              section and closes the dialog should have read this one. */}
-          {promos.length > 0 && (
-            <section className="gw-block">
-              <SectionHead
-                title={t("Free rewards")}
-                note={t("Do the thing, keep the prize. No draw.")}
-              />
-              <div className="gw-promos">
-                {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
-              </div>
-            </section>
-          )}
-
-          {/* ── Live giveaways ────────────────────────────────────────── */}
-          {live.length > 0 && (
-            <section className="gw-block">
-              <SectionHead
-                title={live.length > 1 ? `${t("Live giveaways")} · ${live.length}` : t("Live giveaway")}
-                note={t("Free to enter. Winners drawn at random.")}
-              />
-              <div className="gw-lives">
-                {live.map((g) => (
-                  <LiveGiveawayCard
-                    key={g.id}
-                    g={g}
-                    busy={entering === g.id}
-                    onEnter={() => onEnter(g)}
-                    highlighted={g.id === highlightId}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Nothing live, but there IS a history. Say so plainly rather than
-              showing an empty space above the archive — a returning player
-              reading "12 held" needs to know they have not missed a live one
-              that is hiding somewhere below. */}
-          {!loading && !error && live.length === 0 && past.length > 0 && (
-            <p className="gw-quiet-line">{t("No giveaway is running right now.")}</p>
-          )}
-
-          {/* ── Previous giveaways ────────────────────────────────────── */}
-          {past.length > 0 && (
-            <section className="gw-block">
-              <SectionHead title={t("Previous giveaways")}>
+        <div className="rw-shell">
+          <aside className="rw-side">
+            <nav className="rw-nav" role="tablist" aria-label={t("Rewards")}>
+              {tabs.map((x) => (
                 <button
+                  key={x.id}
                   type="button"
-                  className="gw-fair-link"
-                  onClick={() => setShowFair((v) => !v)}
-                  aria-expanded={showFair}
+                  role="tab"
+                  aria-selected={active === x.id}
+                  className={`rw-tab rw-tab--${x.tone}${active === x.id ? " is-active" : ""}`}
+                  onClick={() => setPicked(x.id)}
                 >
-                  {t("How winners are picked")}
+                  <span className="rw-tab-icon" aria-hidden>{x.icon}</span>
+                  <span className="rw-tab-label">{x.label}</span>
+                  {/* The badge counts what is ACTIONABLE, not what exists.
+                      "3" next to Giveaways meaning "three you have already
+                      entered" is the kind of number that trains people to
+                      stop reading badges. */}
+                  {x.badge != null && <span className="rw-tab-badge">{x.badge}</span>}
                 </button>
-              </SectionHead>
-              {/* Standing, not buried in each row's <details>. A visible
-                  history makes repeat winners visible too, and an argument
-                  about that is much easier to have with the proof already on
-                  screen than after somebody has started it in chat. */}
-              {showFair && (
-                <p className="gw-fair-note">
-                  {t("Winners are picked by hashing a random draw seed against every entry and taking the lowest results — nobody, including us, can change the outcome after the seed is set. Each drawn giveaway below publishes its seed so the result can be checked.")}
-                </p>
-              )}
-              <div className="gw-past">
-                {past.map((g) => (
-                  <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} viewerName={viewerName} />
-                ))}
-                {canLoadMore && (
-                  <button
-                    type="button"
-                    className="gw-more"
-                    onClick={onLoadMore}
-                    disabled={moreState === "loading"}
-                  >
-                    {moreState === "loading" ? t("Loading…") : t("Show more")}
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
+              ))}
+            </nav>
 
-          {/* The genuinely-empty case. One quiet paragraph, not a 40px emoji
-              and a centred 40px-padded block: an empty state that shouts is
-              an apology, and there is nothing here to apologise for. */}
-          {nothingAtAll && (
-            <div className="gw-empty">
-              <strong>{t("Nothing free right now")}</strong>
-              <p>{t("Giveaways and promotions are announced in global chat — this is where they land.")}</p>
-            </div>
-          )}
+            <HaulPanel stats={stats} />
+          </aside>
+
+          <div className="rw-pane" role="tabpanel">{body}</div>
         </div>
-
-        {/* The stats line moved out of the header and became the footer.
-            It is provenance, not a headline: "13 held · 68 prizes to 39
-            trainers · since 17 Jul" answers "is this real and does it keep
-            happening", which is a question you ask at the END of reading. */}
-        <StatsLine stats={stats} />
       </div>
     </div>
+  );
+}
+
+type TabId = "free" | "live" | "past";
+interface Tab {
+  id: TabId;
+  icon: string;
+  label: string;
+  /** Things to act on. Null renders no badge at all — a grey zero is noise. */
+  badge: number | null;
+  tone: "promo" | "live" | "past";
+}
+
+/**
+ * The free-rewards pane, with its own progress readout.
+ *
+ * "1 of 2 collected" with a bar is the one honestly gamified thing on this
+ * screen: it is a real, finite, completable set, which is exactly the shape a
+ * progress bar is allowed to describe. Giveaways get no bar, because you
+ * cannot complete a lottery.
+ */
+function FreePane({ promos }: { promos: Promo[] }) {
+  const t = useT();
+  if (promos.length === 0) {
+    return (
+      <div className="gw-empty">
+        <strong>{t("Nothing free right now")}</strong>
+        <p>{t("Free rewards are things you keep for good — join the Discord, hit a milestone. When one is running it shows up here, and we announce it in global chat.")}</p>
+      </div>
+    );
+  }
+  const done = promos.filter((p) => p.state === "claimed").length;
+  return (
+    <>
+      <div className="rw-pane-head">
+        <p className="rw-pane-note">{t("Do the thing, keep the prize. No draw, no entry.")}</p>
+        <span className="rw-progress">
+          <span className="rw-progress-text">
+            <strong>{done}</strong>/{promos.length} {t("collected")}
+          </span>
+          <span className="rw-progress-bar">
+            <span
+              className="rw-progress-fill"
+              style={{ width: `${Math.round((done / promos.length) * 100)}%` }}
+            />
+          </span>
+        </span>
+      </div>
+      <div className="rw-list">
+        {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
+      </div>
+    </>
   );
 }
 
 /** Available first, then locked (still worth doing), then collected. */
 function rankPromo(state: string): number {
   return state === "available" ? 0 : state === "locked" ? 1 : 2;
-}
-
-/**
- * One section header, used by all three sections.
- *
- * The dialog previously had three different heading treatments — a 21px h2, a
- * 10px caps `.gw-section` with a link beside it, and a bare paragraph — for
- * three things at the same level of the hierarchy. One component means one
- * answer to "what does a section look like here", which is the whole point of
- * the design-ruling pass this belongs to.
- */
-function SectionHead({
-  title, note, children,
-}: {
-  title: string;
-  note?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="gw-head-row">
-      <div className="gw-head-text">
-        <h3>{title}</h3>
-        {note && <span className="gw-head-note">{note}</span>}
-      </div>
-      {children}
-    </div>
-  );
 }
 
 /** The date a past giveaway is filed under. drawnAt and endsAt are both
@@ -418,39 +455,46 @@ function historyTime(g: PublicGiveaway): number {
 }
 
 /**
- * "12 giveaways · 68 prizes to 39 trainers · since 17 Jul · you: 8 entered,
- * 2 won."
+ * The bottom of the sidebar: the player's own record, then the feature's.
  *
- * The reason to show history at all is that a returning player can see the
- * feature is real and recurring — one line of totals does that faster than any
- * number of archive rows.
+ * This used to be one grey line of totals — "13 held · 68 prizes to 39
+ * trainers · since 17 Jul · you: 8 entered, 2 won" — with the player's own
+ * numbers as the fourth clause of a sentence about somebody else. Their two
+ * numbers are the interesting ones and now they are the big ones, which is
+ * the whole difference between reporting a statistic and showing somebody
+ * their record.
  *
- * It sits in a fixed footer now rather than under the title. Two reasons: it
- * is provenance rather than a headline, and it is the one line that is true
- * of the whole dialog rather than of any one section, which is exactly what a
- * footer is for. Being fixed also means it survives scrolling to the bottom of
- * a 30-row archive, where "since 17 Jul" is most likely to be wanted.
+ * The global totals stay, underneath and small. They are still doing real
+ * work: a returning player who missed the last three giveaways needs to see
+ * that there WERE three, and no number of archive rows says that as fast.
  */
-function StatsLine({ stats }: { stats: GiveawayStats | null }) {
+function HaulPanel({ stats }: { stats: GiveawayStats | null }) {
   const t = useT();
   if (!stats || stats.total === 0) return null;
   return (
-    <p className="gw-stats">
-      <span><strong>{stats.total}</strong> {t("held")}</span>
-      {stats.prizesAwarded > 0 && (
-        <span>
-          <strong>{stats.prizesAwarded}</strong>{t(" prizes to ")}
-          <strong>{stats.distinctWinners}</strong>{t(" trainers")}
+    <div className="rw-haul">
+      <span className="rw-haul-head">{t("Your record")}</span>
+      <div className="rw-haul-figures">
+        <span className={`rw-figure${stats.you.won > 0 ? " is-gold" : ""}`}>
+          <strong>{stats.you.won}</strong>
+          <em>{stats.you.won === 1 ? t("win") : t("wins")}</em>
         </span>
-      )}
-      {stats.firstAt && <span>{t("since ")}{shortDate(stats.firstAt)}</span>}
-      {stats.you.entered > 0 && (
-        <span className="gw-stats-you">
-          {t("you: ")}<strong>{stats.you.entered}</strong>{t(" entered")}
-          {stats.you.won > 0 && <>, <strong>{stats.you.won}</strong>{t(" won")}</>}
+        <span className="rw-figure">
+          <strong>{stats.you.entered}</strong>
+          <em>{stats.you.entered === 1 ? t("entry") : t("entries")}</em>
         </span>
-      )}
-    </p>
+      </div>
+      <p className="rw-haul-global">
+        <span><strong>{stats.total}</strong> {t("giveaways held")}</span>
+        {stats.prizesAwarded > 0 && (
+          <span>
+            <strong>{stats.prizesAwarded}</strong>{t(" prizes to ")}
+            <strong>{stats.distinctWinners}</strong>{t(" trainers")}
+          </span>
+        )}
+        {stats.firstAt && <span>{t("since ")}{shortDate(stats.firstAt)}</span>}
+      </p>
+    </div>
   );
 }
 

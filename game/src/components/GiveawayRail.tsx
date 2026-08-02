@@ -96,11 +96,25 @@ interface RailCopy {
 }
 
 /**
- * State → words. At ~250px of usable text width the label has room for about
- * thirty characters, so every line here is short on purpose: "2 live", not
- * "2 giveaways are currently running". The full sentence goes in `aria`.
+ * State → words. At ~250px of usable text width the sub-line has room for
+ * about thirty characters, so every line here is short on purpose: "2 live,
+ * 1 not entered", not a sentence. The full sentence goes in `aria`.
+ *
+ * ── THE LABEL NEVER CHANGES ─────────────────────────────────────────
+ * It used to. The same row read "You won!", then "Giveaway live", then
+ * "Entered", then "Giveaways" — four names for one control, in the same
+ * 250px of rail the player is meant to learn the position of. A control
+ * whose NAME changes is not a control, it is a notification that happens to
+ * be clickable, and it made the row feel like a different widget every time
+ * the data moved.
+ *
+ * So the label is always "Rewards" — the same word the dialog it opens is
+ * titled — and everything that varies moves down a line into `sub`, or into
+ * the pill, or into the tone. Nothing is lost: a win is still gold, still
+ * pulses, and still says so in the sub.
  */
 function railCopy(st: RailState, t: (s: string) => string): RailCopy {
+  const NAME = t("Rewards");
   const prize = st.primary ? primaryPrizeLabel(st.primary.prizes) : "";
   const closes =
     st.endsInMs == null
@@ -112,55 +126,57 @@ function railCopy(st: RailState, t: (s: string) => string): RailCopy {
   switch (st.kind) {
     case "loading":
       return {
-        label: t("Giveaways"),
+        label: NAME,
         sub: t("Checking…"),
         pill: "",
-        aria: t("Giveaways — loading"),
+        aria: t("Rewards — loading"),
       };
 
     // Never loaded, and the reason is a failed request rather than one still
     // in flight. "Checking…" here would be a lie that never corrects itself.
     case "offline":
       return {
-        label: t("Giveaways"),
+        label: NAME,
         sub: t("Couldn't load — tap to retry"),
         pill: t("RETRY"),
-        aria: t("Giveaways could not be loaded. Tap to retry."),
+        aria: t("Rewards could not be loaded. Tap to retry."),
       };
 
     case "won":
       return {
-        label: t("You won!"),
-        sub: prize || st.primary?.title || t("Tap to see your prize"),
+        label: NAME,
+        // "You won" stays in the words, it just stops being the control's
+        // name. The gold tone and the pulse were always doing most of this
+        // work anyway.
+        sub: prize ? `${t("You won ")}${prize}` : t("You won a giveaway"),
         pill: t("VIEW"),
-        aria: `${t("You won a giveaway")}${prize ? ` — ${prize}` : ""}. ${t("Open giveaways")}`,
+        aria: `${t("You won a giveaway")}${prize ? ` — ${prize}` : ""}. ${t("Open rewards")}`,
       };
 
     case "live-unentered":
       return {
-        label: t("Giveaway live"),
-        sub: prize || st.primary?.title || t("Free to enter"),
+        label: NAME,
+        sub: prize ? `${prize}${t(" — free to enter")}` : st.primary?.title ?? t("Giveaway live"),
         pill: t("ENTER"),
         aria: `${t("A giveaway is live")}${prize ? ` — ${prize}` : ""}. ${t("You have not entered")}. ${closes}`,
       };
 
     case "live-mixed":
       return {
-        label: `${st.liveCount}${t(" live")}`,
-        sub: `${st.unenteredCount}${t(" not entered")}${closes ? ` · ${closes}` : ""}`,
+        label: NAME,
+        sub: `${st.liveCount}${t(" live")}, ${st.unenteredCount}${t(" not entered")}`,
         pill: t("ENTER"),
         aria: `${st.liveCount}${t(" giveaways live")}, ${st.unenteredCount}${t(" not entered yet")}.`,
       };
 
     // Something free that has not been collected, and no giveaway with a
-    // deadline competing for the line. The label names the PRIZE, not the
-    // errand: "Free Master Ball" is the reason to click, "Join the Discord" is
-    // the price. The errand goes in the sub, where it belongs.
+    // deadline competing for the line. The sub names the PRIZE, because that
+    // is the reason to click; the errand behind it is one click away.
     case "promo": {
       const promoPrize = st.promo ? primaryPrizeLabel(st.promo.prizes) : "";
       return {
-        label: promoPrize ? `${t("Free ")}${promoPrize}` : t("Free reward"),
-        sub: st.promo?.title ?? t("Waiting to be claimed"),
+        label: NAME,
+        sub: promoPrize ? `${t("Free ")}${promoPrize}${t(" waiting")}` : t("A free reward is waiting"),
         pill: t("FREE"),
         aria: `${t("A free reward is waiting")}${promoPrize ? ` — ${promoPrize}` : ""}. ${st.promo?.title ?? ""}`,
       };
@@ -168,8 +184,8 @@ function railCopy(st: RailState, t: (s: string) => string): RailCopy {
 
     case "live-entered":
       return {
-        label: st.liveCount > 1 ? `${t("Entered ")}${st.liveCount}` : t("Entered"),
-        sub: closes || t("waiting on the draw"),
+        label: NAME,
+        sub: `${st.liveCount > 1 ? `${t("Entered ")}${st.liveCount}` : t("Entered")}${closes ? ` · ${closes}` : ""}`,
         pill: "✓",
         aria: `${t("You are entered")}. ${closes || t("Waiting on the draw")}.`,
       };
@@ -180,10 +196,10 @@ function railCopy(st: RailState, t: (s: string) => string): RailCopy {
       // who missed the last three needs to see that there WERE three.
       const held = st.totalHeld > 0 ? `${st.totalHeld}${t(" held")}` : t("none yet");
       return {
-        label: t("Giveaways"),
+        label: NAME,
         sub: st.lastTitle ? `${held} · ${t("last: ")}${st.lastTitle}` : held,
         pill: t("SEE"),
-        aria: `${t("No giveaway running right now")}. ${held}. ${t("Open giveaways")}`,
+        aria: `${t("No giveaway running right now")}. ${held}. ${t("Open rewards")}`,
       };
     }
   }
