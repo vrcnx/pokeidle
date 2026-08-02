@@ -3,7 +3,7 @@ import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal,
 } from "./Icon";
-import { useModalEnter } from "../utils/animate";
+import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useGiveaways, seenWins } from "../utils/giveawayStore";
@@ -290,6 +290,24 @@ export function HubFrame({
   const t = useT();
   const dialogRef = useModalEnter(".hub-pane");
   const navRef = useRef<HTMLDivElement | null>(null);
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  // Every page of the dialog animates, not just the one it opened on.
+  // Keyed on `active`, so it re-runs on every section change — the pane is
+  // already remounted per section (see the `key` below), and without this
+  // the second section a player visits simply appeared.
+  //
+  // The FIRST section is skipped: useModalEnter is already scaling the whole
+  // dialog in around it, and two entrances stacked on the same pixels read
+  // as a stutter rather than as one movement.
+  const first = useRef(true);
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    if (first.current) { first.current = false; return; }
+    const enter = animateSectionEnter(pane);
+    const stag = animateSectionStagger(pane);
+    return () => { enter?.cancel(); stag?.cancel(); };
+  }, [active]);
   const def = SECTION_BY_ID.get(active)!;
   const content = sections[active];
 
@@ -475,6 +493,7 @@ export function HubFrame({
             </header>
 
             <div
+              ref={paneRef}
               // key: remount on section change so a pane never inherits the
               // previous one's scroll position — landing halfway down
               // Settings because Social was scrolled is a small thing that

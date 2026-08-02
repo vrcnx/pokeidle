@@ -19,7 +19,17 @@ const EASE_OUT = "outQuad";
 // the dialog itself. Returns the running animation so the caller can
 // cancel if the modal closes early.
 export function animateModalEnter(dialog: HTMLElement): JSAnimation {
-  const overlay = dialog.closest(".modal-overlay") as HTMLElement | null;
+  // The dialog's OWN overlay — its parent — and not the nearest one up the
+  // tree. `closest()` was the obvious call and it had a real bug in it: a
+  // dialog rendered INSIDE another dialog finds the outer one's overlay and
+  // fades the whole thing from zero. That is what the Pokemon detail sheet
+  // does now that it opens inside the PC — the entire hub blinked out and
+  // back every time you tapped a Pokemon.
+  //
+  // A nested dialog has no overlay of its own to fade, which is correct:
+  // the backdrop it would be dimming is already dimmed.
+  const parent = dialog.parentElement;
+  const overlay = parent?.classList.contains("modal-overlay") ? parent : null;
   if (overlay) {
     animate(overlay, { opacity: [0, 1], duration: 180, ease: EASE_OUT });
   }
@@ -148,4 +158,61 @@ export function CountUp({
 }) {
   const ref = useCountUp(value, format);
   return createElement("span", { ref }, format ? format(0) : "0");
+}
+
+/** Read at call time, not once at module load: the OS setting can change
+ *  while a session is open, and a cached answer would keep animating for
+ *  someone who just asked it to stop. */
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+// ── Hub section entrance ────────────────────────────────────────────
+// Every page of the central dialog animates in, not just the dialog on
+// the frame it first opened.
+//
+// A section change is a NAVIGATION, and a navigation with no transition
+// reads as a repaint — the rail highlight moves and the pane's contents
+// are simply different, with nothing connecting the two. This gives the
+// move a direction: content arrives from the side the rail is on, so the
+// eye is carried from the row you pressed to the pane it filled.
+//
+// Deliberately shorter than the modal entrance (220ms vs 360). That one is
+// a thing appearing; this is a thing you asked for, and asking twice in a
+// row must not feel like waiting.
+export function animateSectionEnter(pane: HTMLElement): JSAnimation | null {
+  if (prefersReducedMotion()) return null;
+  return animate(pane, {
+    opacity: [0, 1],
+    translateX: [10, 0],
+    duration: 220,
+    ease: EASE_OUT,
+  });
+}
+
+// The cascade inside a freshly-switched section.
+//
+// `:scope > *` rather than a per-section selector: nine sections written by
+// different hands do not share a card class, and a selector list naming all
+// of them would go stale the first time one was refactored. Their top-level
+// children are the one thing every pane genuinely has.
+//
+// Capped at 8. A pane holding 150 box sprites would otherwise cascade for
+// three seconds, and the stagger is meant to give the eye an order to read
+// in — past the first handful it stops doing that and starts being a wait.
+export function animateSectionStagger(pane: HTMLElement): JSAnimation | null {
+  if (prefersReducedMotion()) return null;
+  const kids = Array.from(pane.children).slice(0, 8) as HTMLElement[];
+  if (!kids.length) return null;
+  return animate(kids, {
+    opacity: [0, 1],
+    translateY: [8, 0],
+    duration: 260,
+    delay: stagger(28, { start: 40 }),
+    ease: EASE_OUT,
+  });
 }

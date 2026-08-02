@@ -11179,14 +11179,47 @@ input:focus, textarea:focus, select:focus {
 .party-card {
   padding: 12px !important;
 }
-/* Party header row: title left, Heal right (br_27cfd612ddd30485fc). The h4 kept
-   its own margin:0 from .ctx-section h4, so this only has to lay the two out. */
+/* Party header row: title left, actions right (br_27cfd612ddd30485fc). The h4
+   kept its own margin:0 from .ctx-section h4, so this only has to lay them out.
+
+   `space-between` was right when there were two items and wrong the moment
+   there were three: it spread PARTY / Manage / Heal evenly, parking Manage
+   in the middle of the row with nothing to do with either neighbour. The
+   title takes the slack instead, so both buttons sit together on the right
+   and read as what they are — the two things you can do to this card.
+
+   min-height and align-items pin the row to the taller of the two buttons,
+   so the title is centred against them rather than against whatever the
+   line-height of a 10px uppercase h4 happens to be. */
 .party-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-height: var(--ctl-h-sm);
   margin-bottom: 8px;
+}
+/* Three classes deep, and measured before writing it. The rule this answers
+   is `.party-column .ctx-section h4 { margin: 0 0 10px !important }` in the
+   "Section header inside a card" block further down — (0,2,1) AND important.
+   Between two important declarations specificity decides first, so a
+   two-class selector here loses no matter how late it appears. (0,3,1) wins
+   it outright. */
+.party-column .party-card .party-card-head h4 {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Explicitly zero, and !important because the rule it answers is too.
+     The "Section header inside a card" block below sets
+     `margin: 0 0 10px !important` on `.party-column .ctx-section h4`, and
+     `align-items: center` centres the MARGIN box — so the title sat 5px
+     above the buttons it was supposed to line up with (measured: centre 21
+     against a row centre of 26). !important is the only thing that answers
+     !important, whatever the specificity. The row owns the spacing under
+     this header; the heading does not. */
+  margin: 0 !important;
+  /* The h4 is the only item that is text rather than a control, and text in
+     a flex row sits on its own line box. Matching the row's line-height is
+     what actually centres it against the pills. */
+  line-height: 1;
 }
 .party-heal-btn {
   display: inline-flex;
