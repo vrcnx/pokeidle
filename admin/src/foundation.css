@@ -989,3 +989,51 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Topbar page chrome ─────────────────────────────────────────────
+   Page title and actions live in the bar, not in the page. Every page
+   used to open with a .page-head — an h1 repeating the name the bar
+   already showed, a paragraph, and a button row — costing ~100px on
+   fifteen pages before any content. */
+
+/* One-line context beside the title. Truncates rather than wrapping:
+   the bar is a fixed 56px and a two-line note would push the layout
+   around as pages change. */
+.topbar-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: var(--sp-3);
+  margin-left: var(--sp-1);
+  border-left: 1px solid var(--line);
+}
+.topbar-note:empty { display: none; }
+
+.topbar-page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+/* A divider only when the page actually put something there — an empty
+   slot must not leave a floating rule in the bar. */
+.topbar-page-actions:not(:empty) {
+  padding-right: var(--sp-3);
+  margin-right: var(--sp-1);
+  border-right: 1px solid var(--line);
+}
+
+@media (max-width: 1100px) {
+  /* The note is the first thing to go: it is context, and the title and
+     the actions both outrank it. */
+  .topbar-note { display: none; }
+}
+@media (max-width: 700px) {
+  /* Below this the bar cannot hold page actions and the account chrome at
+     once. Actions win — they are what the operator came to press. */
+  .topbar-env, .admin-signout { display: none; }
+}

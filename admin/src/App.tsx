@@ -343,7 +343,13 @@ export function App() {
             <IconSidebar />
           </button>
           <span className="topbar-crumb">{PAGE_TITLES[page] ?? "Admin"}</span>
+          {/* Filled by <PageNote> / <PageActions> from whichever page is
+              mounted. Pages used to render this themselves in a .page-head
+              block, which repeated the title the bar already shows and cost
+              ~100px before any content. */}
+          <span id="topbar-page-note" className="topbar-note" />
           <span className="topbar-spacer" />
+          <div id="topbar-page-actions" className="topbar-page-actions" />
           <div className="topbar-actions">
             <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
               {isProd ? "Production" : "Local"}

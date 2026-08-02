@@ -144,7 +144,11 @@ function Harness() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>
           </button>
           <span className="topbar-crumb">{page.label}</span>
+          {/* Same slots the real shell renders, so a page previewed here puts
+              its chrome exactly where it will in the app. */}
+          <span id="topbar-page-note" className="topbar-note" />
           <span className="topbar-spacer" />
+          <div id="topbar-page-actions" className="topbar-page-actions" />
           <div className="topbar-actions"><span className="topbar-env is-prod"><span>Preview</span></span></div>
         </header>
         <main className="admin-main">{page.render()}</main>

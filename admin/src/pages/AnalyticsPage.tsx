@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type Analytics } from "../api";
 import { navigateTo, type Page } from "../App";
+import { PageActions, PageNote } from "../components/PageChrome";
 
 // "Cadence" layout — design panel winner.
 // One focal point per row. 12-column grid, 24px gutters, 32px between
@@ -121,20 +122,15 @@ export function AnalyticsPage() {
 
   return (
     <div className="page analytics-cadence">
-      <header className="page-head">
-        <div>
-          <h1>Overview</h1>
-          <p>
-            Every figure is derived at read time — there is no analytics table
-            to drift out of sync with the game.
-          </p>
-        </div>
-        <div className="page-head-actions">
-          {lastFetched && <span className="dim small">Updated {formatRelative(lastFetched)}</span>}
-          <span className="tag">Last 30 days</span>
-          <button className="btn-secondary btn-small" onClick={load}>Refresh</button>
-        </div>
-      </header>
+      {/* Title and actions live in the topbar. The bar already names the page,
+          so a .page-head here was the same word twice plus ~100px of height
+          before any data. */}
+      <PageNote>Derived at read time — no analytics table to drift.</PageNote>
+      <PageActions>
+        {lastFetched && <span className="dim small">Updated {formatRelative(lastFetched)}</span>}
+        <span className="tag">Last 30 days</span>
+        <button className="btn-secondary btn-small" onClick={load}>Refresh</button>
+      </PageActions>
 
       {/* Signal bar — the three numbers that mean "go and do something".
           These were a 370x433 column beside the chart: an enormous amount of
