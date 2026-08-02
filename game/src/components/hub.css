@@ -821,46 +821,6 @@
 }
 .pvp-tour .pvp2-empty { margin: 0; line-height: 1.55; max-width: 62ch; }
 
-/* ── The team strip, as a control ──────────────────────────────────
-   Six sprites in the corner that did nothing. Every other game puts the
-   lineup where you manage the lineup, and this screen already had a team
-   builder one button away — it just opened from READY UP, mid-commitment,
-   which is the worst moment to discover you brought the wrong Pokémon. */
-.pvp2-team-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.22);
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-.pvp2-team-strip:hover { background: rgba(255, 255, 255, 0.05); }
-.pvp2-team-strip:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
-.pvp2-team-strip .pvp2-team-label {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-/* The affordance. Without a word here the strip is six sprites that
-   happen to be clickable, which nobody discovers. */
-.pvp2-team-edit {
-  font-family: var(--font-display);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-.pvp2-team-strip .pvp2-team-row { display: flex; gap: 4px; }
-.pvp2-team-note { font-size: 10px; color: var(--text-dim); }
-
 /* ── Recent matches ────────────────────────────────────────────────
    Rows, not pips. Ten coloured diamonds tell you the SHAPE of a run and
    nothing else — not who beat you, not when, not whether the loss was a
@@ -931,12 +891,6 @@
    under the bar rather than across the room from it. */
 .pvp-hero-trainer-card .pvp-track { max-width: 560px; }
 
-/* The team, inside the arena. Full width of the column, sprites in a
-   row that breathes — at the card's old size they were 28px squares
-   crammed against the edge. */
-.pvp2-arena .pvp2-team-strip { flex: 0 0 auto; }
-.pvp2-arena .pvp2-team-row { justify-content: space-between; gap: 6px; }
-.pvp2-arena .pvp2-team-slot { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
 
 /* Touch floors for the Battle pane's own rows.
    At the END of the file on purpose: `.pvp2-match { min-height: 38px }` is
@@ -945,7 +899,7 @@
    override earlier is exactly how it silently did nothing the first time. */
 @media (max-width: 900px) {
   .pvp2-match { min-height: 44px; }
-  .pvp2-team-strip { min-height: 44px; }
+  .pvp2-team { min-height: 44px; }
 }
 
 /* The backdrop, on a phone.
@@ -1021,4 +975,178 @@
 
 /* The team sits on the arena's floor, full width, with its label and
    count on the same line as the sprites' row above them. */
-.pvp2-arena .pvp2-team-strip { margin-top: auto; }
+
+/* =====================================================================
+   Mode cards, and a team that looks like a team
+   ===================================================================== */
+
+/* ── Mode ──────────────────────────────────────────────────────────
+   It was `.pvp-mode-chips`: a full-width dark bar with two small pills
+   centred in it, so most of the control was empty and the choice read
+   as an afterthought floating over the artwork.
+
+   Two cards that fill the row instead. Each carries the one fact a
+   player is choosing between — whether the result counts — so nobody
+   has to press the button to find out what mode they are in. */
+.pvp2-modes {
+  flex: 0 0 auto;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+}
+.pvp2-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* Not transparent: these sit on the backdrop, and a transparent card
+     over artwork is a rectangle of noise with words on it. */
+  background: rgba(13, 13, 14, 0.72);
+  color: var(--ctl-fg);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.pvp2-mode:hover:not(.is-active) { background: rgba(21, 21, 22, 0.9); color: var(--ctl-fg-hover); }
+.pvp2-mode:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+/* Selected is the same solid fill as every other selected control, but
+   opaque here so it holds its own against the painting behind it. */
+.pvp2-mode.is-active {
+  background: var(--panel-4);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.pvp2-mode-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; opacity: 0.8; }
+.pvp2-mode.is-active .pvp2-mode-icon { color: var(--gold); opacity: 1; }
+.pvp2-mode-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pvp2-mode-name {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pvp2-mode-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pvp2-mode.is-active .pvp2-mode-note { color: var(--text-muted); }
+
+/* ── The team ──────────────────────────────────────────────────────
+   It was a 10px-padded strip with 28px sprites and a dot for an empty
+   slot — barely a control, and the six Pokémon you are about to fight
+   with were the smallest thing in the panel.
+
+   A card with a header and six defined slots. Each slot is a framed
+   box, so an empty one reads as a SLOT rather than as absence, and each
+   filled one carries the level it will actually fight at. */
+.pvp2-team {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(13, 13, 14, 0.72);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.pvp2-team:hover { background: rgba(21, 21, 22, 0.9); border-color: var(--border-strong); }
+.pvp2-team:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+
+.pvp2-team-head { display: flex; align-items: baseline; gap: 10px; }
+.pvp2-team-title {
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pvp2-team-count { flex: 1 1 auto; min-width: 0; font-size: 10.5px; color: var(--text-dim); }
+/* The affordance. A card that is merely clickable is a card nobody
+   clicks — and this one is the only way into the team builder that is
+   not mid-commitment behind READY UP. */
+.pvp2-team-edit {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* SIX explicit columns. `grid-auto-flow: column` alone was not enough:
+   pvpArena.css already declares grid-template-columns on this class for the
+   old 3-wide strip, and auto-flow does not override an explicit template —
+   so the six slots wrapped into 3x2 and each one inflated to 175px square.
+   minmax(0, 1fr) rather than 1fr so a sprite can never set a column's
+   minimum and blow the row past its container. */
+/* Scoped to .pvp2-team, i.e. (0,2,0). app.css declares .pvp2-team-row at
+   (0,1,0) AND is loaded after this file, so at equal specificity it wins on
+   order — which is why the plain selector silently did nothing and the six
+   slots kept wrapping into app.css's 3-wide grid at 175px each. */
+.pvp2-team .pvp2-team-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: auto;
+  grid-auto-flow: row;
+  gap: 6px;
+}
+.pvp2-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  /* A ceiling, so a very wide arena does not turn six slots into six
+     dinner plates. */
+  max-height: 76px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.pvp2-slot.is-shiny { box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.5); }
+/* An empty slot is a slot, not a gap. The dashed inset says "something
+   goes here", which a bare dot did not. */
+.pvp2-slot.empty { background: rgba(0, 0, 0, 0.2); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
+.pvp2-slot-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+}
+.pvp2-slot-lv {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .pvp2-modes { grid-auto-flow: row; grid-auto-columns: auto; }
+  .pvp2-mode { min-height: 48px; }
+  .pvp2-slot-lv { font-size: 8.5px; }
+}

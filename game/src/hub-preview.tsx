@@ -241,9 +241,21 @@ function Harness() {
 
               {/* Ranked and Practice only — Casual is gone, and Tournament
                   appears only when one is running. */}
-              <div className="g-tabs">
-                <button className="g-tab active">Ranked</button>
-                <button className="g-tab">Practice</button>
+              <div className="pvp2-modes" role="tablist">
+                <button className="pvp2-mode is-active">
+                  <span className="pvp2-mode-icon">{"⚔"}</span>
+                  <span className="pvp2-mode-text">
+                    <span className="pvp2-mode-name">Ranked</span>
+                    <span className="pvp2-mode-note">Rated {"·"} Lv 50 {"·"} counts</span>
+                  </span>
+                </button>
+                <button className="pvp2-mode">
+                  <span className="pvp2-mode-icon">{"◎"}</span>
+                  <span className="pvp2-mode-text">
+                    <span className="pvp2-mode-name">Practice</span>
+                    <span className="pvp2-mode-note">Versus AI {"·"} never rated</span>
+                  </span>
+                </button>
               </div>
               <div className="pvp2-arena-core">
               <div className="pvp-slab-wrap">
@@ -258,14 +270,19 @@ function Harness() {
                 </p>
               </div>
               </div>
-              <button className="pvp2-team-strip">
-                <span className="pvp2-team-label">TEAM<span className="pvp2-team-edit">Edit</span></span>
+              <button className="pvp2-team">
+                <span className="pvp2-team-head">
+                  <span className="pvp2-team-title">YOUR TEAM</span>
+                  <span className="pvp2-team-count">6/6 {"·"} capped at Lv 50</span>
+                  <span className="pvp2-team-edit">Edit</span>
+                </span>
                 <span className="pvp2-team-row">
                   {Array.from({ length: 6 }, (_, i) => (
-                    <span key={i} className={`pvp2-team-slot ${i < 6 ? "filled" : "empty"}`}>·</span>
+                    <span key={i} className={`pvp2-slot ${i < 5 ? "filled" : "empty"}`}>
+                      {i < 5 ? <span className="pvp2-slot-lv">50</span> : <span className="pvp2-slot-dot" />}
+                    </span>
                   ))}
                 </span>
-                <span className="pvp2-team-note">6/6 · capped at Lv 50</span>
               </button>
             </section>
             <aside className="pvp2-side">

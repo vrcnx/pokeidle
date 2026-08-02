@@ -353,9 +353,14 @@ export function PvpHubPane() {
 
           </article>
 
-          <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
-            {/* Tournament only exists when one does. A mode chip that leads
-                to "no tournament scheduled" is a door onto a wall. */}
+          {/* MODE - two cards, not two pills in a bar.
+              It was a full-width dark strip holding two small chips, so most
+              of it was empty and the choice read as an afterthought floating
+              over the artwork. There are only ever two or three modes and
+              they differ in the one way a player cares about - whether the
+              result counts - so each says so on its own face instead of
+              making them read the button underneath to find out. */}
+          <div className="pvp2-modes" role="tablist" aria-label={t("Match mode")}>
             {((openTournaments.length > 0
                 ? ["ranked", "tournament", "practice"]
                 : ["ranked", "practice"]) as Mode[]).map((m) => (
@@ -363,13 +368,18 @@ export function PvpHubPane() {
                 key={m}
                 role="tab"
                 aria-selected={mode === m}
-                className={`pvp-mode-chip ${mode === m ? "active" : ""}`}
+                className={`pvp2-mode${mode === m ? " is-active" : ""}`}
                 onClick={() => setMode(m)}
               >
-                {m.toUpperCase()}
+                <span className="pvp2-mode-icon" aria-hidden>{MODE_ICON[m]}</span>
+                <span className="pvp2-mode-text">
+                  <span className="pvp2-mode-name">{t(MODE_LABEL[m])}</span>
+                  <span className="pvp2-mode-note">{t(MODE_NOTE[m])}</span>
+                </span>
               </button>
             ))}
           </div>
+
           <div className="pvp2-arena-core">
           <ReadyUpSlab
             inBattle={inBattle}
@@ -416,47 +426,52 @@ export function PvpHubPane() {
               opens the same builder with nothing at stake. */}
           <button
             type="button"
-            className="pvp2-team-strip"
+            className="pvp2-team"
             onClick={() => {
               closePvpHub();
               openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } });
             }}
             title={t("Edit your battle team")}
           >
-            <span className="pvp2-team-label">
-              {t("TEAM")}
+            <span className="pvp2-team-head">
+              <span className="pvp2-team-title">{t("YOUR TEAM")}</span>
+              <span className="pvp2-team-count">
+                {teamForStrip.length}/6 {"·"} {t("capped at Lv 50")}
+              </span>
               <span className="pvp2-team-edit">{t("Edit")}</span>
             </span>
             <span className="pvp2-team-row">
               {Array.from({ length: 6 }).map((_, i) => {
                 const mon = teamForStrip[i];
                 return (
-                  <span key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
+                  <span
+                    key={i}
+                    className={`pvp2-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}
+                    title={mon ? `${mon.name} · Lv ${mon.level}` : t("Empty slot")}
+                  >
                     {mon
-                    ? (
-                      <PokemonSprite
-                        speciesKey={mon.speciesKey}
-                        isShiny={mon.isShiny}
-                        alt=""
-                        width={28}
-                        height={28}
-                        style={{ imageRendering: "pixelated" }}
-                        title={`${mon.name} · Lv ${mon.level}`}
-                      />
-                    )
-                    : <span aria-hidden>·</span>
+                      ? (
+                        <>
+                          <PokemonSprite
+                            speciesKey={mon.speciesKey}
+                            isShiny={mon.isShiny}
+                            alt=""
+                            width={44}
+                            height={44}
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                          {/* The level a slot will actually FIGHT at. Ranked
+                              caps at 50, so a Lv 100 in the party is not the
+                              advantage the party screen implies, and this is
+                              the only place that number is honest. */}
+                          <span className="pvp2-slot-lv">{Math.min(50, mon.level)}</span>
+                        </>
+                      )
+                      : <span className="pvp2-slot-dot" aria-hidden />
                     }
                   </span>
                 );
               })}
-            </span>
-            {/* Levels are capped at 50 in ranked, so a party of Lv 100s is
-                not the advantage it looks like — and the count is the thing
-                a player is actually checking when they glance here. */}
-            <span className="pvp2-team-note">
-              {teamForStrip.length === 0
-                ? t("No Pokémon yet")
-                : `${teamForStrip.length}/6 · ${t("capped at Lv 50")}`}
             </span>
           </button>
         </section>
@@ -702,6 +717,25 @@ export function PvpHeaderRight() {
  * player will recognise rather than a range they have to interpret.
  */
 const EVEN_MATCH_SWING = 16;
+
+/** What each mode is called, and the one thing that distinguishes it.
+ *  The note is always about whether the result COUNTS, because that is the
+ *  only difference a player is actually choosing between. */
+const MODE_LABEL: Record<Mode, string> = {
+  ranked: "Ranked",
+  tournament: "Tournament",
+  practice: "Practice",
+};
+const MODE_NOTE: Record<Mode, string> = {
+  ranked: "Rated · Lv 50 · counts",
+  tournament: "Bracketed · own prizes",
+  practice: "Versus AI · never rated",
+};
+const MODE_ICON: Record<Mode, string> = {
+  ranked: "⚔",
+  tournament: "★",
+  practice: "◎",
+};
 
 /** "3h ago" for a match row. Falls back to the date once a run is old
  *  enough that "9d ago" stops meaning anything. */
