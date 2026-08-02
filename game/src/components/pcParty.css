@@ -7,6 +7,9 @@
    fix belongs where .party-row is defined, not here.
    ===================================================================== */
 .pc-party {
+  /* The shortest a party slot may be — a filled row's own min-content, so
+     nothing inside one is ever squeezed. Below this the list scrolls. */
+  --pc-slot-min: 112px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -41,6 +44,16 @@
 }
 .pc-party-count .dim { color: var(--text-dim); font-weight: 600; }
 
+/* SIX equal rows, always. A grid and not a flex column, because equal is
+   the whole requirement and flex cannot promise it: `flex: 1 1 0` hands
+   every slot the same share of the free space, but each one is still
+   floored at its OWN min-content — a filled row's is ~112px, an empty
+   slot's is far less — so a party of four came out as four 122px rows over
+   two 102px slots. Raising the floor did not close it either; it just moved
+   both numbers up. `minmax(min, 1fr)` sizes the TRACKS, so all six are
+   identical by construction whatever is standing in them.
+   Six is not a guess: the component always renders exactly six children,
+   members first and open slots after. */
 .pc-party-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -48,23 +61,26 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: repeat(6, minmax(var(--pc-slot-min), 1fr));
   gap: 6px;
   scrollbar-gutter: stable;
 }
-/* Slots share the leftover height rather than stacking at the top over a
-   void — but capped, because a party row stretched to 120px stops looking
-   like a row. Whatever is left over after the cap sits above the hint,
-   which reads as padding rather than as a hole.
-   `flex: 1 1 auto`, not `1 1 0`: a basis of zero would let six rows be
-   crushed to nothing in a short column instead of scrolling. */
-.pc-party-list > li {
-  flex: 1 1 auto;
-  max-height: 104px;
-}
-/* .party-row is a grid; its single row track is auto-sized, so growing the
-   li leaves the content stuck to the top without this. */
+/* Slots share the column's height between them, exactly as the party card
+   in the game's right rail does. Six rows, evenly pitched, ending at the
+   bottom of the list.
+
+   The version before this capped each row at 104px, which was the worst of
+   both: it put air inside every row AND still left an 87px band under the
+   last one, so the column read as stretched and unfinished at the same
+   time. A cap only helps if something else takes the remainder, and here
+   nothing does.
+
+   Sizing is the grid's, above — a slot must not add a height of its own or
+   it stops matching the other five. */
+.pc-party-list > li { min-height: 0; }
+/* .party-row is a grid whose single track is auto-sized, so a taller row
+   leaves the sprite and bars pinned to the top without this. */
 .pc-party-list > .party-row { align-content: center; }
 
 /* A free position. Deliberately quiet — it is a place something can go,
@@ -75,7 +91,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 52px;
   padding: 0 12px;
   border: 1px dashed var(--border-strong, #2a2a2e);
   border-radius: var(--card-radius, 8px);

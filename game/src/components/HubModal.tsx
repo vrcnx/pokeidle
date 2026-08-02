@@ -80,6 +80,19 @@ export interface HubSectionContent {
    * does — see the .hub-shell--aside rule.
    */
   Aside?: React.ComponentType;
+  /**
+   * Drawn over the pane column, inside the frame.
+   *
+   * For a view that belongs to a section but is not the section — the PC's
+   * Pokemon detail sheet is the case: it covers the box, keeps the rail and
+   * the party visible either side of it, and closing it puts you back where
+   * you were rather than back at the game screen.
+   *
+   * Over the PANE and not the whole dialog, deliberately. A layer that also
+   * covered the third column would take the party away at the exact moment
+   * a player is deciding whether to send this Pokemon to it.
+   */
+  Layer?: React.ComponentType;
 }
 
 interface SectionDef {
@@ -472,6 +485,7 @@ export function HubFrame({
             >
               <content.Body />
             </div>
+            {content.Layer && <content.Layer />}
           </div>
 
           {/* The third column: the section's own, if it has one, otherwise

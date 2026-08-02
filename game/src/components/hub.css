@@ -275,6 +275,7 @@
 
 /* ── The pane side ─────────────────────────────────────────────────── */
 .hub-main {
+  position: relative; /* the containing block for .hub-detail */
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1594,3 +1595,34 @@
    dead space — the same hole the right rail had before the party card was
    allowed to grow into it. */
 .hub-extra > * { flex: 1 1 auto; min-height: 0; }
+
+/* ── A section's own layer, over the pane ──────────────────────────
+   The PC's Pokemon detail sheet. It covers the box and the pane header
+   and stops there: the rail and the party column stay visible either
+   side, which is the whole reason it is a layer inside the dialog rather
+   than another full-screen overlay on top of it. Deciding whether to send
+   this Pokemon to your party is easier when you can still see the party.
+
+   Opaque, not translucent. A sheet this dense over a grid of 150 sprites
+   is unreadable at any blur. */
+.hub-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  overflow: hidden;
+}
+/* The sheet was built as a modal: its own width cap, its own max-height,
+   its own shadow, all sized against the viewport. In here the frame is the
+   dialog, so it fills the space it is given and nothing else. */
+.hub-detail > .g-modal {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

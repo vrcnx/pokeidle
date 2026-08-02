@@ -8,6 +8,7 @@ import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteSlug, getItemInfo } from "../utils/items";
 import { expForLevel } from "../utils/stats";
 import { openPokemonDetail } from "./PokemonDetailModal";
+import { openHub } from "./HubModal";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
@@ -157,6 +158,20 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
             the player looks for it. */}
         <div className="party-card-head">
           <h4>{t("Party")}</h4>
+          {/* Where you go to change WHO is in the party, next to the button
+              that changes what state they are in. The PC has always been the
+              answer and there was never a route to it from the party itself:
+              you had to know the PC also managed the party, and go looking.
+              It lands on the PC with the party column beside the box, which
+              is the surface this button is promising. */}
+          <button
+            type="button"
+            className="party-manage-btn"
+            onClick={() => openHub("pc")}
+            title={t("Open the PC to swap Pokémon in and out")}
+          >
+            {t("Manage")}
+          </button>
           <PartyHealButton />
         </div>
         {/* role="group", because every row inside is role="button" (see

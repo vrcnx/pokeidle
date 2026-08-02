@@ -6,6 +6,7 @@ import { SettingsPane } from "./GlobalDock";
 import { TrainerSelfPane } from "./TrainerCardModal";
 import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
 import { PcPartyAside } from "./PcPartyAside";
+import { PokemonDetailModal } from "./PokemonDetailModal";
 import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
 import { useGame } from "../state/GameContext";
@@ -26,6 +27,11 @@ import { useT } from "../i18n/useT";
 // the leaderboard, and Rewards refetches promos. Building all four to render
 // one would put three subsystems on the wire so somebody could change the
 // music volume.
+/** The detail sheet, drawn inside the PC rather than on top of the game. */
+function PcDetailLayer() {
+  return <PokemonDetailModal inline />;
+}
+
 const SECTIONS: Record<HubSection, HubSectionContent> = {
   // The five that used to be a tab strip pinned under the battle scene.
   // They were always the same five destinations the hub is for — they just
@@ -39,7 +45,15 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   // The one section with a working third column instead of a picture: the
   // box and the party are two halves of one job, and a drag between them
   // only works if both are on screen.
-  pc:   { Body: PCTab, fill: true, Aside: PcPartyAside },
+  pc:   {
+    Body: PCTab,
+    fill: true,
+    Aside: PcPartyAside,
+    // Details open over the box, not over the whole screen. Mounting it here
+    // also makes it the sheet's host for as long as the PC is open — the
+    // global copy in GameShell stands down. See PokemonDetailModal.
+    Layer: PcDetailLayer,
+  },
   dex:  { Body: DexTab, fill: true },
   pvp: {
     Body: PvpHubPane,

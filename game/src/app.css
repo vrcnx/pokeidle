@@ -11213,6 +11213,37 @@ input:focus, textarea:focus, select:focus {
   color: #dcfce7;
 }
 .party-heal-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* "Manage" — the route from the party to the PC, where you change who is in
+   it. Same pill geometry as Heal so the pair reads as one control group, in
+   the neutral --ctl-* colours rather than Heal's green: green is a state
+   this button does not have, and two coloured pills side by side would make
+   the header look like a choice between two actions of equal weight. Heal
+   acts on the party right now; this one takes you somewhere. */
+.party-manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.party-manage-btn:hover {
+  background: var(--ctl-bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.party-manage-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
 /* Nothing to restore. Deliberately NOT `disabled` — the button is also the
    mid-battle retreat, and a full party can still want out of a fight. */
 .party-heal-btn.full { opacity: 0.5; }

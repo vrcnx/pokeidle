@@ -157,6 +157,31 @@ type Source =
 let _selected: Source | null = null;
 const _listeners = new Set<(s: Source | null) => void>();
 
+// ── Who draws the sheet ─────────────────────────────────────────────
+// Normally the global mount in GameShell does. But when the hub's PC
+// section is open, the sheet belongs INSIDE that dialog — a full-screen
+// overlay on top of the PC is a second window covering the thing you were
+// looking at, when what a player wants is to look at one Pokémon without
+// losing the box and the party around it.
+//
+// So the PC mounts its own copy with `inline`, and that copy CLAIMS the
+// sheet: while a claim is live, the global mount renders nothing. A count
+// rather than a boolean, so a mount/unmount pair that overlaps during a
+// section change cannot leave the flag stuck on and the sheet unreachable
+// from everywhere else in the game.
+let _hosts = 0;
+const _hostListeners = new Set<(n: number) => void>();
+function publishHosts() { for (const fn of _hostListeners) fn(_hosts); }
+function useHosted(): boolean {
+  const [n, set] = useState(_hosts);
+  useEffect(() => {
+    _hostListeners.add(set);
+    set(_hosts);
+    return () => { _hostListeners.delete(set); };
+  }, []);
+  return n > 0;
+}
+
 export function openPokemonDetail(s: Source) {
   _selected = s;
   _listeners.forEach((l) => l(s));
@@ -174,9 +199,23 @@ function useSelected(): Source | null {
   return s;
 }
 
-export function PokemonDetailModal() {
+/**
+ * @param inline Draw the sheet in place, inside whatever container mounts
+ *   it, instead of as a full-screen overlay. Used by the hub's PC section.
+ */
+export function PokemonDetailModal({ inline = false }: { inline?: boolean } = {}) {
   const { state, dispatch } = useGame();
   const selected = useSelected();
+  const hosted = useHosted();
+
+  // An inline mount claims the sheet for as long as it exists — not only
+  // while something is selected, or the global overlay would flash up for
+  // the frame between a click and this component's effect running.
+  useEffect(() => {
+    if (!inline) return;
+    _hosts++; publishHosts();
+    return () => { _hosts--; publishHosts(); };
+  }, [inline]);
 
   // Escape closes the modal — matches the rest of the modal surfaces
   // (PvP hub, replay, etc.). The hook always runs (no early return)
@@ -371,17 +410,17 @@ export function PokemonDetailModal() {
     closePokemonDetail();
   }
 
-  return (
-    // pokemon-detail-overlay carries a z-index above the other modal
-    // overlays. Every .modal-overlay in the app sits at z-index 100, so which
-    // one wins is decided by DOM order — and this sheet is mounted BEFORE the
-    // hub in GameShell, which meant opening a Pokemon's details from the hub's
-    // PC pane drew the sheet underneath the hub. It is not a peer of the
-    // surface that opened it; it is a child action of one, so it belongs on
-    // top of whatever that was. See releaseControls.css for the value and why
-    // it stops short of the context menu.
-    <div className="modal-overlay pokemon-detail-overlay" onClick={closePokemonDetail}>
-      <PokemonDetailDialog
+  // The global mount stands down while an inline host is up. Placed with the
+  // other early returns rather than at the top of the function so every hook
+  // above still runs unconditionally.
+  if (!inline && hosted) return null;
+
+  // ONE dialog, two frames. Built here and wrapped below, rather than
+  // written out twice: this call passes thirty props and half of them are
+  // closures over `index`, so a second copy would be a second set of them
+  // to keep in step.
+  const sheet = (
+    <PokemonDetailDialog
         pokemon={p}
         species={sp}
         isActive={isActive}
@@ -461,6 +500,26 @@ export function PokemonDetailModal() {
           closePokemonDetail();
         }}
       />
+  );
+
+  // Inline: no overlay and no click-to-close backdrop. This panel sits
+  // inside a dialog that already has both, and a second scrim over the
+  // first would dim the PC twice.
+  if (inline) {
+    return <div className="hub-detail" role="region" aria-label="Pokémon">{sheet}</div>;
+  }
+
+  return (
+    // pokemon-detail-overlay carries a z-index above the other modal
+    // overlays. Every .modal-overlay in the app sits at z-index 100, so which
+    // one wins is decided by DOM order — and this sheet is mounted BEFORE the
+    // hub in GameShell, which meant opening a Pokemon's details from the hub's
+    // PC pane drew the sheet underneath the hub. It is not a peer of the
+    // surface that opened it; it is a child action of one, so it belongs on
+    // top of whatever that was. See releaseControls.css for the value and why
+    // it stops short of the context menu.
+    <div className="modal-overlay pokemon-detail-overlay" onClick={closePokemonDetail}>
+      {sheet}
     </div>
   );
 }
