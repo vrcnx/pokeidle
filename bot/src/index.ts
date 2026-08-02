@@ -20,6 +20,7 @@ import { startGiveawaySync } from "./giveawaySync.js";
 import { startTournamentSync } from "./tournamentSync.js";
 import { startBugReportIngest } from "./bugReports.js";
 import { startXpListener } from "./xp.js";
+import { preflight } from "./preflight.js";
 
 const client = new Client({
   intents: [
@@ -50,9 +51,21 @@ const client = new Client({
   ],
 });
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`[bot] ready as ${c.user.tag}`);
   console.log(`[bot] game server: ${config.apiBase}`);
+
+  // Before anything starts polling: check the things that are true or false
+  // right now — intents, permissions, role hierarchy, channel ids, the game
+  // API — and print them as one block. Every production failure this bot has
+  // had was one of these, silent, and only noticed when someone tried to use
+  // the feature it broke. See preflight.ts.
+  //
+  // Awaited so the report is not interleaved with reconcile output, and
+  // deliberately never fatal: a bot that answers /profile but cannot post trade
+  // listings is still worth running.
+  await preflight(client).catch((e) => console.error("[preflight] check failed:", String(e)));
+
   startRoleSync(client);
   // Giveaways created in the admin dashboard with "Announce in Discord"
   // ticked. Polled rather than pushed — the game server holds no Discord

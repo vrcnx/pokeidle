@@ -165,11 +165,32 @@ export function startRoleSync(client: Client): void {
     console.log("[roles] ROLE_SYNC_DISABLED=1 — not reconciling.");
     return;
   }
-  const tick = () => {
-    reconcileOnce(client).catch((e) => console.error("[roles] pass failed:", String(e)));
+  // OVERLAP GUARD. A reconcile walks every member and awaits an API call per
+  // role change, so on a large guild it can outrun the interval. Without this,
+  // setInterval would start a second pass on top of the first, then a third —
+  // each one adding concurrent requests to a Discord API that is already the
+  // reason the pass is slow. That is how a slow reconcile becomes a rate-limit
+  // spiral rather than just a late one.
+  //
+  // Skipping is always the right answer: the next tick reconciles the same
+  // state, so a dropped pass costs latency, never correctness.
+  let running = false;
+  const tick = async () => {
+    if (running) {
+      console.warn("[roles] previous pass still running — skipping this tick.");
+      return;
+    }
+    running = true;
+    try {
+      await reconcileOnce(client);
+    } catch (e) {
+      console.error("[roles] pass failed:", String(e));
+    } finally {
+      running = false;
+    }
   };
   // Run once at boot so a deploy immediately corrects anything that drifted
   // while the bot was down, then on the interval.
-  tick();
-  setInterval(tick, config.roleSyncIntervalMs).unref?.();
+  void tick();
+  setInterval(() => void tick(), config.roleSyncIntervalMs).unref?.();
 }

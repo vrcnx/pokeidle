@@ -161,9 +161,22 @@ export function startTournamentSync(client: Client): void {
         "announcement will stay pending until it is set.",
     );
   }
-  const run = () => {
-    tick(client).catch((e) => console.error("[tournaments] poll failed:", String(e)));
+  // Overlap guard — same reasoning as giveawaySync.ts and roleSync.ts. Two
+  // concurrent polls would both read the same pending brackets and both post
+  // them; the NULL-guarded claim picks a winner, but only after the loser has
+  // already pinged a role.
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await tick(client);
+    } catch (e) {
+      console.error("[tournaments] poll failed:", String(e));
+    } finally {
+      running = false;
+    }
   };
-  run();
-  setInterval(run, TICK_MS).unref?.();
+  void run();
+  setInterval(() => void run(), TICK_MS).unref?.();
 }

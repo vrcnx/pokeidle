@@ -6,11 +6,33 @@
 // healthy, and throws on the first person to run a command. A misconfigured
 // deploy should fail to start.
 
+// ── WHY NOTHING HERE CALLS process.exit ─────────────────────────────
+//
+// It used to. A missing variable printed one line and exited 1, which is
+// correct behaviour almost everywhere and wrong on this deploy: railway.json
+// sets `restartPolicyType: ALWAYS`, so exiting starts a new container, which
+// exits, which starts a new container. The same shape that spent a day's worth
+// of Discord identifies through client.login — see the comment at the bottom
+// of index.ts.
+//
+// So a fatal config error now REPORTS EVERYTHING WRONG AT ONCE and then parks
+// the process alive. Two reasons:
+//
+//   * Staying alive is what stops the platform restarting us. A parked
+//     container is a readable log; a restart loop is the same line ten thousand
+//     times with the useful part scrolled away.
+//   * Exiting on the FIRST missing variable meant fixing one, redeploying,
+//     waiting, and discovering the next. With five required variables that is
+//     five deploys to learn five facts we knew at the first boot.
+
+const missing: string[] = [];
+const invalid: string[] = [];
+
 function required(name: string): string {
   const v = process.env[name]?.trim();
   if (!v) {
-    console.error(`[config] ${name} is not set. The bot cannot start without it.`);
-    process.exit(1);
+    missing.push(name);
+    return "";
   }
   return v;
 }
@@ -36,15 +58,40 @@ function intOpt(name: string, fallback: number): number {
  */
 function botToken(): string {
   const v = required("BOT_TOKEN");
-  if (v.length < 32) {
-    console.error(
-      "[config] BOT_TOKEN is shorter than 32 characters. The game server refuses " +
-        "to honour a secret that short (it answers 401 for every call), so this " +
-        "would look like an authentication bug. Generate one with: openssl rand -hex 32",
+  if (v && v.length < 32) {
+    invalid.push(
+      "BOT_TOKEN is shorter than 32 characters. The game server refuses to honour " +
+        "a secret that short — it answers 401 for every call, which looks exactly " +
+        "like a wrong token. Generate one with: openssl rand -hex 32",
     );
-    process.exit(1);
   }
   return v;
+}
+
+/** Report every problem at once, then hang forever. Called at the bottom of
+ *  this module, after every value has been read. */
+async function reportAndPark(): Promise<never> {
+  console.error("");
+  console.error("=== CONFIGURATION ERROR ===");
+  if (missing.length) {
+    console.error("Missing required environment variables:");
+    for (const m of missing) console.error(`  - ${m}`);
+  }
+  for (const m of invalid) console.error(`  - ${m}`);
+  console.error("");
+  console.error("On Railway these live under the service -> Variables.");
+  console.error("A local .env is NOT used by the deploy; the two are separate.");
+  console.error("");
+  console.error("Not exiting: exiting would let restartPolicyType:ALWAYS restart me");
+  console.error("into this same error forever, and scroll this message away.");
+  console.error("Fix the variables and redeploy.");
+  console.error("");
+  // A no-op interval is the cheapest way to hold the event loop open, and it is
+  // deliberately NOT unref'd — staying alive is the entire point.
+  setInterval(() => {}, 1 << 30);
+  // Never resolves, so module evaluation stops here and nothing downstream
+  // runs against half-built config.
+  return new Promise<never>(() => {});
 }
 
 export const config = {
@@ -139,3 +186,9 @@ export const config = {
   /** How long a trade listing stays on the board before the bot deletes it. */
   tradeListingTtlMs: intOpt("TRADE_LISTING_TTL_MS", 48 * 60 * 60_000),
 } as const;
+
+// Every value above has now been read, so `missing` and `invalid` are complete.
+// Top-level await: if this fires, module evaluation never finishes and nothing
+// that imports config ever runs — which is the point. No half-configured bot
+// sitting in the server looking healthy.
+if (missing.length || invalid.length) await reportAndPark();

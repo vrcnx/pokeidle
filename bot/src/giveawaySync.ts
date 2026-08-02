@@ -133,9 +133,23 @@ export function startGiveawaySync(client: Client): void {
     console.log("[giveaways] GIVEAWAY_SYNC_DISABLED=1 — not polling.");
     return;
   }
-  const tick = () => {
-    announce(client).catch((e) => console.error("[giveaways] poll failed:", String(e)));
+  // Overlap guard — see the longer note in roleSync.ts. A poll that posts
+  // several giveaways can exceed the 30s tick, and two concurrent polls would
+  // both read the same pending rows and both try to post them. The server's
+  // NULL-guarded claim means only one wins, but the loser has already posted a
+  // message it then has to delete, which readers see.
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await announce(client);
+    } catch (e) {
+      console.error("[giveaways] poll failed:", String(e));
+    } finally {
+      running = false;
+    }
   };
-  tick();
-  setInterval(tick, TICK_MS).unref?.();
+  void tick();
+  setInterval(() => void tick(), TICK_MS).unref?.();
 }
