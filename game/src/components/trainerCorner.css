@@ -113,20 +113,24 @@
 
    Deliberately smaller and quieter than the strip was. They are a way
    back to somewhere, not the primary furniture of the screen. */
-/* TWO rows, both full width. Five destinations, then the three that used
-   to be their own dock directly underneath this card — they read as
-   belonging to it long before they were part of it.
+/* TWO rows of FOUR, both full width.
    Separate <nav>s rather than one row of eight: at 300px of rail, eight
    labelled targets is 37px each, and the two rows are genuinely different
-   kinds of place (somewhere to go, versus something about you). */
+   kinds of place (somewhere to go, versus something about you).
+
+   Both rows are four wide so the icons form a grid instead of two ragged
+   rows of different pitch — 5-then-3 meant no icon in the second row sat
+   under an icon in the first, which read as two unrelated toolbars that
+   happened to be stacked. Dex moved down to make the count even, and it
+   belongs there anyway: the Pokedex is a record of what YOU have caught,
+   not a place in the world you travel to. */
 .trainer-corner-links {
   display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   padding: 0 8px;
 }
-.trainer-corner-links--go   { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .trainer-corner-links--you  {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 3px;
   padding-top: 6px;
   padding-bottom: 8px;

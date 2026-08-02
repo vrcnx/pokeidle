@@ -63,7 +63,18 @@ export function TrainerCardModal(props: Props) {
 
 // --- Self card -------------------------------------------------------------
 
-function SelfCard({ onClose }: { onClose: () => void }) {
+/**
+ * The card itself — everything BELOW the title bar, and nothing above it.
+ *
+ * Split out because this content now has two homes: the hub mounts it as a
+ * section (the rail's identity block is the door), and the mobile profile
+ * strip still opens it as a standalone dialog. One copy, so the two can
+ * never drift into being two different trainer cards.
+ *
+ * It owns no overlay, no header and no close button — those belong to
+ * whichever shell is showing it, exactly once.
+ */
+export function TrainerSelfPane() {
   const { state } = useGame();
   const { me } = useAuth();
   const totalGyms = gymLeaders.length;
@@ -74,9 +85,126 @@ function SelfCard({ onClose }: { onClose: () => void }) {
   const totalDex = obtainableCount();
   const caughtDex = caughtObtainableCount(state.pokedexCaught);
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
-  const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const t = useT();
 
+  return (
+    <>
+    {/* SVG filter referenced by .g-badge-disc img — adds a 1px
+        black stroke INSIDE the image silhouette to clean up the
+        transparent-edge bleed on the PokeAPI badge PNGs. The
+        filter erodes the alpha channel by 1px, takes the
+        difference (a 1px ring along the inside edge), floods it
+        black, and composites back over the original. Inlined
+        here so it's available whenever the trainer card is
+        mounted; SVG filter ids are global so any element using
+        url(#badge-inner-stroke) can reach it. */}
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+      <defs>
+        <filter id="badge-inner-stroke">
+          <feMorphology operator="erode" radius="1" in="SourceAlpha" result="inner" />
+          <feComposite in="SourceAlpha" in2="inner" operator="out" result="ring" />
+          <feFlood floodColor="#000" />
+          <feComposite in2="ring" operator="in" result="stroke" />
+          <feComposite in="stroke" in2="SourceGraphic" operator="over" />
+        </filter>
+      </defs>
+    </svg>
+  {me && (
+        <section className="g-profile-hero">
+          <div className="g-avatar">{initial}</div>
+          <div className="g-profile-info">
+            <div className="g-profile-name">{me.name ?? me.username}</div>
+            <div className="g-profile-handle">@{me.username}</div>
+          </div>
+          <div className="g-profile-stats">
+            <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>{t("Level")}</span></div>
+            <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>{t("Money")}</span></div>
+            <div className="g-stat-pill">
+              <strong className={state.championDefeated ? "g-stat-on" : ""}>
+                {state.championDefeated ? t("Champ") : "—"}
+              </strong>
+              <span>{t("Status")}</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="g-grid">
+        <section className="g-card">
+          <h3>{t("Battle Record")}</h3>
+          <div className="g-row"><span>{t("Wild victories")}</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
+          <div className="g-row"><span>{t("Trainer victories")}</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
+          <div className="g-row"><span>{t("Elite Four")}</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {totalE4}</span></strong></div>
+          <div className="g-row"><span>{t("Champion")}</span><strong>{state.championDefeated ? t("Defeated") : <span className="dim">{t("Pending")}</span>}</strong></div>
+        </section>
+
+        <section className="g-card">
+          <h3>{t("Collection")}</h3>
+          <div className="g-row"><span>{t("Caught")}</span><strong>{caughtDex}<span className="dim"> / {totalDex}</span></strong></div>
+          <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
+          <div className="g-row"><span>{t("Shiny")}</span><strong>{state.shinyCaught.length}</strong></div>
+          <div className="g-row"><span>{t("Badges")}</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
+          {/* Σ Pokémon levels — the same headline collection stat
+              the public Trainer Card shows. Players complained they
+              couldn't see this on their own card. */}
+          {me && (
+            <div className="g-row"><span>{t("Σ Pokémon levels")}</span><strong>{(me.totalCaughtLevels ?? 0).toLocaleString()}</strong></div>
+          )}
+        </section>
+      </div>
+
+      <section className="g-card g-card-full">
+        <h3>{t("Gym Badges")}</h3>
+        <div className="g-badge-grid">
+          {gymLeaders.map((g, i) => {
+            const earned = state.defeatedGyms.includes(g.id);
+            // PokeAPI hosts the eight Kanto badges at sprites/badges/
+            // 1.png … 8.png in their sprite repo, in the same order
+            // as our gymLeaders array (Brock, Misty, Surge, Erika,
+            // Koga, Sabrina, Blaine, Giovanni). Pull from the GitHub
+            // raw URL — locked badges render the same image with a
+            // grayscale + low-opacity filter applied via CSS.
+            const badgeUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/${i + 1}.png`;
+            return (
+              <div
+                key={g.id}
+                className={`g-badge ${earned ? "earned" : ""}`}
+                title={earned ? `${g.badgeName} — defeated ${g.name}` : `${g.name} (${g.locationKey}) — not yet defeated`}
+              >
+                <div className="g-badge-disc">
+                  <img
+                    src={badgeUrl}
+                    alt={g.badgeName}
+                    width={48}
+                    height={48}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                </div>
+                <div className="g-badge-name">{earned ? g.badgeName : t("Locked")}</div>
+                <div className="g-badge-leader">{g.name}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* The card IS the profile as far as players are concerned, so
+          the name editor lives here as well as in Settings → Account.
+          A Google signup looking to get their real name off the
+          leaderboards searches here first. */}
+      <AccountIdentityCard />
+
+  <BattleHistorySection />
+  <TradeHistorySection />
+    </>
+  );
+}
+
+// The standalone dialog. Still the mobile profile strip's destination: that
+// rail has no hub identity block to press, because it has no rail.
+function SelfCard({ onClose }: { onClose: () => void }) {
+  const dialogRef = useModalEnter(".g-profile-hero, .g-card");
+  const t = useT();
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -86,121 +214,11 @@ function SelfCard({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-label={t("Trainer Card")}
       >
-        {/* SVG filter referenced by .g-badge-disc img — adds a 1px
-            black stroke INSIDE the image silhouette to clean up the
-            transparent-edge bleed on the PokeAPI badge PNGs. The
-            filter erodes the alpha channel by 1px, takes the
-            difference (a 1px ring along the inside edge), floods it
-            black, and composites back over the original. Inlined
-            here so it's available whenever the trainer card is
-            mounted; SVG filter ids are global so any element using
-            url(#badge-inner-stroke) can reach it. */}
-        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
-          <defs>
-            <filter id="badge-inner-stroke">
-              <feMorphology operator="erode" radius="1" in="SourceAlpha" result="inner" />
-              <feComposite in="SourceAlpha" in2="inner" operator="out" result="ring" />
-              <feFlood floodColor="#000" />
-              <feComposite in2="ring" operator="in" result="stroke" />
-              <feComposite in="stroke" in2="SourceGraphic" operator="over" />
-            </filter>
-          </defs>
-        </svg>
         <header className="g-modal-head">
           <h2>{t("Trainer Card")}</h2>
           <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
-
-        <div className="g-modal-body">
-          {me && (
-            <section className="g-profile-hero">
-              <div className="g-avatar">{initial}</div>
-              <div className="g-profile-info">
-                <div className="g-profile-name">{me.name ?? me.username}</div>
-                <div className="g-profile-handle">@{me.username}</div>
-              </div>
-              <div className="g-profile-stats">
-                <div className="g-stat-pill"><strong><CountUp value={me.accountLevel} /></strong><span>{t("Level")}</span></div>
-                <div className="g-stat-pill"><strong>$<CountUp value={state.money} /></strong><span>{t("Money")}</span></div>
-                <div className="g-stat-pill">
-                  <strong className={state.championDefeated ? "g-stat-on" : ""}>
-                    {state.championDefeated ? t("Champ") : "—"}
-                  </strong>
-                  <span>{t("Status")}</span>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <div className="g-grid">
-            <section className="g-card">
-              <h3>{t("Battle Record")}</h3>
-              <div className="g-row"><span>{t("Wild victories")}</span><strong>{state.wildBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>{t("Trainer victories")}</span><strong>{state.trainerBattlesWon.toLocaleString()}</strong></div>
-              <div className="g-row"><span>{t("Elite Four")}</span><strong>{state.defeatedEliteFour.length}<span className="dim"> / {totalE4}</span></strong></div>
-              <div className="g-row"><span>{t("Champion")}</span><strong>{state.championDefeated ? t("Defeated") : <span className="dim">{t("Pending")}</span>}</strong></div>
-            </section>
-
-            <section className="g-card">
-              <h3>{t("Collection")}</h3>
-              <div className="g-row"><span>{t("Caught")}</span><strong>{caughtDex}<span className="dim"> / {totalDex}</span></strong></div>
-              <div className="g-row"><span>{t("Seen")}</span><strong>{state.pokedexSeen.length}</strong></div>
-              <div className="g-row"><span>{t("Shiny")}</span><strong>{state.shinyCaught.length}</strong></div>
-              <div className="g-row"><span>{t("Badges")}</span><strong>{state.defeatedGyms.length}<span className="dim"> / {totalGyms}</span></strong></div>
-              {/* Σ Pokémon levels — the same headline collection stat
-                  the public Trainer Card shows. Players complained they
-                  couldn't see this on their own card. */}
-              {me && (
-                <div className="g-row"><span>{t("Σ Pokémon levels")}</span><strong>{(me.totalCaughtLevels ?? 0).toLocaleString()}</strong></div>
-              )}
-            </section>
-          </div>
-
-          <section className="g-card g-card-full">
-            <h3>{t("Gym Badges")}</h3>
-            <div className="g-badge-grid">
-              {gymLeaders.map((g, i) => {
-                const earned = state.defeatedGyms.includes(g.id);
-                // PokeAPI hosts the eight Kanto badges at sprites/badges/
-                // 1.png … 8.png in their sprite repo, in the same order
-                // as our gymLeaders array (Brock, Misty, Surge, Erika,
-                // Koga, Sabrina, Blaine, Giovanni). Pull from the GitHub
-                // raw URL — locked badges render the same image with a
-                // grayscale + low-opacity filter applied via CSS.
-                const badgeUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/${i + 1}.png`;
-                return (
-                  <div
-                    key={g.id}
-                    className={`g-badge ${earned ? "earned" : ""}`}
-                    title={earned ? `${g.badgeName} — defeated ${g.name}` : `${g.name} (${g.locationKey}) — not yet defeated`}
-                  >
-                    <div className="g-badge-disc">
-                      <img
-                        src={badgeUrl}
-                        alt={g.badgeName}
-                        width={48}
-                        height={48}
-                        style={{ imageRendering: "pixelated" }}
-                      />
-                    </div>
-                    <div className="g-badge-name">{earned ? g.badgeName : t("Locked")}</div>
-                    <div className="g-badge-leader">{g.name}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* The card IS the profile as far as players are concerned, so
-              the name editor lives here as well as in Settings → Account.
-              A Google signup looking to get their real name off the
-              leaderboards searches here first. */}
-          <AccountIdentityCard />
-
-          <BattleHistorySection />
-          <TradeHistorySection />
-        </div>
-
+        <div className="g-modal-body"><TrainerSelfPane /></div>
         <footer className="g-modal-foot">
           <button className="g-btn-primary" onClick={onClose}>{t("Close")}</button>
         </footer>

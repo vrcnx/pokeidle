@@ -1438,3 +1438,30 @@
   .tb-cols .team-builder-strip-item { flex: 0 0 auto; max-height: none; }
   .pvp-hub-pane--editing { height: auto; min-height: 100%; }
 }
+
+/* ── The identity block, as a button ─────────────────────────────────
+   Pressing your own name and face opens your trainer card, in the pane
+   beside it. It is the rail's tenth destination without being a tenth row:
+   a row labelled "Trainer Card" sitting directly under a block showing your
+   name, level and money would have been the same thing twice.
+
+   The button is a bare wrapper — .hub-me keeps every visual it had — so the
+   only additions are the affordances a div could not carry: a hover, a
+   focus ring, and an active state that matches the rail's. */
+.hub-me-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.hub-me-btn:hover { background: var(--ctl-bg-hover); }
+.hub-me-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.hub-me-btn.is-active { background: var(--ctl-on-bg); }
+.hub-me-btn.is-active .hub-me-name { color: var(--ctl-on-fg); }

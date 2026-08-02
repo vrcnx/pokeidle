@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
-  IconSwords, IconTicket, IconChat, IconSettings,
+  IconSwords, IconTicket, IconChat, IconSettings, IconMedal,
 } from "./Icon";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
@@ -43,7 +43,10 @@ import "./hub.css";
 
 export type HubSection =
   | "map" | "mart" | "bag" | "pc" | "dex"
-  | "pvp" | "rewards" | "social" | "settings";
+  | "pvp" | "rewards" | "social" | "settings"
+  // Reachable only by pressing the identity block at the top of the rail —
+  // see `rail: false` below.
+  | "trainer";
 
 export interface HubSectionContent {
   /**
@@ -75,6 +78,11 @@ interface SectionDef {
   Icon: ComponentType<{ size?: number; className?: string }>;
   label: string;
   group: "world" | "play" | "account";
+  /** False for a section that is a real destination but NOT a row in the
+   *  rail. The trainer card is the only one: its door is your own name and
+   *  face at the top of the rail, which is a better door than a tenth row
+   *  labelled "Trainer Card" directly underneath it. */
+  rail?: false;
 }
 
 // Order is the priority order a player cares about, not alphabetical:
@@ -89,7 +97,11 @@ const SECTIONS: SectionDef[] = [
   { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play" },
   { id: "social",   Icon: IconChat,      label: "Social",   group: "account" },
   { id: "settings", Icon: IconSettings,  label: "Settings", group: "account" },
+  { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false },
 ];
+
+/** The rail's rows: every section except the ones with their own door. */
+const RAIL = SECTIONS.filter((s) => s.rail !== false);
 
 const GROUPS: Array<{ id: SectionDef["group"]; label: string }> = [
   { id: "world",   label: "Go" },
@@ -136,12 +148,18 @@ export interface HubModalProps {
    *  something this file reads, so the frame still knows nothing about
    *  saves, auth or currency. */
   identity?: ReactNode;
+  /** What pressing the identity block opens. Given, the frame wraps the
+   *  identity in a button; omitted, it stays inert. A prop rather than a
+   *  hardcoded "trainer" so the frame still knows nothing about what a
+   *  trainer card is — hub-preview passes an identity with no section and
+   *  gets the plain block. */
+  identitySection?: HubSection;
   /** Sections that cannot be entered right now, with the reason. PvP is not
    *  useful mid-battle. */
   disabled?: Partial<Record<HubSection, string>>;
 }
 
-export function HubModal({ sections, disabled, identity }: HubModalProps) {
+export function HubModal({ sections, disabled, identity, identitySection }: HubModalProps) {
   const [active, setActive] = useState<HubSection | null>(null);
   const badges = useHubBadges();
   const t = useT();
@@ -189,6 +207,7 @@ export function HubModal({ sections, disabled, identity }: HubModalProps) {
       disabled={disabled}
       badges={badges}
       identity={identity}
+      identitySection={identitySection}
       title={t("Hub")}
     />
   );
@@ -212,7 +231,7 @@ export function pickLanding(
   // home is where you GO, and going somewhere is what a player opens a menu
   // to do far more often than starting a ranked match.
   if (!disabled?.map) return "map";
-  return SECTIONS.find((s) => !disabled?.[s.id])?.id ?? "settings";
+  return RAIL.find((s) => !disabled?.[s.id])?.id ?? "settings";
 }
 
 /**
@@ -225,7 +244,7 @@ export function pickLanding(
  * mounts this with the real stylesheet.
  */
 export function HubFrame({
-  active, onSelect, onClose, sections, disabled, badges, identity, title,
+  active, onSelect, onClose, sections, disabled, badges, identity, identitySection, title,
 }: {
   active: HubSection;
   onSelect: (s: HubSection) => void;
@@ -234,6 +253,7 @@ export function HubFrame({
   disabled?: Partial<Record<HubSection, string>>;
   badges?: Partial<Record<HubSection, number>>;
   identity?: ReactNode;
+  identitySection?: HubSection;
   title: string;
 }) {
   const t = useT();
@@ -300,7 +320,7 @@ export function HubFrame({
     const keys = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
-    const usable = SECTIONS.filter((s) => !disabled?.[s.id]);
+    const usable = RAIL.filter((s) => !disabled?.[s.id]);
     if (usable.length === 0) return;
     const at = usable.findIndex((s) => s.id === active);
     const step = e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 1;
@@ -340,7 +360,24 @@ export function HubFrame({
                 saying "Hub" — a label for the thing you are already looking
                 at. Who you are, what level, how much money is the same space
                 spent on something worth reading. */}
-            {identity ?? (
+            {identity
+              ? (identitySection
+                ? (
+                  // Your own name and face, as the way into your own card.
+                  // Every other rail row is a place; this one is you, so it
+                  // sits above the groups rather than inside "You".
+                  <button
+                    type="button"
+                    className={`hub-me-btn${active === identitySection ? " is-active" : ""}`}
+                    aria-current={active === identitySection ? "page" : undefined}
+                    onClick={() => onSelect(identitySection)}
+                    title={t("Trainer Card")}
+                  >
+                    {identity}
+                  </button>
+                )
+                : identity)
+              : (
               <div className="hub-brand">
                 <span className="hub-brand-mark" aria-hidden>◆</span>
                 <span className="hub-brand-text">{title}</span>
@@ -349,7 +386,7 @@ export function HubFrame({
 
             <div className="hub-nav-scroll" ref={navRef} onKeyDown={onNavKey}>
               {GROUPS.map((grp) => {
-                const items = SECTIONS.filter((s) => s.group === grp.id);
+                const items = RAIL.filter((s) => s.group === grp.id);
                 if (items.length === 0) return null;
                 return (
                   <nav key={grp.id} className="hub-nav" role="tablist" aria-label={t(grp.label)}>

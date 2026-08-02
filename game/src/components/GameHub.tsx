@@ -3,6 +3,7 @@ import { RewardsBody, RewardsHeaderRight } from "./GiveawayModal";
 import { SocialPane } from "./SocialPanel";
 import { PvpHubPane, PvpHeaderRight } from "./PvpHubModal";
 import { SettingsPane } from "./GlobalDock";
+import { TrainerSelfPane } from "./TrainerCardModal";
 import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
 import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
@@ -55,6 +56,12 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
     Body: SettingsPane,
     note: "Your account, your game, and the knobs.",
   },
+  // No rail row — the identity block at the top of the rail IS this
+  // section's door. See `rail: false` in HubModal's SECTIONS.
+  trainer: {
+    Body: TrainerSelfPane,
+    note: "Badges, records, and everything you have caught.",
+  },
 };
 
 /**
@@ -95,5 +102,5 @@ export function GameHub() {
   // player to guess.
   const disabled = pvp.room ? { pvp: t("You're already in a PvP battle") } : undefined;
 
-  return <HubModal sections={SECTIONS} disabled={disabled} identity={<HubIdentity />} />;
+  return <HubModal sections={SECTIONS} disabled={disabled} identity={<HubIdentity />} identitySection="trainer" />;
 }

@@ -453,6 +453,10 @@ function Harness() {
       },
     social: { Body: ChatFiller, fill: true },
     settings: { Body: () => <Filler label="Stats" rows={20} />, note: "Your account, your game, and the knobs." },
+    // Reachable in the app by pressing the identity block. This harness
+    // passes no identitySection, so the block stays inert here and the
+    // section is unreachable — it is listed only to satisfy the record.
+    trainer: { Body: () => <Filler label="Badges" rows={14} /> },
   };
 
   return (

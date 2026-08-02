@@ -665,6 +665,37 @@ a:focus-visible {
   min-height: 168px;
 }
 .control-column > .unlock-hint  { flex-shrink: 0; }
+/* Fill the rail. On desktop the Next Goal card and the party are the whole
+   right column — the context panel moved to the centre and the profile strip
+   is hidden — so nothing in the column grew and a full-height rail ended in
+   200-300px of dead background under the last Pokemon.
+
+   The PARTY absorbs it rather than the goal card above it. The goal card is a
+   headline plus two progress rows; stretched, it would hold the same empty
+   space with a border around it. The party is a six-row list, and a list is
+   the one thing here that reads BETTER with the rows given room.
+
+   `:last-child` is the condition, and it is exactly the right one: the party
+   card is last only when the column has nothing after it. Mobile's party tab
+   still renders the context panel and the profile strip below it, so there
+   the party stays its natural height and the column scrolls, as before.
+
+   `flex: 1 0 auto` — grow into slack, never shrink. Growing AND shrinking is
+   what crushed the context panel to zero height with a full party (see the
+   note above); this cannot, because a six-mon overflow leaves no slack to
+   grow into and shrink is off. */
+.control-column > .party-card:last-child {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.control-column > .party-card:last-child .party-list { flex: 1 0 auto; }
+/* Rows share the slack equally, so the dividers stay evenly pitched instead
+   of the list sitting at the top with one giant last row. */
+.control-column > .party-card:last-child .party-row {
+  flex: 1 0 auto;
+  align-content: center;
+}
 .control-column > .inventory-ribbon { margin-top: auto; flex-shrink: 0; }
 /* Hide the scrollbar on the party column (and any inner scrollable
    area within it) so the left rail reads clean. Wheel + drag still
