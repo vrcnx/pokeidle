@@ -28,6 +28,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { HubFrame, type HubSection, type HubSectionContent } from "./components/HubModal";
 import { RewardsPane } from "./components/GiveawayModal";
+import { TierTrack } from "./components/PvpHubModal";
 import type { GiveawayStats, Promo, PublicGiveaway } from "./net/api";
 import "./app.css";
 
@@ -206,7 +207,69 @@ function Harness() {
 
   const sections: Record<HubSection, HubSectionContent> = {
     pvp: {
-      Body: () => <Filler label="Ranked" rows={16} />,
+      // The REAL tier track, on the REAL split — the two things the Battle
+      // rebuild actually added. A stand-in that skipped them would certify a
+      // pane that no longer exists.
+      Body: () => (
+        <div className="pvp-hub-pane">
+          <section className="pvp2-trainer-row">
+            {/* Full width, like the real card. At `flex: 1` inside a narrow
+                wrapper the tier bands rendered 17px each, which would have
+                certified a track nobody could read. */}
+            <article className="pvp-hero-trainer-card" style={{ padding: 16, display: "block", width: "100%" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                <strong style={{ fontSize: 15 }}>phoenix</strong>
+                <span className="dim small">Rating 984 · Bronze</span>
+                <TierTrack rating={984} unranked={false} />
+              </div>
+            </article>
+          </section>
+          <div className="hub-split pvp2-body">
+            <section className="pvp2-cta">
+              <div className="g-tabs">
+                <button className="g-tab active">Ranked</button>
+                <button className="g-tab">Casual</button>
+                <button className="g-tab">Tournament</button>
+                <button className="g-tab">Practice</button>
+              </div>
+              <div className="pvp-slab-wrap">
+                <button className="pvp-slab">
+                  <span className="pvp-slab-title">READY UP</span>
+                  <span className="pvp-slab-sub">Ranked · Lv 50</span>
+                </button>
+                <p className="pvp-stake">
+                  <span className="pvp-stake-win">+16</span><span className="dim">if you win</span>
+                  <span className="pvp-stake-sep">·</span>
+                  <span className="pvp-stake-loss">−16</span><span className="dim">if you lose</span>
+                </p>
+              </div>
+            </section>
+            <aside className="pvp2-side">
+              <div className="pvp2-panel">
+                <header className="pvp2-panel-head"><h4>LADDER</h4><span className="dim small">4 rated</span></header>
+                <ul className="pvp2-podium-list">
+                  {[["#1","koruem",1016],["#2","naill",1016],["#3","fabio",984]].map(([r,n,v]) => (
+                    <li key={n as string} className="pvp2-podium-row">
+                      <span className="pvp2-podium-rank">{r}</span>
+                      <strong className="pvp2-podium-name">{n}</strong>
+                      <span className="pvp2-podium-rating tabular">{v}</span>
+                    </li>
+                  ))}
+                  <li className="pvp2-podium-row pvp2-podium-you">
+                    <span className="pvp2-podium-rank">#4</span>
+                    <strong className="pvp2-podium-name">phoenix</strong>
+                    <span className="pvp2-podium-rating tabular">984</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="pvp2-panel">
+                <header className="pvp2-panel-head"><h4>LAST 10</h4></header>
+                <p className="dim small pvp2-empty">No matches yet. Ready up to start your record.</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      ),
       HeaderRight: () => <span className="pvp2-elo-chip">34 matches</span>,
       note: "Ranked ladder, casual matches and tournaments.",
     },

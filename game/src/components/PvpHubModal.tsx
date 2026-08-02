@@ -20,7 +20,7 @@ import { openTeamBuilder } from "./TeamBuilderModal";
 import { openReplay } from "./PvpReplayModal";
 import { IconSwords, IconCrown, IconClose } from "./Icon";
 import { PokemonSprite } from "./Sprite";
-import { PVP_TIERS, tierFor, tierProgress, ratingToNextTier } from "../state/pvpTiers";
+import { PVP_TIERS, tierFor, ratingToNextTier } from "../state/pvpTiers";
 // The offer below reuses .pvp-queue-overlay / .pvp-slab / .pvp-mode-chip from
 // app.css and adds only two new rules, which live in pvpArena.css. Vite dedupes
 // this against PvpArena.tsx's own import of the same file.
@@ -323,13 +323,7 @@ export function PvpHubPane() {
                   <strong className="tabular">{streak > 0 ? `🔥 ${streak}` : "—"}</strong>
                 </div>
               </div>
-              {!isUnranked && toNext && (
-                <div className="pvp2-next-tier">
-                  <span className="dim small">{t("Next tier in")}</span>
-                  <strong>+{toNext.gap}</strong>
-                  <span className="dim small">→ {toNext.next.name}</span>
-                </div>
-              )}
+              <TierTrack rating={ratingValue} unranked={isUnranked} />
             </div>
 
             {/* RIGHT: team strip (6 mini sprites) */}
@@ -390,6 +384,7 @@ export function PvpHubPane() {
             inQueue={inQueue}
             noTeam={noTeam}
             mode={mode}
+            stake={mode === "ranked" && !isUnranked ? EVEN_MATCH_SWING : null}
             onReady={
               mode === "practice"
                 ? () => startPractice(botPick ?? botRecommended ?? undefined)
@@ -455,24 +450,28 @@ export function PvpHubPane() {
           {/* Top 3 */}
           <div className="pvp2-panel pvp2-top3">
             <header className="pvp2-panel-head">
-              <h4>{t("TOP 3")}</h4>
-              {myRank && <span className="dim small">{t("YOU · #")}{myRank}</span>}
+              <h4>{t("LADDER")}</h4>
+              {leaderboard.length > 0 && (
+                <span className="dim small">
+                  {leaderboard.length} {leaderboard.length === 1 ? t("rated") : t("rated")}
+                </span>
+              )}
             </header>
             {leaderboard.length === 0 ? (
               <p className="dim small pvp2-empty">{loaded ? t("No ranked players yet — be the first.") : t("Loading…")}</p>
             ) : (
               <ul className="pvp2-podium-list">
-                {leaderboard.slice(0, 3).map((r) => (
-                  <li key={r.userId} className={`pvp2-podium-row rank-${r.rank}`}>
+                {leaderboard.slice(0, 5).map((r) => (
+                  <li key={r.userId} className={`pvp2-podium-row rank-${r.rank}${me && r.userId === me.id ? " is-you" : ""}`}>
                     <span className="pvp2-podium-rank">#{r.rank}</span>
                     {r.rank === 1 && <IconCrown size={12} className="pvp2-podium-crown" />}
                     <strong className="pvp2-podium-name">{r.name ?? r.username}</strong>
                     <span className="pvp2-podium-rating tabular">{r.rating}</span>
                   </li>
                 ))}
-                {me && !myRank && (
+                {me && (myRank == null || myRank > 5) && (
                   <li className="pvp2-podium-row pvp2-podium-you">
-                    <span className="pvp2-podium-rank">{t("YOU")}</span>
+                    <span className="pvp2-podium-rank">{myRank ? `#${myRank}` : t("YOU")}</span>
                     <strong className="pvp2-podium-name">{me.name ?? me.username}</strong>
                     <span className="pvp2-podium-rating tabular">{isUnranked ? "—" : ratingValue}</span>
                   </li>
@@ -620,13 +619,102 @@ export function PvpHeaderRight() {
   );
 }
 
+/**
+ * What an evenly-matched ranked game is worth, both ways.
+ *
+ * Elo with K=32 pays K x (1 - expected); two players on the same rating each
+ * expect 0.5, so the swing is 16 — and 16 is exactly what the one forfeited
+ * match in production moved a rating by, which is why it is the number a
+ * player will recognise rather than a range they have to interpret.
+ */
+const EVEN_MATCH_SWING = 16;
+
+/**
+ * The ranked ladder, as a ladder.
+ *
+ * This replaced the line "Next tier in +116 → Silver". That sentence is
+ * accurate and tells a player nothing they can feel: it names a number
+ * without saying how far along they are, what comes after Silver, or that
+ * there are five bands at all. Ranked's entire loop is climbing this, and it
+ * was the smallest text on the card.
+ *
+ * Five segments, one per tier, each in its own tier colour. The band you are
+ * in fills to your position within it; the ones behind you are solid, the
+ * ones ahead are ghosted. So "how far up am I, and how much further" is
+ * answered by shape before anything is read.
+ */
+export function TierTrack({ rating, unranked }: { rating: number; unranked: boolean }) {
+  const t = useT();
+  const here = tierFor(rating);
+  const idx = PVP_TIERS.indexOf(here);
+  const next = ratingToNextTier(rating);
+
+  // How full the band you are standing in should LOOK.
+  //
+  // Not tierProgress(), and this is the whole reason the bar needed its own
+  // number. Bronze spans 0–1100 and every account starts at 1000, so the
+  // true band position of a player who has never battled is 91% — a bar
+  // that reads "nearly promoted" for somebody who has done nothing, and
+  // then asks them for another 100 points. The band below the starting
+  // rating is only reachable by losing, so it is not progress anybody made.
+  //
+  // Measured from the START of the band you could actually be in: 1000 for
+  // Bronze, the tier floor for everything above it. A fresh account reads
+  // empty, 1050 reads half, and 984 — the rating in production that got
+  // there by forfeiting — reads empty rather than 89%.
+  const STARTING_RATING = 1000;
+  const from = Math.max(here.floor, idx === 0 ? STARTING_RATING : here.floor);
+  const span = Math.max(1, here.ceil - from);
+  const within = Math.max(0, Math.min(1, (rating - from) / span));
+
+  return (
+    <div className="pvp-track" role="img"
+      aria-label={unranked
+        ? t("Unranked — play a ranked match to place")
+        : `${here.name}${next ? ` · ${next.gap} ${t("to")} ${next.next.name}` : ` · ${t("top tier")}`}`}>
+      <div className="pvp-track-bands">
+        {PVP_TIERS.map((tier, i) => {
+          const state = i < idx ? "done" : i === idx ? "here" : "ahead";
+          return (
+            <span key={tier.id} className={`pvp-track-band is-${state}`} title={tier.name}>
+              <span
+                className="pvp-track-fill"
+                style={{
+                  // Behind you: full. Ahead: empty. Here: how far in.
+                  width: state === "done" ? "100%" : state === "here" && !unranked ? `${Math.round(within * 100)}%` : "0%",
+                  background: tier.color,
+                }}
+              />
+            </span>
+          );
+        })}
+      </div>
+      <div className="pvp-track-legend">
+        <span className="pvp-track-now" style={{ color: here.color }}>
+          {unranked ? t("Unranked") : here.name}
+        </span>
+        {next
+          ? (
+            <span className="pvp-track-next">
+              <strong>{next.gap}</strong> {t("to")} {next.next.name}
+            </span>
+          )
+          : <span className="pvp-track-next">{t("Top tier")}</span>}
+      </div>
+    </div>
+  );
+}
+
 function ReadyUpSlab({
-  inBattle, inQueue, noTeam, mode, onReady, onCancel,
+  inBattle, inQueue, noTeam, mode, stake, onReady, onCancel,
 }: {
   inBattle: boolean;
   inQueue:  boolean;
   noTeam:   boolean;
   mode: Mode;
+  /** Rating swing an even ranked game is worth, or null when nothing is at
+   *  stake (casual, practice, or a provisional rating). */
+  stake: number | null;
   onReady:  () => void;
   onCancel: () => void;
 }) {
@@ -677,10 +765,25 @@ function ReadyUpSlab({
     );
   }
   return (
-    <button className="pvp-slab" onClick={onReady}>
-      <span className="pvp-slab-title">{t("READY UP")}</span>
-      <span className="pvp-slab-sub">{mode === "ranked" ? t("Ranked · Lv 50") : t("Casual · Friends only")}</span>
-    </button>
+    <div className="pvp-slab-wrap">
+      <button className="pvp-slab" onClick={onReady}>
+        <span className="pvp-slab-title">{t("READY UP")}</span>
+        <span className="pvp-slab-sub">{mode === "ranked" ? t("Ranked · Lv 50") : t("Casual · Friends only")}</span>
+      </button>
+      {/* What the button is worth. A ranked button that does not say what is
+          at stake asks the player to press it on faith — and the swing is the
+          one number their own rating will move by, so it is also the number
+          that makes a loss legible afterwards. */}
+      {stake != null && (
+        <p className="pvp-stake">
+          <span className="pvp-stake-win">+{stake}</span>
+          <span className="dim">{t("if you win")}</span>
+          <span className="pvp-stake-sep" aria-hidden>·</span>
+          <span className="pvp-stake-loss">−{stake}</span>
+          <span className="dim">{t("if you lose")}</span>
+        </p>
+      )}
+    </div>
   );
 }
 

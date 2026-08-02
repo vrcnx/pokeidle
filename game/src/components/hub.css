@@ -545,3 +545,68 @@
 @media (max-width: 760px) {
   .pvp-hub-pane { gap: 14px; }
 }
+
+/* ── The tier ladder ───────────────────────────────────────────────
+   Five bands, one per tier, in their own tier colours. Behind you:
+   filled. Ahead: ghosted. The one you are in fills to your position
+   within it.
+
+   It replaced the line "Next tier in +116 → Silver" — accurate, and it
+   told a player nothing they could feel. Ranked's whole loop is
+   climbing this, and it was the smallest text on the card. */
+.pvp-track { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.pvp-track-bands { display: flex; gap: 3px; }
+.pvp-track-band {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+/* The band you are standing in is taller and keeps a hairline, so the
+   eye lands on it before it reads a single word. */
+.pvp-track-band.is-here { height: 8px; margin-top: -1px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.pvp-track-band.is-ahead { opacity: 0.5; }
+.pvp-track-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) { .pvp-track-fill { transition: none; } }
+.pvp-track-legend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+}
+.pvp-track-now { font-family: var(--font-display); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.pvp-track-next { color: var(--text-dim); }
+.pvp-track-next strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ── What the button is worth ──────────────────────────────────────
+   A ranked CTA that does not say what is at stake asks the player to
+   press it on faith. The swing is also the number their own rating
+   will move by, which is what makes a loss legible afterwards. */
+.pvp-slab-wrap { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.pvp-stake {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 11px;
+}
+.pvp-stake-win  { font-family: var(--font-display); font-weight: 800; color: #86efac; }
+.pvp-stake-loss { font-family: var(--font-display); font-weight: 800; color: #fca5a5; }
+.pvp-stake-sep  { color: var(--text-dim); padding: 0 2px; }
+
+/* Your own row in the ladder, whether you are in the top five or pinned
+   underneath it. A board you are not on is a list of strangers. */
+.pvp2-podium-row.is-you,
+.pvp2-podium-row.pvp2-podium-you {
+  background: var(--ctl-on-bg);
+  border-radius: var(--ctl-r);
+}
