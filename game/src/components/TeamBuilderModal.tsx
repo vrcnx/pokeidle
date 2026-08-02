@@ -148,13 +148,22 @@ export function TeamBuilderPane({
           {/* LEFT: what you are taking, in order. */}
           <section className="g-card team-builder-strip">
             <h3>{t("Your team")} <span className="dim small">({picked.length}/6)</span></h3>
-            {picked.length === 0 ? (
+            {picked.length === 0 && (
               <p className="dim small team-builder-empty">
-                {t("Tap up to 6 Pokémon below. The first one you pick is sent out first.")}
+                {t("Pick up to 6 Pokémon on the right. The first one you pick is sent out first.")}
               </p>
-            ) : (
+            )}
               <ol className="team-builder-strip-list">
-                {picked.map((id, i) => {
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const id = picked[i];
+                  if (!id) {
+                    return (
+                      <li key={`empty-${i}`} className="team-builder-strip-item is-empty">
+                        <span className="team-builder-slot">{i + 1}</span>
+                        <span className="tb-slot-hint">{t("Empty")}</span>
+                      </li>
+                    );
+                  }
                   const entry = all.find((x) => x.mon.id === id);
                   if (!entry) return null;
                   const p = entry.mon;
@@ -165,8 +174,8 @@ export function TeamBuilderPane({
                         speciesKey={p.speciesKey}
                         isShiny={!!p.isShiny}
                         alt=""
-                        width={40}
-                        height={40}
+                        width={52}
+                        height={52}
                         style={{ imageRendering: "pixelated" }}
                       />
                       <div className="team-builder-strip-info">
@@ -200,7 +209,6 @@ export function TeamBuilderPane({
                   );
                 })}
               </ol>
-            )}
           </section>
 
           {/* RIGHT: everything you own, beside the team rather than under

@@ -1333,3 +1333,60 @@
   .team-builder-pool-grid { overflow: visible; }
   .tb-search { flex: 1 1 100%; min-height: 40px; }
 }
+
+/* ── Team builder: the team column, filled ─────────────────────────
+   The card stretched to the pane's height and then held six rows in
+   about 330px of it, leaving ~250px of empty card underneath. A card
+   that is full height and mostly empty is worse than a short one — the
+   emptiness is now deliberate-looking, which reads as a bug.
+
+   Six rows that SHARE the height instead. That also makes room for a
+   52px sprite where there was a 40px one, so the team you are about to
+   fight with is legible rather than thumbnailed.
+
+   And there are always six: an unpicked position renders as a numbered
+   empty slot rather than as nothing, so the card is the same shape with
+   one Pokémon as with six, and "how many more do I need" is answered by
+   looking rather than by counting. */
+.tb-cols .team-builder-strip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tb-cols .team-builder-strip-item {
+  flex: 1 1 0;
+  /* A floor so six rows never squash below usable on a short viewport,
+     and a ceiling so on a very tall one they do not become billboards. */
+  min-height: 56px;
+  max-height: 92px;
+}
+/* An empty position is a position. Dashed, numbered, and quiet — it
+   should read as "this is yours to fill", not as a broken row. */
+.tb-cols .team-builder-strip-item.is-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.tb-slot-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.tb-cols .team-builder-strip-item.is-empty .team-builder-slot {
+  border-style: dashed;
+  color: var(--text-dim);
+}
+/* The prompt sits above the list only while nothing is picked; once the
+   slots speak for themselves it would be telling you what you can see. */
+.tb-cols .team-builder-empty { margin: 0 0 8px; }
+
+@media (max-width: 900px) {
+  /* Stacked, the column no longer has height to share, so the rows go
+     back to their content size. */
+  .tb-cols .team-builder-strip-item { flex: 0 0 auto; max-height: none; }
+}

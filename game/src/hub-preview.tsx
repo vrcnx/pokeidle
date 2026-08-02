@@ -228,21 +228,28 @@ function Harness() {
               </p>
               <div className="tb-cols">
                 <section className="g-card team-builder-strip">
-                  <h3>Your team <span className="dim small">(6/6)</span></h3>
+                  <h3>Your team <span className="dim small">(4/6)</span></h3>
                   <ol className="team-builder-strip-list">
-                    {["Blastoise","Darkrai","Arcanine","Deoxys","Tentacruel","Kingler"].map((n,i) => (
-                      <li key={n} className="team-builder-strip-item">
-                        <span className="team-builder-slot">{i + 1}</span>
-                        <div className="team-builder-strip-info">
-                          <strong>{n}</strong>
-                          <small className="dim">Lv 100 <span className="tb-capped">{"→"} 50</span></small>
-                        </div>
-                        <div className="team-builder-strip-actions">
-                          <button className="g-btn-ghost g-btn-tiny">{"↑"}</button>
-                          <button className="g-btn-ghost g-btn-tiny">{"↓"}</button>
-                          <button className="g-btn-ghost g-btn-tiny">{"×"}</button>
-                        </div>
-                      </li>
+                    {(["Blastoise","Darkrai","Arcanine","Deoxys",null,null] as (string|null)[]).map((n,i) => (
+                      n ? (
+                        <li key={n} className="team-builder-strip-item">
+                          <span className="team-builder-slot">{i + 1}</span>
+                          <div className="team-builder-strip-info">
+                            <strong>{n}</strong>
+                            <small className="dim">Lv 100 <span className="tb-capped">{"→"} 50</span></small>
+                          </div>
+                          <div className="team-builder-strip-actions">
+                            <button className="g-btn-ghost g-btn-tiny">{"↑"}</button>
+                            <button className="g-btn-ghost g-btn-tiny">{"↓"}</button>
+                            <button className="g-btn-ghost g-btn-tiny">{"×"}</button>
+                          </div>
+                        </li>
+                      ) : (
+                        <li key={`e${i}`} className="team-builder-strip-item is-empty">
+                          <span className="team-builder-slot">{i + 1}</span>
+                          <span className="tb-slot-hint">Empty</span>
+                        </li>
+                      )
                     ))}
                   </ol>
                 </section>
