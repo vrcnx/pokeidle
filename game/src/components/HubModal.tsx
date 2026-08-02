@@ -83,21 +83,25 @@ interface SectionDef {
    *  face at the top of the rail, which is a better door than a tenth row
    *  labelled "Trainer Card" directly underneath it. */
   rail?: false;
+  /** The section's art, down the right-hand edge of the dialog. Decoration
+   *  with no information in it — see .hub-art. A section without one still
+   *  gets the column, as a dark edge rather than a hole. */
+  art?: string;
 }
 
 // Order is the priority order a player cares about, not alphabetical:
 // the thing you do, then the thing you get, then the people, then the knobs.
 const SECTIONS: SectionDef[] = [
-  { id: "map",      Icon: IconMap,       label: "Map",      group: "world" },
-  { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world" },
-  { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world" },
-  { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world" },
-  { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world" },
-  { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play" },
-  { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play" },
-  { id: "social",   Icon: IconChat,      label: "Social",   group: "account" },
-  { id: "settings", Icon: IconSettings,  label: "Settings", group: "account" },
-  { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false },
+  { id: "map",      Icon: IconMap,       label: "Map",      group: "world",   art: "/hub/map.jpg" },
+  { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world",   art: "/hub/mart.jpg" },
+  { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world",   art: "/hub/bag.jpg" },
+  { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world",   art: "/hub/pc.jpg" },
+  { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world",   art: "/hub/dex.jpg" },
+  { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play",    art: "/hub/pvp.jpg" },
+  { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play",    art: "/hub/rewards.jpg" },
+  { id: "social",   Icon: IconChat,      label: "Social",   group: "account", art: "/hub/social.jpg" },
+  { id: "settings", Icon: IconSettings,  label: "Settings", group: "account", art: "/hub/settings.jpg" },
+  { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false, art: "/hub/trainer.jpg" },
 ];
 
 /** The rail's rows: every section except the ones with their own door. */
@@ -455,6 +459,33 @@ export function HubFrame({
               <content.Body />
             </div>
           </div>
+
+          {/* The third column. Decoration, and aria-hidden because of it:
+              announcing the illustration before the section's content would
+              be noise. Its one job today is atmosphere; .hub-art-slot is
+              where anything ambient goes when a section has some. */}
+          <aside className={`hub-art${def.art ? "" : " hub-art--empty"}`} aria-hidden>
+            {def.art && (
+              <img
+                // key: without it React reuses the <img> across sections and
+                // the browser paints the OLD art until the new file decodes —
+                // a section change that flashes the previous page's picture.
+                key={def.art}
+                className="hub-art-img"
+                src={def.art}
+                alt=""
+                // NOT loading="lazy". This image is on screen the instant the
+                // section opens, so lazy is the wrong tool by definition — it
+                // is for content below the fold, and using it here guarantees
+                // an empty column on the first paint of every section change.
+                // fetchPriority low instead: load it, but behind the pane's
+                // real content, because it is decoration and can arrive late.
+                fetchPriority="low"
+                decoding="async"
+              />
+            )}
+            <div className="hub-art-slot" />
+          </aside>
         </div>
       </div>
     </div>

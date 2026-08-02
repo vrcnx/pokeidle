@@ -66,7 +66,12 @@
    they stop feeling truncated. Both cap against the viewport, so a
    laptop at 900px tall still gets air around the dialog. */
 .g-modal.hub-modal {
-  width: min(1180px, 94vw);
+  /* 1420, not 1180. The extra ~240 is the art column and nothing else —
+     the rail is unchanged at 232 and the pane keeps enough room for the
+     two-column 340px card grid that set the old number in the first
+     place. Widening WITHOUT adding the column would just have made
+     every list longer-lined. */
+  width: min(1420px, 95vw);
   height: min(860px, 88vh);
   max-height: 88vh;
   display: flex;
@@ -79,7 +84,23 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  /* rail · pane · art */
+  grid-template-columns: 232px minmax(0, 1fr) 272px;
+}
+/* The art column is the first thing to go when there is no room for it.
+   It carries no information, so losing it costs nothing — where losing
+   240px off the pane would cost the two-column card grid.
+   The gate is the VIEWPORT, not the dialog: the dialog is 95vw, so a
+   1200px window gives it 1140px, and a fixed 272px out of that is what
+   would squeeze the pane. Below this the shell is back to rail + pane
+   exactly as it was. */
+@media (max-width: 1280px) {
+  .hub-shell { grid-template-columns: 232px minmax(0, 1fr); }
+  /* .hub-art { display: none } is NOT here. The base .hub-art rule is
+     defined further down this file and sets display: flex at the same
+     specificity, so a rule here loses to it on load order and the column
+     stays in the layout as an implicit third grid track. The hiding rule
+     lives at the very end of the file instead — see the note there. */
 }
 
 /* ── The rail ──────────────────────────────────────────────────────
@@ -1465,3 +1486,79 @@
 .hub-me-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
 .hub-me-btn.is-active { background: var(--ctl-on-bg); }
 .hub-me-btn.is-active .hub-me-name { color: var(--ctl-on-fg); }
+
+
+/* ── The art column ────────────────────────────────────────────────
+   Every section gets a piece of its own art down the right-hand edge.
+
+   It is DECORATION, deliberately and for now: no controls, no numbers,
+   nothing a player has to read. That is why it is the first thing the
+   layout drops at narrow widths and why it is aria-hidden — a screen
+   reader announcing "illustration of a winding route" before the map
+   list is noise, not description.
+
+   The .hub-art-slot at the bottom is the hook this column exists for.
+   It is empty today; when a section has something ambient to say — a
+   live queue count, the weather where you are standing, who is online
+   — it goes there, over the art, without the column having to be
+   invented at that point. */
+.hub-art {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: #060607;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.hub-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* The art is atmosphere behind a UI, not the subject of the screen.
+     Held back so it never competes with the pane beside it. */
+  opacity: 0.82;
+}
+/* Two scrims, top and bottom. The top one keeps the art from fighting
+   the pane header across the border; the bottom is what anything in the
+   slot will need to stay readable over an image nobody has seen yet. */
+.hub-art::before,
+.hub-art::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+.hub-art::before {
+  top: 0;
+  height: 34%;
+  background: linear-gradient(to bottom, rgba(6, 6, 7, 0.85), transparent);
+}
+.hub-art::after {
+  bottom: 0;
+  height: 55%;
+  background: linear-gradient(to top, rgba(6, 6, 7, 0.92) 12%, transparent);
+}
+.hub-art-slot {
+  position: relative;
+  padding: 16px;
+  min-height: 0;
+}
+/* No art for this section yet: the column stays, as a dark edge rather
+   than a hole. Better than the layout jumping a column wider the day an
+   image lands. */
+.hub-art--empty { background: linear-gradient(160deg, var(--panel-2), #060607); }
+
+/* The art column drops out below 1280px — see the grid rule near the top.
+   This lives at the END of the file, after .hub-art's own display: flex,
+   because both selectors weigh the same (0,1,0) and load order is what
+   decides. Written next to the grid change it looked right and did
+   nothing: computed display stayed `flex` and the aside kept occupying an
+   implicit third track. */
+@media (max-width: 1280px) {
+  .hub-art { display: none; }
+}
