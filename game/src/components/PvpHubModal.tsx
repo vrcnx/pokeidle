@@ -96,7 +96,13 @@ export function PvpHubPane() {
     Promise.allSettled([
       api.myRating(),
       api.myPvpHistory(20),
-      api.pvpLeaderboard(50, 5),
+      // minMatches 1, not 5. routes/pvp.ts lowered the SERVER default to 1
+      // and documented why — the maximum matchesPlayed across every
+      // PlayerRating row in production is 1, so a filter of 5 returns an
+      // empty array. The server default was fixed; this call site kept
+      // overriding it with the old value, so the board read "No ranked
+      // players yet" while four rated players sat in the table.
+      api.pvpLeaderboard(50, 1),
       api.listTournaments(),
     ]).then(([r, h, l, t]) => {
       if (r.status === "fulfilled") setRating(r.value);
@@ -248,6 +254,12 @@ export function PvpHubPane() {
 
   const wins   = rating?.wins   ?? history.filter((h) => h.result === "win").length;
   const losses = rating?.losses ?? history.filter((h) => h.result === "loss").length;
+  // Forfeits are their own column server-side and count in NEITHER wins nor
+  // losses, so a player who forfeited once saw "984 · 0/0": a rating that had
+  // visibly moved beside a record claiming nothing had happened. Shown only
+  // when non-zero — a "/ 0" on every card would be noise for the 3 of 4 rated
+  // players who have never forfeited.
+  const forfeits = rating?.forfeits ?? 0;
   const peak   = rating?.peakRating ?? ratingValue;
 
   // Player's 6-mon team for the strip.
@@ -297,8 +309,10 @@ export function PvpHubPane() {
                   <strong className="tabular">{isUnranked ? "—" : ratingValue}</strong>
                 </div>
                 <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">{t("W / L")}</span>
-                  <strong className="tabular">{wins} / {losses}</strong>
+                  <span className="pvp2-stat-label">{forfeits > 0 ? t("W / L / FF") : t("W / L")}</span>
+                  <strong className="tabular">
+                    {wins} / {losses}{forfeits > 0 && <> / <span className="pvp2-ff">{forfeits}</span></>}
+                  </strong>
                 </div>
                 <div className="pvp2-stat">
                   <span className="pvp2-stat-label">{t("PEAK")}</span>
@@ -349,6 +363,11 @@ export function PvpHubPane() {
         </section>
 
         {/* MODE CHIPS + READY UP — tighter row, less hero space */}
+        {/* The arena, on the hub's own column system: the thing you came to
+            press on the left, the standings that tell you whether pressing it
+            is going well on the right. Stacked, these were a 900px column of
+            half-empty rows with the bottom third of the pane blank. */}
+        <div className="hub-split pvp2-body">
         <section className="pvp2-cta">
           <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
             {(["ranked", "casual", "tournament", "practice"] as Mode[]).map((m) => (
@@ -402,8 +421,8 @@ export function PvpHubPane() {
           )}
         </section>
 
-        {/* 2-COL: LAST 10 + TOP 3 */}
-        <section className="pvp2-row2">
+        {/* Form and standings — a column beside the CTA, not a row under it. */}
+        <aside className="pvp2-side">
           {/* Match tape — horizontal */}
           <div className="pvp2-panel pvp2-tape">
             <header className="pvp2-panel-head">
@@ -461,7 +480,8 @@ export function PvpHubPane() {
               </ul>
             )}
           </div>
-        </section>
+        </aside>
+        </div>
 
         {/* LIVE BATTLES — conditional */}
         {liveOnly && (
@@ -593,7 +613,11 @@ export function PvpHeaderRight() {
     return () => { alive = false; };
   }, []);
   if (matches == null) return null;
-  return <span className="pvp2-elo-chip">{matches} {t("matches")}</span>;
+  return (
+    <span className="pvp2-elo-chip">
+      {matches} {matches === 1 ? t("match") : t("matches")}
+    </span>
+  );
 }
 
 function ReadyUpSlab({

@@ -502,3 +502,46 @@
   gap: 14px;
   min-height: 100%;
 }
+
+/* ── Battle pane ───────────────────────────────────────────────────
+   The arena on the frame's split: the CTA on the left, the standings
+   that say whether pressing it is going well on the right.
+
+   It was a vertical stack — trainer card, mode chips, READY UP, then a
+   two-up row of "LAST 10" and "TOP 3", then tournaments — which at
+   900px of pane produced a column of half-empty rows and left the
+   bottom third of the dialog blank. */
+.pvp-hub-pane { gap: 16px; }
+.pvp2-body { align-items: stretch; }
+
+/* The CTA column owns the vertical space: the mode chips sit at the top,
+   READY UP takes the middle, and anything conditional (the practice
+   opponent picker) sits under it. `justify-content: center` on the slab's
+   own row is what stops a 40px button floating in 400px of nothing. */
+.pvp2-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+.pvp2-cta .pvp-slab { margin: 0; }
+
+.pvp2-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+/* The two panels stack in the companion column rather than sitting
+   side by side, so each gets the full 264px instead of 132. */
+.pvp2-side > .pvp2-panel { margin: 0; }
+
+/* A forfeit shown in the record. Red, because it is the one entry in
+   "W / L / FF" that is neither a win nor a loss and cost rating anyway —
+   without the colour it reads as a third kind of result rather than a
+   penalty. 6.5:1 on the trainer card's surface. */
+.pvp2-ff { color: #f87171; }
+
+@media (max-width: 760px) {
+  .pvp-hub-pane { gap: 14px; }
+}
