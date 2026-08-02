@@ -222,7 +222,7 @@ app.post("/link/start", async (c) => {
     );
   }
 
-  const minted = mintLinkCode(discordId, discordLabel);
+  const minted = await mintLinkCode(discordId, discordLabel);
   if ("error" in minted) {
     return c.json({ error: "capacity", reason: "Too many links in flight right now. Try again in a minute." }, 503);
   }

@@ -563,6 +563,45 @@ model DiscordLink {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/// A pending /link code, waiting to be typed into the site.
+///
+/// ── WHY THIS IS A TABLE AND NOT A Map ───────────────────────────────
+/// It was a Map. lib/discordLink.ts argued that persisting these would mean
+/// "a table whose rows are garbage within ten minutes, a sweeper to delete
+/// them, and a migration — to protect against an outcome whose remedy is
+/// typing /link again", and reserved moving to the database for the day the
+/// server ran multiple replicas.
+///
+/// The reasoning was right about the cost and wrong about the trigger. It is
+/// not replicas: it is that ANY restart wipes every outstanding code, and a
+/// deploy is a restart. During active development — pushes a few minutes
+/// apart — a ten-minute code is more likely to be destroyed than redeemed.
+/// That is exactly how this failed in production: the code was minted at
+/// 2:29pm, a deploy landed at 2:29pm, and the player got "that code is wrong
+/// or has expired" for a code that was neither.
+///
+/// The failure is also the worst shape available. It is silent, it blames the
+/// player's typing, and it is invisible in the logs because nothing errored —
+/// the code genuinely was not there.
+///
+/// So: one small table, rows swept opportunistically on mint. No sweeper job.
+model DiscordLinkCode {
+  /// The six-character code itself. Primary key, so redeem is an indexed
+  /// lookup rather than a scan.
+  code         String   @id
+  /// One live code per Discord account: minting again REPLACES rather than
+  /// accumulates, enforced here rather than by remembering to delete.
+  discordId    String   @unique
+  /// Display label, shown on the confirm screen so a player can see WHICH
+  /// Discord account they are about to bind. Never used as identity.
+  discordLabel String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  /// Redeem filters on expiry, and the sweep deletes by it.
+  @@index([expiresAt])
+}
+
 model Session {
   id        String   @id
   userId    String

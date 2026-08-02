@@ -39,7 +39,7 @@
 // are separate concerns, and keeping them separate is what makes it possible
 // to say that /link cannot move a Pokémon.
 
-import { randomInt, timingSafeEqual } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 
@@ -66,45 +66,15 @@ const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTWXYZ23456789";
 const CODE_LENGTH = 6;
 
 /**
- * Ceiling on simultaneously-outstanding codes. Purely a memory bound against a
- * bot bug (or a compromised BOT_TOKEN) hammering /link/start: each entry is a
- * few dozen bytes, so this cap is measured in kilobytes and will never be
- * reached by real use — the Discord server would have to have thousands of
- * people mid-link at the same instant.
+ * Delete every expired code. Called on mint, so there is no sweeper job.
  *
- * At the ceiling we sweep and then refuse, rather than evicting the oldest.
- * Evicting would mean a player who did everything right gets "unknown code"
- * because someone else's spam pushed theirs out.
+ * Best-effort by contract: a failed sweep leaves inert rows behind, because
+ * every read filters on `expiresAt` anyway. It must never stop a code being
+ * issued — housekeeping that can break the feature it tidies up after is worse
+ * than the untidiness.
  */
-const MAX_OUTSTANDING_CODES = 5_000;
-
-interface PendingCode {
-  discordId: string;
-  /** Display label ("name#0001" or the modern @handle), carried only so the
-   *  confirmation page can say WHICH Discord account is about to be bound.
-   *  Never persisted — it is a display string that Discord lets people change,
-   *  and the snowflake is the identity. */
-  discordLabel: string;
-  expiresAt: number;
-}
-
-/** code → who asked for it. */
-const codes = new Map<string, PendingCode>();
-/** discordId → their current code, so re-running /link REPLACES rather than
- *  accumulates. Without this, a player who runs /link five times leaves five
- *  live codes, four of which they have forgotten about and any of which still
- *  binds their account. */
-const codeByDiscordId = new Map<string, string>();
-
-function sweep(now: number): void {
-  for (const [code, entry] of codes) {
-    if (entry.expiresAt <= now) {
-      codes.delete(code);
-      if (codeByDiscordId.get(entry.discordId) === code) {
-        codeByDiscordId.delete(entry.discordId);
-      }
-    }
-  }
+async function sweep(): Promise<void> {
+  await prisma.discordLinkCode.deleteMany({ where: { expiresAt: { lte: new Date() } } });
 }
 
 function newCode(): string {
@@ -150,59 +120,78 @@ export function normalizeCode(raw: string): string {
  * which DMs it. It is never logged: a code in a log line is a code in whatever
  * ships those logs.
  */
-export function mintLinkCode(
+export async function mintLinkCode(
   discordId: string,
   discordLabel: string,
-): { code: string; expiresAt: number } | { error: "capacity" } {
-  const now = Date.now();
-  sweep(now);
-  if (codes.size >= MAX_OUTSTANDING_CODES) return { error: "capacity" };
+): Promise<{ code: string; expiresAt: number } | { error: "capacity" }> {
+  // Housekeeping, never fatal. See sweep().
+  await sweep().catch(() => undefined);
 
-  // Drop the previous code for this Discord user first, so exactly one is live.
-  const prev = codeByDiscordId.get(discordId);
-  if (prev) codes.delete(prev);
+  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MS);
+  const label = discordLabel.slice(0, 64);
 
-  // Collision is astronomically unlikely but not impossible, and a collision
-  // would silently rebind someone else's pending link. Re-roll rather than
-  // reason about the odds.
-  let code = newCode();
-  let guard = 0;
-  while (codes.has(code) && guard++ < 20) code = newCode();
-  if (codes.has(code)) return { error: "capacity" };
-
-  const expiresAt = now + LINK_CODE_TTL_MS;
-  codes.set(code, { discordId, discordLabel: discordLabel.slice(0, 64), expiresAt });
-  codeByDiscordId.set(discordId, code);
-  return { code, expiresAt };
+  // The upsert is keyed on discordId, so minting REPLACES this user's previous
+  // code rather than leaving a second one live. That used to need a lookaside
+  // map; it is now a unique constraint, which cannot drift out of sync.
+  //
+  // The loop is for the OTHER collision: a freshly generated code that happens
+  // to equal a different user's live code. Astronomically unlikely, and the
+  // consequence if unhandled is severe — one player's code silently rebinding
+  // another's pending link — so it is retried rather than reasoned about. The
+  // database is what detects it now, instead of a `has()` check that raced.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const code = newCode();
+    try {
+      await prisma.discordLinkCode.upsert({
+        where: { discordId },
+        create: { code, discordId, discordLabel: label, expiresAt },
+        update: { code, discordLabel: label, expiresAt },
+      });
+      return { code, expiresAt: expiresAt.getTime() };
+    } catch (e) {
+      const collided =
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002" &&
+        String((e.meta as { target?: unknown } | undefined)?.target ?? "").includes("code");
+      if (!collided) throw e;
+    }
+  }
+  return { error: "capacity" };
 }
 
 /**
- * Look up a code WITHOUT consuming it, in constant time with respect to the
- * code's value.
+ * Look up a live code WITHOUT consuming it.
  *
- * The constant-time compare is not really about this map — a Map lookup's
- * timing does not leak a secret an attacker can steer. It is here because the
- * obvious future edit is "also let an admin peek at a pending code", and the
- * habit of comparing secrets with timingSafeEqual is cheaper to keep than to
- * re-establish.
+ * The expiry is part of the WHERE rather than checked afterwards, so an expired
+ * row is invisible to every caller even if the sweep has not run — the sweep
+ * reclaims space, it is not what enforces the TTL.
+ *
+ * The old in-memory version compared with timingSafeEqual. That is gone with
+ * the Map, and its absence is not a regression: this is now a primary-key
+ * lookup, so the database is matching an exact value rather than walking
+ * candidates, and there is no per-candidate timing for an attacker to steer.
  */
-function findCode(code: string): { code: string; entry: PendingCode } | null {
-  const now = Date.now();
-  const wanted = Buffer.from(code);
-  for (const [candidate, entry] of codes) {
-    if (entry.expiresAt <= now) continue;
-    const buf = Buffer.from(candidate);
-    if (buf.length !== wanted.length) continue;
-    if (timingSafeEqual(buf, wanted)) return { code: candidate, entry };
-  }
-  return null;
+async function findCode(raw: string): Promise<{ discordId: string; discordLabel: string } | null> {
+  const code = normalizeCode(raw);
+  // A short or malformed input can never be a real code, and refusing it here
+  // saves a query per keystroke from the peek-as-you-type field.
+  if (code.length !== CODE_LENGTH) return null;
+  const row = await prisma.discordLinkCode.findFirst({
+    where: { code, expiresAt: { gt: new Date() } },
+    select: { discordId: true, discordLabel: true },
+  });
+  return row ?? null;
 }
 
 /** What a pending code is FOR, so the site can name the Discord account before
- *  the player commits. Does not consume the code. */
-export function peekLinkCode(raw: string): { discordLabel: string } | null {
-  const found = findCode(normalizeCode(raw));
-  return found ? { discordLabel: found.entry.discordLabel } : null;
+ *  the player commits. Does not consume the code.
+ *
+ *  This is the guard against the accident nobody plans for: a mistyped code
+ *  that happens to match a stranger's live one shows the STRANGER'S handle on
+ *  the confirm screen, and a human notices that before pressing the button. */
+export async function peekLinkCode(raw: string): Promise<{ discordLabel: string } | null> {
+  const found = await findCode(raw);
+  return found ? { discordLabel: found.discordLabel } : null;
 }
 
 export type RedeemResult =
@@ -229,16 +218,20 @@ export type RedeemResult =
  * missed a race", and it maps to the same message the check would have given.
  */
 export async function redeemLinkCode(raw: string, userId: string): Promise<RedeemResult> {
-  const found = findCode(normalizeCode(raw));
+  const found = await findCode(raw);
   if (!found) return { ok: false, reason: "unknown_code" };
 
-  // Consume first. See above.
-  codes.delete(found.code);
-  if (codeByDiscordId.get(found.entry.discordId) === found.code) {
-    codeByDiscordId.delete(found.entry.discordId);
-  }
+  // Consume first, and let the DELETE be what decides. Two requests carrying
+  // the same code both find the row; only one deleteMany reports a count of 1,
+  // and the loser is told the code is unknown — which by then it is. This is
+  // the single-use guarantee, and it is now enforced by the database rather
+  // than by the gap between a Map read and a Map delete.
+  const consumed = await prisma.discordLinkCode.deleteMany({
+    where: { code: normalizeCode(raw) },
+  });
+  if (consumed.count === 0) return { ok: false, reason: "unknown_code" };
 
-  const { discordId, discordLabel } = found.entry;
+  const { discordId, discordLabel } = found;
 
   // Idempotence: this exact binding already exists. Report success rather than
   // a conflict — the player asked for a state that is already true, and
@@ -311,8 +304,8 @@ export async function unlinkUser(userId: string): Promise<{ removed: boolean }> 
 
 /** Test seam: drop every outstanding code. Not exported to any route — the
  *  code store has no admin surface, deliberately, because a "list pending
- *  codes" endpoint is a list of live secrets. */
-export function _resetCodesForTest(): void {
-  codes.clear();
-  codeByDiscordId.clear();
+ *  codes" endpoint is a list of live secrets, and an admin who can read a
+ *  pending code can bind any player's Discord account to their own. */
+export async function _resetCodesForTest(): Promise<void> {
+  await prisma.discordLinkCode.deleteMany({});
 }

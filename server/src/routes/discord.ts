@@ -84,7 +84,7 @@ app.get("/link/peek", requireUser, async (c) => {
     return c.json({ error: "rate_limited" }, 429);
   }
   const code = c.req.query("code") ?? "";
-  const found = peekLinkCode(code);
+  const found = await peekLinkCode(code);
   return c.json(found ? { found: true, discordLabel: found.discordLabel } : { found: false });
 });
 

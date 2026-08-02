@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { adminApiKey, requireUser, requireAdmin } from "../lib/middleware.js";
 import { audit as auditRaw } from "../lib/audit.js";
@@ -2223,6 +2224,77 @@ app.get("/discord-links", async (c) => {
       banned: !!r.user.bannedUntil && r.user.bannedUntil > now,
     })),
   });
+});
+
+// Bind a Discord account to a game account from the dashboard.
+//
+// The support path. A player who cannot finish /link — DMs closed AND the
+// ephemeral fallback missed, a code that expired mid-deploy, a Discord account
+// they have since lost access to — otherwise has no route to a linked account
+// at all, and every reward and role behind linking stays shut to them.
+//
+// Deliberately NOT a shortcut around the code flow for ordinary use. It writes
+// an audit row naming the admin who did it, because binding one person's
+// Discord identity to another person's game account is exactly the action you
+// want attributable afterwards.
+//
+// Both conflicts are reported rather than silently overwritten: an admin who
+// meant to move a link must unlink first, so the destructive half of a move is
+// never implicit in the constructive half.
+app.post("/discord-links", async (c) => {
+  const me = c.get("user");
+  const body = await c.req.json().catch(() => null);
+  const parsed = z
+    .object({
+      // A snowflake, not an arbitrary string: this ends up in Discord API
+      // paths and in a primary key.
+      discordId: z.string().regex(/^\d{15,25}$/, "must be a Discord user id"),
+      username: z.string().min(1).max(64),
+    })
+    .safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "invalid_body", reason: parsed.error.issues[0]?.message }, 400);
+  }
+  const { discordId, username } = parsed.data;
+
+  const user = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true, username: true },
+  });
+  if (!user) return c.json({ error: "not_found", reason: "No player with that username." }, 404);
+
+  const byDiscord = await prisma.discordLink.findUnique({ where: { discordId } });
+  if (byDiscord) {
+    return c.json(
+      { error: "discord_already_linked", reason: "That Discord account is already linked. Unlink it first." },
+      409,
+    );
+  }
+  const byUser = await prisma.discordLink.findUnique({ where: { userId: user.id } });
+  if (byUser) {
+    return c.json(
+      { error: "account_already_linked", reason: "That player is already linked. Unlink them first." },
+      409,
+    );
+  }
+
+  try {
+    await prisma.discordLink.create({ data: { discordId, userId: user.id } });
+  } catch (e) {
+    // The checks above are for the error message; the constraints are the
+    // guard. Same reasoning as lib/discordLink.ts.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return c.json({ error: "already_linked", reason: "Already linked — refresh and check." }, 409);
+    }
+    throw e;
+  }
+
+  void makeAudit(c)(me.id, "discord.link", user.id, { discordId, username: user.username });
+
+  // No link reward. grantLinkReward is for a player completing the flow; paying
+  // it out of an admin action would make the promotion something support can
+  // hand out, and would fire on every repair of a link that already claimed it.
+  return c.json({ ok: true, discordId, username: user.username });
 });
 
 // Sever a link from the dashboard. The player-facing paths are /unlink in
