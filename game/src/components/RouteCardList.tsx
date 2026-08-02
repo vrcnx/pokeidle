@@ -168,7 +168,14 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
   const caughtCount = enc.filter((e) => state.pokedexCaught.includes(e.speciesKey)).length;
 
   return (
-    <div className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}>
+    <div
+      className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}
+      // ONLY an attribute — no new elements, no wrappers. The card's children
+      // are placed by explicit `grid-column` rules in app.css, so anything
+      // that moves them out of that grid breaks the layout; that is exactly
+      // what the reverted redesign did.
+      data-type={route.type}
+    >
       <div className="route-card-head">
         <span className="route-card-icon">{iconForType(route.type)}</span>
         <strong className="route-card-name" title={unlocked ? route.name : undefined}>{unlocked ? route.name : t("???")}</strong>
@@ -296,6 +303,18 @@ function RaidTierList() {
   }, [anyCooling]);
 
   const islandUnlocked = state.unlockedLocations.includes("raidIsland");
+  // "Ready in 287s" is a number, not an answer. A five-minute cooldown wants
+  // minutes; the last minute wants seconds, because that is when a player is
+  // actually waiting on it.
+  const untilReady = (ms: number) => {
+    const total = Math.ceil(ms / 1000);
+    if (total >= 60) {
+      const m = Math.floor(total / 60);
+      const sec = total % 60;
+      return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
+    }
+    return `${total}s`;
+  };
 
   if (!islandUnlocked) {
     return (
@@ -304,6 +323,14 @@ function RaidTierList() {
       </p>
     );
   }
+
+  const resume = () => {
+    if (state.currentLocation !== "raidIsland") {
+      rememberRaidReturn(state.currentLocation);
+      dispatch({ type: "TRAVEL", payload: { locationId: "raidIsland" } });
+    }
+    closeHub();
+  };
 
   const start = (tier: RaidTier) => {
     // Travel first, THEN start. The raid runs at Raid Island — the battle
@@ -320,8 +347,21 @@ function RaidTierList() {
     closeHub();
   };
 
+  const anyCd = raidTiersOrdered.some((x) => cooldownLeftFor(x.id) > 0);
+
   return (
-    <ul className="raid-tier-list">
+    <>
+      {/* The rule, said once, where it applies. It was implicit in six
+          disabled buttons — a player could see that they could not raid and
+          had nothing telling them when that changes, or why. */}
+      {(state.inRaid || anyCd) && (
+        <p className="raid-rule">
+          {state.inRaid
+            ? t("You are in a raid. Finish or leave it and every tier is available again — cooldowns only start when a raid ends.")
+            : t("Each tier cools down on its own after a raid. The others are ready now.")}
+        </p>
+      )}
+      <ul className="raid-tier-list">
       {raidTiersOrdered.map((tier) => {
         const unlocked = isTierUnlocked(tier, state);
         const cd = cooldownLeftFor(tier.id);
@@ -382,10 +422,10 @@ function RaidTierList() {
                     : `${t("Needs")} ${tier.unlockBadges} ${t("badges")}`}
                 </span>
               ) : busy ? (
-                <span className="raid-tier-why">{t("Already in a raid")}</span>
+                <span className="raid-tier-why">{t("Finish your raid first")}</span>
               ) : cd > 0 ? (
                 <span className="raid-tier-why">
-                  {t("Ready in")} {Math.ceil(cd / 1000)}s
+                  {t("Ready in")} {untilReady(cd)}
                 </span>
               ) : (
                 <span className="raid-tier-why raid-tier-ready">
@@ -396,18 +436,25 @@ function RaidTierList() {
               <button
                 type="button"
                 className="raid-tier-go"
-                disabled={!ready}
-                onClick={() => start(tier)}
-                title={ready
-                  ? t("Travel to Raid Island and begin")
-                  : undefined}
+                // In a raid, this is the way BACK to it rather than a dead
+                // control. Every tier reading "Already in a raid" with six
+                // greyed buttons and no route to the raid in question is the
+                // state this screen was worst in.
+                disabled={!ready && !busy}
+                onClick={() => (busy ? resume() : start(tier))}
+                title={busy
+                  ? t("Go back to the raid you are in")
+                  : ready
+                    ? t("Travel to Raid Island and begin")
+                    : undefined}
               >
-                {t("Raid")}
+                {busy ? t("Resume") : t("Raid")}
               </button>
             </div>
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </>
   );
 }

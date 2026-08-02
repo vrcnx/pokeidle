@@ -14480,13 +14480,21 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
    (name | mons | progress | action) so the list reads as one ordered
    sequence instead of a jagged multi-column grid where row heights
    never line up between neighbours. */
+/* MULTI-COLUMN. One card per line put a name on the left and a Go button on
+   the far right of ~900px of dead space in the hub, and made a 40-location
+   region a very long scroll of very short rows.
+   `auto-fill` with a 300px floor, so it is three columns in the hub, two in
+   a narrower pane and one on a phone — the same list, folded to fit. The
+   cards themselves are untouched: each is its own grid (name | count |
+   action) and that template still holds inside a column. */
 .route-card-grid {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-content: start;
+  gap: 8px;
   padding: 2px;
 }
 /* flex-wrap (not nowrap) is what makes this hold up at any width —
@@ -20220,3 +20228,30 @@ strong, b { font-variant-numeric: tabular-nums; }
   color: var(--text-muted);
 }
 .unlock-hint ul.unlock-endgame li strong { color: var(--text); font-weight: 700; }
+
+/* ── The map, by kind of place ─────────────────────────────────────
+   Route, town, cave, water, raid. The first thing anyone wants off a map
+   and the only thing this list did not show at all — a town with nothing
+   in it looked exactly like a route with six species on it.
+
+   An EDGE and an icon tint, nothing else. The card's own grid, spacing and
+   type sizes are untouched: this is the same list with one fact added, not
+   a redesign. (The redesign was tried, restructured the card's children out
+   of the grid columns app.css assigns them, and had to be reverted.) */
+.route-card { border-left-width: 3px; }
+.route-card[data-type="route"] { border-left-color: #86efac; }
+.route-card[data-type="town"]  { border-left-color: #fbbf24; }
+.route-card[data-type="cave"]  { border-left-color: #a78bfa; }
+.route-card[data-type="water"] { border-left-color: #38bdf8; }
+.route-card[data-type="raid"]  { border-left-color: #f472b6; }
+.route-card[data-type="route"] .route-card-icon { color: #86efac; }
+.route-card[data-type="town"]  .route-card-icon { color: #fbbf24; }
+.route-card[data-type="cave"]  .route-card-icon { color: #a78bfa; }
+.route-card[data-type="water"] .route-card-icon { color: #38bdf8; }
+.route-card[data-type="raid"]  .route-card-icon { color: #f472b6; }
+/* Locked places keep their card but lose the colour — what you have not
+   reached yet is half the point of a map, and a grey edge says "not yet"
+   without the card pretending to be somewhere you can go. */
+.route-card.locked { border-left-color: var(--border); }
+/* Where you are still wins: a full gold border beats the type edge. */
+.route-card.current { border-left-color: var(--gold); }
