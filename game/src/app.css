@@ -12768,31 +12768,15 @@ input:focus, textarea:focus, select:focus {
   padding: 10px;
   backdrop-filter: blur(2px);
 }
-/* The PC pane sits on an illustrated backdrop, so translucent-on-dark
-   chrome is unreadable here — the toolbar controls get a solid light pill
-   instead. */
-.pc-tab .pc-search,
-.pc-tab .pc-tool {
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(0, 0, 0, 0.28);
-  color: #0a0a0a;
-  font-weight: 600;
-}
-.pc-tab .pc-search::placeholder { color: rgba(0, 0, 0, 0.5); }
-.pc-tab .pc-search:focus,
-.pc-tab .pc-tool:hover {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.45);
-  color: #0a0a0a;
-}
-.pc-tab .pc-tool.on {
-  background: var(--gold);
-  border-color: rgba(0, 0, 0, 0.45);
-  color: #0a0a0a;
-}
-.pc-tab .pc-tool.on .pc-tool-dot { background: #0a0a0a; }
-.pc-tab .pc-search-clear { color: rgba(0, 0, 0, 0.55); }
-.pc-tab .pc-search-clear:hover { color: #000; }
+/* The light-pill toolbar that used to be here is gone. It existed because
+   the PC pane sat on an illustrated backdrop and translucent-on-dark chrome
+   was unreadable over it — but the answer to that was OPAQUE, not light,
+   and the premise went away when the PC became a hub section on a flat
+   --panel ground. What was left was a bar of white pills in a near-black
+   dialog. The replacement is in components/releaseControls.css, in the
+   --ctl-* primitives every other control in the app uses; it is opaque, so
+   it still reads over an illustration on the mobile tab. */
+.pc-tab .pc-tool.on .pc-tool-dot { background: var(--ctl-on-fg); }
 .bag-tab {
   flex: 1;
   min-height: 0;

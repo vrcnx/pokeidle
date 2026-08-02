@@ -85,8 +85,15 @@
   min-height: 0;
   display: grid;
   /* rail · pane · art */
-  grid-template-columns: 232px minmax(0, 1fr) 272px;
+  grid-template-columns: 232px minmax(0, 1fr) var(--hub-col-3, 272px);
 }
+/* A section with real controls in the third column gets more room than a
+   picture does. 272 was set by what an image needs, which is nothing in
+   particular; 320 is set by what a party row holds — a 48px sprite, a name,
+   a type chip or two, a level, and two labelled bars with numbers on them.
+   At 272 the longest names were truncating ("Tenta..." beside two type
+   chips) and the HP figure sat hard against the bar. */
+.hub-shell--aside { --hub-col-3: 320px; }
 /* The art column is the first thing to go when there is no room for it.
    It carries no information, so losing it costs nothing — where losing
    240px off the pane would cost the two-column card grid.
@@ -101,7 +108,7 @@
      dropping those at the first sign of pressure would mean the PC can
      manage your party on a desktop and not on a laptop. It goes at 1024
      instead — see below. */
-  .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr) 272px; }
+  .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr) var(--hub-col-3); }
   /* .hub-art { display: none } is NOT here. The base .hub-art rule is
      defined further down this file and sets display: flex at the same
      specificity, so a rule here loses to it on load order and the column

@@ -251,3 +251,84 @@
   .pc-filters .g-tab { min-height: 34px; }
   .pc-filter-clear { min-height: 34px; }
 }
+
+/* =====================================================================
+   THE PC TOOLBAR
+
+   Two things were wrong with it.
+
+   1. It was WHITE. `.pc-tab .pc-search` and `.pc-tab .pc-tool` in app.css
+      painted solid light pills with black text, written for a PC that sat
+      on an illustrated backdrop where translucent dark chrome could not be
+      read. The fix for that was opacity, not lightness — and the backdrop
+      is gone anyway now the PC is a hub section on flat --panel. Opaque
+      dark reads over an illustration just as well, so the mobile tab keeps
+      what the rule was protecting.
+
+   2. It was THREE HEIGHTS. Search 29px, density 32px, Select 44px, in one
+      row. The 44 was deliberate — a touch target floor — but it was
+      applied on every screen, so a mouse user got a button half again as
+      tall as the field beside it. One variable now, 32 for a pointer and
+      44 for a finger, and every control in the row reads it.
+
+   Selectors are three classes deep because `.pc-tab .pc-search` is two and
+   sits in app.css; two here would tie and lose on source order.
+   ===================================================================== */
+/* --ctl-h is the app's default control height (32px) — the same one the
+   dock buttons and tabs use. Named through the variable rather than typed
+   as 32 so this row moves if that scale ever does. */
+.pc-tab .pc-toolbar { --pc-ctl-h: var(--ctl-h); }
+@media (pointer: coarse) {
+  .pc-tab .pc-toolbar { --pc-ctl-h: 44px; }
+}
+
+.pc-tab .pc-toolbar .pc-search,
+.pc-tab .pc-toolbar .pc-tool {
+  height: var(--pc-ctl-h);
+  min-height: var(--pc-ctl-h);
+  /* --ctl-bg is opaque. That is the load-bearing property here, not the
+     colour: this row still has to be legible on the mobile tab where the
+     location artwork shows through everything translucent. */
+  background: var(--ctl-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r);
+  color: var(--ctl-fg);
+  font-weight: 500;
+}
+/* The pill radius went with the white. A 999px search field next to the
+   6px segmented controls directly beneath it was two ideas of what a
+   control looks like, 8px apart. */
+/* The field's own text is brighter than a button label — it is content the
+   player typed, not a control's name. --ctl-fg (#9c9c9c, 6.65:1) is right
+   for the buttons; typed text gets --text (16.74:1) and the placeholder
+   --text-dim (5.15:1), all measured against --ctl-bg #151516. */
+.pc-tab .pc-toolbar .pc-search { color: var(--text); font-weight: 500; }
+.pc-tab .pc-toolbar .pc-search::placeholder { color: var(--text-dim); }
+.pc-tab .pc-toolbar .pc-search:focus {
+  border-color: var(--ctl-focus);
+  outline: none;
+}
+.pc-tab .pc-toolbar .pc-tool:hover {
+  background: var(--ctl-bg-hover);
+  color: var(--ctl-fg-hover, var(--text));
+}
+.pc-tab .pc-toolbar .pc-tool.on,
+.pc-tab .pc-toolbar .pc-select-toggle.on {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line, var(--ctl-on-bg));
+  color: var(--ctl-on-fg);
+}
+.pc-tab .pc-toolbar .pc-search-clear { color: var(--text-dim); }
+.pc-tab .pc-toolbar .pc-search-clear:hover { color: var(--text); }
+/* Beats the min-height: 44px above — same selector, later in the file, so
+   the touch floor now comes from the variable like everything else. */
+.pc-toolbar .pc-tool.pc-tool-icon.pc-select-toggle {
+  min-width: var(--pc-ctl-h);
+  min-height: var(--pc-ctl-h);
+}
+/* Square-ish icon buttons, so the row is one height and one rhythm. */
+.pc-tab .pc-toolbar .pc-tool-icon {
+  width: var(--pc-ctl-h);
+  padding: 0;
+}
+.pc-tab .pc-toolbar .pc-select-toggle { width: auto; padding: 0 11px; }
