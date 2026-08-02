@@ -102,8 +102,14 @@
      which were already dead — so the left rail sat at 8px, the right rail at
      12px and the centre at 6px, and no two columns agreed. Nothing about the
      content wanted them different; they diverged because each redesign pass
-     set the ones it happened to touch. */
-  --gap: 12px;
+     set the ones it happened to touch.
+
+     8px, not 12. The first attempt unified everything to 12 — the value the
+     dashboard grid and the right rail already used — and it read too loose:
+     the wide centre column had been at 6, and that tighter rhythm is what the
+     layout was drawn around. 8 keeps every gap identical without pushing the
+     cards apart. One line to change if it wants further tuning. */
+  --gap: 8px;
   /* Inside a card, between its own blocks. Deliberately smaller than --gap so
      "these belong to the same card" and "these are different cards" are
      distinguishable without reading a border. */
@@ -3062,19 +3068,14 @@ body.dnd-active {
   background: var(--border-strong);
 }
 
-/* ---------- Context Panel (left column, holds Town Actions / Goal) ----------
-   Pure layout container — NO card chrome. Its children (ctx-section
-   cards) are the only card surfaces in this group, so wrapping them
-   in another bordered card creates the nested-card look the user hates. */
+/* ---------- Context Panel ----------
+   This used to be a transparent layout container whose ctx-section children
+   each carried their own card chrome. The nested-card complaint that drove
+   that decision was right — but the answer was the wrong way round: it is the
+   PANEL that should be the card, with its contents as sections. Chrome and
+   layout are declared together a little further down. */
 .context-panel {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  overflow: visible;
 }
 .context-panel-head {
   display: flex;
@@ -3099,44 +3100,64 @@ body.dnd-active {
   font-size: 11px;
   padding: 4px 10px;
 }
+/* ── ONE context card ─────────────────────────────────────────────
+   The right-hand panel is a single card. Its contents — gym leader, wild
+   encounters, raid, league, "currently battling", town — are SECTIONS inside
+   it, divided by a hairline.
+
+   It used to be a stack of separate cards, which caused both of the things
+   that were wrong with this column:
+
+     · Its height changed constantly. Each card sized to its own content and
+       the stack sized to the sum, so arriving in a gym town (2 cards), then
+       starting a town battle (3 cards), then walking to a route (2 different
+       cards) redrew the whole column at three different heights. Nothing was
+       moving except the frame around it.
+
+     · It left a large empty area under the last card whenever the content was
+       short — a gym leader card is ~190px in a row that is often 400+.
+
+   One card fills the row, always. Sections divide it. Overflow scrolls
+   inside. The frame stops moving. */
+.context-panel {
+  background: var(--panel);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 .context-panel-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: 0;
 }
-/* ── The context card ─────────────────────────────────────────────
-   THE card in the right-hand column. Gym leader, wild encounters, raid,
-   league, "currently battling", town — every one of them is this.
 
-   It had six competing definitions across the file's redesign layers, which
-   between them asked for radius 3, 4, 6 and 8px and padding 10x12, 12x14 and
-   12 — so which card you were looking at decided how it looked, and no two
-   passes agreed. Everything is stated here once and reads the --card-*
-   tokens; the later blocks that used to redeclare it now only say what is
-   genuinely different about their context.
-
-   `gap` is --gap-in, deliberately smaller than the --gap BETWEEN cards, so
-   "these are two blocks of one card" and "these are two cards" are legible
-   without inspecting borders. */
+/* A section, not a card. No surface of its own — it is already inside one —
+   so the only thing separating two of them is a rule. Nesting a bordered card
+   inside a bordered card is what made this column read as clutter. */
 .ctx-section {
   display: flex;
   flex-direction: column;
   gap: var(--gap-in);
-  background: var(--panel);
-  border: var(--card-border);
-  border-radius: var(--card-radius);
   padding: var(--card-pad-default);
-  /* Cards are their own height. Exactly one card in the column is allowed to
-     absorb slack — see the growth policy near the wide-layout rules — and
-     letting every card flex is what produced the "sometimes huge gaps,
-     sometimes scrolling" the column suffers from. */
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  border-radius: 0;
+  /* Sections take their content height; exactly one per phase may absorb the
+     slack (see the growth policy with the wide-layout rules). Letting every
+     section flex is what pulsed the gym cards on each town trainer. */
   flex: 0 0 auto;
   min-height: 0;
 }
+/* The last section has nothing below it to be divided from, and the card's
+   own edge already closes the list. */
+.ctx-section:last-child { border-bottom: 0; }
 .ctx-section h4 {
   margin: 0;
   font-size: 10px;
@@ -8854,8 +8875,9 @@ body.dnd-active {
 .friend-btn.primary { background: var(--accent); color: #0e1014; border-color: var(--accent); }
 .friend-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-/* ── Context panel ────────────────────────────────────────────────── */
-.context-panel { gap: var(--sp-3); }
+/* ── Context panel ──────────────────────────────────────────────────
+   The panel's own gap is 0: its children are sections divided by a rule, not
+   cards separated by space. */
 .context-panel-head h3 {
   margin: 0;
   font-size: var(--fs-md);
@@ -8864,11 +8886,6 @@ body.dnd-active {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.context-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
 }
 /* Card chrome removed — it is declared once, at the .ctx-section definition
    near the top of the file. This copy asked for --panel-3 and --r-md while
@@ -9369,7 +9386,6 @@ input, textarea, select {
 /* Slim ContextPanel (now in left column) — make sections compact.
    The ctx-section IS the only card here, so its inner buttons and grids
    render flat (no second-level card chrome). */
-.party-column .context-panel { gap: var(--sp-2); }
 /* A context card in the classic rail is the same card as one in the wide
    layout's centre column. It used to be a different radius (--r-sm, 3px)
    and a different padding, so moving between layouts changed the card. */
@@ -10353,8 +10369,13 @@ input, textarea, select {
 
 /* ── Universal card surface ───────────────────────────────────────
    Apply via the existing class names — every "card" in the app uses
-   identical chrome from here on. */
-.ctx-section,
+   identical chrome from here on.
+
+   .ctx-section is NOT in this list: it is a section inside the context card,
+   not a card itself. Giving it this chrome is what produced a bordered card
+   inside a bordered card, and a column whose height moved with the number of
+   sections mounted. It is .context-panel that carries the surface now. */
+.context-panel,
 .party-row,
 .profile-strip,
 .dock-btn,
@@ -14945,10 +14966,10 @@ html, body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* Carries (0,2,0), so it beat every single-class rule and made the classic
-     rail's cards 8px apart while the same cards in the wide layout sat at 6
-     and everything around them at 12. */
-  gap: var(--gap);
+  /* Zero, like the base rule. The sections are divided by a hairline; a gap
+     as well would leave that rule floating in the middle of a band of empty
+     space instead of touching both sections it separates. */
+  gap: 0;
 }
 
 
@@ -18830,7 +18851,8 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  /* Sections are divided by a hairline, not by space — see the base rule. */
+  gap: 0;
   overflow-y: auto;
 }
 /* `flex-grow: 1` here is what made the gym cards "flash". Every .ctx-section
