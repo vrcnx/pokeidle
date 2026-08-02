@@ -1,29 +1,47 @@
-import { useEffect, useMemo, useState } from "react";
-import { api, type GiveawayStats, type PublicGiveaway } from "../net/api";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, type GiveawayStats, type Promo, type PublicGiveaway } from "../net/api";
 import { useModalEnter } from "../utils/animate";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
 import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
+import { PromoCard } from "./PromoCard";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
 import {
   useGiveaways,
   refreshGiveaways,
+  refreshPromos,
   markEnteredLocally,
   markWinsSeen,
 } from "../utils/giveawayStore";
 import "./giveaways.css";
 
-// Player-facing giveaways.
+// Rewards — the one place in the game where free things live.
 //
-// Design intent: this is a hype surface, not a form. A giveaway that looks
-// like a settings page will not get entered. So — big prize readout, a live
-// entry count (social proof: "33 trainers entered"), a single unmissable
-// ENTER button, and results that stay up afterwards with the winners named,
-// because seeing a real player win is what makes the next one feel worth
-// entering.
+// ── WHY IT IS NOT "GIVEAWAYS" ANY MORE ──────────────────────────────
+// The Discord link reward existed for months and no player could see it. It
+// was configured in the admin dashboard, granted correctly on link, and
+// entirely invisible from inside the game: the prize was revealed only AFTER
+// somebody had already linked. Meanwhile this dialog was a single-purpose
+// giveaway list. Two features, one of them unfindable, and no surface that
+// answers the question a player actually has — "is there anything free right
+// now?"
 //
-// Three things changed here, and each is a specific complaint:
+// So this is the answer to that question, and giveaways are one of its
+// sections rather than its entire subject. Free rewards go first: they are
+// guaranteed, they are always there, and they are what a first-time reader
+// can act on immediately. Giveaways follow, because they are a lottery.
+//
+// ── THE TONE ────────────────────────────────────────────────────────
+// This used to be built as "a hype surface, not a form" — an eyebrow reading
+// FREE TO ENTER above a 21px heading, a 40px emoji when empty, gradient
+// washes. That reads as a promotion for itself, and it is the wrong register
+// for a screen whose actual job is to tell you plainly what you can have and
+// what you have to do to get it. Quieter type, one accent, sections that
+// declare themselves in a line of 10px caps, and the loudest things on screen
+// are the prizes and the single button that gets you one.
+//
+// Three earlier fixes that still hold:
 //
 //   1. The prize was the server's `describePrizes()` string, so players were
 //      being told they had won "1x goldbottlecap + 2x silverbottlecap". Every
@@ -49,8 +67,8 @@ export function GiveawayModal() {
   const [open, setOpen] = useState(false);
   const [entering, setEntering] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const dialogRef = useModalEnter(".giveaway-card");
   const t = useT();
+  const { me } = useAuth();
 
   const snap = useGiveaways();
   // Extra history pages, fetched on demand. Kept separate from the shared
@@ -58,7 +76,6 @@ export function GiveawayModal() {
   // the player has already asked for.
   const [extra, setExtra] = useState<PublicGiveaway[]>([]);
   const [moreState, setMoreState] = useState<"idle" | "loading" | "done">("idle");
-  const [showFair, setShowFair] = useState(false);
 
   useEffect(() => {
     _open = (targetId) => { setOpen(true); setHighlightId(targetId ?? null); };
@@ -70,6 +87,9 @@ export function GiveawayModal() {
   useEffect(() => {
     if (!open) return;
     void refreshGiveaways();
+    // Opening is one of the three moments a promo can have changed under us —
+    // the other two are the first load and coming back from Discord.
+    void refreshPromos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -114,6 +134,17 @@ export function GiveawayModal() {
     );
   }, [list, extra]);
 
+  // A collected promo stays on screen — it is a short list, and a card that
+  // says "collected" is what stops a player hunting for a reward they have
+  // already had. But it sorts below the ones they can still take.
+  //
+  // Above the `!open` return with the other memos, because hooks may not be
+  // conditional.
+  const sortedPromos = useMemo(
+    () => [...(snap.promos ?? [])].sort((a, b) => rankPromo(a.state) - rankPromo(b.state)),
+    [snap.promos],
+  );
+
   if (!open) return null;
 
   const enter = async (g: PublicGiveaway) => {
@@ -150,65 +181,145 @@ export function GiveawayModal() {
     }
   };
 
-  const canLoadMore = moreState !== "done" && (snap.hasMoreHistory || extra.length > 0);
+  return (
+    <RewardsDialog
+      promos={sortedPromos}
+      live={live}
+      past={past}
+      stats={snap.stats}
+      loading={list == null && !snap.error}
+      error={list == null ? snap.error : null}
+      highlightId={highlightId}
+      entering={entering}
+      onEnter={enter}
+      canLoadMore={moreState !== "done" && (snap.hasMoreHistory || extra.length > 0)}
+      moreState={moreState}
+      onLoadMore={loadMore}
+      viewerName={me?.username ?? null}
+      onClose={() => setOpen(false)}
+    />
+  );
+}
+
+export interface RewardsDialogProps {
+  promos: Promo[];
+  live: PublicGiveaway[];
+  past: PublicGiveaway[];
+  stats: GiveawayStats | null;
+  loading: boolean;
+  error: string | null;
+  highlightId: string | null;
+  entering: string | null;
+  onEnter: (g: PublicGiveaway) => void;
+  canLoadMore: boolean;
+  moreState: "idle" | "loading" | "done";
+  onLoadMore: () => void;
+  /** The viewer's own username, so their name is picked out of a winner
+   *  list. A prop rather than a useAuth() call inside HistoryRow: the
+   *  presentational half of this dialog must be mountable without the app's
+   *  providers, which is the entire point of the split. */
+  viewerName: string | null;
+  onClose: () => void;
+}
+
+/**
+ * The dialog itself, with no store, no socket and no network.
+ *
+ * Split out for the same reason WelcomeBackDialog was: reaching this screen in
+ * a state worth looking at needs a signed-in session, a configured promotion,
+ * a live giveaway AND an archive behind it — which is not a loop anyone can
+ * iterate a layout in. rewards-preview.tsx mounts THIS component with the real
+ * stylesheet, so what gets checked is the same JSX and the same CSS, with only
+ * the data replaced.
+ *
+ * That is not a hypothetical benefit. A CSS syntax error shipped in this app
+ * recently that voided every design token in the game, and neither `tsc` nor
+ * 541 passing tests noticed, because neither of them reads CSS.
+ */
+export function RewardsDialog({
+  promos, live, past, stats, loading, error,
+  highlightId, entering, onEnter,
+  canLoadMore, moreState, onLoadMore, viewerName, onClose,
+}: RewardsDialogProps) {
+  const t = useT();
+  const dialogRef = useModalEnter(".giveaway-card");
+  const [showFair, setShowFair] = useState(false);
+
+  const nothingAtAll =
+    !loading && !error && promos.length === 0 && live.length === 0 && past.length === 0;
 
   return (
-    <div className="modal-overlay" onClick={() => setOpen(false)}>
+    <div className="modal-overlay" onClick={onClose}>
       <div
         ref={dialogRef}
         className="g-modal giveaway-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={t("Giveaways")}
+        aria-label={t("Rewards")}
       >
         <header className="giveaway-head">
-          <div>
-            <span className="giveaway-eyebrow">{t("Free to enter")}</span>
-            <h2>{t("Giveaways")}</h2>
-            <StatsLine stats={snap.stats} />
+          <div className="gw-head-main">
+            <h2>{t("Rewards")}</h2>
+            <p className="gw-head-sub">
+              {t("Everything you can get for free — no purchase, ever.")}
+            </p>
           </div>
-          <button className="g-modal-close" onClick={() => setOpen(false)} aria-label={t("Close")}>×</button>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
         </header>
 
         <div className="giveaway-body">
-          {snap.error && list == null && <p className="giveaway-err">{snap.error}</p>}
-          {!list && !snap.error && <p className="dim">{t("Loading…")}</p>}
+          {error && <p className="giveaway-err">{error}</p>}
+          {loading && <p className="dim">{t("Loading…")}</p>}
 
-          {list && live.length === 0 && past.length === 0 && (
-            <div className="giveaway-empty">
-              <span className="giveaway-empty-icon">🎁</span>
-              <strong>{t("No giveaways running right now")}</strong>
-              <p className="dim small">
-                {t("Check back soon — and keep an eye on global chat, that's where we announce them.")}
-              </p>
-            </div>
+          {/* ── Free rewards ──────────────────────────────────────────
+              First, and above giveaways, because these are the only things
+              on this screen that are guaranteed. A player who reads one
+              section and closes the dialog should have read this one. */}
+          {promos.length > 0 && (
+            <section className="gw-block">
+              <SectionHead
+                title={t("Free rewards")}
+                note={t("Do the thing, keep the prize. No draw.")}
+              />
+              <div className="gw-promos">
+                {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
+              </div>
+            </section>
           )}
 
-          {live.map((g) => (
-            <LiveGiveawayCard
-              key={g.id}
-              g={g}
-              busy={entering === g.id}
-              onEnter={() => enter(g)}
-              highlighted={g.id === highlightId}
-            />
-          ))}
+          {/* ── Live giveaways ────────────────────────────────────────── */}
+          {live.length > 0 && (
+            <section className="gw-block">
+              <SectionHead
+                title={live.length > 1 ? `${t("Live giveaways")} · ${live.length}` : t("Live giveaway")}
+                note={t("Free to enter. Winners drawn at random.")}
+              />
+              <div className="gw-lives">
+                {live.map((g) => (
+                  <LiveGiveawayCard
+                    key={g.id}
+                    g={g}
+                    busy={entering === g.id}
+                    onEnter={() => onEnter(g)}
+                    highlighted={g.id === highlightId}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Nothing live, but there IS a history. Say so plainly rather than
               showing an empty space above the archive — a returning player
               reading "12 held" needs to know they have not missed a live one
               that is hiding somewhere below. */}
-          {list && live.length === 0 && past.length > 0 && (
-            <p className="gw-draw-line">
-              {t("Nothing running right now.")}{" "}
-              <strong>{t("Here's what has already been given away.")}</strong>
-            </p>
+          {!loading && !error && live.length === 0 && past.length > 0 && (
+            <p className="gw-quiet-line">{t("No giveaway is running right now.")}</p>
           )}
 
+          {/* ── Previous giveaways ────────────────────────────────────── */}
           {past.length > 0 && (
-            <>
-              <div className="gw-section">
-                <h3>{t("Previous giveaways")}</h3>
+            <section className="gw-block">
+              <SectionHead title={t("Previous giveaways")}>
                 <button
                   type="button"
                   className="gw-fair-link"
@@ -217,7 +328,7 @@ export function GiveawayModal() {
                 >
                   {t("How winners are picked")}
                 </button>
-              </div>
+              </SectionHead>
               {/* Standing, not buried in each row's <details>. A visible
                   history makes repeat winners visible too, and an argument
                   about that is much easier to have with the proof already on
@@ -229,23 +340,71 @@ export function GiveawayModal() {
               )}
               <div className="gw-past">
                 {past.map((g) => (
-                  <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} />
+                  <HistoryRow key={g.id} g={g} highlighted={g.id === highlightId} viewerName={viewerName} />
                 ))}
                 {canLoadMore && (
                   <button
                     type="button"
                     className="gw-more"
-                    onClick={loadMore}
+                    onClick={onLoadMore}
                     disabled={moreState === "loading"}
                   >
                     {moreState === "loading" ? t("Loading…") : t("Show more")}
                   </button>
                 )}
               </div>
-            </>
+            </section>
+          )}
+
+          {/* The genuinely-empty case. One quiet paragraph, not a 40px emoji
+              and a centred 40px-padded block: an empty state that shouts is
+              an apology, and there is nothing here to apologise for. */}
+          {nothingAtAll && (
+            <div className="gw-empty">
+              <strong>{t("Nothing free right now")}</strong>
+              <p>{t("Giveaways and promotions are announced in global chat — this is where they land.")}</p>
+            </div>
           )}
         </div>
+
+        {/* The stats line moved out of the header and became the footer.
+            It is provenance, not a headline: "13 held · 68 prizes to 39
+            trainers · since 17 Jul" answers "is this real and does it keep
+            happening", which is a question you ask at the END of reading. */}
+        <StatsLine stats={stats} />
       </div>
+    </div>
+  );
+}
+
+/** Available first, then locked (still worth doing), then collected. */
+function rankPromo(state: string): number {
+  return state === "available" ? 0 : state === "locked" ? 1 : 2;
+}
+
+/**
+ * One section header, used by all three sections.
+ *
+ * The dialog previously had three different heading treatments — a 21px h2, a
+ * 10px caps `.gw-section` with a link beside it, and a bare paragraph — for
+ * three things at the same level of the hierarchy. One component means one
+ * answer to "what does a section look like here", which is the whole point of
+ * the design-ruling pass this belongs to.
+ */
+function SectionHead({
+  title, note, children,
+}: {
+  title: string;
+  note?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="gw-head-row">
+      <div className="gw-head-text">
+        <h3>{title}</h3>
+        {note && <span className="gw-head-note">{note}</span>}
+      </div>
+      {children}
     </div>
   );
 }
@@ -262,10 +421,15 @@ function historyTime(g: PublicGiveaway): number {
  * "12 giveaways · 68 prizes to 39 trainers · since 17 Jul · you: 8 entered,
  * 2 won."
  *
- * The single most load-bearing line in the dialog. The owner's ask was to
- * "show previous etc to a degree", and the reason to show history at all is
- * that a returning player can see the feature is real and recurring — one
- * line of totals does that faster than any number of archive rows.
+ * The reason to show history at all is that a returning player can see the
+ * feature is real and recurring — one line of totals does that faster than any
+ * number of archive rows.
+ *
+ * It sits in a fixed footer now rather than under the title. Two reasons: it
+ * is provenance rather than a headline, and it is the one line that is true
+ * of the whole dialog rather than of any one section, which is exactly what a
+ * footer is for. Being fixed also means it survives scrolling to the bottom of
+ * a 30-row archive, where "since 17 Jul" is most likely to be wanted.
  */
 function StatsLine({ stats }: { stats: GiveawayStats | null }) {
   const t = useT();
@@ -360,9 +524,8 @@ function LiveGiveawayCard({
 // into if the two layouts are not separated.
 const WINNERS_INLINE = 3;
 
-function HistoryRow({ g, highlighted }: { g: PublicGiveaway; highlighted?: boolean }) {
+function HistoryRow({ g, highlighted, viewerName }: { g: PublicGiveaway; highlighted?: boolean; viewerName: string | null }) {
   const t = useT();
-  const { me } = useAuth();
   const [expanded, setExpanded] = useState(!!highlighted);
   useEffect(() => { if (highlighted) setExpanded(true); }, [highlighted]);
 
@@ -430,7 +593,7 @@ function HistoryRow({ g, highlighted }: { g: PublicGiveaway; highlighted?: boole
                 // Twelve winners is a real production value; the list is the
                 // full one here, and the viewer's own name is picked out so
                 // they don't have to scan for it.
-                <li key={`${w}-${i}`} className={me?.username === w ? "is-you" : ""}>
+                <li key={`${w}-${i}`} className={viewerName === w ? "is-you" : ""}>
                   @{w}
                 </li>
               ))}

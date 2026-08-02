@@ -1,4 +1,4 @@
-import type { GiveawayStats, PublicGiveaway } from "../net/api";
+import type { GiveawayStats, Promo, PublicGiveaway } from "../net/api";
 
 // What the standing giveaway control in the left rail should say.
 //
@@ -28,11 +28,13 @@ export type RailKind =
   | "live-unentered"
   | "live-entered"
   | "live-mixed"
+  /** No giveaway to act on, but there IS an uncollected free reward. */
+  | "promo"
   | "idle";
 
 /** Colour/emphasis bucket. Colour is the only PERMANENT differentiator — the
  *  pulse stops, the tone does not. */
-export type RailTone = "won" | "urgent" | "calm" | "quiet";
+export type RailTone = "won" | "urgent" | "calm" | "quiet" | "promo";
 
 export interface RailState {
   kind: RailKind;
@@ -52,6 +54,8 @@ export interface RailState {
   totalHeld: number;
   /** Most recent finished giveaway's title, for the idle line. */
   lastTitle: string | null;
+  /** The uncollected free reward the row is offering, when kind is "promo". */
+  promo: Promo | null;
   /** Whether to run the attention pulse. Never for a state the player has
    *  already dealt with. */
   pulse: boolean;
@@ -74,6 +78,12 @@ export interface RailInput {
    * it is the single row in the rail whose entire job is to look deliberate.
    */
   error?: string | null;
+  /**
+   * Standing free rewards. Optional and defaulting to nothing, so a caller
+   * that has not loaded them yet gets exactly the behaviour it had before they
+   * existed rather than an "offline" row or a flash of the wrong state.
+   */
+  promos?: Promo[] | null;
 }
 
 function ms(iso: string | null): number | null {
@@ -118,7 +128,11 @@ function pickPrimaryLive(live: PublicGiveaway[], now: number): PublicGiveaway | 
 }
 
 export function railState(input: RailInput): RailState {
-  const { giveaways, stats, now, seenWins, error } = input;
+  const { giveaways, stats, now, seenWins, error, promos } = input;
+  // The first free reward this player has not collected. "available" only —
+  // a claimed promo is history and a locked one is something they cannot act
+  // on, and the row's whole premise is that it says a thing worth doing.
+  const openPromo = (promos ?? []).find((p) => p.state === "available") ?? null;
   const base: RailState = {
     kind: "loading",
     tone: "quiet",
@@ -129,6 +143,7 @@ export function railState(input: RailInput): RailState {
     endsInMs: null,
     totalHeld: stats?.total ?? 0,
     lastTitle: null,
+    promo: null,
     pulse: false,
   };
   // Nothing has ever loaded. Either it is still in flight ("loading", a
@@ -171,9 +186,14 @@ export function railState(input: RailInput): RailState {
   const live = giveaways.filter((g) => isLiveNow(g, now));
   const unentered = live.filter((g) => !g.hasEntered);
 
-  // 2. Nothing running. Still a row, still the same height, just quiet —
-  //    disappearing chrome is exactly how this feature became invisible.
+  // 2. Nothing running. Before falling back to the quiet idle row, offer the
+  //    free reward if there is one — the idle state is a real, recurring
+  //    multi-hour stretch (38 hours in the production sample), and it is
+  //    exactly when a standing offer is worth the only line the rail has.
   if (live.length === 0) {
+    if (openPromo) {
+      return { ...base, kind: "promo", tone: "promo", totalHeld, lastTitle, promo: openPromo, pulse: false };
+    }
     return { ...base, kind: "idle", tone: "quiet", totalHeld, lastTitle };
   }
 
@@ -191,12 +211,22 @@ export function railState(input: RailInput): RailState {
   };
 
   if (unentered.length === 0) {
-    // 3. Entered everything that is running. Calm and green: there is nothing
-    //    to do, and saying so is the point.
+    // 3. Entered everything that is running — so there is nothing left to do
+    //    about giveaways, and a free reward that has not been collected
+    //    outranks a row whose only message is "wait". This is a handoff, not
+    //    a flicker: the row only changes here because the player just entered,
+    //    and "you're in — here's the other free thing" is the right next line.
+    if (openPromo) {
+      return { ...common, kind: "promo", tone: "promo", promo: openPromo, pulse: false };
+    }
+    // Calm and green: there is nothing to do, and saying so is the point.
     return { ...common, kind: "live-entered", tone: "calm", pulse: false };
   }
-  // 4/5. Something to enter. Mixed when the player is already in some of them,
-  //      because "2 live" alone would read as "you have missed two".
+  // 4/5. Something to enter. A live giveaway outranks a promo even when both
+  //      have something to do, because only one of them expires — the promo
+  //      will still be there tomorrow and the draw will not.
+  //      Mixed when the player is already in some of them, because "2 live"
+  //      alone would read as "you have missed two".
   return {
     ...common,
     kind: live.length > unentered.length ? "live-mixed" : "live-unentered",

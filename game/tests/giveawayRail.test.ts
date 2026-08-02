@@ -7,7 +7,7 @@
 // has to survive, so those are the shapes tested.
 
 import { describe, expect, it } from "vitest";
-import type { GiveawayStats, PublicGiveaway } from "../src/net/api";
+import type { GiveawayStats, Promo, PublicGiveaway } from "../src/net/api";
 import {
   railState,
   relativeTime,
@@ -343,5 +343,85 @@ describe("countdown / shortCountdown", () => {
     expect(shortCountdown(3 * H + 4 * 60_000)).toBe("3h 4m");
     expect(shortCountdown(4 * 60_000)).toBe("4m");
     expect(shortCountdown(9_000)).toBe("9s");
+  });
+});
+
+// ── Free rewards ────────────────────────────────────────────────────
+// The Discord link reward was configured, granted correctly, and invisible:
+// nothing player-facing said it existed. The rail is where that changes, and
+// the interesting question is not "can it render a promo" but "when does a
+// promo deserve the only line the rail has".
+//
+// The ranking, and why: a live giveaway you have not entered EXPIRES and the
+// promo does not, so the deadline wins. A live giveaway you HAVE entered has
+// nothing left to do about it, so the promo wins. And the 38-hour idle stretch
+// in the production timeline is the case this was really built for.
+
+function promo(over: Partial<Promo> = {}): Promo {
+  return {
+    id: "discord-link",
+    title: "Join the Discord",
+    blurb: "Link your account to the community server and the reward is yours.",
+    icon: "discord",
+    prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
+    state: "available",
+    cta: { label: "Get the code", href: "/link-discord" },
+    note: null,
+    ...over,
+  };
+}
+
+describe("railState — free rewards", () => {
+  it("offers the reward during the idle stretch, instead of 'none running'", () => {
+    const st = call([drawn()], { promos: [promo()] });
+    expect(st.kind).toBe("promo");
+    expect(st.tone).toBe("promo");
+    expect(st.promo?.id).toBe("discord-link");
+    // Nothing is closing, so nothing pulses. A row that demands attention
+    // every day for a month is a row players stop reading.
+    expect(st.pulse).toBe(false);
+  });
+
+  it("still leads with a giveaway that is closing", () => {
+    const st = call([gw()], { promos: [promo()] });
+    expect(st.kind).toBe("live-unentered");
+    expect(st.tone).toBe("urgent");
+  });
+
+  it("hands over to the reward once every live giveaway is entered", () => {
+    const st = call([gw({ hasEntered: true })], { promos: [promo()] });
+    expect(st.kind).toBe("promo");
+    // The giveaway context survives the handoff — the dialog still opens on it.
+    expect(st.liveCount).toBe(1);
+    expect(st.targetId).toBe("g1");
+  });
+
+  it("keeps saying 'entered' when there is no reward to hand over to", () => {
+    expect(call([gw({ hasEntered: true })], { promos: [] }).kind).toBe("live-entered");
+    expect(call([gw({ hasEntered: true })]).kind).toBe("live-entered");
+  });
+
+  // A collected promo is history and a locked one cannot be acted on. Neither
+  // is worth the rail's only line, and offering either would send the player
+  // to a dialog to find out there was nothing to do.
+  it("ignores rewards that are collected or locked", () => {
+    expect(call([drawn()], { promos: [promo({ state: "claimed" })] }).kind).toBe("idle");
+    expect(call([drawn()], { promos: [promo({ state: "locked" })] }).kind).toBe("idle");
+  });
+
+  it("never outranks a fresh win", () => {
+    const st = call(
+      [drawn({ youWon: true, drawnAt: new Date(NOW - 2 * H).toISOString() })],
+      { promos: [promo()] },
+    );
+    expect(st.kind).toBe("won");
+  });
+
+  // Promos load on their own request, on a much slower clock than the
+  // giveaway poll. Before they arrive the row must behave exactly as it did
+  // before the feature existed rather than flashing the wrong state.
+  it("behaves as before while promos have not loaded", () => {
+    expect(call([drawn()], { promos: null }).kind).toBe("idle");
+    expect(call(null, { promos: [promo()] }).kind).toBe("loading");
   });
 });

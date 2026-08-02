@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSocket } from "../net/socket";
-import { api, type GiveawayStats, type PublicGiveaway } from "../net/api";
+import { api, type GiveawayStats, type Promo, type PublicGiveaway } from "../net/api";
 import { isLiveNow } from "./giveawayRail";
 
 // One shared giveaway snapshot, modelled on state/announcement.ts.
@@ -31,6 +31,15 @@ export interface GiveawaySnapshot {
   giveaways: PublicGiveaway[] | null;
   stats: GiveawayStats | null;
   hasMoreHistory: boolean;
+  /**
+   * Standing free rewards. Separate from `giveaways` because they are a
+   * different kind of thing on a different clock: a giveaway is a scheduled
+   * event that opens and draws, a promo is a config row that changes when an
+   * operator edits it or when THIS player finally does the thing. Folding them
+   * into one list would mean either polling promos every 90s for nothing, or
+   * letting a giveaway go stale to match a promo's cadence.
+   */
+  promos: Promo[] | null;
   error: string | null;
   /** Date.now() of the last successful fetch; 0 = never. */
   loadedAt: number;
@@ -40,6 +49,7 @@ const EMPTY: GiveawaySnapshot = {
   giveaways: null,
   stats: null,
   hasMoreHistory: false,
+  promos: null,
   error: null,
   loadedAt: 0,
 };
@@ -94,7 +104,14 @@ export function refreshGiveaways(opts: { force?: boolean } = {}): Promise<void> 
   _inFlight = api
     .listGiveaways()
     .then((d) => {
+      // Spread, not a fresh literal: promos are loaded by a SEPARATE request
+      // on a much slower clock, and rebuilding the snapshot from scratch here
+      // would drop them on every 90s poll — the rail would show its promo row
+      // for ninety seconds, lose it, and get it back on the next visibility
+      // change. TypeScript catches exactly this omission, which is why the
+      // field is required rather than optional.
       _snap = {
+        ..._snap,
         giveaways: d.giveaways ?? [],
         stats: d.stats ?? null,
         hasMoreHistory: d.hasMoreHistory ?? false,
@@ -114,6 +131,44 @@ export function refreshGiveaways(opts: { force?: boolean } = {}): Promise<void> 
       schedule();
     });
   return _inFlight;
+}
+
+// ── Promos ──────────────────────────────────────────────────────────
+// Deliberately NOT on the giveaway poll. A promo's state changes on exactly
+// three occasions: an operator edits the config, the player links their
+// Discord, or the grant lands. The first is rare, and the other two both
+// happen away from this tab — the player leaves for Discord and comes back.
+// So: once on bind, once when the dialog opens, and on the visibility return
+// that follows every trip out of the app. Putting it on the 90s live poll
+// would multiply the request rate of the whole feature to re-read a row that
+// changes about once a month.
+let _promosInFlight: Promise<void> | null = null;
+let _promosAt = 0;
+const PROMOS_MIN_GAP_MS = 30_000;
+
+export function refreshPromos(opts: { force?: boolean } = {}): Promise<void> {
+  if (_promosInFlight) return _promosInFlight;
+  if (!opts.force && _promosAt > 0 && Date.now() - _promosAt < PROMOS_MIN_GAP_MS) {
+    return Promise.resolve();
+  }
+  _promosInFlight = api
+    .listPromos()
+    .then((d) => {
+      _promosAt = Date.now();
+      _snap = { ..._snap, promos: d.promos ?? [] };
+      emit();
+    })
+    .catch(() => {
+      // Silent. A promo that fails to load shows no card, which is the same
+      // thing the player sees when there is no promo running — and unlike the
+      // giveaway list, nothing in the UI promises this section exists. Writing
+      // to `_snap.error` here would put a red "couldn't load giveaways" line in
+      // the dialog because a side section failed.
+    })
+    .finally(() => {
+      _promosInFlight = null;
+    });
+  return _promosInFlight;
 }
 
 /**
@@ -175,6 +230,7 @@ function bind() {
   _bound = true;
 
   void refreshGiveaways({ force: true });
+  void refreshPromos({ force: true });
 
   const sock = getSocket();
   if (!sock.connected) sock.connect();
@@ -189,6 +245,9 @@ function bind() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && Date.now() - _snap.loadedAt > 60_000) {
       void refreshGiveaways();
+      // The trip that most often changes a promo is the one the player just
+      // took: out to Discord, link the account, come back.
+      void refreshPromos();
     }
   });
 }

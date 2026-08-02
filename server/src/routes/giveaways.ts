@@ -8,6 +8,7 @@ import {
   type GiveawayRowForView,
   type GiveawayStats,
 } from "../lib/giveaway.js";
+import { listPromos } from "../lib/promos.js";
 
 // PLAYER-facing giveaway routes. Admin CRUD + drawing lives in
 // routes/admin.ts behind the admin gate; this file is only what a
@@ -191,6 +192,25 @@ app.get("/", async (c) => {
     // the history query itself came back full.
     hasMoreHistory: shownHistory < historyRows.length || historyRows.length >= LIMIT,
   });
+});
+
+// GET /api/giveaways/promos — the free-reward cards.
+//
+// Lives on this router because the dialog that shows giveaways is the same
+// dialog that shows these, so the client wants them from one place and one
+// auth gate. Resolution is in lib/promos.ts; this is just the surface.
+//
+// READ-ONLY by design. There is no claim endpoint anywhere: each promo is
+// granted by the thing that proves you earned it (linking Discord grants the
+// link reward), and a second path to the same prize is how one gets paid
+// twice.
+//
+// Declared before /:id-shaped routes for the usual reason — there is no
+// GET /:id in this file today, but "promos" would be a very ordinary id to
+// shadow if one is ever added.
+app.get("/promos", async (c) => {
+  const me = c.get("user");
+  return c.json({ promos: await listPromos(me.id) });
 });
 
 // GET /api/giveaways/history?before=<iso>&limit=<n> — READ-ONLY, cursor-paged

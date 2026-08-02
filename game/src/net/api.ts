@@ -176,6 +176,9 @@ export const api = {
       "POST",
       `/api/giveaways/${id}/enter`,
     ),
+  /** Free rewards for doing something outside the game. Read-only — there is
+   *  deliberately no claim endpoint; see server/src/lib/promos.ts. */
+  listPromos: () => request<{ promos: Promo[] }>("GET", "/api/giveaways/promos"),
 
   // Polls
   listPolls: () => request<{ polls: PublicPoll[] }>("GET", "/api/polls"),
@@ -573,6 +576,26 @@ export interface GiveawayStats {
   distinctWinners: number;
   firstAt: string | null;
   you: { entered: number; won: number };
+}
+
+/**
+ * A free reward for doing something outside the game — joining the Discord,
+ * and whatever comes after it.
+ *
+ * Not a giveaway: there is no draw, no entry and no competition. The prize is
+ * granted by the thing that proves you did it, so this type describes an offer
+ * rather than something the client can act on beyond following the link.
+ */
+export interface Promo {
+  id: string;
+  title: string;
+  blurb: string;
+  /** A key the client maps to artwork, not a URL or an emoji. */
+  icon: string;
+  prizes: GiveawayPrize[];
+  state: "available" | "claimed" | "locked";
+  cta: { label: string; href: string } | null;
+  note: string | null;
 }
 
 export interface PvpHistoryRow {

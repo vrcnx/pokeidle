@@ -56,6 +56,7 @@ export function GiveawayRail({ variant = "rail" }: { variant?: "rail" | "mobile"
     now: Date.now(),
     seenWins: seenWins(),
     error: snap.error,
+    promos: snap.promos,
   });
   const copy = railCopy(st, t);
 
@@ -73,7 +74,9 @@ export function GiveawayRail({ variant = "rail" }: { variant?: "rail" | "mobile"
       aria-label={copy.aria}
       title={copy.aria}
     >
-      <span className="gw-rail-icon" aria-hidden>{st.kind === "won" ? "🏆" : "🎁"}</span>
+      <span className="gw-rail-icon" aria-hidden>
+        {st.kind === "won" ? "🏆" : st.kind === "promo" ? "✦" : "🎁"}
+      </span>
       <span className="gw-rail-text">
         <span className="gw-rail-label">{copy.label}</span>
         <span className="gw-rail-sub">{copy.sub}</span>
@@ -148,6 +151,20 @@ function railCopy(st: RailState, t: (s: string) => string): RailCopy {
         pill: t("ENTER"),
         aria: `${st.liveCount}${t(" giveaways live")}, ${st.unenteredCount}${t(" not entered yet")}.`,
       };
+
+    // Something free that has not been collected, and no giveaway with a
+    // deadline competing for the line. The label names the PRIZE, not the
+    // errand: "Free Master Ball" is the reason to click, "Join the Discord" is
+    // the price. The errand goes in the sub, where it belongs.
+    case "promo": {
+      const promoPrize = st.promo ? primaryPrizeLabel(st.promo.prizes) : "";
+      return {
+        label: promoPrize ? `${t("Free ")}${promoPrize}` : t("Free reward"),
+        sub: st.promo?.title ?? t("Waiting to be claimed"),
+        pill: t("FREE"),
+        aria: `${t("A free reward is waiting")}${promoPrize ? ` — ${promoPrize}` : ""}. ${st.promo?.title ?? ""}`,
+      };
+    }
 
     case "live-entered":
       return {

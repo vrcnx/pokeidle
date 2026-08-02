@@ -124,6 +124,21 @@
   color: #fff;
 }
 
+/* A standing free reward. Deliberately its OWN tone rather than borrowing
+   --urgent: nothing here is closing, and a row that looks urgent every day
+   for a month is a row players learn to stop reading. Teal reads as "here,
+   take this" without the countdown energy of the purple, and it is the one
+   accent this feature was not already using — purple is a live giveaway,
+   gold is a win, green is "you're entered". */
+.gw-rail--promo { border-color: rgba(45, 212, 191, 0.42); }
+.gw-rail--promo .gw-rail-icon { color: #5eead4; opacity: 1; }
+/* The pill is 9px/800 — nowhere near WCAG's large-text threshold — so it
+   takes the full 4.5:1 like every other pill in this file. #5eead4 on the
+   pill's own composited fill measures 9.90:1 over --panel (desktop) and
+   9.00:1 over --panel-2 (the mobile strip), so it is not one colour on a
+   laptop and another on a phone. */
+.gw-rail--promo .gw-rail-pill { background: rgba(45, 212, 191, 0.16); color: #5eead4; }
+
 .gw-rail--won {
   border-color: rgba(251, 191, 36, 0.6);
   background: linear-gradient(90deg, rgba(251, 191, 36, 0.18), var(--panel) 70%);
@@ -207,7 +222,12 @@
    into the rule above would out-specify --urgent and --won and delete their
    gradients, which are the whole reason those states are noticeable. */
 .gw-chat-tab > .gw-rail--quiet,
-.gw-chat-tab > .gw-rail--calm { background: var(--panel-2); }
+.gw-chat-tab > .gw-rail--calm,
+/* --promo belongs in this list, not with --urgent/--won: it carries no
+   gradient wash either, so without a surface of its own the free-reward row
+   would render as bare text on the page — the one state where that matters
+   most, since it is the row that has something to offer. */
+.gw-chat-tab > .gw-rail--promo { background: var(--panel-2); }
 .gw-chat-tab > .mini-chat {
   flex: 1 1 auto;
   min-height: 0;
@@ -306,37 +326,220 @@
 .gw-chips--sm .gw-chip-name { font-size: 11px; font-weight: 600; }
 .gw-chips--sm .gw-chip-qty { font-size: 10px; }
 
-/* ── Dialog: the recurring-feature line ────────────────────────────
-   "13 giveaways · 68 prizes to 39 trainers · since 17 Jul". One line,
-   and the single most load-bearing thing in the dialog for a returning
-   player: it is what says the feature is real and keeps happening. */
-.gw-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  margin: 6px 0 0;
-  font-size: 11px;
+/* =====================================================================
+   THE REWARDS DIALOG
+   =====================================================================
+   Restyled here, at `.giveaway-modal .x` specificity (0,2,0), rather than
+   by editing the app.css block at 18385 — same reasoning as the rest of
+   this file: that stylesheet is ~600KB with several eras of rules already
+   fighting each other, and the last task spent on it was spent unpicking
+   exactly that. Everything below is plain declarations. No !important.
+
+   The brief was "more mature". Concretely, four things went:
+
+     * the FREE TO ENTER eyebrow over a 21px heading — a promotion for
+       itself, above a screen whose job is to say plainly what you can
+       have;
+     * the purple gradient wash behind the header, which made the chrome
+       the loudest thing in a dialog whose loudest thing should be a
+       prize;
+     * the 40px emoji empty state in a 40px-padded centred block, which
+       read as an apology for a normal, recurring condition;
+     * three different heading treatments for three things at the same
+       level of the hierarchy.
+   ===================================================================== */
+
+/* ── Header ────────────────────────────────────────────────────────
+   Title, one line of subtitle, a hairline. That is the entire thing. */
+.giveaway-modal .giveaway-head {
+  align-items: center;
+  padding: 16px 20px 14px;
+  background: none;
+}
+.gw-head-main { min-width: 0; }
+.giveaway-modal .giveaway-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.gw-head-sub {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--text-dim);
 }
-.gw-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
-.gw-stats-you { color: #86efac; }
 
-.gw-section {
+.giveaway-modal .giveaway-body { gap: 18px; padding: 16px 20px 18px; }
+
+/* ── Sections ──────────────────────────────────────────────────────
+   One treatment, used by all three. `gap` on the section is what makes
+   the whole dialog rhythmic without any component knowing about any
+   other one. */
+.gw-block { display: flex; flex-direction: column; gap: 9px; }
+.gw-head-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  margin: 12px 0 -2px;
+  gap: 12px;
 }
-.gw-section h3 {
+.gw-head-text { min-width: 0; display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.gw-head-row h3 {
   margin: 0;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* The section's own one-line explanation, on the same baseline as its
+   title. "Do the thing, keep the prize. No draw." is the single sentence
+   that stops a player reading a promo as a lottery, and it costs no
+   vertical space at all sitting here. */
+.gw-head-note {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-dim);
 }
+
+.gw-lives { display: flex; flex-direction: column; gap: 10px; }
+
+/* Not a card, not centred, not padded to 40px. One line of text saying a
+   normal thing. */
+.gw-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 22px 2px;
+}
+.gw-empty strong { font-size: 13px; font-weight: 700; }
+.gw-empty p { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
+.gw-quiet-line { margin: 0; font-size: 11.5px; color: var(--text-dim); }
+
+/* ── Free reward cards ─────────────────────────────────────────────
+   Icon rail, body, action. Deliberately NOT `.giveaway-card`: a giveaway
+   is a competition you probably lose and a promo is a transaction you
+   cannot lose, and rendering them identically would be the interface
+   telling a small lie about the odds.
+
+   The teal from the rail, and the same reasoning — this is a standing
+   offer, not a closing one, so it must be legible without being urgent.
+
+   The 2px inset ring runs down the left edge only. A full ring makes it a
+   competing hero card next to the live giveaway directly below; an edge
+   marker reads as "these ones are a different kind of thing" and stops
+   there. */
+.promo-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  box-shadow: inset 2px 0 0 0 rgba(45, 212, 191, 0.55);
+}
+.promo-card--claimed { box-shadow: inset 2px 0 0 0 rgba(255, 255, 255, 0.14); opacity: 0.72; }
+.promo-card--locked { box-shadow: inset 2px 0 0 0 rgba(255, 255, 255, 0.14); }
+
+.promo-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+}
+/* Discord's own blurple. A brand mark in the wrong colour reads as a
+   knock-off, and this card's entire job is to be credible enough that
+   somebody leaves the game to act on it. */
+.promo-icon--discord { background: rgba(88, 101, 242, 0.16); color: #a5b0f5; }
+.promo-card--claimed .promo-icon { filter: grayscale(1); opacity: 0.7; }
+
+.promo-main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.promo-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.promo-title { margin: 0; font-size: 13.5px; font-weight: 700; }
+.promo-done {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.promo-blurb { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
+.promo-note { margin: 0; font-size: 10.5px; line-height: 1.4; color: var(--text-dim); font-style: italic; }
+
+/* Teal, and quieter than `.giveaway-enter`'s purple gradient. The live
+   giveaway's Enter button is the loud one on this screen because it is the
+   one with a deadline; a promo that outshouted it would be competing for
+   an urgency it does not have. */
+.promo-cta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 8px;
+  /* #ecfdf5 on #0f766e measures 5.20:1 — clear of AA at this size. */
+  background: #0f766e;
+  color: #ecfdf5;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 130ms ease, transform 130ms ease;
+}
+/* Hover goes one step DARKER, not lighter. The obvious teal-600 (#0d9488)
+   drops the label to 3.55:1 — a hover state still carries text, and a button
+   that only fails AA once the pointer is on it is a button that fails AA.
+   teal-800 measures 7.20:1, and darker-plus-lift is a perfectly ordinary
+   hover; it is the lift that says "pressable" anyway. */
+.promo-cta:hover { background: #115e59; transform: translateY(-1px); }
+.promo-cta:active { transform: translateY(1px); }
+.promo-cta:focus-visible { outline: 2px solid #5eead4; outline-offset: 2px; }
+.promo-cta-arrow { font-size: 13px; line-height: 1; }
+
+@media (max-width: 560px) {
+  /* The button drops to its own full-width row rather than squeezing the
+     blurb into a 90px column. Measured at 390px, the three-column grid
+     left the prize chips 104px wide, which ellipsises "Master Ball". */
+  .promo-card { grid-template-columns: auto minmax(0, 1fr); row-gap: 11px; }
+  .promo-cta { grid-column: 1 / -1; justify-content: center; }
+}
+
+/* ── Footer: the recurring-feature line ────────────────────────────
+   "13 held · 68 prizes to 39 trainers · since 17 Jul". Moved out of the
+   header: it is provenance, not a headline, and it is the one line true
+   of the whole dialog rather than of any section. Fixed, so it survives
+   scrolling to the bottom of a 30-row archive — which is exactly where
+   somebody wonders how long this has been going on. */
+.gw-stats {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.gw-stats strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.gw-stats-you { color: #86efac; }
+
 /* Repeat winners are visible in a 12-row history (one name has 5 of 68
    wins), which is exactly the "it's rigged" conversation the draw seed
    was built to end. So the proof gets a standing link at the top of the
@@ -573,6 +776,17 @@
      lands at 39.5 — half a pixel under the floor, which is still under it. */
   .gw-past-detail .giveaway-fair > summary { padding: 14px 0; margin: -14px 0; }
   .giveaway-card .giveaway-enter { padding: 13px 22px; }
+  /* The promo CTA is 36px at its desktop padding, and on a phone it is a
+     full-width row — the easiest thing on this card to hit and the one most
+     worth hitting.
+     min-height rather than more padding, because unlike the four rules above
+     it does not have to be re-derived from a line box every time the label's
+     type size moves. Those four are left exactly as they were: measuring them
+     in the preview harness suggested they were 1-2px short, but the harness
+     freezes the modal's entrance animation at scale(0.94) — this pane never
+     composites, so anime.js never advances past frame 0 — and every height
+     read out of it is therefore 6% low. Divided back out, all four clear 40. */
+  .promo-cta { min-height: 40px; }
 }
 
 /* ── Contrast: the same 3.96:1 purple, in the other place it is used ──
