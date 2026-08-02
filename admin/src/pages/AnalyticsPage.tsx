@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type Analytics } from "../api";
 import { navigateTo, type Page } from "../App";
 
@@ -118,7 +118,6 @@ export function AnalyticsPage() {
   const avgLevel = data.averages.accountLevel;
 
   const r = data.retention;
-  const pct = (v: number | null) => (v === null ? "—" : `${v.toFixed(0)}%`);
 
   return (
     <div className="page analytics-cadence">
@@ -165,10 +164,14 @@ export function AnalyticsPage() {
              sub={`${data.activity.signups30d.toLocaleString()} in 30d`} />
         {/* Retention reads as unknown rather than as zero when the check day
             predates collection — 0% would claim every player churned. */}
-        <Kpi label="D1 retention"  value={r ? pct(r.d1) : "—"}  sub={r ? `${r.cohortSizes.d1} cohort` : "not collecting"}
-             hint="Share of the cohort that signed up 2 days ago and came back the next day. The best single predictor of whether the game compounds." />
-        <Kpi label="D7 retention"  value={r ? pct(r.d7) : "—"}  sub={r ? `${r.cohortSizes.d7} cohort` : "not collecting"} />
-        <Kpi label="D30 retention" value={r ? pct(r.d30) : "—"} sub={r && r.cohortSizes.d30 === 0 ? "no cohort" : "collecting"} />
+        {/* Three distinct unknowns, never collapsed into "0%": no collection at
+            all, a check-day that predates collection, and an empty cohort. 0%
+            would claim every player churned, which is a different and much
+            worse statement than "we do not know yet". */}
+        <RetentionKpi label="D1 retention"  value={r?.d1  ?? null} size={r?.cohortSizes.d1  ?? null}
+          hint="Share of the cohort that signed up 2 days ago and came back the next day. The best single predictor of whether the game compounds." />
+        <RetentionKpi label="D7 retention"  value={r?.d7  ?? null} size={r?.cohortSizes.d7  ?? null} />
+        <RetentionKpi label="D30 retention" value={r?.d30 ?? null} size={r?.cohortSizes.d30 ?? null} />
         <Kpi label="Total players" value={totalUsers.toLocaleString()} sub={`avg Lv ${avgLevel}`} />
       </section>
 
@@ -209,7 +212,7 @@ export function AnalyticsPage() {
               <p>{data.totals.pvpMatches7d.toLocaleString()} in 7d · {data.totals.pvpMatchesTotal.toLocaleString()} all-time</p>
             </div>
           </header>
-          <LineChart days={seriesFromMap(data.pvpSeries).days} counts={seriesFromMap(data.pvpSeries).counts} color="#fbbf24" height={150} />
+          <LineChart days={seriesFromMap(data.pvpSeries).days} counts={seriesFromMap(data.pvpSeries).counts} color="#fbbf24" height={150} compact />
         </article>
         <article className="card chart-card">
           <header className="card-head">
@@ -218,7 +221,7 @@ export function AnalyticsPage() {
               <p>{data.totals.trades7d.toLocaleString()} in 7d · {data.totals.tradesTotal.toLocaleString()} all-time</p>
             </div>
           </header>
-          <LineChart days={seriesFromMap(data.tradeSeries).days} counts={seriesFromMap(data.tradeSeries).counts} color="#14b8a6" height={150} />
+          <LineChart days={seriesFromMap(data.tradeSeries).days} counts={seriesFromMap(data.tradeSeries).counts} color="#14b8a6" height={150} compact />
         </article>
         <article className="card chart-card">
           <header className="card-head">
@@ -296,6 +299,26 @@ function Kpi({ label, value, sub, hint, accent }: {
       {sub && <span className="kpi-sub">{sub}</span>}
     </article>
   );
+}
+
+/**
+ * A retention tile.
+ *
+ * Every value here can legitimately be unknown, and the reasons differ, so it
+ * never prints a number it cannot stand behind:
+ *   no retention object   -> not collecting yet
+ *   null with a cohort    -> the check day predates collection ("collecting")
+ *   null with no cohort   -> nobody signed up that day ("no cohort")
+ * Printing 0% for any of those would read as total churn.
+ */
+function RetentionKpi({ label, value, size, hint }: {
+  label: string; value: number | null; size: number | null; hint?: string;
+}) {
+  if (size === null) return <Kpi label={label} value="—" sub="not collecting" hint={hint} />;
+  if (value === null) {
+    return <Kpi label={label} value={size === 0 ? "—" : "…"} sub={size === 0 ? "no cohort" : "collecting"} hint={hint} />;
+  }
+  return <Kpi label={label} value={`${value.toFixed(0)}%`} sub={`${size.toLocaleString()} cohort`} hint={hint} />;
 }
 
 /** Compact clickable status row: the numbers that mean "go and do something".
@@ -377,111 +400,256 @@ function Sparkline({ counts, color }: { counts: number[]; color: string }) {
   );
 }
 
-function LineChart({ days, counts, color, height = 240 }: { days: string[]; counts: number[]; color: string; height?: number }) {
-  const W = 600;
+/**
+ * Line chart.
+ *
+ * ── WHY IT MEASURES ITS OWN WIDTH ───────────────────────────────────
+ * The previous version drew into a fixed 600-unit viewBox and stretched it to
+ * the container with `preserveAspectRatio="none"`. At full width that is a
+ * 1.85x horizontal scale applied to EVERYTHING — so the axis labels were
+ * literally stretched, and every vertical stroke came out 1.85x thicker than
+ * every horizontal one. It is the reason the chart looked wrong in a way that
+ * was hard to name.
+ *
+ * Measuring the container and drawing in real pixels costs a ResizeObserver
+ * and removes the whole class of problem: text is text, 1px is 1px.
+ */
+function LineChart({ days, counts, color, height = 240, compact = false }: {
+  days: string[]; counts: number[]; color: string; height?: number; compact?: boolean;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [W, setW] = useState(600);
+
+  // getBoundingClientRect on layout + a window resize listener, NOT a
+  // ResizeObserver. RO is the tidier API and it does not fire at all in some
+  // embedded/headless browser contexts — observed here, where even a manually
+  // constructed observer on this exact element never produced a callback. The
+  // failure mode is silent and total: the chart keeps its 600px default
+  // forever and every label renders 1.85x too large. A resize listener covers
+  // every case this layout actually has, since the wrap only changes width
+  // when the window does.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const w = Math.round(wrapRef.current?.getBoundingClientRect().width ?? 0);
+      if (w > 0) setW((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
   const H = height;
-  const PAD_L = 32;
-  const PAD_R = 8;
-  const PAD_T = 12;
-  const PAD_B = 24;
-  const innerW = W - PAD_L - PAD_R;
-  const innerH = H - PAD_T - PAD_B;
-  const max = Math.max(1, ...counts);
+  const PAD_L = compact ? 34 : 46;
+  const PAD_R = 12;
+  const PAD_T = 14;
+  const PAD_B = 26;
+  const innerW = Math.max(1, W - PAD_L - PAD_R);
+  const innerH = Math.max(1, H - PAD_T - PAD_B);
 
-  const points = useMemo(() =>
-    counts.map((c, i) => {
-      const x = PAD_L + (counts.length === 1 ? 0 : (i / (counts.length - 1)) * innerW);
-      const y = PAD_T + innerH - (c / max) * innerH;
-      return { x, y, c, day: days[i] };
-    }),
-    [days, counts, innerW, innerH, max],
+  const rawMax = Math.max(1, ...counts);
+  // A ceiling on a round number, with headroom. Scaling to the exact peak puts
+  // the highest point flush against the top edge, which reads as clipped, and
+  // labels an axis with arbitrary values like 266 and 133.
+  const { max, ticks } = useMemo(() => niceScale(rawMax, compact ? 3 : 5), [rawMax, compact]);
+
+  const xAt = (i: number) => PAD_L + (counts.length <= 1 ? innerW / 2 : (i / (counts.length - 1)) * innerW);
+  const yAt = (v: number) => PAD_T + innerH - (v / max) * innerH;
+
+  const points = useMemo(
+    () => counts.map((c, i) => ({ x: xAt(i), y: yAt(c), c, day: days[i] })),
+    [days, counts, innerW, innerH, max, W],
   );
-  const linePath = points.length === 0 ? "" : "M " + points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
-  const areaPath = points.length === 0 ? "" : `${linePath} L ${points[points.length - 1].x.toFixed(1)},${PAD_T + innerH} L ${points[0].x.toFixed(1)},${PAD_T + innerH} Z`;
-  const ticks = [0, 0.5, 1].map((t) => ({
-    y: PAD_T + innerH - t * innerH,
-    label: Math.round(t * max).toString(),
-  }));
-  const gradId = `grad-${color.replace(/[^a-z0-9]/gi, "")}`;
 
-  // 7-day moving average overlay.
-  const movAvg = useMemo(() => {
-    const out: { x: number; y: number }[] = [];
-    for (let i = 0; i < counts.length; i++) {
-      const lo = Math.max(0, i - 6);
-      const slice = counts.slice(lo, i + 1);
-      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-      const x = PAD_L + (counts.length === 1 ? 0 : (i / (counts.length - 1)) * innerW);
-      const y = PAD_T + innerH - (avg / max) * innerH;
-      out.push({ x, y });
-    }
-    return out;
-  }, [counts, innerW, innerH, max]);
-  const movAvgPath = movAvg.length === 0 ? "" : "M " + movAvg.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
+  const linePath = points.length === 0 ? "" : "M " + points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
+  const areaPath = points.length === 0 ? "" :
+    `${linePath} L ${points[points.length - 1].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} L ${points[0].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`;
+
+  // 7-day moving average. Labelled in the legend below — an unexplained dashed
+  // line is just noise the reader has to ignore.
+  const movAvgPath = useMemo(() => {
+    if (counts.length === 0) return "";
+    const pts = counts.map((_, i) => {
+      const slice = counts.slice(Math.max(0, i - 6), i + 1);
+      return { x: xAt(i), y: yAt(slice.reduce((a, b) => a + b, 0) / slice.length) };
+    });
+    return "M " + pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
+  }, [counts, innerW, innerH, max, W]);
+
+  // Roughly every Nth day, always including the last, so the axis reads as a
+  // date range rather than three lonely labels.
+  const xLabelEvery = Math.max(1, Math.ceil(counts.length / (compact ? 3 : 6)));
+  const gradId = `grad-${color.replace(/[^a-z0-9]/gi, "")}-${compact ? "c" : "p"}`;
+
+  const [hover, setHover] = useState<number | null>(null);
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rel = e.clientX - rect.left - PAD_L;
+    const i = Math.round((rel / innerW) * (counts.length - 1));
+    setHover(i >= 0 && i < counts.length ? i : null);
+  };
 
   return (
-    <div className="chart-wrap">
-      {/* Explicit CSS height. `.chart-svg` sets `height: auto`, which with
-          preserveAspectRatio="none" derives the height from the viewBox
-          ratio — so the wider the card, the taller the chart. Once the
-          primary chart went full-width that turned a requested 300px into
-          554px and pushed the rest of the page off the fold. */}
+    <div className="chart-wrap" ref={wrapRef}>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
         className="chart-svg"
-        preserveAspectRatio="none"
-        style={{ height: H }}
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.32" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
           </linearGradient>
         </defs>
-        {ticks.map((t, i) => (
-          <g key={i}>
-            <line x1={PAD_L} y1={t.y} x2={W - PAD_R} y2={t.y} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-            <text x={PAD_L - 6} y={t.y + 3} textAnchor="end" className="chart-axis">{t.label}</text>
+
+        {/* Gridlines first, so the data draws over them. The old ones were at
+            0.04 alpha, which is invisible — a gridline you cannot see is not a
+            gridline, and without them a reader cannot judge a value at all. */}
+        {ticks.map((t) => (
+          <g key={t}>
+            <line
+              x1={PAD_L} y1={yAt(t)} x2={W - PAD_R} y2={yAt(t)}
+              stroke="rgba(255,255,255,0.07)" strokeWidth={1} shapeRendering="crispEdges"
+            />
+            <text x={PAD_L - 8} y={yAt(t) + 3.5} textAnchor="end" className="chart-axis">
+              {formatTick(t)}
+            </text>
           </g>
         ))}
+        {/* Baseline gets a stronger rule — zero is a real boundary. */}
+        <line
+          x1={PAD_L} y1={PAD_T + innerH} x2={W - PAD_R} y2={PAD_T + innerH}
+          stroke="rgba(255,255,255,0.14)" strokeWidth={1} shapeRendering="crispEdges"
+        />
+
         <path d={areaPath} fill={`url(#${gradId})`} />
-        <path d={movAvgPath} fill="none" stroke={color} strokeWidth={1} strokeDasharray="3 4" opacity={0.55} />
+        <path d={movAvgPath} fill="none" stroke={color} strokeWidth={1.25} strokeDasharray="4 4" opacity={0.45} />
         <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={color} className="chart-dot">
-            <title>{`${p.day}: ${p.c}`}</title>
-          </circle>
+
+        {/* Dots only when they are not going to collide. At 30 points across a
+            compact card they merge into a dotted line. */}
+        {!compact && points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={color} className="chart-dot" />
         ))}
-        {points.length > 0 && (
-          <>
-            <text x={points[0].x} y={H - 6} textAnchor="start" className="chart-axis">{shortDate(points[0].day)}</text>
-            <text x={(points[0].x + points[points.length - 1].x) / 2} y={H - 6} textAnchor="middle" className="chart-axis">
-              {shortDate(points[Math.floor(points.length / 2)].day)}
+
+        {hover !== null && points[hover] && (
+          <g className="chart-hover">
+            <line
+              x1={points[hover].x} y1={PAD_T} x2={points[hover].x} y2={PAD_T + innerH}
+              stroke="rgba(255,255,255,0.22)" strokeWidth={1}
+            />
+            <circle cx={points[hover].x} cy={points[hover].y} r={4} fill={color} stroke="var(--surface-1)" strokeWidth={2} />
+          </g>
+        )}
+
+        {points.map((p, i) =>
+          i % xLabelEvery === 0 || i === points.length - 1 ? (
+            <text
+              key={`x${i}`}
+              x={p.x}
+              y={H - 7}
+              textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+              className="chart-axis"
+            >
+              {shortDate(p.day)}
             </text>
-            <text x={points[points.length - 1].x} y={H - 6} textAnchor="end" className="chart-axis">{shortDate(points[points.length - 1].day)}</text>
-          </>
+          ) : null,
         )}
       </svg>
+
+      <div className="chart-legend">
+        <span className="chart-legend__item">
+          <i className="chart-legend__swatch" style={{ background: color }} /> Daily
+        </span>
+        <span className="chart-legend__item">
+          <i className="chart-legend__swatch chart-legend__swatch--dashed" style={{ borderColor: color }} /> 7-day average
+        </span>
+        <span className="chart-legend__read">
+          {hover !== null && points[hover]
+            ? <><strong>{points[hover].c.toLocaleString()}</strong> on {shortDate(points[hover].day)}</>
+            : <span className="dim">Hover for a day</span>}
+        </span>
+      </div>
     </div>
   );
 }
 
+/**
+ * A ceiling on a round number, plus evenly spaced ticks up to it.
+ *
+ * Scaling to the exact peak labels the axis with whatever the data happened to
+ * be — 266 and 133 — and pins the highest point to the top edge so it reads as
+ * clipped. Rounding up to a 1/2/5 x 10^n step gives an axis a person can read
+ * a value off.
+ */
+function niceScale(rawMax: number, targetTicks: number): { max: number; ticks: number[] } {
+  const rough = rawMax / targetTicks;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(rough, 1e-9))));
+  const norm = rough / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const max = Math.max(step, Math.ceil(rawMax / step) * step);
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + 1e-9; v += step) ticks.push(Math.round(v));
+  return { max, ticks };
+}
+
+function formatTick(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(v % 1_000 === 0 ? 0 : 1)}k`;
+  return String(v);
+}
+
+/**
+ * Level distribution.
+ *
+ * ── WHY IT IS A LOG SCALE ───────────────────────────────────────────
+ * Linear was unreadable on the real data. The 0-9 bucket holds 1,939 of 2,444
+ * players, so every other bar was under 7% of the height and eleven of the
+ * twelve columns rendered as identical slivers — the chart said "most players
+ * are low level", which anyone could already guess, and nothing else.
+ *
+ * A log scale is the standard answer to a distribution spanning three orders
+ * of magnitude, and it makes the tail legible: 227 at level 110+ and 7 at
+ * 70-79 become visibly different bars. It IS harder to read proportions off,
+ * which is why the axis says so and every bar keeps its raw count on top.
+ */
 function Histogram({ buckets, highlightLevel }: { buckets: { label: string; count: number }[]; highlightLevel?: number }) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
+  const logMax = Math.log10(max + 1);
   // Highlight the bucket containing the average level.
   const highlightIdx = highlightLevel == null ? -1 : Math.min(buckets.length - 1, Math.floor(highlightLevel / 10));
+
+  if (buckets.length === 0) return <p className="dim small">No data.</p>;
+
   return (
-    <div className="histogram">
-      {buckets.map((b, i) => (
-        <div className={`histogram-col ${i === highlightIdx ? "highlighted" : ""}`} key={b.label}>
-          <div className="histogram-bar-wrap">
-            <div className="histogram-bar" style={{ height: `${(b.count / max) * 100}%` }} title={`${b.label}: ${b.count}`} />
-            <span className="histogram-count">{b.count}</span>
-          </div>
-          <span className="histogram-label">{b.label}</span>
-        </div>
-      ))}
-      {buckets.length === 0 && <span className="dim small">No data.</span>}
+    <div className="histogram-wrap">
+      <div className="histogram">
+        {buckets.map((b, i) => {
+          // +1 so an empty bucket is 0 rather than -Infinity, and a floor so a
+          // non-zero bucket always draws something a reader can see and hover.
+          const pct = b.count === 0 ? 0 : Math.max(3, (Math.log10(b.count + 1) / logMax) * 100);
+          return (
+            <div className={`histogram-col ${i === highlightIdx ? "highlighted" : ""}`} key={b.label}>
+              <div className="histogram-bar-wrap">
+                <span className="histogram-count">{b.count.toLocaleString()}</span>
+                <div
+                  className="histogram-bar"
+                  style={{ height: `${pct}%` }}
+                  title={`Level ${b.label}: ${b.count.toLocaleString()} players`}
+                />
+              </div>
+              <span className="histogram-label">{b.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="histogram-note dim small">
+        Log scale — the lowest bucket holds most of the population, so a linear
+        axis flattens every other bar to nothing.
+      </p>
     </div>
   );
 }

@@ -2951,3 +2951,96 @@
   .signal-bar { gap: var(--sp-1); }
   .signal { padding: 5px 10px; font-size: 11.5px; }
 }
+
+/* ── Charts ─────────────────────────────────────────────────────────
+   The chart previously drew into a fixed 600-unit viewBox stretched to
+   the container with preserveAspectRatio="none". At full width that is
+   a 1.85x horizontal scale applied to everything: axis labels came out
+   literally stretched, and every vertical stroke rendered 1.85x thicker
+   than every horizontal one. It now measures its container and draws in
+   real pixels, so text is text and 1px is 1px. */
+
+.chart-wrap { width: 100%; min-width: 0; }
+.chart-svg { display: block; width: 100%; margin-top: 2px; }
+.chart-axis {
+  font-size: 10px;
+  fill: var(--text-dim);
+  font-family: inherit;          /* was monospace, which the stretch mangled */
+  font-variant-numeric: tabular-nums;
+}
+.chart-dot { opacity: 0; transition: opacity 120ms var(--ease); }
+.chart-svg:hover .chart-dot { opacity: 0.9; }
+.chart-hover { pointer-events: none; }
+
+/* Legend + hover readout. The dashed 7-day average had no key at all, so
+   it read as a second unexplained dataset. */
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding-top: var(--sp-2);
+  margin-top: var(--sp-2);
+  border-top: 1px solid var(--hairline);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.chart-legend__item { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend__swatch { width: 14px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+.chart-legend__swatch--dashed {
+  height: 0;
+  background: none !important;
+  border-top: 2px dashed currentColor;
+  opacity: 0.6;
+}
+/* The readout is pushed right and reserves its line, so the legend does not
+   jump horizontally as the hovered value changes width. */
+.chart-legend__read { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.chart-legend__read strong { color: var(--text); }
+
+/* ── Histogram ──────────────────────────────────────────────────── */
+
+.histogram-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 150px;
+  padding-top: var(--sp-4);   /* room for the count labels above each bar */
+}
+.histogram-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; }
+.histogram-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  min-height: 0;
+  position: relative;
+}
+.histogram-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, var(--brand-hover), var(--brand));
+  min-height: 2px;
+  transition: filter 120ms var(--ease);
+}
+.histogram-col:hover .histogram-bar { filter: brightness(1.25); }
+.histogram-col.highlighted .histogram-bar { background: linear-gradient(180deg, #fcd34d, var(--warn)); }
+.histogram-count {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.histogram-label { font-size: 9.5px; color: var(--text-faint); white-space: nowrap; }
+.histogram-note { margin: 0; }
+
+@media (max-width: 900px) {
+  /* Counts above every bar collide once the card is phone-width; the bars and
+     the hover title still carry the data. */
+  .histogram-count { display: none; }
+  .histogram-label { font-size: 8.5px; }
+}
