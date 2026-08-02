@@ -548,12 +548,33 @@ const BOX_CAPACITY = 9999;
 const IV_TIERS = ["any", "60", "80", "90", "perfect"] as const;
 type IvTier = (typeof IV_TIERS)[number];
 
+/** The long form: a tooltip, and the only wording that stands alone. */
 const IV_TIER_LABEL: Record<IvTier, string> = {
   any: "Any IV",
   "60": "IV 60%+",
   "80": "IV 80%+",
   "90": "IV 90%+",
   perfect: "IV perfect",
+};
+
+/** The short form, for the segmented control — the group is already
+ *  labelled "IV", so repeating it in all five buttons is three characters
+ *  of noise per button in a row that has to survive a 360px screen. */
+const IV_TIER_SHORT: Record<IvTier, string> = {
+  any: "Any",
+  "60": "60+",
+  "80": "80+",
+  "90": "90+",
+  perfect: "Perfect",
+};
+
+const SORT_MODES = ["id", "level", "name"] as const;
+/** Short label, then what it actually orders by. The short one is what the
+ *  button says; the long one is its title, because "#" alone is a guess. */
+const SORT_LABEL: Record<SortMode, [short: string, long: string]> = {
+  id: ["Dex", "Pokédex number"],
+  level: ["Level", "Level, highest first"],
+  name: ["A–Z", "Name, A–Z"],
 };
 
 /** Minimum IV total for a tier. "perfect" demands all six maxed. */
@@ -781,40 +802,10 @@ export function PCTab() {
     }
   }
 
-  const openSortMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const active = currentSortMode(box);
-    const sort = (mode: SortMode) => dispatch({ type: "SORT_BOX", payload: { mode } });
-    openContextMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
-      { label: t("Pokédex number"), icon: tick(active === "id"), onClick: () => sort("id") },
-      { label: t("Level, highest first"), icon: tick(active === "level"), onClick: () => sort("level") },
-      { label: t("Name, A–Z"), icon: tick(active === "name"), onClick: () => sort("name") },
-    ]);
-  };
-
-  const openFilterMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    openContextMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
-      {
-        label: t("Shiny only"),
-        icon: tick(shinyOnly),
-        onClick: () => setShinyOnly((v) => !v),
-      },
-      // A disabled row is the only section heading this menu has. It's skipped
-      // by the arrow keys, which is exactly right for a label.
-      { label: t("IV quality"), disabled: true, onClick: () => undefined },
-      ...IV_TIERS.map((tier) => ({
-        label: t(IV_TIER_LABEL[tier]),
-        icon: tick(ivTier === tier),
-        onClick: () => setIvTier(tier),
-      })),
-      {
-        label: t("Clear filters"),
-        disabled: !filtering,
-        onClick: () => { setQuery(""); setShinyOnly(false); setIvTier("any"); },
-      },
-    ]);
-  };
+  // Sort and filter are CONTROLS now, not menus — see the .pc-filters row
+  // below. The two openContextMenu builders that used to be here are gone.
+  const sortMode = currentSortMode(box);
+  const clearFilters = () => { setQuery(""); setShinyOnly(false); setIvTier("any"); };
 
   const toggleDensity = () => {
     setDensity((prev) => {
@@ -928,19 +919,6 @@ export function PCTab() {
             >×</button>
           )}
         </div>
-        <button type="button" className="pc-tool" onClick={openSortMenu} title={t("Sort the box")}>
-          <span aria-hidden>⇅</span> {t("Sort")}
-        </button>
-        <button
-          type="button"
-          className={`pc-tool pc-tool-icon ${filtering ? "on" : ""}`}
-          onClick={openFilterMenu}
-          title={t("Filter by shininess and IVs")}
-          aria-label={t("Filter by shininess and IVs")}
-        >
-          <IconSliders size={14} />
-          {filtering && <span className="pc-tool-dot" aria-hidden />}
-        </button>
         <button
           type="button"
           className="pc-tool pc-tool-icon"
@@ -989,6 +967,104 @@ export function PCTab() {
         <span className="pc-count" title={filtering ? t("Matches / stored") : t("Stored")}>
           {filtering ? `${shown} / ${box.length}` : box.length}
         </span>
+      </div>
+
+      {/* ── Sort and filter, in the open ──────────────────────────────
+          These were behind two buttons that opened context menus: one
+          labelled "Sort", one an unlabelled slider icon with a dot on it
+          when something was active. Nothing about that said WHAT was
+          filtered. A player who left "IV 90%+" on and came back the next
+          day saw a box with most of it missing and a dot as the only
+          explanation — and the way out was to open a menu, read five rows,
+          and spot which one was ticked.
+
+          Three groups of buttons instead, each showing its own state, in
+          the app's own segmented control (.g-tabs / .g-tab) rather than a
+          fourth idea of what a toggle looks like. The answer to "why am I
+          seeing these Pokémon" is now readable without clicking anything.
+
+          One row that scrolls sideways when it has to, rather than wrapping
+          — this pane is already the subject of a small-screen complaint
+          (br_50f99cbac7f106d571), and a second and third wrapped line comes
+          straight out of the grid's height. Same pattern the hub's own rail
+          uses on a phone. */}
+      <div className="pc-filters">
+        <div className="pc-filter-group">
+          <span className="pc-filter-label" id="pc-sort-label">{t("Sort")}</span>
+          <div className="g-tabs" role="group" aria-labelledby="pc-sort-label">
+            {SORT_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`g-tab g-tab-small${sortMode === mode ? " active" : ""}`}
+                // aria-pressed, not aria-selected: these are toggles in a
+                // group, not tabs selecting a panel.
+                aria-pressed={sortMode === mode}
+                title={t(SORT_LABEL[mode][1])}
+                onClick={() => dispatch({ type: "SORT_BOX", payload: { mode } })}
+              >
+                {t(SORT_LABEL[mode][0])}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="pc-filter-group">
+          <span className="pc-filter-label" id="pc-show-label">{t("Show")}</span>
+          <div className="g-tabs" role="group" aria-labelledby="pc-show-label">
+            {/* Two buttons rather than one checkbox. "All" has to be
+                pressable: with a lone Shiny toggle, turning the filter OFF
+                and never having turned it on look identical. */}
+            <button
+              type="button"
+              className={`g-tab g-tab-small${shinyOnly ? "" : " active"}`}
+              aria-pressed={!shinyOnly}
+              onClick={() => setShinyOnly(false)}
+            >
+              {t("All")}
+            </button>
+            <button
+              type="button"
+              className={`g-tab g-tab-small${shinyOnly ? " active" : ""}`}
+              aria-pressed={shinyOnly}
+              title={t("Shiny only")}
+              onClick={() => setShinyOnly(true)}
+            >
+              ✦ {t("Shiny")}
+            </button>
+          </div>
+        </div>
+
+        <div className="pc-filter-group">
+          <span className="pc-filter-label" id="pc-iv-label">{t("IV")}</span>
+          <div className="g-tabs" role="group" aria-labelledby="pc-iv-label">
+            {IV_TIERS.map((tier) => (
+              <button
+                key={tier}
+                type="button"
+                className={`g-tab g-tab-small${ivTier === tier ? " active" : ""}`}
+                aria-pressed={ivTier === tier}
+                // The long wording survives as the title — "60+" beside a
+                // group labelled "IV" is unambiguous on screen, but it is
+                // not a phrase, and a screen reader reads it alone.
+                title={t(IV_TIER_LABEL[tier])}
+                aria-label={t(IV_TIER_LABEL[tier])}
+                onClick={() => setIvTier(tier)}
+              >
+                {t(IV_TIER_SHORT[tier])}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Only when there is something to clear. A permanently-disabled
+            button in a filter bar is a control that has never once done
+            anything for most of the people looking at it. */}
+        {filtering && (
+          <button type="button" className="pc-filter-clear" onClick={clearFilters}>
+            {t("Clear")}
+          </button>
+        )}
       </div>
 
       {/* Bulk release bar. Only mounted in selection mode, and it is the ONLY

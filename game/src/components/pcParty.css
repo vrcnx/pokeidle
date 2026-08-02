@@ -1,0 +1,117 @@
+/* =====================================================================
+   The PC's party column.
+
+   Layout only. Every party row in here is the app's own .party-row —
+   same component, same chrome — so this file must not restyle one. If a
+   row looks wrong in this column it looks wrong in the rail too, and the
+   fix belongs where .party-row is defined, not here.
+   ===================================================================== */
+.pc-party {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px 12px;
+}
+
+.pc-party-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pc-party-head h3 {
+  margin: 0;
+  flex: 1 1 auto;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* Tabular, because it is a count that changes while you are looking at it
+   and a proportional 1 makes "1/6" jump when it becomes "4/6". */
+.pc-party-count {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pc-party-count .dim { color: var(--text-dim); font-weight: 600; }
+
+.pc-party-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-gutter: stable;
+}
+/* Slots share the leftover height rather than stacking at the top over a
+   void — but capped, because a party row stretched to 120px stops looking
+   like a row. Whatever is left over after the cap sits above the hint,
+   which reads as padding rather than as a hole.
+   `flex: 1 1 auto`, not `1 1 0`: a basis of zero would let six rows be
+   crushed to nothing in a short column instead of scrolling. */
+.pc-party-list > li {
+  flex: 1 1 auto;
+  max-height: 104px;
+}
+/* .party-row is a grid; its single row track is auto-sized, so growing the
+   li leaves the content stuck to the top without this. */
+.pc-party-list > .party-row { align-content: center; }
+
+/* A free position. Deliberately quiet — it is a place something can go,
+   not a thing. Dashed, because a solid border at this size reads as a
+   filled row that failed to load. */
+.pc-party-open {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 12px;
+  border: 1px dashed var(--border-strong, #2a2a2e);
+  border-radius: var(--card-radius, 8px);
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+.pc-party-open-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The drag controller adds .drop-target-active to the target the pointer
+   is over (dragController.ts:343). Same signal the box cells give, so a
+   drag reads the same on both sides of the dialog. */
+.pc-party-open.drop-target-active {
+  border-style: solid;
+  border-color: var(--gold, #fbbf24);
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--text);
+}
+
+.pc-party-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}

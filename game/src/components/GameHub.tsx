@@ -5,6 +5,7 @@ import { PvpHubPane, PvpHeaderRight } from "./PvpHubModal";
 import { SettingsPane } from "./GlobalDock";
 import { TrainerSelfPane } from "./TrainerCardModal";
 import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
+import { PcPartyAside } from "./PcPartyAside";
 import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
 import { useGame } from "../state/GameContext";
@@ -35,7 +36,10 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   map:  { Body: RouteCardList, fill: true },
   mart: { Body: MartTab, fill: true },
   bag:  { Body: BagTab, fill: true },
-  pc:   { Body: PCTab, fill: true },
+  // The one section with a working third column instead of a picture: the
+  // box and the party are two halves of one job, and a drag between them
+  // only works if both are on screen.
+  pc:   { Body: PCTab, fill: true, Aside: PcPartyAside },
   dex:  { Body: DexTab, fill: true },
   pvp: {
     Body: PvpHubPane,

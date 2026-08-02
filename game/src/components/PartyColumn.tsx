@@ -187,7 +187,10 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
  *  moves toolbar used, and it plays the Centre sequence before COMPLETE_HEALING
  *  actually restores the party. Disabled only while a heal is already running,
  *  so it stays usable mid-battle as the panic button it has always been. */
-function PartyHealButton() {
+/** Heal / retreat. Exported for the PC's party column, which is a second
+ *  place a player manages the team and would otherwise have to leave the
+ *  dialog to heal it. */
+export function PartyHealButton() {
   const { state, dispatch } = useGame();
   const t = useT();
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -222,7 +225,16 @@ function PartyHealButton() {
   );
 }
 
-function PartyRow({
+/**
+ * One party member.
+ *
+ * Exported because the PC's third column renders the same rows. Two party
+ * lists that looked alike and behaved differently would be worse than one
+ * shared row — the drag rules, the context menu, the release guards and the
+ * keyboard route all live in here, and a second copy would drift from this
+ * one on the first change to any of them.
+ */
+export function PartyRow({
   pokemon: p,
   index: idx,
   live,

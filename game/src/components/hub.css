@@ -96,6 +96,12 @@
    exactly as it was. */
 @media (max-width: 1280px) {
   .hub-shell { grid-template-columns: 232px minmax(0, 1fr); }
+  /* ...but a section with a real third column keeps it. The art is a
+     picture and costs nothing to lose; an Aside is working controls, and
+     dropping those at the first sign of pressure would mean the PC can
+     manage your party on a desktop and not on a laptop. It goes at 1024
+     instead — see below. */
+  .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr) 272px; }
   /* .hub-art { display: none } is NOT here. The base .hub-art rule is
      defined further down this file and sets display: flex at the same
      specificity, so a rule here loses to it on load order and the column
@@ -1562,3 +1568,29 @@
 @media (max-width: 1280px) {
   .hub-art { display: none; }
 }
+
+/* An Aside column is content, so it holds on 256px longer than the art.
+   Below this the pane needs every pixel it has, and the PC pane is no
+   worse off than it was before the column existed: the party is still on
+   the game screen behind the dialog, and in the party tab on mobile. */
+@media (max-width: 1024px) {
+  .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr); }
+  .hub-extra { display: none; }
+}
+
+/* ── A section's own third column ──────────────────────────────────
+   Same track as the art, none of its treatment: no scrim, no held-back
+   opacity, no aria-hidden. This is somewhere a player works. */
+.hub-extra {
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+/* The column hands its full height to whatever it holds. Without this the
+   Aside is only as tall as its content and the bottom of the column is
+   dead space — the same hole the right rail had before the party card was
+   allowed to grow into it. */
+.hub-extra > * { flex: 1 1 auto; min-height: 0; }

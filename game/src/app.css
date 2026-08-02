@@ -1845,25 +1845,29 @@ header.tab-pane-head.v2 .mart-wallet {
   min-height: 0;
   overflow: hidden;
 }
-.pc-party, .pc-box {
+/* `.pc-party`, `.pc-party-grid` and the `.pc-party h3` rules that used to
+   be here are gone. They belonged to a two-pane PC layout — party on the
+   left, box on the right — that no component has rendered for a long time;
+   nothing in the app matched them.
+   Removed rather than routed around: `.pc-party` is now the PC's party
+   column (components/pcParty.css), and a dead rule in app.css restyling a
+   live component's <h3> from several thousand lines away is precisely the
+   kind of collision that is impossible to find from the symptom.
+   `.pc-box*` is still live and stays. */
+.pc-box {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
-.pc-party h3, .pc-box h3 {
+.pc-box h3 {
   margin: 0 0 6px;
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 1px;
   color: var(--text-dim);
 }
-.pc-party h3 small, .pc-box h3 small { font-size: 9px; margin-left: 4px; }
-.pc-party-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-}
+.pc-box h3 small { font-size: 9px; margin-left: 4px; }
 .pc-box-head {
   display: flex;
   align-items: center;

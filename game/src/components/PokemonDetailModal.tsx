@@ -372,7 +372,15 @@ export function PokemonDetailModal() {
   }
 
   return (
-    <div className="modal-overlay" onClick={closePokemonDetail}>
+    // pokemon-detail-overlay carries a z-index above the other modal
+    // overlays. Every .modal-overlay in the app sits at z-index 100, so which
+    // one wins is decided by DOM order — and this sheet is mounted BEFORE the
+    // hub in GameShell, which meant opening a Pokemon's details from the hub's
+    // PC pane drew the sheet underneath the hub. It is not a peer of the
+    // surface that opened it; it is a child action of one, so it belongs on
+    // top of whatever that was. See releaseControls.css for the value and why
+    // it stops short of the context menu.
+    <div className="modal-overlay pokemon-detail-overlay" onClick={closePokemonDetail}>
       <PokemonDetailDialog
         pokemon={p}
         species={sp}

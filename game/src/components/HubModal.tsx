@@ -67,6 +67,19 @@ export interface HubSectionContent {
   fill?: boolean;
   /** Optional one-line subtitle under the section title. */
   note?: string;
+  /**
+   * The third column, when the section has something to PUT there.
+   *
+   * Given, it replaces that section's art entirely — a section either has
+   * working controls down its right edge or a picture, never a picture with
+   * controls floated over it. The PC is the case this exists for: managing
+   * the party is the other half of managing the box, and doing it in a
+   * column beside the grid is what makes a drag between them possible.
+   *
+   * An Aside is CONTENT, so it survives to a narrower window than the art
+   * does — see the .hub-shell--aside rule.
+   */
+  Aside?: React.ComponentType;
 }
 
 interface SectionDef {
@@ -95,7 +108,8 @@ const SECTIONS: SectionDef[] = [
   { id: "map",      Icon: IconMap,       label: "Map",      group: "world",   art: "/hub/map.jpg" },
   { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world",   art: "/hub/mart.jpg" },
   { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world",   art: "/hub/bag.jpg" },
-  { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world",   art: "/hub/pc.jpg" },
+  // No art: the PC's third column is the party manager (see GameHub).
+  { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world" },
   { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world",   art: "/hub/dex.jpg" },
   { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play",    art: "/hub/pvp.jpg" },
   { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play",    art: "/hub/rewards.jpg" },
@@ -358,7 +372,7 @@ export function HubFrame({
         aria-modal="true"
         aria-label={title}
       >
-        <div className="hub-shell">
+        <div className={`hub-shell${content.Aside ? " hub-shell--aside" : ""}`}>
           <aside className="hub-side">
             {/* The player, not a logo. A hub's rail had a wordmark in it
                 saying "Hub" — a label for the thing you are already looking
@@ -460,10 +474,14 @@ export function HubFrame({
             </div>
           </div>
 
-          {/* The third column. Decoration, and aria-hidden because of it:
+          {/* The third column: the section's own, if it has one, otherwise
+              art. Art is decoration, and aria-hidden because of it —
               announcing the illustration before the section's content would
-              be noise. Its one job today is atmosphere; .hub-art-slot is
-              where anything ambient goes when a section has some. */}
+              be noise. .hub-art-slot is where anything ambient goes when a
+              section has some but not a whole column's worth. */}
+          {content.Aside ? (
+            <aside className="hub-extra"><content.Aside /></aside>
+          ) : (
           <aside className={`hub-art${def.art ? "" : " hub-art--empty"}`} aria-hidden>
             {def.art && (
               <img
@@ -486,6 +504,7 @@ export function HubFrame({
             )}
             <div className="hub-art-slot" />
           </aside>
+          )}
         </div>
       </div>
     </div>

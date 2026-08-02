@@ -147,3 +147,107 @@
 .pc-bulk-bar .pc-tool {
   min-height: 40px;
 }
+
+/* ── The detail sheet stacks above other modals ────────────────────
+   Every .modal-overlay in app.css sits at z-index 100, so when two are
+   open at once the winner is whichever comes later in the DOM. GameShell
+   mounts <PokemonDetailModal/> before <GameHub/>, so opening a Pokemon's
+   details from the hub's PC pane drew the sheet UNDER the hub — visible
+   through the backdrop blur, unclickable, and impossible to explain.
+
+   Reordering the two mounts would have fixed today's case and left the
+   next one to chance. This says the thing that is actually true: the
+   detail sheet is not a peer of the surface that opened it, it is a child
+   action of one, so it belongs above whatever that surface was.
+
+   120, not higher. The ladder above it is load-bearing:
+     200   .ctx-menu-backdrop — right-clicking a stat row inside this
+           sheet opens that menu, and it has to land on top of it
+     8000+ toasts
+   Anything at or over 200 would put the sheet above its own menu. */
+.modal-overlay.pokemon-detail-overlay { z-index: 120; }
+
+/* =====================================================================
+   THE PC FILTER BAR
+
+   Sort, Show and IV, as three labelled groups of the app's own segmented
+   control. They replace two buttons that opened context menus — one
+   labelled "Sort", one an unlabelled slider icon with a dot when
+   something was active. The dot said "a filter is on" and nothing else,
+   so a box that had gone mostly empty overnight was explained by a 6px
+   circle, and the only way to find out which filter was doing it was to
+   open a menu and look for the tick.
+
+   This file, not app.css: BottomTabs already imports it, and every class
+   below was checked against app.css first — `.pc-filter*` matched nothing.
+   `.pc-party` did, which is what made the check worth running.
+   ===================================================================== */
+.pc-filters {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px 14px;
+  /* One row that scrolls, never two that wrap. A wrapped second line
+     comes straight out of the grid's height, and this pane is already the
+     subject of a small-screen report (br_50f99cbac7f106d571). The hub's
+     own rail does the same thing on a phone. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  margin-top: 8px;
+}
+.pc-filters::-webkit-scrollbar { display: none; height: 0; }
+
+.pc-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+/* The group's name, so the buttons inside it can be short. "60+" is only
+   unambiguous next to something that says IV. */
+.pc-filter-label {
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Segmented, so the group reads as one control with one answer rather
+   than four unrelated buttons that happen to be adjacent. */
+.pc-filters .g-tabs {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.pc-filters .g-tab { white-space: nowrap; }
+
+.pc-filter-clear {
+  flex: 0 0 auto;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg, #1c1c1e);
+  color: var(--ctl-fg, #f5f5f5);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pc-filter-clear:hover { background: var(--ctl-bg-hover, #262629); }
+.pc-filter-clear:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+
+/* Touch. The segmented buttons are the smallest targets in this pane, and
+   a 30px control is not one a thumb hits reliably. */
+@media (pointer: coarse) {
+  .pc-filters .g-tab { min-height: 34px; }
+  .pc-filter-clear { min-height: 34px; }
+}
