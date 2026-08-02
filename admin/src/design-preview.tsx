@@ -428,6 +428,56 @@ Object.assign(api, {
     };
   },
 
+  // A live 8-player bracket covering every match state the card renders:
+  // decided, in progress, ready, overdue, and waiting on an earlier round.
+  // Plus a completed event with a champion and one still taking entries.
+  listTournaments: async () => {
+    const P = (seed: number, username: string) => ({ kind: "player", userId: `u${seed}`, username, seed });
+    const names = ["sak4i", "stratus_varius", "koruem2", "phoenix", "tokyofuck", "newbie", "ash_k", "misty"];
+    const soon = Date.now() + 5 * 3600e3;
+    const past = Date.now() - 2 * 3600e3;
+    const bracket = {
+      rounds: [
+        { index: 0, matches: [
+          { id: "m1", a: P(1, names[0]), b: P(8, names[7]), winnerId: "u1", winBy: "battle", deadlineAt: past },
+          { id: "m2", a: P(4, names[3]), b: P(5, names[4]), winnerId: "u5", winBy: "walkover", deadlineAt: past,
+            note: "u4 never came online inside the window" },
+          { id: "m3", a: P(2, names[1]), b: P(7, names[6]), battleId: "b_991", deadlineAt: soon },
+          // Overdue and still unplayed — the row the triage strip exists for.
+          { id: "m4", a: P(3, names[2]), b: P(6, names[5]), deadlineAt: past },
+        ] },
+        { index: 1, matches: [
+          { id: "m5", a: P(1, names[0]), b: { kind: "winnerOf", matchId: "m2" }, deadlineAt: soon },
+          { id: "m6", a: { kind: "winnerOf", matchId: "m3" }, b: { kind: "winnerOf", matchId: "m4" } },
+        ] },
+        { index: 2, matches: [
+          { id: "m7", a: { kind: "winnerOf", matchId: "m5" }, b: { kind: "winnerOf", matchId: "m6" } },
+        ] },
+      ],
+    };
+    const entries = names.map((u, i) => ({
+      id: `e${i}`, userId: `u${i + 1}`, username: u, seed: i + 1,
+      ratingAtSeed: 1500 - i * 37, eliminated: i === 3 || i === 7,
+    }));
+    return {
+      tournaments: [
+        { id: "t1", name: "Launch Week Cup", format: "single-elimination", status: "live",
+          levelCap: 50, roundWindowMinutes: 1440, autoRun: true, championUsername: null,
+          createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+          entries, bracket: JSON.stringify(bracket) },
+        { id: "t2", name: "Sign-ups open — Weekend Clash", format: "single-elimination", status: "open",
+          levelCap: null, roundWindowMinutes: 720, autoRun: true, championUsername: null,
+          createdAt: new Date(Date.now() - 3600e3).toISOString(),
+          entries: entries.slice(0, 5).map((e) => ({ ...e, seed: null, ratingAtSeed: null, eliminated: false })),
+          bracket: null },
+        { id: "t3", name: "Beta Invitational", format: "single-elimination", status: "completed",
+          levelCap: 100, roundWindowMinutes: 2880, autoRun: true, championUsername: "sak4i",
+          createdAt: new Date(Date.now() - 21 * 86400000).toISOString(),
+          entries, bracket: JSON.stringify(bracket) },
+      ] as any,
+    };
+  },
+
   listSnapshots: async () => ({
     snapshots: [
       { id: "s1", saveVersion: 812, reason: "auto", createdAt: new Date(Date.now() - 3600e3).toISOString(),
@@ -482,6 +532,7 @@ import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { RewardsPage } from "./pages/RewardsPage";
 import { BroadcastsPage } from "./pages/BroadcastsPage";
+import { TournamentsPage } from "./pages/TournamentsPage";
 import { CommandPalette } from "./components/CommandPalette";
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
@@ -497,6 +548,7 @@ const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "massgift",  label: "Mass gift", render: () => <RewardsPage tab="massgift" /> },
   { key: "announce",  label: "Broadcasts",render: () => <BroadcastsPage tab="announcements" /> },
   { key: "polls",     label: "Polls",     render: () => <BroadcastsPage tab="polls" /> },
+  { key: "tournaments", label: "Tournaments", render: () => <TournamentsPage /> },
 ];
 
 function Harness() {

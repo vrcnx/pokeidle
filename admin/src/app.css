@@ -1274,164 +1274,227 @@
 .trade-mon-info strong { font-size: 13px; }
 .trade-mon-info small { font-size: 10px; }
 .trade-arrow { color: var(--text-dim); font-size: 20px; font-weight: 700; }
+/* ── Tournaments ──────────────────────────────────────────────────
+   A narrow index rail and a wide working area.
 
-/* ── Tournament admin ────────────────────────────────────────── */
-.tournaments-grid {
+   The old layout was a full-width table with the selected event's detail
+   stacked UNDERNEATH it, so running a live event meant scrolling past every
+   other tournament to reach the bracket — every time you looked. The rail is
+   deliberately narrow: it is an index, and the bracket next to it wants every
+   pixel it can get.
+   ================================================================= */
+.tour-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 18px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--sp-4);
   align-items: start;
 }
-@media (max-width: 1100px) {
-  .tournaments-grid { grid-template-columns: 1fr; }
-}
-.tournament-create {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-.tournament-create .search-input { max-width: 280px; }
-.tournament-cap-input {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-.tournament-cap-input input {
-  width: 64px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  padding: 6px 9px;
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--text);
+@media (max-width: 1000px) {
+  .tour-layout { grid-template-columns: minmax(0, 1fr); }
+  /* The rail becomes a short scrolling strip rather than a full-height
+     column that pushes the detail off the screen. */
+  .tour-rail { max-height: 220px; overflow-y: auto; }
 }
 
-.tournament-detail {
-  background: var(--surface-1);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  position: sticky;
-  top: 18px;
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
-  box-shadow: var(--shadow-1);
-}
-.tournament-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.tournament-detail-head h2 { margin: 0; font-size: 16px; letter-spacing: -0.01em; }
-.tag.tournament-status-open      { background: var(--brand-soft);   color: var(--brand-hover); }
-.tag.tournament-status-live      { background: var(--good-soft);    color: #86efac; }
-.tag.tournament-status-completed { background: rgba(168,144,240,0.2); color: #c9b8f5; }
-.tag.tournament-status-cancelled,
-.tag.tournament-status-scheduled { background: rgba(255,255,255,0.08); color: var(--text-muted); }
-
-.tournament-match-row {
+.tour-rail { padding: var(--sp-2); display: grid; gap: 2px; align-content: start; }
+.tour-empty { padding: var(--sp-4); text-align: center; }
+.tour-rail-item {
   display: grid;
-  grid-template-columns: 1fr auto 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-.tournament-match-row select {
-  background: var(--surface-2);
+  gap: 3px;
+  width: 100%;
+  /* EXPLICIT: the base button rule centres its content. */
+  text-align: left;
+  justify-items: stretch;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  font-size: 12px;
   color: var(--text);
+  font-size: 12.5px;
+}
+.tour-rail-item:hover:not(:disabled) { background: var(--surface-2); }
+.tour-rail-item.is-active { background: var(--brand-soft); border-left-color: var(--brand); }
+.tour-rail-item__top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tour-rail-item__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 570;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tour-rail-item__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tour-detail { min-width: 0; }
+.tour-detail > .card { margin-bottom: var(--sp-4); }
+/* Destructive, so it sits apart from the lifecycle buttons next to it. */
+.tour-delete { color: var(--text-dim); }
+.tour-delete:hover:not(:disabled) { color: var(--bad-text); background: var(--bad-soft); border-color: rgba(248, 113, 113, 0.35); }
+
+.tag.tournament-status-open      { background: var(--brand-soft);      border-color: var(--brand-line); color: var(--brand-text); }
+.tag.tournament-status-live      { background: var(--good-soft);       border-color: rgba(52, 211, 153, 0.3); color: #86efac; }
+.tag.tournament-status-completed { background: rgba(168, 144, 240, 0.2); border-color: rgba(168, 144, 240, 0.35); color: #c9b8f5; }
+.tag.tournament-status-cancelled,
+.tag.tournament-status-scheduled { background: var(--surface-3); color: var(--text-muted); }
+
+.tour-champion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: var(--warn-text);
+  font-size: 13px;
 }
 
-/* ── Bracket viewer ──────────────────────────────────────────── */
-.bracket-section-head {
+/* Triage strip — the only question a live event asks. */
+.tour-triage { margin-bottom: var(--sp-4); }
+.tour-runner {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: 10px var(--sp-4);
+  margin-bottom: var(--sp-4);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
-.bracket-grid {
+.tour-runner .profile-actions { margin-left: auto; margin-bottom: 0; }
+
+/* Create + generate. */
+.tour-create { margin-bottom: var(--sp-4); }
+.tour-create__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+/* What the draw will look like, BEFORE committing — generating is one-way. */
+.tour-draw-preview {
   display: flex;
-  gap: 18px;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: 10px var(--sp-4);
+  margin-bottom: var(--sp-3);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+}
+.tour-draw-preview strong { font-size: 14px; }
+
+/* ── Bracket ───────────────────────────────────────────────────────
+   Its own horizontal scroller. A deep bracket is wider than any screen, and
+   letting it size the page would break the gutter alignment every other page
+   shares the moment you opened this one. */
+.tour-bracket-card { padding-bottom: var(--sp-2); }
+.tour-bracket {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: flex-start;
   overflow-x: auto;
-  padding: 8px 4px 14px;
+  padding-bottom: var(--sp-3);
 }
-.bracket-round {
+.tour-round {
+  display: grid;
+  gap: var(--sp-2);
+  align-content: start;
+  min-width: 190px;
+  flex: 0 0 190px;
+}
+.tour-round__head {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 220px;
-  flex-shrink: 0;
-}
-.bracket-round header {
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.7px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  text-align: center;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  color: var(--text-dim);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
-.bracket-match {
-  background: var(--surface-2);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.bracket-match.in-progress {
-  background: rgba(251, 191, 36, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35);
-}
-.bracket-match.resolved { opacity: 0.78; }
-.bracket-slot {
-  font-size: 12px;
-  padding: 5px 9px;
-  background: rgba(255,255,255,0.04);
+
+.tour-match {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
 }
-.bracket-slot.winner {
-  background: var(--good-soft);
-  color: #86efac;
-  font-weight: 700;
-}
-.bracket-status {
-  font-size: 10px;
-  letter-spacing: 0.4px;
-  margin-top: 2px;
-  color: var(--text-muted);
-}
-.bracket-start { align-self: flex-end; margin-top: 4px; }
-/* Per-match controls: "Start match" plus the two award-without-playing
-   overrides. Wraps rather than overflowing the 220px round column. */
-.bracket-actions {
+/* State is carried by the LEFT EDGE, not the fill. A fill strong enough to
+   distinguish five states would also fight the winner/loser treatment inside
+   the card; a 2px rule reads at a glance and stacks with it. */
+.tour-match.is-overdue { border-color: rgba(248, 113, 113, 0.45); box-shadow: inset 2px 0 0 var(--bad); }
+.tour-match.is-live    { border-color: rgba(52, 211, 153, 0.45);  box-shadow: inset 2px 0 0 var(--good); }
+.tour-match.is-ready   { box-shadow: inset 2px 0 0 var(--brand); }
+.tour-match.is-done    { opacity: 0.72; }
+.tour-match.is-done:hover { opacity: 1; }
+
+.tour-slot {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
   align-items: center;
-  justify-content: flex-end;
-  margin-top: 4px;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  background: var(--surface-1);
+  font-size: 12px;
+  min-width: 0;
 }
-.bracket-actions .bracket-start { align-self: auto; margin-top: 0; }
-.bracket-status.overdue { color: #fca5a5; }
-/* Runner/operator explanation for how a match was decided. Long enough
-   to wrap; must not force the column wider. */
-.bracket-note {
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
+.tour-slot__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-slot.is-empty { color: var(--text-dim); font-style: italic; }
+.tour-slot.is-won { background: var(--good-soft); color: var(--good-text); font-weight: 600; }
+/* Losers stay legible. Greying them to near-invisible loses the half of the
+   result that says WHO was beaten. */
+.tour-slot.is-lost { opacity: 0.55; }
+.tour-slot__check { color: var(--good); font-weight: 700; }
+.tour-seed {
+  min-width: 16px;
+  text-align: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border-radius: 3px;
+  padding: 1px 3px;
+  flex-shrink: 0;
 }
+
+.tour-match__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 0;
+  min-height: 18px;
+}
+.tour-match__live { font-size: 10.5px; font-weight: 700; color: var(--good-text); }
+.tour-overdue { color: var(--bad-text) !important; font-weight: 600; }
+.tour-match__actions { margin-left: auto; display: flex; gap: 3px; }
+.tour-match__note { padding: 0 4px; overflow-wrap: anywhere; line-height: 1.35; }
+
+/* Participants + ad-hoc. */
+.tour-add { display: flex; gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-3); }
+.tour-add .combobox { flex: 1; min-width: 0; }
+.tour-add__opt { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); width: 100%; }
+
+.tour-adhoc {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px var(--sp-4);
+  background: var(--surface-1);
+}
+.tour-adhoc > summary { cursor: pointer; user-select: none; }
+.tour-adhoc__body { padding-top: var(--sp-3); }
+.tour-adhoc__row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.tour-adhoc__row select { min-width: 160px; }
 
 /* =================================================================
    Analytics — "Cadence" dashboard layout
