@@ -62,16 +62,20 @@
 .mart-card-owned { color: var(--text-dim); }
 
 /* ── Buying ────────────────────────────────────────────────────────
-   Four buttons, four purchases. Equal columns so the row is a single
-   control rather than four differently-sized ones, and so Max sits in a
-   predictable place however long its count is. */
-.mart-buy-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+   Set the amount, then buy it. The first version of this card had four BUY
+   buttons (x1 / x5 / x10 / Max) and no quantity at all — no custom amount,
+   no way to take one back off, and a single click spending money with
+   nothing between the pointer and the purchase. */
+.mart-qty {
+  display: flex;
+  align-items: center;
   gap: 4px;
 }
-.mart-buy-qty {
-  min-height: var(--ctl-h-sm, 26px);
+.mart-qty-btn,
+.mart-qty-preset {
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: var(--ctl-h-sm, 26px);
   padding: 0 6px;
   border: 0;
   border-radius: var(--ctl-r, 6px);
@@ -81,20 +85,99 @@
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  line-height: 1;
   cursor: pointer;
   transition: background 120ms, color 120ms;
 }
-.mart-buy-qty:hover:not(:disabled) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
-.mart-buy-qty:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
-/* Disabled means "you cannot afford this", which is the most common state
-   in a shop and must not look broken. Dimmed, not greyed out of existence. */
-.mart-buy-qty:disabled { opacity: 0.35; cursor: not-allowed; }
-/* Max is the only one whose amount is not in its label, so it gets the
-   emphasis — it is also the button that spends the most. */
-.mart-buy-qty.is-max { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }
-.mart-buy-qty.is-max:hover:not(:disabled) { background: var(--ctl-on-bg); filter: brightness(1.15); }
-.mart-buy-max-n { opacity: 0.7; font-weight: 500; }
+.mart-qty-preset { margin-left: auto; }
+.mart-qty-preset + .mart-qty-preset { margin-left: 0; }
+.mart-qty-btn:hover:not(:disabled),
+.mart-qty-preset:hover:not(:disabled) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.mart-qty-btn:focus-visible,
+.mart-qty-preset:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+.mart-qty-btn:disabled,
+.mart-qty-preset:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Typeable, because "27 Ultra Balls" is a thing people want and no set of
+   preset buttons contains every number. */
+.mart-qty-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.mart-qty-input:focus { border-color: var(--ctl-focus); outline: none; }
+/* The native spinners are 16px of arrow that overlap a 26px field and
+   duplicate the two buttons either side of it. */
+.mart-qty-input::-webkit-outer-spin-button,
+.mart-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mart-qty-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* One button, and it names the sum it is about to spend. "Buy" on its own
+   is what made the one-click version feel like it bought things at random. */
+.mart-buy-btn-v2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--ctl-h, 32px);
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 120ms, opacity 120ms;
+}
+.mart-buy-btn-v2:hover:not(:disabled) { filter: brightness(1.18); }
+.mart-buy-btn-v2:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.mart-buy-btn-v2:disabled { opacity: 0.35; cursor: not-allowed; }
+.mart-buy-total { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: 600; }
+
+/* ── The info bubble ───────────────────────────────────────────────
+   Rendered into document.body, so no scrolling ancestor can clip it —
+   which is the reason a native `title` was used here first. The title had
+   a worse problem: it takes about a second to appear, never appears on
+   touch, and gives no sign it is coming, so it reads as broken. */
+.mart-tip {
+  position: fixed;
+  z-index: 9500;
+  transform: translateX(-50%);
+  max-width: 260px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #0a0a0b;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), inset 0 0 0 1px var(--border-strong);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text);
+  pointer-events: none;
+}
+.mart-tip-note {
+  display: block;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+}
+/* It is a <button> now rather than a tabindex'd span — it opens something
+   on click, which is what a button is. Reset the chrome that brings. */
+.mart-info {
+  padding: 0;
+  background: none;
+  font-family: inherit;
+}
 
 /* ── Not for sale yet ──────────────────────────────────────────────
    The card stays, at half strength, with the requirement where the buy

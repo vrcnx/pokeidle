@@ -5,6 +5,21 @@ import {
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal,
 } from "./Icon";
 import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../utils/animate";
+// Imported, not written as "/hub/map.jpg". Vite emits these with a
+// content hash in the filename, so replacing a picture replaces its URL and
+// every browser fetches the new one. Served straight out of public/ they
+// kept the same path forever: the Mart's art was changed from an empty shop
+// to a shopkeeper and players kept seeing the empty shop, because nothing in
+// the URL had changed to tell their cache otherwise.
+import artMap from "../assets/hub/map.jpg";
+import artMart from "../assets/hub/mart.jpg";
+import artBag from "../assets/hub/bag.jpg";
+import artDex from "../assets/hub/dex.jpg";
+import artPvp from "../assets/hub/pvp.jpg";
+import artRewards from "../assets/hub/rewards.jpg";
+import artSocial from "../assets/hub/social.jpg";
+import artSettings from "../assets/hub/settings.jpg";
+import artTrainer from "../assets/hub/trainer.jpg";
 import { useT } from "../i18n/useT";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useGiveaways, seenWins } from "../utils/giveawayStore";
@@ -119,17 +134,17 @@ interface SectionDef {
 // Order is the priority order a player cares about, not alphabetical:
 // the thing you do, then the thing you get, then the people, then the knobs.
 const SECTIONS: SectionDef[] = [
-  { id: "map",      Icon: IconMap,       label: "Map",      group: "world",   art: "/hub/map.jpg" },
-  { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world",   art: "/hub/mart.jpg" },
-  { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world",   art: "/hub/bag.jpg" },
+  { id: "map",      Icon: IconMap,       label: "Map",      group: "world",   art: artMap },
+  { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world",   art: artMart },
+  { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world",   art: artBag },
   // No art: the PC's third column is the party manager (see GameHub).
   { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world" },
-  { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world",   art: "/hub/dex.jpg" },
-  { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play",    art: "/hub/pvp.jpg" },
-  { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play",    art: "/hub/rewards.jpg" },
-  { id: "social",   Icon: IconChat,      label: "Social",   group: "account", art: "/hub/social.jpg" },
-  { id: "settings", Icon: IconSettings,  label: "Settings", group: "account", art: "/hub/settings.jpg" },
-  { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false, art: "/hub/trainer.jpg" },
+  { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world",   art: artDex },
+  { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play",    art: artPvp },
+  { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play",    art: artRewards },
+  { id: "social",   Icon: IconChat,      label: "Social",   group: "account", art: artSocial },
+  { id: "settings", Icon: IconSettings,  label: "Settings", group: "account", art: artSettings },
+  { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false, art: artTrainer },
 ];
 
 /** The rail's rows: every section except the ones with their own door. */

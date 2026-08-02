@@ -13,6 +13,7 @@ import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { openPokemonDetail } from "./PokemonDetailModal";
 import { HubViews } from "./HubModal";
+import { createPortal } from "react-dom";
 import { DexSpeciesModal } from "./DexSpeciesModal";
 import { getItemInfo, itemSpriteSlug } from "../utils/items";
 import {
@@ -117,10 +118,6 @@ export function BottomTabs() {
 // Each card says what it costs and how many you already own - the question
 // that used to send people to the Bag and back mid-restock.
 // ---------------------------------------------------------------------------
-
-/** The amounts a shopper actually asks for. `null` is "as many as I can
- *  afford" - the only one whose number is not known in advance. */
-const MART_QUANTITIES: Array<number | null> = [1, 5, 10, null];
 
 export function MartTab() {
   const { state, dispatch } = useGame();
@@ -272,7 +269,17 @@ function MartCard({
   const info = getItemInfo(entry.itemId);
   const need = entry.unlockWildBattlesWon;
   const locked = need !== undefined && wildBattlesWon < need;
-  const maxAffordable = Math.floor(money / Math.max(1, price));
+  const maxAffordable = Math.max(0, Math.floor(money / Math.max(1, price)));
+
+  // Per-card, and it starts at 1. The first version of this card had no
+  // quantity at all - x1 / x5 / x10 / Max were four BUY buttons - and that
+  // was wrong in three ways at once: no custom amount, no way to take one
+  // back off, and a single click spending money with nothing between the
+  // pointer and the purchase.
+  const [qty, setQty] = useState(1);
+  const clamp = (n: number) => Math.max(1, Math.min(999, Math.floor(n) || 1));
+  const total = price * qty;
+  const cant = locked || qty < 1 || total > money;
 
   return (
     <li className={`mart-card${locked ? " mart-locked" : ""}`}>
@@ -295,16 +302,10 @@ function MartCard({
             {owned > 0 && <span className="mart-card-owned"> - {t("have")} {owned}</span>}
           </span>
         </div>
-        {/* Native title, not a positioned element: this grid scrolls, and an
-            absolutely-positioned tooltip is clipped by that overflow. */}
-        <span
-          className="mart-info"
-          tabIndex={0}
-          title={`${description}\n\n${t("First found at")} ${entry.firstSoldAtName}`}
-          aria-label={`${description}. ${t("First found at")} ${entry.firstSoldAtName}`}
-        >
-          <span aria-hidden>i</span>
-        </span>
+        <InfoTip
+          text={description}
+          note={`${t("First found at")} ${entry.firstSoldAtName}`}
+        />
       </div>
 
       {locked ? (
@@ -313,36 +314,143 @@ function MartCard({
           <span className="dim"> ({wildBattlesWon}/{need})</span>
         </p>
       ) : (
-        // Each button IS the purchase. The stepper this replaced made every
-        // buy two decisions - how many, then confirm - in a shop where the
-        // amounts people ask for can simply be named.
-        <div className="mart-buy-row">
-          {MART_QUANTITIES.map((q) => {
-            const qty = q ?? maxAffordable;
-            const label = q === null ? t("Max") : `x${q}`;
-            const total = price * qty;
-            const cant = qty < 1 || total > money;
-            return (
-              <button
-                key={q ?? "max"}
-                type="button"
-                className={`mart-buy-qty${q === null ? " is-max" : ""}`}
-                disabled={cant}
-                onClick={() => onBuy(entry.itemId, qty, info.name)}
-                title={cant
-                  ? t("You can't afford this")
-                  : `${t("Buy")} ${qty} - $${total.toLocaleString()}`}
-              >
-                {label}
-                {q === null && maxAffordable > 0 && (
-                  <span className="mart-buy-max-n"> {maxAffordable}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {/* Set the amount, THEN buy it. Typeable, because "27 Ultra Balls"
+              is a thing people want and no set of preset buttons contains
+              every number. The presets are still here as +1 / +5 / +10 and
+              Max, but they ADJUST the field rather than reaching for your
+              money. */}
+          <div className="mart-qty">
+            <button
+              type="button"
+              className="mart-qty-btn"
+              onClick={() => setQty((n) => clamp(n - 1))}
+              disabled={qty <= 1}
+              aria-label={t("One fewer")}
+            >
+              &minus;
+            </button>
+            <input
+              className="mart-qty-input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={999}
+              value={qty}
+              onChange={(e) => setQty(clamp(Number(e.target.value)))}
+              aria-label={`${t("Quantity")} - ${info.name}`}
+            />
+            <button
+              type="button"
+              className="mart-qty-btn"
+              onClick={() => setQty((n) => clamp(n + 1))}
+              disabled={qty >= 999}
+              aria-label={t("One more")}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="mart-qty-preset"
+              onClick={() => setQty((n) => clamp(n + 10))}
+              disabled={qty >= 999}
+            >
+              +10
+            </button>
+            <button
+              type="button"
+              className="mart-qty-preset"
+              onClick={() => setQty(clamp(maxAffordable))}
+              disabled={maxAffordable < 1}
+              title={`${t("As many as you can afford")} (${maxAffordable})`}
+            >
+              {t("Max")}
+            </button>
+          </div>
+
+          {/* One button, and it says exactly what it is about to spend.
+              "Buy" on its own is what made the old one-click version feel
+              like it bought things at random. */}
+          <button
+            type="button"
+            className="mart-buy-btn-v2"
+            disabled={cant}
+            onClick={() => { onBuy(entry.itemId, qty, info.name); setQty(1); }}
+            title={cant ? t("You can't afford this") : undefined}
+          >
+            {t("Buy")} {qty}
+            <span className="mart-buy-total">${total.toLocaleString()}</span>
+          </button>
+        </>
       )}
     </li>
+  );
+}
+
+/**
+ * An info bubble that survives a scrolling parent.
+ *
+ * The `title` attribute was here first, chosen deliberately because an
+ * absolutely-positioned tooltip is clipped by the overflow of the list it
+ * sits in. It has one problem that outweighs that: a native tooltip takes
+ * about a second to appear, never appears on touch at all, and gives no
+ * indication it is coming - so it reads as broken.
+ *
+ * This renders into document.body, which no ancestor can clip, and
+ * positions against the icon's own rect. On the pointer it opens on hover;
+ * everywhere it opens on click and on focus, so a touchscreen and a
+ * keyboard can both reach it.
+ */
+function InfoTip({ text, note }: { text: string; note?: string }) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+
+  const open = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    setAt({ x: r.left + r.width / 2, y: r.bottom + 8 });
+  };
+  const close = () => setAt(null);
+
+  // Any scroll anywhere closes it. Positioned against a rect taken once, it
+  // would otherwise sit still while the card it describes slides away.
+  useEffect(() => {
+    if (!at) return;
+    const onAny = () => close();
+    window.addEventListener("scroll", onAny, true);
+    window.addEventListener("resize", onAny);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onAny, true);
+      window.removeEventListener("resize", onAny);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [at]);
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className="mart-info"
+        aria-label={note ? `${text}. ${note}` : text}
+        onMouseEnter={open}
+        onMouseLeave={close}
+        onFocus={open}
+        onBlur={close}
+        onClick={(e) => { e.stopPropagation(); at ? close() : open(); }}
+      >
+        <span aria-hidden>i</span>
+      </button>
+      {at && createPortal(
+        <div className="mart-tip" role="tooltip" style={{ left: at.x, top: at.y }}>
+          {text}
+          {note && <span className="mart-tip-note">{note}</span>}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
