@@ -610,3 +610,105 @@
   background: var(--ctl-on-bg);
   border-radius: var(--ctl-r);
 }
+
+/* ── The trainer card, rebuilt ─────────────────────────────────────
+   Rating was one of four equal columns — RATING, W/L, PEAK, STREAK —
+   each a 9px caps label over a 15px value, so the one figure the whole
+   mode is organised around had exactly the same weight as how many
+   times you had forfeited. A career screen where nothing is the
+   headline has no headline. */
+.pvp2-rating-block {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+.pvp2-rating {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pvp2-rating-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* Peak only when it is ahead of the current rating. Equal to it — which
+   is every player who has never lost a point — it is the same number
+   printed twice. */
+.pvp2-rating-peak { font-size: 10.5px; color: var(--text-dim); }
+.pvp2-rating-peak strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* The record as a sentence, not a grid. At 0/0/0 it says so in words
+   instead of showing three columns of nothing. */
+.pvp2-record {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.pvp2-record strong {
+  font-family: var(--font-display);
+  font-size: 13px;
+  margin-right: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.pvp2-rec-w strong { color: #86efac; }
+.pvp2-rec-l strong { color: var(--text-muted); }
+.pvp2-rec-f strong { color: #f87171; }
+.pvp2-rec-streak { color: var(--gold-2); }
+
+/* ── Queue vitals ──────────────────────────────────────────────────
+   The overlay said "SCANNING FOR OPPONENT…" and nothing else, so a wait
+   going nowhere looked exactly like a wait about to land — and with
+   ~8 of 10 queue attempts never matching, going nowhere is the common
+   case. */
+.pvp-queue-vitals {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.pvp-queue-clock {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.pvp-queue-sep { color: var(--text-dim); }
+
+/* ── Tournaments ───────────────────────────────────────────────────
+   A section, not a disclosure triangle over an empty list. */
+.pvp-tour {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.pvp-tour .pvp-tour-icon { font-size: 13px; line-height: 1; }
+.pvp-tour-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ctl-on-bg);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pvp-tour .pvp2-empty { margin: 0; line-height: 1.55; max-width: 62ch; }

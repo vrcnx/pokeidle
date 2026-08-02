@@ -74,7 +74,6 @@ export function PvpHubPane() {
   const [liveBattles, setLiveBattles] = useState<LiveBattleSummary[]>([]);
   const [tournaments, setTournaments] = useState<PublicTournament[]>([]);
   const [mode, setMode] = useState<Mode>("ranked");
-  const [tickerOpen, setTickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   // Wall clock, ticked only while queued, so the "you are alone" offer below
   // can appear on its own after LONELY_QUEUE_MS instead of needing the player
@@ -303,26 +302,38 @@ export function PvpHubPane() {
                   {isUnranked ? t("UNRANKED") : tier.name.toUpperCase()}
                 </span>
               </div>
-              <div className="pvp2-stats">
-                <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">{t("RATING")}</span>
-                  <strong className="tabular">{isUnranked ? "—" : ratingValue}</strong>
-                </div>
-                <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">{forfeits > 0 ? t("W / L / FF") : t("W / L")}</span>
-                  <strong className="tabular">
-                    {wins} / {losses}{forfeits > 0 && <> / <span className="pvp2-ff">{forfeits}</span></>}
-                  </strong>
-                </div>
-                <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">{t("PEAK")}</span>
-                  <strong className="tabular">{peak}</strong>
-                </div>
-                <div className="pvp2-stat">
-                  <span className="pvp2-stat-label">{t("STREAK")}</span>
-                  <strong className="tabular">{streak > 0 ? `🔥 ${streak}` : "—"}</strong>
-                </div>
+              {/* THE number, at the size it deserves.
+                  It used to be one of four equal columns — RATING, W/L, PEAK,
+                  STREAK — each with a 9px caps label and a 15px value, so the
+                  one figure the whole mode is organised around had exactly the
+                  same weight as how many times you have forfeited. Rating
+                  leads, in its own tier's colour; everything else is the line
+                  underneath that qualifies it. */}
+              <div className="pvp2-rating-block">
+                <strong className="pvp2-rating" style={{ color: isUnranked ? "var(--text-muted)" : tier.color }}>
+                  {isUnranked ? "—" : ratingValue}
+                </strong>
+                <span className="pvp2-rating-label">{t("RATING")}</span>
+                {!isUnranked && peak > ratingValue && (
+                  <span className="pvp2-rating-peak">{t("peak")} <strong>{peak}</strong></span>
+                )}
               </div>
+
+              {/* The record, as a sentence rather than a grid. Zeroes read as
+                  "no matches yet" instead of three columns of nothing. */}
+              <p className="pvp2-record">
+                {wins + losses + forfeits === 0
+                  ? <span className="dim">{t("No ranked matches yet")}</span>
+                  : (
+                    <>
+                      <span className="pvp2-rec-w"><strong>{wins}</strong>{t("W")}</span>
+                      <span className="pvp2-rec-l"><strong>{losses}</strong>{t("L")}</span>
+                      {forfeits > 0 && <span className="pvp2-rec-f"><strong>{forfeits}</strong>{t("FF")}</span>}
+                      {streak > 0 && <span className="pvp2-rec-streak">🔥 {streak}{t(" in a row")}</span>}
+                    </>
+                  )}
+              </p>
+
               <TierTrack rating={ratingValue} unranked={isUnranked} />
             </div>
 
@@ -370,10 +381,7 @@ export function PvpHubPane() {
                 role="tab"
                 aria-selected={mode === m}
                 className={`pvp-mode-chip ${mode === m ? "active" : ""}`}
-                onClick={() => {
-                  setMode(m);
-                  if (m === "tournament") setTickerOpen(true);
-                }}
+                onClick={() => setMode(m)}
               >
                 {m.toUpperCase()}
               </button>
@@ -523,19 +531,29 @@ export function PvpHubPane() {
           </section>
         )}
 
-        {/* TOURNAMENTS */}
-        <section className={`pvp-tour-ticker ${tickerOpen ? "open" : ""}`}>
-          <button
-            className="pvp-tour-ticker-toggle"
-            onClick={() => setTickerOpen((v) => !v)}
-            aria-expanded={tickerOpen}
-          >
-            <span className="pvp-tour-icon">🏆</span>
-            <span>{t("TOURNAMENTS")}</span>
-            <span className="dim small">· {openTournaments.length} {t("open")}</span>
-            <span className="pvp-tour-chev">{tickerOpen ? "▾" : "▸"}</span>
-          </button>
-          {tickerOpen && (
+        {/* TOURNAMENTS
+            It was a collapsed strip reading "🏆 TOURNAMENTS · 0 open ▸" —
+            a disclosure triangle over an empty list, which asks a player to
+            click to discover there is nothing there. When something IS
+            running it is the biggest event in the mode and deserves to be
+            open by default; when nothing is, the honest thing is one line
+            saying what tournaments are and that none is scheduled. Either
+            way, no click to find out. */}
+        <section className="pvp-tour">
+          <header className="pvp2-panel-head">
+            <span className="pvp-tour-icon" aria-hidden>🏆</span>
+            <h4>{t("TOURNAMENTS")}</h4>
+            {openTournaments.length > 0 && (
+              <span className="pvp-tour-count">{openTournaments.length} {t("open")}</span>
+            )}
+          </header>
+          {tournaments.length === 0 ? (
+            <p className="dim small pvp2-empty">
+              {loaded
+                ? t("No tournament scheduled. They are bracketed events with their own prizes — announced in global chat when one opens.")
+                : t("Loading…")}
+            </p>
+          ) : (
             <TournamentList list={tournaments} onChange={(t) => setTournaments(t)} />
           )}
         </section>
@@ -547,6 +565,14 @@ export function PvpHubPane() {
         {inQueue && (
           <div className="pvp-queue-overlay">
             <div className="pvp-queue-heartbeat">{t("SCANNING FOR OPPONENT…")}</div>
+            {/* How long, and who else is looking.
+                The overlay said "scanning" and nothing else, so a wait that
+                is going nowhere looked exactly like a wait that is about to
+                land — and with ~8 of 10 queue attempts never matching, going
+                nowhere is the common case. Both numbers are already on the
+                client: the socket sends queueSize on join and on every
+                change, and joinedAt is when this wait started. */}
+            <QueueVitals joinedAt={queuedAt} queueSize={pvp.queue?.queueSize ?? 1} />
             {aloneInQueue && (
               <div className="pvp2-lonely-offer" role="status">
                 <strong>{t("No one else is in the queue right now.")}</strong>
@@ -628,6 +654,38 @@ export function PvpHeaderRight() {
  * player will recognise rather than a range they have to interpret.
  */
 const EVEN_MATCH_SWING = 16;
+
+/**
+ * "0:42 · you're the only one searching".
+ *
+ * Ticks once a second, and only while it is mounted — which is only while
+ * the player is actually in the queue, so an idle hub costs no timer.
+ */
+function QueueVitals({ joinedAt, queueSize }: { joinedAt: number | null; queueSize: number }) {
+  const t = useT();
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const secs = joinedAt ? Math.max(0, Math.floor((Date.now() - joinedAt) / 1000)) : 0;
+  const mm = Math.floor(secs / 60);
+  const ss = String(secs % 60).padStart(2, "0");
+  // queueSize counts everyone waiting INCLUDING this player, so "others" is
+  // the honest word for what is left after removing them.
+  const others = Math.max(0, queueSize - 1);
+  return (
+    <p className="pvp-queue-vitals">
+      <span className="pvp-queue-clock tabular">{mm}:{ss}</span>
+      <span className="pvp-queue-sep" aria-hidden>·</span>
+      <span className="dim">
+        {others === 0
+          ? t("you're the only one searching")
+          : `${others} ${others === 1 ? t("other trainer searching") : t("other trainers searching")}`}
+      </span>
+    </p>
+  );
+}
 
 /**
  * The ranked ladder, as a ladder.

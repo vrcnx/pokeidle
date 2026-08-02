@@ -217,9 +217,23 @@ function Harness() {
                 wrapper the tier bands rendered 17px each, which would have
                 certified a track nobody could read. */}
             <article className="pvp-hero-trainer-card" style={{ padding: 16, display: "block", width: "100%" }}>
+              {/* The real card's shape and the real production numbers:
+                  rating 984, 0W 0L, one forfeit. */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                <strong style={{ fontSize: 15 }}>phoenix</strong>
-                <span className="dim small">Rating 984 · Bronze</span>
+                <div className="pvp2-name-row">
+                  <strong className="pvp2-name">phoenix</strong>
+                  <span className="pvp2-tier-chip" style={{ color: "#b07a48", boxShadow: "inset 0 0 0 1px #b07a4855" }}>BRONZE</span>
+                </div>
+                <div className="pvp2-rating-block">
+                  <strong className="pvp2-rating" style={{ color: "#b07a48" }}>984</strong>
+                  <span className="pvp2-rating-label">Rating</span>
+                  <span className="pvp2-rating-peak">peak <strong>1000</strong></span>
+                </div>
+                <p className="pvp2-record">
+                  <span className="pvp2-rec-w"><strong>0</strong>W</span>
+                  <span className="pvp2-rec-l"><strong>0</strong>L</span>
+                  <span className="pvp2-rec-f"><strong>1</strong>FF</span>
+                </p>
                 <TierTrack rating={984} unranked={false} />
               </div>
             </article>
@@ -268,6 +282,16 @@ function Harness() {
               </div>
             </aside>
           </div>
+          <section className="pvp-tour">
+            <header className="pvp2-panel-head">
+              <span className="pvp-tour-icon">🏆</span>
+              <h4>TOURNAMENTS</h4>
+            </header>
+            <p className="dim small pvp2-empty">
+              No tournament scheduled. They are bracketed events with their own prizes —
+              announced in global chat when one opens.
+            </p>
+          </section>
         </div>
       ),
       HeaderRight: () => <span className="pvp2-elo-chip">34 matches</span>,
