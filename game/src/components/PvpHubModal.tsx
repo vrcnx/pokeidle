@@ -337,14 +337,31 @@ export function PvpHubPane() {
               <TierTrack rating={ratingValue} unranked={isUnranked} />
             </div>
 
-            {/* RIGHT: team strip (6 mini sprites) */}
-            <div className="pvp2-team-strip">
-              <span className="pvp2-team-label">{t("TEAM")}</span>
-              <div className="pvp2-team-row">
+            {/* RIGHT: the team, and a way in to change it.
+                Six sprites in the corner that did nothing. Every other game
+                puts the lineup where you manage the lineup, and this screen
+                already has a team builder one button away — it just opened
+                from READY UP, mid-commitment, which is the worst moment to
+                discover you brought the wrong Pokémon. Clicking the strip
+                opens the same builder with nothing at stake. */}
+            <button
+              type="button"
+              className="pvp2-team-strip"
+              onClick={() => {
+                closePvpHub();
+                openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } });
+              }}
+              title={t("Edit your battle team")}
+            >
+              <span className="pvp2-team-label">
+                {t("TEAM")}
+                <span className="pvp2-team-edit">{t("Edit")}</span>
+              </span>
+              <span className="pvp2-team-row">
                 {Array.from({ length: 6 }).map((_, i) => {
                   const mon = teamForStrip[i];
                   return (
-                    <div key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
+                    <span key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
                       {mon
                         ? (
                           <PokemonSprite
@@ -359,11 +376,19 @@ export function PvpHubPane() {
                         )
                         : <span aria-hidden>·</span>
                       }
-                    </div>
+                    </span>
                   );
                 })}
-              </div>
-            </div>
+              </span>
+              {/* Levels are capped at 50 in ranked, so a party of Lv 100s is
+                  not the advantage it looks like — and the count is the thing
+                  a player is actually checking when they glance here. */}
+              <span className="pvp2-team-note">
+                {teamForStrip.length === 0
+                  ? t("No Pokémon yet")
+                  : `${teamForStrip.length}/6 · ${t("capped at Lv 50")}`}
+              </span>
+            </button>
           </article>
         </section>
 
@@ -429,7 +454,7 @@ export function PvpHubPane() {
           {/* Match tape — horizontal */}
           <div className="pvp2-panel pvp2-tape">
             <header className="pvp2-panel-head">
-              <h4>{t("LAST 10")}</h4>
+              <h4>{t("RECENT MATCHES")}</h4>
               {history.length > 0 && (
                 <span className="dim small">
                   {history.filter((h) => h.result === "win").length}W
@@ -440,15 +465,35 @@ export function PvpHubPane() {
             {history.length === 0 ? (
               <p className="dim small pvp2-empty">{t("No matches yet. Ready up to start your record.")}</p>
             ) : (
-              <ul className="pvp2-pip-row">
-                {history.slice(0, 10).map((m) => (
-                  <li
-                    key={m.id}
-                    className={`pvp-pip pvp-pip-${m.result}`}
-                    onClick={() => { closePvpHub(); openReplay(m.id); }}
-                    title={`vs ${m.opponent.username} · ${m.result.toUpperCase()} · click to replay`}
-                  >
-                    <span className="pvp-pip-shape" />
+              /* Rows, not pips. Ten coloured diamonds tell you the SHAPE of a
+                 run and nothing else — not who beat you, not when, not whether
+                 the loss was a real fight or a timeout. Every one of those is
+                 already on the history row the client fetches; the pips were
+                 throwing it away.
+                 There is deliberately no rating delta: nothing stores one.
+                 PvpMatch has no column for it and the history DTO has no
+                 field, so a number here would be invented. */
+              <ul className="pvp2-match-list">
+                {history.slice(0, 8).map((m) => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      className={`pvp2-match pvp2-match--${m.result}`}
+                      onClick={() => { closePvpHub(); openReplay(m.id); }}
+                      title={t("Watch the replay")}
+                    >
+                      <span className={`pvp2-match-mark pvp2-match-mark--${m.result}`} aria-hidden>
+                        {m.result === "win" ? "W" : m.result === "loss" ? "L" : m.result === "draw" ? "D" : "F"}
+                      </span>
+                      <span className="pvp2-match-who">
+                        <span className="pvp2-match-opp">{m.opponent.username}</span>
+                        <span className="pvp2-match-meta">
+                          {matchWhen(m, now)}
+                          {m.endReason && m.endReason !== "ko" && <> · {endReasonLabel(m.endReason, t)}</>}
+                        </span>
+                      </span>
+                      <span className="pvp2-match-play" aria-hidden>▶</span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -654,6 +699,31 @@ export function PvpHeaderRight() {
  * player will recognise rather than a range they have to interpret.
  */
 const EVEN_MATCH_SWING = 16;
+
+/** "3h ago" for a match row. Falls back to the date once a run is old
+ *  enough that "9d ago" stops meaning anything. */
+function matchWhen(m: { finishedAt: string | null; createdAt: string }, now: number): string {
+  const at = new Date(m.finishedAt ?? m.createdAt).getTime();
+  if (!Number.isFinite(at)) return "";
+  const diff = Math.max(0, now - at);
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+/** Only shown when the match did NOT end by knockout — "ko" is the
+ *  default way a battle finishes and saying so on every row is noise. */
+function endReasonLabel(reason: string, t: (s: string) => string): string {
+  switch (reason) {
+    case "forfeit": return t("forfeit");
+    case "timeout": return t("timed out");
+    case "tie":     return t("tie");
+    case "cancelled": return t("cancelled");
+    default: return reason;
+  }
+}
 
 /**
  * "0:42 · you're the only one searching".

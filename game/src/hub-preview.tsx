@@ -235,6 +235,15 @@ function Harness() {
                   <span className="pvp2-rec-f"><strong>1</strong>FF</span>
                 </p>
                 <TierTrack rating={984} unranked={false} />
+                <button className="pvp2-team-strip" style={{ marginTop: 12 }}>
+                  <span className="pvp2-team-label">TEAM<span className="pvp2-team-edit">Edit</span></span>
+                  <span className="pvp2-team-row">
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <span key={i} className={`pvp2-team-slot ${i < 4 ? "filled" : "empty"}`}>·</span>
+                    ))}
+                  </span>
+                  <span className="pvp2-team-note">4/6 · capped at Lv 50</span>
+                </button>
               </div>
             </article>
           </section>
@@ -277,8 +286,32 @@ function Harness() {
                 </ul>
               </div>
               <div className="pvp2-panel">
-                <header className="pvp2-panel-head"><h4>LAST 10</h4></header>
-                <p className="dim small pvp2-empty">No matches yet. Ready up to start your record.</p>
+                <header className="pvp2-panel-head">
+                  <h4>RECENT MATCHES</h4><span className="dim small">1W 2L</span>
+                </header>
+                {/* The real row markup — a panel rendering pips would certify
+                    a list the app no longer has. */}
+                <ul className="pvp2-match-list">
+                  {([
+                    ["win", "koruem", "3h ago", ""],
+                    ["loss", "gustavokletke", "1d ago", "timed out"],
+                    ["forfeit", "naill", "2d ago", "forfeit"],
+                    ["draw", "lax22", "Jul 28", "tie"],
+                  ] as Array<[string, string, string, string]>).map(([res, opp, when, why]) => (
+                    <li key={opp}>
+                      <button className={`pvp2-match pvp2-match--${res}`}>
+                        <span className={`pvp2-match-mark pvp2-match-mark--${res}`}>
+                          {res === "win" ? "W" : res === "loss" ? "L" : res === "draw" ? "D" : "F"}
+                        </span>
+                        <span className="pvp2-match-who">
+                          <span className="pvp2-match-opp">{opp}</span>
+                          <span className="pvp2-match-meta">{when}{why ? ` · ${why}` : ""}</span>
+                        </span>
+                        <span className="pvp2-match-play">▶</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </aside>
           </div>

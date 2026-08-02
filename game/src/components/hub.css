@@ -712,3 +712,102 @@
   text-transform: uppercase;
 }
 .pvp-tour .pvp2-empty { margin: 0; line-height: 1.55; max-width: 62ch; }
+
+/* ── The team strip, as a control ──────────────────────────────────
+   Six sprites in the corner that did nothing. Every other game puts the
+   lineup where you manage the lineup, and this screen already had a team
+   builder one button away — it just opened from READY UP, mid-commitment,
+   which is the worst moment to discover you brought the wrong Pokémon. */
+.pvp2-team-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.pvp2-team-strip:hover { background: rgba(255, 255, 255, 0.05); }
+.pvp2-team-strip:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.pvp2-team-strip .pvp2-team-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* The affordance. Without a word here the strip is six sprites that
+   happen to be clickable, which nobody discovers. */
+.pvp2-team-edit {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.pvp2-team-strip .pvp2-team-row { display: flex; gap: 4px; }
+.pvp2-team-note { font-size: 10px; color: var(--text-dim); }
+
+/* ── Recent matches ────────────────────────────────────────────────
+   Rows, not pips. Ten coloured diamonds tell you the SHAPE of a run and
+   nothing else — not who beat you, not when, not whether the loss was a
+   real fight or a timeout. All of it was already on the row the client
+   fetches. */
+.pvp2-match-list { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.pvp2-match {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ctl-r);
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.pvp2-match:hover { background: var(--ctl-bg-hover); }
+.pvp2-match:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: -2px; }
+
+/* The result, as a letter in a filled chip. A W and an L are readable
+   without colour, which a green and a red diamond are not. */
+.pvp2-match-mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+}
+.pvp2-match-mark--win     { background: #14532d; color: #86efac; }
+.pvp2-match-mark--loss    { background: #3f1414; color: #fca5a5; }
+.pvp2-match-mark--draw    { background: var(--panel-3); color: var(--text-muted); }
+.pvp2-match-mark--forfeit { background: #3f1414; color: #f87171; }
+
+.pvp2-match-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pvp2-match-opp {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pvp2-match-meta { font-size: 10px; color: var(--text-dim); }
+/* Appears on hover only. A play triangle on every row would compete with
+   the result letters for the same glance. */
+.pvp2-match-play { flex: 0 0 auto; font-size: 9px; color: var(--text-dim); opacity: 0; transition: opacity 120ms ease; }
+.pvp2-match:hover .pvp2-match-play,
+.pvp2-match:focus-visible .pvp2-match-play { opacity: 1; }
