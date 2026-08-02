@@ -1239,7 +1239,18 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.pvp-hub-pane--editing { gap: 12px; }
+/* HEIGHT, not min-height. `.pvp-hub-pane` is min-height: 100% so the
+   Battle pane can grow past the fold; inherited by the editor that meant
+   `.tb-cols { flex: 1 }` had nothing to be 1 OF, so with the 320px cap
+   lifted the pool grew to 1813px and the whole pane scrolled — trading a
+   capped list for exactly the outer scroll the two columns exist to
+   avoid. Bounded here, the columns fill the pane and scroll their own
+   lists. */
+.pvp-hub-pane--editing {
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
 
 @media (max-width: 900px) {
   .tb-cols { grid-template-columns: minmax(0, 1fr); }
@@ -1319,6 +1330,13 @@
   grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
   gap: 8px;
   align-content: start;
+  /* THE one that mattered. app.css caps this grid at `max-height: 320px`
+     for the old modal, and it is declared at (0,1,0) in a stylesheet that
+     loads AFTER this one — so overriding display, columns and gap here did
+     nothing about the height, and the pool showed ~14 Pokémon out of 131
+     with 200px of empty card beneath them. The cap is the whole reason the
+     column looked broken while measuring as "full". */
+  max-height: none;
 }
 
 /* What a Pokémon will actually FIGHT at. "Lv 100" on a 50-capped match
@@ -1387,6 +1405,8 @@
 
 @media (max-width: 900px) {
   /* Stacked, the column no longer has height to share, so the rows go
-     back to their content size. */
+     back to their content size — and the pane goes back to growing, since
+     one column above another genuinely is taller than the screen. */
   .tb-cols .team-builder-strip-item { flex: 0 0 auto; max-height: none; }
+  .pvp-hub-pane--editing { height: auto; min-height: 100%; }
 }

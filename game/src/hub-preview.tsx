@@ -256,10 +256,10 @@ function Harness() {
                 <section className="g-card team-builder-pool">
                   <div className="tb-pool-head">
                     <h3>Pick from your party + box</h3>
-                    <input type="search" className="tb-search" placeholder="Search 48 Pokémon" />
+                    <input type="search" className="tb-search" placeholder="Search 131 Pokémon" />
                   </div>
                   <div className="team-builder-pool-grid">
-                    {Array.from({ length: 24 }, (_, i) => (
+                    {Array.from({ length: 131 }, (_, i) => (
                       <button key={i} className={`team-builder-pool-card ${i < 6 ? "selected" : ""}`}>
                         <strong>Pokémon {i + 1}</strong>
                         <small className="dim">Lv {100 - i} · {i < 6 ? "party" : "box"}</small>
