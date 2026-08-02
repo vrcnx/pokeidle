@@ -115,4 +115,65 @@ for (const sig of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
-void client.login(config.discordToken);
+// ── Login, with a backoff that cannot eat the daily budget ──────────
+//
+// This used to be `void client.login(...)`, and that one word cost a day of
+// downtime. The rejection escaped to the unhandledRejection handler above,
+// which logs and returns; Node was then left with no open handles, exited
+// CLEANLY (code 0), and railway.json's `restartPolicyType: ALWAYS` started it
+// again. Roughly every four seconds.
+//
+// Discord allows 1000 gateway identifies per day. A four-second restart loop
+// spends that in about seventy minutes, and every one of those attempts was
+// itself rejected — so the budget was consumed entirely by attempts that could
+// never have succeeded. The failure then outlives its own cause: the intents
+// get fixed, the budget is still zero, and the next day's budget is gone
+// before anyone notices, forever.
+//
+// So: never exit on a login failure, and never retry fast. Staying alive is
+// what stops the platform restarting us, and a long backoff means even a
+// permanently broken config costs a handful of identifies a day instead of all
+// of them. It also self-heals — when the budget resets or an intent is
+// switched on, the next attempt simply works.
+const RETRY_MS = [60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000];
+
+function diagnose(message: string): string | null {
+  if (/disallowed intent/i.test(message)) {
+    return (
+      "Discord rejected the intents. Enable BOTH 'Server Members Intent' and " +
+      "'Message Content Intent' under Developer Portal → your app → Bot → " +
+      "Privileged Gateway Intents. Nothing else will work until then."
+    );
+  }
+  if (/sessions remaining/i.test(message)) {
+    return (
+      "The daily identify budget (1000/day) is spent. This is almost always a " +
+      "restart loop — check whether another instance is crash-looping, and " +
+      "STOP it before the budget resets or it will spend the new one too."
+    );
+  }
+  if (/token|unauthorized|401/i.test(message)) {
+    return "DISCORD_BOT_TOKEN looks wrong or was reset. Regenerate it and update the env.";
+  }
+  return null;
+}
+
+async function login(attempt = 0): Promise<void> {
+  try {
+    await client.login(config.discordToken);
+  } catch (e) {
+    const message = String((e as Error)?.message ?? e);
+    const wait = RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)];
+    console.error(`[bot] login failed: ${message}`);
+    const hint = diagnose(message);
+    if (hint) console.error(`[bot] ${hint}`);
+    console.error(
+      `[bot] retrying in ${Math.round(wait / 60_000)} min. NOT exiting — exiting here ` +
+        "would let the platform restart me straight back into this, which is what " +
+        "spent the identify budget in the first place.",
+    );
+    setTimeout(() => void login(attempt + 1), wait);
+  }
+}
+
+void login();
