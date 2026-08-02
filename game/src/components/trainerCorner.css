@@ -137,6 +137,7 @@
   border-top: 1px solid var(--border);
 }
 .trainer-corner-link {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -182,4 +183,30 @@
    targets. Five icons at 44px still beats four labels and a scrollbar. */
 @media (max-width: 340px) {
   .trainer-corner-link-label { display: none; }
+}
+
+/* Something is waiting behind this shortcut. Same counts as the hub rail —
+   a badge in one place and not the other is how a player learns that
+   something needs them without learning where. Top-right of the icon, not
+   beside the label, so it reads at the size these buttons actually are. */
+.trainer-corner-link-badge {
+  position: absolute;
+  top: 3px;
+  right: 50%;
+  transform: translateX(15px);
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
 }

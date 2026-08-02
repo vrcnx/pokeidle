@@ -1,7 +1,7 @@
 import { useGame } from "../state/GameContext";
 import { useAuth } from "../auth/AuthContext";
 import { useT } from "../i18n/useT";
-import { openHub, useHubSection, type HubSection } from "./HubModal";
+import { openHub, useHubSection, useHubBadges, type HubSection } from "./HubModal";
 import { PokemonSprite } from "./Sprite";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
@@ -36,6 +36,11 @@ export function PlayerCard() {
   const { me } = useAuth();
   const t = useT();
   const openSection = useHubSection();
+  // The same counts the hub rail shows. A badge that exists in one place and
+  // not the other is how a player ends up knowing something is waiting
+  // without knowing where — which is exactly what happened with the friend
+  // request that lit up the rail and nothing out here.
+  const waiting = useHubBadges();
 
   const lead = state.party[0];
   const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
@@ -134,6 +139,14 @@ export function PlayerCard() {
             >
               <span className="trainer-corner-link-icon" aria-hidden><sc.Icon size={15} /></span>
               <span className="trainer-corner-link-label">{sc.label}</span>
+              {(waiting[sc.id] ?? 0) > 0 && (
+                <span
+                  className="trainer-corner-link-badge"
+                  aria-label={`${waiting[sc.id]} ${t("waiting")}`}
+                >
+                  {(waiting[sc.id] ?? 0) > 9 ? "9+" : String(waiting[sc.id])}
+                </span>
+              )}
             </button>
           ))}
         </nav>

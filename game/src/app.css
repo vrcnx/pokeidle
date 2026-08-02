@@ -1242,7 +1242,24 @@ header.tab-pane-head.v2 .mart-wallet {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .dex3-cell.seen .dex3-name { color: rgba(255, 255, 255, 0.6); }
-.dex3-cell.unknown { opacity: 0.45; }
+/* Undiscovered. It was `opacity: 0.45` on the whole cell, which faded the
+   sprite AND the dex number AND the plate together — at 0.45 on a near-black
+   ground the silhouette was barely a smudge, and a dex full of them read as
+   an empty grid rather than as a list of things to go and find.
+
+   The sprite is a real silhouette now: flattened to black, then lifted back
+   to a visible dark grey. `brightness(0)` collapses every pixel to black
+   while keeping the alpha, which is what makes a SHAPE; `invert` at 0.34
+   raises that black to roughly #575757, which reads against the cell without
+   ever being mistaken for a caught entry. The number and the plate stay at
+   full strength — knowing #133 is missing is the point of the row. */
+.dex3-cell.unknown { opacity: 1; }
+.dex3-cell.unknown .dex3-sprite {
+  filter: brightness(0) invert(0.34);
+  opacity: 0.9;
+}
+.dex3-cell.unknown .dex3-name { color: rgba(255, 255, 255, 0.34); }
+.dex3-cell.unknown .dex3-id { color: rgba(255, 255, 255, 0.5); }
 /* Caught, but none in the party or PC right now. Deliberately between
    "caught" and "seen" on the ladder: it reads as a completed entry that
    has faded, not as one you never finished. Fading the SPRITE rather than

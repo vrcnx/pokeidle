@@ -47,6 +47,22 @@ export function SocialPane() {
   const { me } = useAuth();
   const [tab, setTab] = useState<Tab>("chat");
   const [friends, setFriends] = useState<FriendList | null>(null);
+
+  // Land on Friends when somebody is waiting on you.
+  //
+  // The rail badge counted incoming friend requests and Social opened on
+  // CHAT, so the answer to "you have 1 thing" was one more click away with
+  // nothing on screen pointing at it. A badge you cannot follow is worse
+  // than no badge: it says something is wrong and then makes you hunt.
+  //
+  // Once only, and only on the way in — re-running it would drag a player
+  // back out of Chat every time a request arrived while they were typing.
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (jumped.current) return;
+    const n = friends?.incoming.length ?? 0;
+    if (n > 0) { jumped.current = true; setTab("friends"); }
+  }, [friends]);
   const [activeChannel, setActiveChannel] = useState<ChannelKey>("global");
   const [messagesByChannel, setMessagesByChannel] = useState<Record<ChannelKey, ChatMessage[]>>({});
   const [presence, setPresence] = useState<Record<string, boolean>>({});

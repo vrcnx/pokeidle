@@ -26,7 +26,7 @@ import {
 } from "../data/itemsCatalog";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
-  IconSliders, IconGridLarge, IconGridSmall,
+  IconSliders,
 } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
 import { pushToast } from "./Toast";
@@ -1800,6 +1800,9 @@ function dexCellTitle(
  *  `min` drives the column count, `name` is the label strip under the sprite
  *  plate (0 = no strip), `gap` is part of the row pitch. Slightly tighter
  *  than the PC's: dex cells carry no drag affordance or held-item badge. */
+// The Dex's density toggle is gone with the PC's — an unlabelled grid glyph
+// whose only wording was a hover title. `readDexDensity` still reads the key
+// so anyone who set "compact" before keeps it; nothing writes it any more.
 const DEX_DENSITY_KEY = "pokemon-idle-dex-density";
 const DEX_DENSITY_METRICS: Record<Density, { min: number; name: number; gap: number }> = {
   comfy:   { min: 64, name: 14, gap: 4 },
@@ -2128,13 +2131,6 @@ export function DexTab() {
 
   const clearFilters = () => { setQuery(""); setFilter("all"); setTypeFilter(null); };
 
-  const toggleDensity = () => {
-    setDensity((prev) => {
-      const next: Density = prev === "comfy" ? "compact" : "comfy";
-      try { localStorage.setItem(DEX_DENSITY_KEY, next); } catch { /* private mode — session only */ }
-      return next;
-    });
-  };
 
   // Legend swatch, worn by the filter rows — the menu doubles as the legend,
   // which used to be its own permanent strip above the grid.
@@ -2265,15 +2261,6 @@ export function DexTab() {
         >
           <IconSliders size={14} />
           {(filter !== "all" || typeFilter) && <span className="dex-tool-dot" aria-hidden />}
-        </button>
-        <button
-          type="button"
-          className="dex-tool"
-          onClick={toggleDensity}
-          title={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
-          aria-label={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
-        >
-          {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
         </button>
       </div>
       </HubViews>
