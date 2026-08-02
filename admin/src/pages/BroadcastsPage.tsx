@@ -1,30 +1,41 @@
 import { navigateTo } from "../App";
 import { PageActions } from "../components/PageChrome";
+import { ChatModerationPage } from "./ChatModerationPage";
 import { AnnouncementsPage } from "./AnnouncementsPage";
 import { PollsPage } from "./PollsPage";
 
-// Things you send to every player, on one page.
+// Global chat, and everything that gets posted into it.
 //
-// ── WHY THEY ARE ONE PAGE ───────────────────────────────────────────
-// A banner, a chat broadcast and a poll are three ways of putting a card in
-// front of the whole player base. They differ in how long it stays and
-// whether it answers back — not in what the operator is doing, which is
-// "tell everyone something". Two nav slots for that was one too many, and
-// the choice between "post this as a broadcast" and "post this as a poll"
-// is exactly the kind of decision you want to make with both options in
-// view.
+// ── WHY THESE THREE ARE ONE PAGE ────────────────────────────────────
+// They share a DESTINATION. A chat message, a pinned banner, a one-off
+// broadcast and a poll all land in the same place in front of the same
+// players; they differ only in how long the card stays and whether it
+// answers back. The chat page's own composer already offers "Announce",
+// so the overlap existed before this — it was just split across two nav
+// entries.
+//
+// The practical win is that composing and watching are now the same visit.
+// Writing an announcement while the room you are announcing into is one tab
+// away means you can see whether it landed, and whether it was needed.
+//
+// ── WHY THEY ARE STILL SEPARATE TABS ────────────────────────────────
+// Watching is a monitoring surface you leave open, with polling and a
+// keyboard-driven bulk workflow. Composing is a form you visit to do one
+// thing. Stacking a form under a live feed would push the feed off screen
+// exactly when you want both.
 //
 // ── NOT THE SAME AS "Twitch stream" ─────────────────────────────────
 // The Tools group has a page that was called Broadcast; it drives the 24/7
-// Twitch renderer and has nothing to do with messaging players. It is now
-// called Twitch stream, because two unrelated things called Broadcast in one
-// nav is a trap regardless of which one you are looking for.
+// Twitch renderer and has nothing to do with messaging players.
 
-export function BroadcastsPage({ tab }: { tab: "announcements" | "polls" }) {
+export function BroadcastsPage({ tab }: { tab: "chat" | "announcements" | "polls" }) {
   return (
-    <div className="page broadcasts-page">
+    <div className={`page broadcasts-page broadcasts-page--${tab}`}>
       <PageActions>
         <div className="seg-toggle" role="tablist" aria-label="View">
+          <button role="tab" aria-selected={tab === "chat"}
+                  className={`seg-tab ${tab === "chat" ? "active" : ""}`}
+                  onClick={() => navigateTo("chat")}>Chat</button>
           <button role="tab" aria-selected={tab === "announcements"}
                   className={`seg-tab ${tab === "announcements" ? "active" : ""}`}
                   onClick={() => navigateTo("announcements")}>Announcements</button>
@@ -33,7 +44,9 @@ export function BroadcastsPage({ tab }: { tab: "announcements" | "polls" }) {
                   onClick={() => navigateTo("polls")}>Polls</button>
         </div>
       </PageActions>
-      {tab === "announcements" ? <AnnouncementsPage /> : <PollsPage />}
+      {tab === "chat" && <ChatModerationPage />}
+      {tab === "announcements" && <AnnouncementsPage />}
+      {tab === "polls" && <PollsPage />}
     </div>
   );
 }

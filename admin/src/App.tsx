@@ -4,7 +4,6 @@ import { api, ApiError, type AdminMe } from "./api";
 import { UsersPage } from "./pages/UsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { MapEditorPage } from "./pages/MapEditorPage";
-import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { RewardsPage } from "./pages/RewardsPage";
 import { BroadcastsPage } from "./pages/BroadcastsPage";
@@ -125,7 +124,10 @@ const NAV_GROUPS: NavGroupDef[] = [
   // Every folded-away page keeps its own hash route, so deep links and
   // bookmarks are unaffected.
   { label: "Moderation", items: [
-    { page: "chat", label: "Chat", icon: <IconChat /> },
+    // Chat, announcements and polls share a destination: the global channel.
+    // Composing an announcement while the room you are announcing into is
+    // one tab away is the point.
+    { page: "chat", label: "Chat", icon: <IconChat />, covers: ["announcements", "polls"] },
     // Player reports, admin actions and exceptions: three views of "what
     // happened that I should look at", and a bug report plus the error
     // behind it is one incident described twice.
@@ -136,9 +138,6 @@ const NAV_GROUPS: NavGroupDef[] = [
     // A giveaway and a mass gift are the same act with a different
     // selection rule — same prize builder, same delivery path.
     { page: "giveaways", label: "Rewards", icon: <IconGift />, covers: ["massgift"] },
-    // Banner, chat broadcast and poll are three ways to put a card in front
-    // of every player.
-    { page: "announcements", label: "Broadcasts", icon: <IconMegaphone />, covers: ["polls"] },
   ] },
   { label: "Tools", items: [
     { page: "discord",   label: "Discord",       icon: <IconChat /> },
@@ -164,8 +163,9 @@ const PALETTE_TARGETS: PaletteTarget[] = [
   // find. Each still resolves to its own hash route and opens on its tab.
   { page: "audit",    label: "Audit log", group: "Moderation" },
   { page: "errors",   label: "Error log", group: "Moderation" },
-  { page: "massgift", label: "Mass gift", group: "Events" },
-  { page: "polls",    label: "Polls",     group: "Events" },
+  { page: "massgift",      label: "Mass gift",     group: "Events" },
+  { page: "polls",         label: "Polls",         group: "Moderation" },
+  { page: "announcements", label: "Announcements", group: "Moderation" },
 ];
 
 export function App() {
@@ -369,7 +369,9 @@ export function App() {
         {page === "analytics" && <AnalyticsPage />}
         {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
-        {page === "chat" && <ChatModerationPage />}
+        {(page === "chat" || page === "announcements" || page === "polls") && (
+          <BroadcastsPage tab={page === "chat" ? "chat" : page} />
+        )}
         {/* Three combined pages. Each folded-in page keeps its own hash
             route and opens on its own tab, so nothing that used to be
             linkable stopped being linkable. */}
@@ -378,9 +380,6 @@ export function App() {
         )}
         {(page === "giveaways" || page === "massgift") && (
           <RewardsPage tab={page} />
-        )}
-        {(page === "announcements" || page === "polls") && (
-          <BroadcastsPage tab={page} />
         )}
         {page === "tournaments" && <TournamentsPage />}
         {page === "liveops" && <LiveOpsPage />}

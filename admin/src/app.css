@@ -475,6 +475,8 @@
 
 /* ── Map editor ──────────────────────────────────────────────── */
 
+/* Overrides the --page-narrow above: the map is one fixed-aspect canvas and
+   wants more room than a form does. */
 .map-editor-page { max-width: var(--page-wide); }
 .map-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
 .map-snap { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
@@ -2815,33 +2817,152 @@
    ================================================================= */
 /* Same: width comes from the .rewards-page shell. */
 .giveaways-page { /* width from the shell */ }
-.gv-list { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Attention ─────────────────────────────────────────────────────
+   The two things that need doing, above the list. An unpaid winner used to
+   be a "(UNPAID)" suffix inside a card you had to scroll to and read the
+   parenthetical of — for a player who was publicly told they won and never
+   received anything. */
+.gv-attention { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.gv-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: 10px var(--sp-4);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  font-size: 12.5px;
+}
+.gv-alert--bad {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: var(--bad-soft);
+  color: var(--bad-text);
+}
+.gv-alert > span { color: inherit; opacity: 0.85; }
+.gv-alert > button { margin-left: auto; }
+
+/* ── Active card ───────────────────────────────────────────────────
+   Identity, facts, actions. The old card stacked six blocks whether or not
+   they had content: a draft with no description still rendered a "No
+   description" line, and an undrawn giveaway still rendered an empty winners
+   region. Ten of those was a wall with no shape. */
+.gv-list { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .gv-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
-  background: var(--surface-1);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-1);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: 0;
 }
-/* A live giveaway must not look like a draft at a glance. */
-.gv-card--open  { box-shadow: inset 2px 0 0 #a855f7, var(--shadow-1); }
-.gv-card--drawn { opacity: 0.82; }
-.gv-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.gv-card-title { display: flex; align-items: center; gap: 9px; }
-.gv-card-title strong { font-size: 14.5px; }
-.gv-status--draft     { background: var(--surface-3);              color: var(--text-muted); }
-.gv-status--open      { background: rgba(168, 85, 247, 0.2);       color: #d8b4fe; }
-.gv-status--closed    { background: var(--warn-soft);              color: #fde68a; }
-.gv-status--drawn     { background: var(--good-soft);              color: #86efac; }
-.gv-status--cancelled { background: var(--bad-soft);               color: #fca5a5; }
-.gv-card-desc { margin: 0; }
-.poll-results {
+/* Stage on the left edge. It is the single most useful thing to be able to
+   pick out down a column, and a border does it without a fill that fights
+   everything inside the card. */
+.gv-card--draft  { box-shadow: inset 2px 0 0 var(--line-strong); }
+.gv-card--open   { box-shadow: inset 2px 0 0 #a855f7; }
+.gv-card--closed { box-shadow: inset 2px 0 0 var(--warn); }
+
+.gv-card__main { min-width: 0; flex: 1; display: grid; gap: 5px; }
+.gv-card__id { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.gv-card__title { font-size: 14px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.gv-card__desc {
+  margin: 0;
+  /* Two lines maximum. A 2,000-character description is allowed and one of
+     them would otherwise own the whole list. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gv-card__facts {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
 }
+.gv-card__prize { color: #fde68a; font-weight: 600; }
+/* An OPEN giveaway past its end date: entries have stopped and nobody has
+   closed or drawn it. The old card had no way to show this at all. */
+.gv-ended { color: var(--warn-text); font-weight: 600; }
+.gv-card__actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+.gv-delete { color: var(--text-dim); }
+.gv-delete:hover:not(:disabled) { color: var(--bad-text); background: var(--bad-soft); border-color: rgba(248, 113, 113, 0.35); }
+
+.tag.gv-status { text-transform: capitalize; }
+.gv-status--draft     { background: var(--surface-3);        color: var(--text-muted); }
+.gv-status--open      { background: rgba(168, 85, 247, 0.2); border-color: rgba(168,85,247,0.35); color: #d8b4fe; }
+.gv-status--closed    { background: var(--warn-soft);        border-color: rgba(251,191,36,0.3);  color: #fde68a; }
+.gv-status--drawn     { background: var(--good-soft);        border-color: rgba(52,211,153,0.3);  color: #86efac; }
+.gv-status--cancelled { background: var(--bad-soft);         border-color: rgba(248,113,113,0.3); color: #fca5a5; }
+
+/* ── Finished ──────────────────────────────────────────────────────
+   Collapsed by default: a drawn giveaway is history EXCEPT for whether the
+   winners were actually paid, so that one fact shows without expanding. */
+.gv-finished { list-style: none; margin: 0 0 var(--sp-4); padding: 0; }
+.gv-finished-row { border-bottom: 1px solid var(--border-soft); }
+.gv-finished-row:last-child { border-bottom: 0; }
+.gv-finished-row.is-open { background: var(--surface-2); }
+.gv-finished-summary {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  /* EXPLICIT: the base button rule centres its content. */
+  text-align: left;
+  padding: 9px var(--sp-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.gv-finished-summary:hover:not(:disabled) { background: var(--surface-2); }
+.gv-finished-title { min-width: 0; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-finished-meta { white-space: nowrap; }
+.gv-payout { display: flex; gap: 4px; }
+
+.gv-finished-detail { display: grid; gap: var(--sp-3); padding: 0 var(--sp-4) var(--sp-4) 38px; }
+.gv-winner-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.gv-winner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: 12.5px;
+}
+.gv-seed-details { margin: 0; }
+.gv-seed-details summary { cursor: pointer; }
+.gv-seed {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  word-break: break-all;
+  background: var(--surface-0);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  margin: 5px 0;
+  color: var(--text-muted);
+}
+
+/* ── Create form ───────────────────────────────────────────────────── */
+.gv-create { margin-bottom: var(--sp-4); }
+.gv-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.gv-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: var(--sp-3); }
+.gv-field > span { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+/* ── Polls ─────────────────────────────────────────────────────────
+   Lived inside the giveaway block; they are a different page. */
+.poll-results { display: flex; flex-direction: column; gap: 4px; }
 .poll-result-row {
   position: relative;
   display: flex;
@@ -2854,12 +2975,7 @@
   overflow: hidden;
   font-size: 12px;
 }
-.poll-result-bar {
-  position: absolute;
-  inset: 0;
-  background: rgba(253, 230, 138, 0.14);
-  z-index: 0;
-}
+.poll-result-bar { position: absolute; inset: 0; background: rgba(253, 230, 138, 0.14); z-index: 0; }
 .poll-result-label { position: relative; z-index: 1; }
 .poll-result-count { position: relative; z-index: 1; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .poll-voter-list {
@@ -2874,59 +2990,14 @@
   font-size: 11px;
 }
 .poll-voter-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
-.gv-card-prize {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-}
-.gv-prize-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.gv-card-prize strong { font-size: 13px; color: #fde68a; }
-.gv-card-result {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 10px 12px;
-  background: var(--good-soft);
-  border-radius: var(--radius-sm);
-}
-.gv-winners-label { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: #86efac; }
-.gv-winner { font-size: 12.5px; font-weight: 600; margin-right: 8px; }
-/* A winner whose grant failed must be impossible to miss — they are
-   owed a prize the system did not deliver. */
-.gv-winner--unpaid { color: #fca5a5; }
-.gv-seed-details { margin-top: 4px; }
-.gv-seed-details summary { cursor: pointer; }
-.gv-seed {
-  display: block;
-  font-size: 10px;
-  word-break: break-all;
-  background: var(--surface-0);
-  padding: 6px 8px;
-  border-radius: 4px;
-  margin: 5px 0;
-  color: var(--text-muted);
-}
-.gv-card-foot { display: flex; gap: 8px; flex-wrap: wrap; }
-.gv-draw { margin-left: auto; }
 
-.gv-create { margin-bottom: 16px; padding: 20px 22px; }
-.gv-form-grid {
-  display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 12px;
+@media (max-width: 700px) {
+  /* Prize and payout badges are what you scan for; the timestamp is not. */
+  .gv-finished-summary { grid-template-columns: 16px auto minmax(0, 1fr) auto; }
+  .gv-finished-meta, .gv-finished-summary > time { display: none; }
+  .gv-finished-detail { padding-left: var(--sp-3); }
+  .gv-card__actions { width: 100%; }
 }
-.gv-field { display: flex; flex-direction: column; gap: 5px; }
-.gv-field > span { font-size: 11px; font-weight: 600; color: var(--text-muted); }
 .gv-field input, .gv-field textarea {
   background: var(--surface-2);
   border-radius: var(--radius-sm);
@@ -3452,11 +3523,14 @@
   --page-wide: 1200px;
 }
 .page { width: 100%; }
-/* Form-shaped pages, constrained on the SHELL so every tab of a combined
-   page is the same width. Only the constrained ones centre. */
-.broadcasts-page { max-width: var(--page-narrow); }
-.broadcasts-page,
-.map-editor-page { margin-inline: auto; }
+/* Form-shaped surfaces are constrained; monitoring surfaces are not.
+   Announcements and polls are single-column forms and read worse stretched
+   to 2,000px. The chat tab on the same page is a live feed with a facet
+   sidebar and wants every pixel, so the constraint is per-tab rather than
+   on the shell. */
+.broadcasts-page--announcements,
+.broadcasts-page--polls,
+.map-editor-page { max-width: var(--page-narrow); margin-inline: auto; }
 
 /* ── Section headings ───────────────────────────────────────────────
    A named band of a page, with a rule under it.
