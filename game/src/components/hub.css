@@ -328,6 +328,7 @@
 /* Anything portalled in sits at the LEFT of the slot, next to the title it
    belongs to, rather than drifting towards the close button. */
 .hub-head-slot > * { flex: 0 0 auto; }
+.hub-head-slot > .hub-views--stack { flex: 1 1 auto; }
 .hub-head h2 {
   margin: 0;
   font-size: 19px;
@@ -394,6 +395,22 @@
   flex-wrap: nowrap;
   justify-content: flex-start;
 }
+/* A section whose header holds a whole toolbar rather than a tab row — the
+   PC and the Pokedex, which each have a search field, actions and a filter
+   bar. Stacked, because side by side they are an 800px line that scrolls
+   sideways past its own controls, and a control you have to scroll to find
+   is not at the top of the dialog in any useful sense.
+   The header grows to fit; everything in it still fits on two 32px rows. */
+.hub-head-slot .hub-views--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+.hub-head-slot .hub-views--stack > * { min-width: 0; }
+/* The slot stops being content-sized when it holds one of these: the search
+   field inside wants the room. */
+.hub-head-slot:has(.hub-views--stack) { overflow: visible; }
 
 /* ── The column system ─────────────────────────────────────────────
    Two helpers, offered by the frame so no pane invents its own

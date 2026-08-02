@@ -722,35 +722,18 @@ function BagCard({
       {useHint && <p className="bag-use-hint">{useHint}</p>}
 
       <div className="mart-card-actions">
+        {/* ORDER MATTERS. The last element of every card is a control of the
+            same height, so buttons line up across a row rather than landing
+            wherever the text above them happened to end.
 
-      {/* The only item that is used FROM the bag. Its button lived in
-          BagPanel.tsx, which nothing has rendered for a long time — so
-          USE_EXP_SHARE existed, worked, and had no way to be reached. */}
-      {useHere && (
-        <button
-          type="button"
-          className="mart-buy-btn-v2 bag-use-v2"
-          onClick={() => {
-            if (isCap) {
-              // Pick the Pokémon here rather than sending the player to find
-              // a button that only appears on a detail sheet once they
-              // happen to own one of these.
-              openBottleCap(itemId as "goldbottlecap" | "silverbottlecap");
-              return;
-            }
-            dispatch({ type: "USE_EXP_SHARE" });
-            pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
-          }}
-          title={isCap
-            ? t("Choose which Pokémon to Hyper Train")
-            : t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
-        >
-          {isCap ? t("Use on…") : t("Use")}
-        </button>
-      )}
+            "Can't be sold" used to sit BELOW the Use button, which put a
+            26px line of prose where its neighbours had a 32px button — the
+            row read as staggered even though the cards were the same
+            height. It is a note above the action now, and a card with no
+            action at all gets an inert plate the same size in its place. */}
+        {!canSell && useHere && <p className="mart-card-note">{t("Can't be sold")}</p>}
 
-      {canSell ? (
-        <>
+        {canSell && (
           <div className="mart-qty">
             <button
               type="button"
@@ -790,6 +773,32 @@ function BagCard({
               {t("All")}
             </button>
           </div>
+        )}
+
+        {/* Exp. Share is the only item used FROM the bag; bottle caps open a
+            target picker. Both sit above Sell when an item somehow has
+            both, so the sale is always the last thing on the card. */}
+        {useHere && (
+          <button
+            type="button"
+            className="mart-buy-btn-v2 bag-use-v2"
+            onClick={() => {
+              if (isCap) {
+                openBottleCap(itemId as "goldbottlecap" | "silverbottlecap");
+                return;
+              }
+              dispatch({ type: "USE_EXP_SHARE" });
+              pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
+            }}
+            title={isCap
+              ? t("Choose which Pokemon to Hyper Train")
+              : t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
+          >
+            {isCap ? t("Use on...") : t("Use")}
+          </button>
+        )}
+
+        {canSell ? (
           <button
             type="button"
             className="mart-buy-btn-v2 bag-sell-v2"
@@ -808,12 +817,11 @@ function BagCard({
             {t("Sell")} {safeQty}
             <span className="mart-buy-total">${total.toLocaleString()}</span>
           </button>
-        </>
-      ) : (
-        // Key items, TMs, anything with no sell price. The card keeps its
-        // shape so the grid stays a grid; it just has nothing to offer.
-        <p className="mart-card-lock">{t("Can't be sold")}</p>
-      )}
+        ) : useHere ? null : (
+          // Nothing to do with this one. An inert plate rather than a line of
+          // text, so the card still ends where every other card ends.
+          <p className="mart-card-none">{t("Can't be sold")}</p>
+        )}
       </div>
     </li>
   );
@@ -1197,6 +1205,10 @@ export function PCTab() {
           for thirty Pokémon. Search earns permanent space because it is the
           only navigation that scales to 9,999; everything else folds into a
           menu. */}
+      {/* Tools at the top of the dialog. Two rows — search and actions, then
+          the filters — so they stack in the header rather than making one
+          800px line that scrolls sideways past its own controls. */}
+      <HubViews className="hub-views--stack">
       <div className="pc-toolbar">
         <div className="pc-search-wrap">
           <input
@@ -1351,6 +1363,7 @@ export function PCTab() {
           </button>
         )}
       </div>
+      </HubViews>
 
       {/* Bulk release bar. Only mounted in selection mode, and it is the ONLY
           route to RELEASE_MANY — there is no keyboard shortcut and no context
@@ -2210,6 +2223,7 @@ export function DexTab() {
           space because it is the only navigation that scales to 288 entries;
           the progress headline shrinks to a chip; everything else folds into
           the filter menu. */}
+      <HubViews className="hub-views--stack">
       <div className="dex-toolbar">
         <button
           type="button"
@@ -2262,6 +2276,7 @@ export function DexTab() {
           {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
         </button>
       </div>
+      </HubViews>
 
       <div className="dex-scroll" ref={scrollRef} onScroll={onScroll}>
         {total === 0 ? (

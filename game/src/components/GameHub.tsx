@@ -58,7 +58,6 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   pvp: {
     Body: PvpHubPane,
     HeaderRight: PvpHeaderRight,
-    note: "Ranked ladder, casual matches and tournaments.",
   },
   rewards: {
     Body: RewardsBody,
@@ -72,7 +71,6 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   },
   settings: {
     Body: SettingsPane,
-    note: "Your account, your game, and the knobs.",
   },
   // No rail row — the identity block at the top of the rail IS this
   // section's door. See `rail: false` in HubModal's SECTIONS.

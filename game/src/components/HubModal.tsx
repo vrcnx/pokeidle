@@ -233,9 +233,9 @@ export function HubHeaderSlot({ children }: { children: ReactNode }) {
  * are components, and one of them mounted outside the hub would otherwise
  * lose its tabs entirely rather than merely misplace them.
  */
-export function HubViews({ children }: { children: ReactNode }) {
+export function HubViews({ children, className }: { children: ReactNode; className?: string }) {
   const el = useContext(HubHeadSlotCtx);
-  const row = <div className="hub-views">{children}</div>;
+  const row = <div className={`hub-views${className ? " " + className : ""}`}>{children}</div>;
   return el ? createPortal(row, el) : row;
 }
 
