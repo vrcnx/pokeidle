@@ -26,6 +26,12 @@ import { Client, type Guild, type Role } from "discord.js";
 import { api, type DesiredRoles } from "./api.js";
 import { config } from "./config.js";
 
+/** Members we have already explained that we cannot manage. Process-local and
+ *  deliberately never cleared: the conditions it covers (owning the server,
+ *  outranking the bot) do not change on their own, and a restart is the right
+ *  moment to say it again. */
+const explained = new Set<string>();
+
 /** Resolve managed role NAMES to this guild's role objects. Names rather than
  *  ids in the payload so the game server never has to hold guild-specific
  *  configuration — see server/src/lib/discordRoles.ts. */
@@ -109,8 +115,41 @@ export async function reconcileOnce(client: Client): Promise<void> {
   let granted = 0;
   let removed = 0;
 
+  const me = guild.members.me;
+
   for (const [discordId, member] of members) {
     if (member.user.bot) continue;
+
+    // Members Discord will never let us modify, no matter what permissions we
+    // hold. Attempting anyway produces one rejected API call per role per pass
+    // — for the server owner that is a warning every five minutes, forever,
+    // about a condition that cannot be fixed from this side.
+    //
+    // The owner is absolute: role position is irrelevant, a bot cannot touch
+    // them even with Administrator. Anyone whose highest role sits at or above
+    // ours is the ordinary hierarchy rule, and THAT one is fixable — by moving
+    // our role up — so it is worth naming the member.
+    const unmanageable =
+      member.id === guild.ownerId
+        ? "they own this server, and Discord never lets a bot change the owner's roles"
+        : me && member.roles.highest.position >= me.roles.highest.position
+          ? `their highest role (${member.roles.highest.name}) is at or above mine`
+          : null;
+
+    if (unmanageable) {
+      // Once per member per process. A permanent condition does not need
+      // repeating every pass, but it does need saying at least once, or role
+      // sync looks like it is silently doing nothing.
+      if (!explained.has(member.id)) {
+        explained.add(member.id);
+        const wanted = desiredByDiscordId.get(discordId)?.roles ?? [];
+        console.warn(
+          `[roles] skipping ${member.user.tag}: ${unmanageable}.` +
+            (wanted.length ? ` They would otherwise get: ${wanted.join(", ")}.` : ""),
+        );
+      }
+      continue;
+    }
 
     const want = desiredByDiscordId.get(discordId);
     // Someone in the server with no link row wants NO managed roles. That is

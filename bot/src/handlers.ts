@@ -27,9 +27,11 @@ import {
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
+  PermissionFlagsBits,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type GuildMember,
+  type GuildTextBasedChannel,
 } from "discord.js";
 import { api, toUserMessage, versionWarning } from "./api.js";
 import { config } from "./config.js";
@@ -57,6 +59,62 @@ import {
  */
 function cardFile(png: Buffer, name: string): AttachmentBuilder {
   return new AttachmentBuilder(png, { name: `${name}.png` });
+}
+
+/**
+ * Post a card as an ORDINARY CHANNEL MESSAGE rather than as the reply to the
+ * interaction, and acknowledge the command privately.
+ *
+ * ── WHY ─────────────────────────────────────────────────────────────
+ * Discord renders a public interaction reply under a "someone used /team"
+ * header, and there is no flag to turn that off — it is how Discord attributes
+ * a reply to the command that caused it. In a showcase channel that header is
+ * the noisy half of the message: what people want to see is the team, not a
+ * log of who typed what.
+ *
+ * Replying ephemerally moves the header (and the acknowledgement) to the caller
+ * alone, and sending the card separately leaves the channel holding just the
+ * card. Nothing is lost by dropping the attribution, because every card already
+ * names the trainer it belongs to.
+ *
+ * ── WHY IT FALLS BACK ───────────────────────────────────────────────
+ * A DM, a thread the bot cannot post in, or a missing Send Messages override
+ * would otherwise turn a working command into silence. In any of those cases
+ * this reverts to a normal public reply, which always works — a slightly
+ * noisier message beats no message.
+ */
+async function postCard(
+  i: ChatInputCommandInteraction,
+  file: AttachmentBuilder,
+  content?: string,
+): Promise<void> {
+  const channel = i.channel;
+  const fallback = async () => {
+    await i.editReply({ content, files: [file] });
+  };
+
+  if (!channel || !channel.isTextBased() || !("send" in channel)) return fallback();
+
+  // In a guild, verify Send Messages HERE rather than discovering it from a
+  // rejected send after the ephemeral ack has already told the caller it
+  // worked. DMs have no permission model, so the check only applies in a guild.
+  if (i.inGuild()) {
+    const me = i.guild?.members.me;
+    const perms = me && "permissionsFor" in channel ? channel.permissionsFor(me) : null;
+    if (!perms?.has(PermissionFlagsBits.SendMessages)) return fallback();
+  }
+
+  try {
+    await (channel as GuildTextBasedChannel).send({ content, files: [file] });
+    // Deliberately terse and ephemeral: the card is the answer, this is just
+    // the interaction being closed out so Discord does not show "thinking…".
+    await i.editReply({ content: "Posted. 👇" });
+  } catch {
+    // The send failed after the permission check passed — a rate limit, a
+    // slowmode we are not exempt from, a channel deleted mid-command. Put the
+    // card in the reply so the caller still gets it.
+    await fallback();
+  }
 }
 
 /** The subject of a lookup command: an explicit trainer name, or the caller. */
@@ -150,7 +208,9 @@ async function handleUnlink(i: ChatInputCommandInteraction): Promise<void> {
 // ── Read-only ───────────────────────────────────────────────────────
 
 async function handleProfile(i: ChatInputCommandInteraction): Promise<void> {
-  await i.deferReply();
+  // Ephemeral: the card goes to the channel on its own, so the "used /profile"
+  // header goes only to the caller. See postCard.
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const subject = subjectOf(i);
     // The trainer card shows the party, so both reads are needed — issued
@@ -158,11 +218,11 @@ async function handleProfile(i: ChatInputCommandInteraction): Promise<void> {
     // server inside one interaction is the difference between a card that
     // appears instantly and one that appears late.
     const [p, team] = await Promise.all([api.profile(subject), api.team(subject)]);
-    const warn = versionWarning(p.v);
-    await i.editReply({
-      content: warn ?? undefined,
-      files: [cardFile(await profileCard(p, team.party), `profile-${p.username}`)],
-    });
+    await postCard(
+      i,
+      cardFile(await profileCard(p, team.party), `profile-${p.username}`),
+      versionWarning(p.v) ?? undefined,
+    );
   } catch (e) {
     await fail(i, e);
   }
@@ -189,18 +249,18 @@ async function handleLeaderboard(i: ChatInputCommandInteraction): Promise<void> 
 }
 
 async function handleTeam(i: ChatInputCommandInteraction): Promise<void> {
-  await i.deferReply();
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const res = await api.team(subjectOf(i));
     if (!res.started) {
       // A card whose only content is "hasn't started playing" is a lot of
-      // pixels to say nothing. Plain text is the better answer.
+      // pixels to say nothing. Plain text is the better answer — and it stays
+      // ephemeral, because "this person has not played" is not worth a public
+      // message in a showcase channel.
       await i.editReply(`**${res.username}** hasn't started playing yet.`);
       return;
     }
-    await i.editReply({
-      files: [cardFile(await teamCard(res.username, res.party), `team-${res.username}`)],
-    });
+    await postCard(i, cardFile(await teamCard(res.username, res.party), `team-${res.username}`));
   } catch (e) {
     await fail(i, e);
   }
