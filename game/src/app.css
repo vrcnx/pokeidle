@@ -9379,7 +9379,11 @@ input, textarea, select {
   padding: 3px !important;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  /* Concentric with the 6px tabs inside it: an outer radius should be the
+     inner radius plus the padding between them, or the two curves visibly
+     disagree at the corners. It was a flat 10px against 8px children, and
+     is now derived so it stays right if either number moves. */
+  border-radius: calc(var(--ctl-r) + 3px);
   height: 44px;
   flex-shrink: 0;
   margin: 0;
@@ -19550,6 +19554,13 @@ button.wb-card:active { transform: translateY(1px); }
 .mini-chat-tab,
 .social-tab {
   display: inline-flex;
+  /* Explicit. Two of these classes had a `flex-direction: column` from an
+     older rule earlier in the file, and leaving direction unstated here
+     meant this block quietly inherited it — a fixed 26px box around
+     stacked icon-over-label content, which overflows and clips. Stating
+     the axis is the whole difference between "this rule composes with
+     what came before" and "this rule wins". */
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -19606,18 +19617,34 @@ button.wb-card:active { transform: translateY(1px); }
    what makes it read as the app's primary navigation rather than a row
    of chips. The strip keeps its own frame; only the tabs inside it are
    now the shared primitive. */
+/* 3px of padding, not 4, and 5px inside each tab rather than the old 7-10:
+   the strip's whole budget is set by a comment further up this file — the
+   centre column has to fit a 16:9 battle scene AND a 16:9 town map under
+   900px, and the tab strip is the thing that gets squeezed. Giving each
+   tab a frame costs vertical space, so it is paid for out of the padding
+   rather than out of the map. Lands at ~44px, against ~41px before. */
 .bottom-tab-strip {
   gap: 2px;
-  padding: 4px;
+  padding: 2px;
   border-bottom: 1px solid var(--border);
 }
+/* …and it is the one tab set that STACKS its icon over its label, because
+   five segments across a 540px column do not have room for both on a line.
+   So it overrides the axis and takes its height from its content, with the
+   large control height as a floor. `height: auto` is load-bearing: the
+   shared 26px above is a fixed height, and a fixed height around stacked
+   content is what clipped this strip. */
 .bottom-tab {
   flex: 1;
-  height: var(--ctl-h);
-  border-right: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: auto;
+  min-height: var(--ctl-h);
+  padding: 5px 4px;
 }
-.bottom-tab-icon { font-size: 14px; line-height: 1; }
-.bottom-tab-label { font-size: var(--ctl-fs-sm); letter-spacing: 0.2px; text-transform: none; }
+.bottom-tab-icon { font-size: 14px; line-height: 1; display: inline-flex; }
+.bottom-tab-label { font-size: 9.5px; letter-spacing: 0.3px; text-transform: none; line-height: 1; }
 
 /* -- Buttons --
    `.dock-btn` and `.town-action-btn` keep their stacked icon-over-label

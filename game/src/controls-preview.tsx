@@ -21,7 +21,19 @@
 
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
+  IconSettings, IconChat, IconSwords,
+} from "./components/Icon";
 import "./app.css";
+
+// The icons are the REAL ones, in the real <span class="…-icon"> wrappers.
+// The first version of this page rendered label-only tabs, and shipped a
+// regression the same afternoon: `.bottom-tab` is stacked icon-over-label
+// from a rule earlier in app.css, the shared primitive gave it a fixed 26px
+// height without stating an axis, and the content overflowed its own box.
+// A style guide that renders a simpler thing than the app renders is a style
+// guide that certifies the wrong thing.
 
 function Row({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
@@ -53,6 +65,35 @@ function Tabs({ cls, wrap, items }: { cls: string; wrap: string; items: string[]
   );
 }
 
+/** The bottom strip, rendered exactly as BottomTabs.tsx renders it — same
+ *  wrapper, same icon spans, same real icons. */
+function StackedTabs() {
+  const [i, setI] = useState(0);
+  const items = [
+    { label: "Map", icon: <IconMap size={16} /> },
+    { label: "Mart", icon: <IconCart size={16} /> },
+    { label: "Bag", icon: <IconBackpack size={16} /> },
+    { label: "PC", icon: <IconMonitor size={16} /> },
+    { label: "Dex", icon: <IconBook size={16} /> },
+  ];
+  return (
+    <nav className="bottom-tab-strip" role="tablist" style={{ maxWidth: 540 }}>
+      {items.map((x, n) => (
+        <button
+          key={x.label}
+          role="tab"
+          aria-selected={i === n}
+          className={`bottom-tab ${i === n ? "active" : ""}`}
+          onClick={() => setI(n)}
+        >
+          <span className="bottom-tab-icon">{x.icon}</span>
+          <span className="bottom-tab-label">{x.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function Harness() {
   const [report, setReport] = useState<string | null>(null);
 
@@ -66,10 +107,8 @@ function Harness() {
         "you are here" and nothing else.
       </p>
 
-      <Row title="Bottom tab strip" note=".bottom-tab — the centre column's primary nav, fills its container">
-        <div className="bottom-tab-strip" style={{ maxWidth: 520 }}>
-          <Tabs cls="bottom-tab" wrap="" items={["Map", "Mart", "Bag", "PC", "Dex"]} />
-        </div>
+      <Row title="Bottom tab strip" note=".bottom-tab — the centre column's primary nav; fills its container, stacks icon over label">
+        <StackedTabs />
       </Row>
 
       <Row title="Region pills" note=".route-region-tab — inside the map pane's header">
@@ -91,17 +130,41 @@ function Harness() {
       <Row title="Dock buttons" note=".dock-btn — stacked icon over label; .active means the panel is open">
         <div className="global-dock" style={{ maxWidth: 320 }}>
           <button type="button" className="dock-btn">
-            <span className="dock-btn-icon">⚔</span>
+            <span className="dock-btn-icon"><IconSwords size={16} /></span>
             <span className="dock-btn-label">PvP</span>
           </button>
           <button type="button" className="dock-btn active">
-            <span className="dock-btn-icon">⚙</span>
+            <span className="dock-btn-icon"><IconSettings size={16} /></span>
             <span className="dock-btn-label">Settings</span>
           </button>
           <button type="button" className="dock-btn">
-            <span className="dock-btn-icon">💬</span>
+            <span className="dock-btn-icon"><IconChat size={16} /></span>
             <span className="dock-btn-label">Social</span>
           </button>
+        </div>
+      </Row>
+
+      {/* The same three buttons in the position they actually occupy: the
+          meta dock in the top-left of the desktop shell, which is a
+          horizontal bar with its own (0,3,0) override. Rendering only the
+          stacked version above is how the borderless variant went unnoticed
+          in the first place. */}
+      <Row title="Meta dock (top-left)" note=".control-column .dock-meta .dock-btn — horizontal, one open at a time">
+        <div className="control-column" style={{ display: "contents" }}>
+          <div className="dock dock-meta" role="toolbar" style={{ maxWidth: 340 }}>
+            <button type="button" className="dock-btn active">
+              <span className="dock-btn-icon"><IconSwords size={14} /></span>
+              <span className="dock-btn-label">PvP</span>
+            </button>
+            <button type="button" className="dock-btn">
+              <span className="dock-btn-icon"><IconSettings size={14} /></span>
+              <span className="dock-btn-label">Settings</span>
+            </button>
+            <button type="button" className="dock-btn">
+              <span className="dock-btn-icon"><IconChat size={14} /></span>
+              <span className="dock-btn-label">Social</span>
+            </button>
+          </div>
         </div>
       </Row>
 
@@ -141,14 +204,21 @@ function Harness() {
  * those are what make two controls read as the same kind of thing.
  */
 function audit(): string {
-  const KINDS: Array<[string, string[]]> = [
-    ["tabs", [".bottom-tab", ".route-region-tab", ".mini-chat-tab", ".social-tab", ".g-tab"]],
-    ["dock", [".dock-btn"]],
-    ["buttons (default)", [".g-btn-primary:not(.g-btn-small)", ".g-btn-ghost:not(.g-btn-small)", ".g-btn-danger-ghost:not(.g-btn-small)"]],
-    ["buttons (dense)", [".g-btn-small"]],
+  // `shapes` is how many distinct shapes this kind is ALLOWED. One, unless
+  // there is a documented reason for two:
+  //   tabs — the bottom strip fills its container and stacks icon over
+  //          label; a floating tab row is a single 26px line.
+  //   dock — the party dock is a stacked grid cell; the meta dock in the
+  //          top-left is a horizontal bar inside a 28px header.
+  // Anything above these numbers is drift, not design.
+  const KINDS: Array<[string, string[], number]> = [
+    ["tabs", [".bottom-tab", ".route-region-tab", ".mini-chat-tab", ".social-tab", ".g-tab"], 2],
+    ["dock", [".dock-btn"], 2],
+    ["buttons (default)", [".g-btn-primary:not(.g-btn-small)", ".g-btn-ghost:not(.g-btn-small)", ".g-btn-danger-ghost:not(.g-btn-small)"], 1],
+    ["buttons (dense)", [".g-btn-small"], 1],
   ];
   const lines: string[] = [];
-  for (const [kind, sels] of KINDS) {
+  for (const [kind, sels, allowed] of KINDS) {
     const shapes = new Map<string, string[]>();
     for (const sel of sels) {
       for (const el of document.querySelectorAll(sel)) {
@@ -157,10 +227,8 @@ function audit(): string {
         (shapes.get(key) ?? shapes.set(key, []).get(key)!).push(sel);
       }
     }
-    // The bottom strip is a documented exception: it is the only tab set that
-    // fills its container, so it is 32px where a floating tab row is 26px.
-    const ok = shapes.size <= (kind === "tabs" ? 2 : 1);
-    lines.push(`${ok ? "OK  " : "FAIL"} ${kind}`);
+    const ok = shapes.size <= allowed;
+    lines.push(`${ok ? "OK  " : "FAIL"} ${kind}  (${shapes.size}/${allowed} shapes)`);
     for (const [shape, who] of shapes) {
       lines.push(`       ${shape}   ${[...new Set(who)].join(", ")}`);
     }
