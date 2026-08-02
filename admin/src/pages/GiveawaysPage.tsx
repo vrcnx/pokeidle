@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminGiveaway, type GiveawayPrizeInput } from "../api";
 import { PrizeBuilder } from "../components/PrizeBuilder";
+import { PageNote } from "../components/PageChrome";
+import { SectionHead } from "../components/Section";
 
 // Giveaway operations.
 //
@@ -83,19 +85,13 @@ export function GiveawaysPage() {
   const rows = (list ?? []) as AdminGiveaway[];
 
   return (
-    <div className="page giveaways-page">
-      <header className="page-head">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}>
-          <div>
-            <h1>Giveaways</h1>
-            <p className="dim">
-              Free prize draws. One entry per player, winners picked from a stored
-              seed so the draw can be independently verified.
-            </p>
-          </div>
-          <button className="btn-primary" onClick={() => setCreating(true)}>New giveaway</button>
-        </div>
-      </header>
+    <div className="giveaways-page">
+      <PageNote>{rows.filter((g) => g.status === "open").length} open</PageNote>
+      <SectionHead
+        title="Giveaways"
+        blurb="Free prize draws. One entry per player; winners are picked from a stored seed so the draw can be independently verified."
+        aside={<button className="btn-primary btn-small" onClick={() => setCreating(true)}>New giveaway</button>}
+      />
 
       {err && <div className="page-err">{err}</div>}
 

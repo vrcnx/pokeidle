@@ -3,6 +3,8 @@ import { confirm, notify } from "../components/Confirm";
 import { api, type GiveawayPrizeInput, type AdminUser } from "../api";
 import { POKEMON_LIST, ITEM_LIST, createPokemon } from "../data/gameCatalog";
 import { Combobox } from "../components/Combobox";
+import { PageNote } from "../components/PageChrome";
+import { SectionHead } from "../components/Section";
 
 // Mass gift — a DIRECT grant (not an opt-in raffle like a Giveaway) of any
 // item / money / Pokémon to a whole audience at once: everyone online right
@@ -75,13 +77,12 @@ export function MassGiftPage() {
   };
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <div>
-          <h1>Mass gift</h1>
-          <p className="dim">Grant items, money, or Pokémon to a whole audience at once.</p>
-        </div>
-      </header>
+    <div className="massgift-page">
+      <PageNote>Direct grant — no draw</PageNote>
+      <SectionHead
+        title="Mass gift"
+        blurb="Grant items, money or Pokémon to a whole audience at once. Unlike a giveaway there is no opt-in and no draw: it lands in every targeted save."
+      />
 
       {err && <div className="page-err">{err}</div>}
       {result && <div className="page-ok" role="status">{result}</div>}

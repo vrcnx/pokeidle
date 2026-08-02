@@ -3,31 +3,39 @@ import { api, type AuditEntry, type BugReport } from "../api";
 import { navigateTo } from "../App";
 import { PageActions, PageNote } from "../components/PageChrome";
 import { SectionHead } from "../components/Section";
+import { ErrorLogsPage } from "./ErrorLogsPage";
 
-// Bug reports and the audit log, on one page.
+// Bug reports, the audit log and the error log, on one page.
 //
 // ── WHY THEY ARE ONE PAGE ───────────────────────────────────────────
-// Both answer "what happened that I should look at" — one from players, one
-// from the admin team — and both were a filter bar, a scrolling list of
-// expandable rows and a facet sidebar. Two nav slots out of fifteen for two
-// pages that are the same shape and get read in the same sitting.
+// All three answer "what happened that I should look at": one from players,
+// one from the admin team, one from the software. All three were a filter bar
+// over a scrolling list of expandable rows with a facet sidebar. Three nav
+// slots out of fifteen for three pages of the same shape, read in the same
+// sitting — and they cross-reference constantly, because a bug report and the
+// exception behind it are the same incident described twice.
 //
 // ── WHY THEY ARE NOT ONE LIST ───────────────────────────────────────
 // They have different lifecycles. A bug report is a work item: it has a
 // status, it gets notes, you act on it and close it. An audit entry is an
-// immutable fact about something already done. Interleaving them would
-// produce a feed where half the rows are actionable and half are not, and no
-// column that tells you which — so they stay two tabs.
+// immutable fact about something already done. An error is a signal that
+// repeats and wants grouping by fingerprint, not by time. Interleaved, half
+// the rows would be actionable with no column saying which — so they stay
+// three tabs.
 //
 // ── DEEP LINKS ──────────────────────────────────────────────────────
-// #/bugs and #/audit both still resolve here and select their own tab, so
-// existing links (and the audit's ?query= filter) keep working. Switching
-// tabs writes the hash, so the URL always describes what is on screen.
+// #/bugs, #/audit and #/errors all still resolve here and select their own
+// tab, so existing links (and the audit's ?query= filter) keep working.
+// Switching tabs writes the hash, so the URL always describes what is on
+// screen.
 
 const STATUS_OPTIONS = ["open", "investigating", "resolved", "wontfix"] as const;
 type Status = (typeof STATUS_OPTIONS)[number];
 
-export function ReportsPage({ tab, initialQuery }: { tab: "bugs" | "audit"; initialQuery?: string }) {
+export function ReportsPage({ tab, initialQuery }: {
+  tab: "bugs" | "audit" | "errors";
+  initialQuery?: string;
+}) {
   return (
     <div className="page reports-page">
       <PageActions>
@@ -35,12 +43,17 @@ export function ReportsPage({ tab, initialQuery }: { tab: "bugs" | "audit"; init
           <button role="tab" aria-selected={tab === "bugs"}
                   className={`seg-tab ${tab === "bugs" ? "active" : ""}`}
                   onClick={() => navigateTo("bugs")}>Bug reports</button>
+          <button role="tab" aria-selected={tab === "errors"}
+                  className={`seg-tab ${tab === "errors" ? "active" : ""}`}
+                  onClick={() => navigateTo("errors")}>Errors</button>
           <button role="tab" aria-selected={tab === "audit"}
                   className={`seg-tab ${tab === "audit" ? "active" : ""}`}
                   onClick={() => navigateTo("audit")}>Audit log</button>
         </div>
       </PageActions>
-      {tab === "bugs" ? <BugReports /> : <AuditLog initialQuery={initialQuery} />}
+      {tab === "bugs" && <BugReports />}
+      {tab === "errors" && <ErrorLogsPage />}
+      {tab === "audit" && <AuditLog initialQuery={initialQuery} />}
     </div>
   );
 }

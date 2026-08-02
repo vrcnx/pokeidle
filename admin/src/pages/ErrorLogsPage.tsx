@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type ErrorEntry, type ErrorGroup } from "../api";
+import { PageNote } from "../components/PageChrome";
+import { SectionHead } from "../components/Section";
 
 type Kind = "all" | "server" | "client";
 type ViewMode = "table" | "grouped" | "raw";
@@ -44,19 +46,25 @@ export function ErrorLogsPage() {
   useEffect(reload, [kind]);
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Error log</h1>
-        <p className="dim">Server crashes + browser exceptions, newest first.</p>
-      </header>
+    <div className="errors-page">
+      <PageNote>
+        {truncated ? `${total.toLocaleString()} total · showing the newest` : `${total.toLocaleString()} total`}
+      </PageNote>
+      <SectionHead
+        title="Error log"
+        blurb="Server crashes and browser exceptions, newest first. Group by fingerprint to see which one is actually repeating."
+        aside={<button className="btn-secondary btn-small" onClick={reload} disabled={busy}>
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>}
+      />
 
-      <div className="users-toolbar">
+      <div className="chat-toolbar">
         <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
           <option value="all">All sources</option>
           <option value="server">Server only</option>
           <option value="client">Client only</option>
         </select>
-        <div className="seg-tabs" role="tablist" aria-label="View mode">
+        <div className="seg-toggle" role="tablist" aria-label="View mode">
           {(["table", "grouped", "raw"] as ViewMode[]).map((v) => (
             <button
               key={v}

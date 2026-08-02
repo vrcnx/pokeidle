@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminPoll } from "../api";
+import { PageNote } from "../components/PageChrome";
+import { SectionHead } from "../components/Section";
 
 // Poll operations. Unlike a Giveaway (one-time entry, drawn once), a
 // poll is live opinion data posted to Global chat — players vote
@@ -44,19 +46,13 @@ export function PollsPage() {
   const rows = list ?? [];
 
   return (
-    <div className="page polls-page">
-      <header className="page-head">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}>
-          <div>
-            <h1>Polls</h1>
-            <p className="dim">
-              Posted to Global chat — players vote right on the card. Results are
-              public and update live; a vote can change until you close it.
-            </p>
-          </div>
-          <button className="btn-primary" onClick={() => setCreating(true)}>New poll</button>
-        </div>
-      </header>
+    <div className="polls-page">
+      <PageNote>{rows.filter((p) => p.status === "open").length} open</PageNote>
+      <SectionHead
+        title="Polls"
+        blurb="Posted to Global chat — players vote right on the card. Results are public and update live; a vote can change until you close it."
+        aside={<button className="btn-primary btn-small" onClick={() => setCreating(true)}>New poll</button>}
+      />
 
       {err && <div className="page-err">{err}</div>}
       {creating && (

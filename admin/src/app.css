@@ -1822,6 +1822,33 @@
   max-height: 62vh;
   overflow-y: auto;
 }
+
+/* Live view: the feed and its composer are one card, so the input reads as
+   "this channel's box" rather than a control floating under a list. */
+.chat-panel { padding: 0; overflow: hidden; margin-bottom: var(--sp-4); }
+.chat-panel > .chat-list { margin: 0; max-height: 56vh; }
+
+.chat-composer { border-top: 1px solid var(--line); background: var(--well); }
+.chat-composer__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+}
+.chat-composer__input { flex: 1; min-width: 0; }
+.chat-composer__hint { padding: 0 var(--sp-4) 9px; }
+.chat-composer__err {
+  padding: 8px var(--sp-4);
+  color: var(--bad-text);
+  background: var(--bad-soft);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.3);
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .chat-composer__row { flex-wrap: wrap; }
+  .chat-composer__input { order: 3; width: 100%; flex-basis: 100%; }
+}
 .chat-empty { padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--text-dim); font-size: 13px; }
 
 .chat-row {
@@ -2108,7 +2135,10 @@
 /* =================================================================
    Announcements
    ================================================================= */
-.announcements-page { max-width: var(--page-narrow); }
+/* Width comes from the .broadcasts-page shell, so both of its tabs are the
+   same width — a constraint on one tab only makes the layout jump sideways
+   when you switch. */
+.announcements-page { /* width from the shell */ }
 
 .page-banner {
   padding: 10px 14px;
@@ -2720,7 +2750,8 @@
 /* =================================================================
    Giveaways (admin)
    ================================================================= */
-.giveaways-page { max-width: var(--page-narrow); }
+/* Same: width comes from the .rewards-page shell. */
+.giveaways-page { /* width from the shell */ }
 .gv-list { display: flex; flex-direction: column; gap: 12px; }
 .gv-card {
   display: flex;
@@ -3358,9 +3389,10 @@
   --page-wide: 1200px;
 }
 .page { width: 100%; }
-/* Only the constrained pages centre. */
-.announcements-page,
-.giveaways-page,
+/* Form-shaped pages, constrained on the SHELL so every tab of a combined
+   page is the same width. Only the constrained ones centre. */
+.broadcasts-page { max-width: var(--page-narrow); }
+.broadcasts-page,
 .map-editor-page { margin-inline: auto; }
 
 /* ── Section headings ───────────────────────────────────────────────

@@ -310,6 +310,124 @@ Object.assign(api, {
     ] as any,
   }),
 
+  // Errors: a repeating one (so the grouped view has something to group), a
+  // client exception and a server crash.
+  listErrors: async (kind = "") => {
+    const mk = (i: number, k: "server" | "client", msg: string) => ({
+      id: `e${i}`, kind: k, message: msg,
+      stack: `Error: ${msg}\n    at applyChoice (pvp.ts:412:19)\n    at Socket.<anonymous> (socket.ts:1284:7)`,
+      source: k === "server" ? "pvp.applyChoice" : "MiniChat.render",
+      userId: i % 2 ? "u1" : null, username: i % 2 ? "sak4i" : null,
+      url: k === "client" ? "https://pokeidle.com/battle" : null,
+      userAgent: k === "client" ? "Mozilla/5.0 (Windows NT 10.0) Chrome/131" : null,
+      meta: { battleId: `b_${i}` },
+      createdAt: new Date(Date.now() - i * 11 * 60_000).toISOString(),
+    });
+    const all = [
+      ...Array.from({ length: 6 }, (_, i) => mk(i, "server", "Push after end of read stream")),
+      mk(6, "client", "Cannot read properties of undefined (reading 'speciesKey')"),
+      mk(7, "server", "P2002 unique constraint failed on the fields: (`userId`,`day`)"),
+    ];
+    const rows = kind ? all.filter((e) => e.kind === kind) : all;
+    return { total: 231, limit: 100, truncated: true, errors: rows as any };
+  },
+  listErrorGroups: async () => ({
+    groups: [
+      { fingerprint: "f1", kind: "server", message: "Push after end of read stream", count: 184,
+        lastSeen: new Date(Date.now() - 60_000).toISOString(), firstSeen: new Date(Date.now() - 9 * 86400000).toISOString(), sampleId: "e0" },
+      { fingerprint: "f2", kind: "client", message: "Cannot read properties of undefined (reading 'speciesKey')", count: 41,
+        lastSeen: new Date(Date.now() - 26 * 60_000).toISOString(), firstSeen: new Date(Date.now() - 3 * 86400000).toISOString(), sampleId: "e6" },
+      { fingerprint: "f3", kind: "server", message: "P2002 unique constraint failed", count: 6,
+        lastSeen: new Date(Date.now() - 4 * 3600e3).toISOString(), firstSeen: new Date(Date.now() - 86400000).toISOString(), sampleId: "e7" },
+    ] as any,
+  }),
+
+  // Rewards + broadcasts.
+  // Shape matches AdminGiveaway. One drawn giveaway carries a winner whose
+  // grant FAILED (claimedAt null) — the state the page has to render
+  // differently from a clean payout, and the one a tidy mock never produces.
+  listGiveawaysAdmin: async () => {
+    const entry = (i: number, isWinner = false, claimed = true) => ({
+      id: `e${i}`, userId: `u${i}`, username: `trainer${i}`, isWinner,
+      claimedAt: isWinner && claimed ? new Date().toISOString() : null,
+      prizeDelivered: isWinner && claimed && i % 2 === 0,
+    });
+    return {
+      giveaways: [
+        { id: "g1", title: "Launch week Master Ball", description: "One per trainer.",
+          status: "open", winnerCount: 3, minAccountLevel: null, drawSeed: null,
+          prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
+          prizeSummary: "1x Master Ball", entryCount: 12,
+          entries: Array.from({ length: 12 }, (_, i) => entry(i)),
+          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+          startsAt: null, endsAt: null, drawnAt: null,
+          announceToDiscord: true, discordChannelId: null, discordMessageId: "1" },
+        { id: "g2", title: "Shiny Mew draw", description: "",
+          status: "drawn", winnerCount: 2, minAccountLevel: 25, drawSeed: "a91f…",
+          prizes: [{ kind: "pokemon", label: "Shiny Mew Lv50", mon: {} }],
+          prizeSummary: "Shiny Mew Lv50", entryCount: 8,
+          entries: [entry(0, true, true), entry(1, true, false), ...Array.from({ length: 6 }, (_, i) => entry(i + 2))],
+          createdAt: new Date(Date.now() - 9 * 86400000).toISOString(),
+          startsAt: null, endsAt: null, drawnAt: new Date(Date.now() - 8 * 86400000).toISOString(),
+          announceToDiscord: false, discordChannelId: null, discordMessageId: null },
+        { id: "g3", title: "Draft — weekend event", description: "",
+          status: "draft", winnerCount: 5, minAccountLevel: null, drawSeed: null,
+          prizes: [{ kind: "money", amount: 50000 }],
+          prizeSummary: "50,000 money", entryCount: 0, entries: [],
+          createdAt: new Date(Date.now() - 3600e3).toISOString(),
+          startsAt: null, endsAt: null, drawnAt: null,
+          announceToDiscord: false, discordChannelId: null, discordMessageId: null },
+      ] as any,
+    };
+  },
+  // Shape matches AdminPoll exactly: options are plain strings and each vote
+  // is a row carrying optionIndex. Getting this wrong is not a harmless mock
+  // detail — an options array of objects renders as "Objects are not valid as
+  // a React child" and takes the whole page down.
+  listPollsAdmin: async () => {
+    const mkVotes = (counts: number[]) =>
+      counts.flatMap((n, idx) =>
+        Array.from({ length: n }, (_, k) => ({ userId: `u${idx}_${k}`, username: `voter${idx}_${k}`, optionIndex: idx })));
+    const v1 = mkVotes([7, 4, 2]);
+    const v2 = mkVotes([9, 1]);
+    return {
+      polls: [
+        { id: "p1", question: "Which region should we add next?", status: "open",
+          options: ["Johto", "Hoenn", "Sinnoh"], votes: v1, voteCount: v1.length,
+          createdAt: new Date(Date.now() - 86400000).toISOString() },
+        { id: "p2", question: "Keep 5x speed for everyone?", status: "closed",
+          options: ["Yes", "No"], votes: v2, voteCount: v2.length,
+          createdAt: new Date(Date.now() - 12 * 86400000).toISOString() },
+      ] as any,
+    };
+  },
+  listAnnouncements: async () => {
+    const live = {
+      id: "an1", type: "maintenance",
+      message: "Server restart at 22:00 UTC — battles will be paused for ~5 minutes.",
+      href: null, linkLabel: null,
+      createdAt: new Date(Date.now() - 3600e3).toISOString(),
+      expiresAt: new Date(Date.now() + 6 * 3600e3).toISOString(),
+    };
+    return {
+      live: live as any,
+      recent: [
+        { ...live, active: true, startsAt: null },
+        // Deliberately covers each of the three non-LIVE states rowStatus can
+        // report: scheduled, expired, ended.
+        { id: "an2", type: "event", message: "Double XP all weekend!", href: null, linkLabel: null,
+          createdAt: new Date(Date.now() - 2 * 3600e3).toISOString(),
+          startsAt: new Date(Date.now() + 24 * 3600e3).toISOString(), expiresAt: null, active: true },
+        { id: "an3", type: "giveaway", message: "Master Ball giveaway is live", href: "/giveaways", linkLabel: "Enter",
+          createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+          startsAt: null, expiresAt: new Date(Date.now() - 86400000).toISOString(), active: true },
+        { id: "an4", type: "info", message: "Welcome to the beta.", href: null, linkLabel: null,
+          createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+          startsAt: null, expiresAt: null, active: false },
+      ] as any,
+    };
+  },
+
   listSnapshots: async () => ({
     snapshots: [
       { id: "s1", saveVersion: 812, reason: "auto", createdAt: new Date(Date.now() - 3600e3).toISOString(),
@@ -362,6 +480,8 @@ import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { RewardsPage } from "./pages/RewardsPage";
+import { BroadcastsPage } from "./pages/BroadcastsPage";
 import { CommandPalette } from "./components/CommandPalette";
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
@@ -371,7 +491,12 @@ const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "users",     label: "Users",     render: () => <UsersPage /> },
   { key: "chat",      label: "Chat",      render: () => <ChatModerationPage /> },
   { key: "bugs",      label: "Reports",   render: () => <ReportsPage tab="bugs" /> },
+  { key: "errors",    label: "Errors",    render: () => <ReportsPage tab="errors" /> },
   { key: "audit",     label: "Audit",     render: () => <ReportsPage tab="audit" /> },
+  { key: "giveaways", label: "Rewards",   render: () => <RewardsPage tab="giveaways" /> },
+  { key: "massgift",  label: "Mass gift", render: () => <RewardsPage tab="massgift" /> },
+  { key: "announce",  label: "Broadcasts",render: () => <BroadcastsPage tab="announcements" /> },
+  { key: "polls",     label: "Polls",     render: () => <BroadcastsPage tab="polls" /> },
 ];
 
 function Harness() {

@@ -6,13 +6,10 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { MapEditorPage } from "./pages/MapEditorPage";
 import { ChatModerationPage } from "./pages/ChatModerationPage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { ErrorLogsPage } from "./pages/ErrorLogsPage";
+import { RewardsPage } from "./pages/RewardsPage";
+import { BroadcastsPage } from "./pages/BroadcastsPage";
 import { TournamentsPage } from "./pages/TournamentsPage";
-import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
-import { GiveawaysPage } from "./pages/GiveawaysPage";
-import { MassGiftPage } from "./pages/MassGiftPage";
-import { PollsPage } from "./pages/PollsPage";
 import { BroadcastPage } from "./pages/BroadcastPage";
 import { DiscordPage } from "./pages/DiscordPage";
 import { ConfirmHost } from "./components/Confirm";
@@ -99,7 +96,15 @@ export function navigateTo(p: Page, params: NavParams = {}): void {
 // already knows has to be relearned — only the direction it opens in.
 interface NavGroupDef {
   label: string;
-  items: { page: Page; label: string; icon: ReactNode }[];
+  items: {
+    page: Page;
+    label: string;
+    icon: ReactNode;
+    /** Extra pages this entry stays highlighted for — the tabs it folds in.
+     *  Without it, switching to the Errors tab would un-highlight the nav
+     *  item you are standing on. */
+    covers?: Page[];
+  }[];
 }
 
 const NAV_GROUPS: NavGroupDef[] = [
@@ -110,29 +115,38 @@ const NAV_GROUPS: NavGroupDef[] = [
   { label: "People", items: [
     { page: "users", label: "Users", icon: <IconUsers /> },
   ] },
+  // ── ON THE GROUPING ─────────────────────────────────────────────
+  // Fifteen destinations for a dashboard this size meant the nav itself was
+  // something to search. Pages that are the same shape, read in the same
+  // sitting, and chosen BETWEEN rather than in sequence are now one
+  // destination with tabs — the choice is made on screen, with both options
+  // visible, instead of in the sidebar before you can see either.
+  //
+  // Every folded-away page keeps its own hash route, so deep links and
+  // bookmarks are unaffected.
   { label: "Moderation", items: [
     { page: "chat", label: "Chat", icon: <IconChat /> },
-    // Bug reports and the audit log are one destination with two tabs. Both
-    // are "what happened that I should look at", both were the same
-    // layout, and both get read in the same sitting — two of fifteen nav
-    // slots for that was one too many. #/audit still resolves and selects
-    // its own tab, so existing deep links keep working.
-    { page: "bugs", label: "Reports & audit", icon: <IconBug /> },
+    // Player reports, admin actions and exceptions: three views of "what
+    // happened that I should look at", and a bug report plus the error
+    // behind it is one incident described twice.
+    { page: "bugs", label: "Reports & audit", icon: <IconBug />, covers: ["audit", "errors"] },
   ] },
   { label: "Events", items: [
-    { page: "tournaments",   label: "Tournaments",   icon: <IconTrophy /> },
-    { page: "giveaways",     label: "Giveaways",     icon: <IconGift /> },
-    { page: "massgift",      label: "Mass gift",     icon: <IconGift /> },
-    { page: "polls",         label: "Polls",         icon: <IconPoll /> },
-    { page: "announcements", label: "Announcements", icon: <IconMegaphone /> },
-  ] },
-  { label: "Diagnostics", items: [
-    { page: "errors", label: "Error log", icon: <IconAlert /> },
+    { page: "tournaments", label: "Tournaments", icon: <IconTrophy /> },
+    // A giveaway and a mass gift are the same act with a different
+    // selection rule — same prize builder, same delivery path.
+    { page: "giveaways", label: "Rewards", icon: <IconGift />, covers: ["massgift"] },
+    // Banner, chat broadcast and poll are three ways to put a card in front
+    // of every player.
+    { page: "announcements", label: "Broadcasts", icon: <IconMegaphone />, covers: ["polls"] },
   ] },
   { label: "Tools", items: [
-    { page: "discord",   label: "Discord",     icon: <IconChat /> },
-    { page: "broadcast", label: "Broadcast",   icon: <IconBroadcast /> },
-    { page: "map",       label: "Map editor",  icon: <IconMap /> },
+    { page: "discord",   label: "Discord",       icon: <IconChat /> },
+    // Renamed from "Broadcast": it drives the 24/7 Twitch renderer and has
+    // nothing to do with messaging players. Two unrelated things called
+    // Broadcast in one nav is a trap whichever one you are after.
+    { page: "broadcast", label: "Twitch stream", icon: <IconBroadcast /> },
+    { page: "map",       label: "Map editor",    icon: <IconMap /> },
   ] },
 ];
 
@@ -144,10 +158,14 @@ const PAGE_TITLES: Record<Page, string> = Object.fromEntries(
 // searchable the moment it is navigable, with no second place to forget.
 const PALETTE_TARGETS: PaletteTarget[] = [
   ...NAV_GROUPS.flatMap((g) => g.items.map((i) => ({ page: i.page, label: i.label, group: g.label }))),
-  // The audit log has no nav entry of its own any more (it is a tab), but
-  // "audit" is exactly the kind of thing someone types into a search box —
-  // and a destination you can reach should be a destination you can find.
-  { page: "audit", label: "Audit log", group: "Moderation" },
+  // Pages that are now tabs have no nav entry of their own, but "audit",
+  // "polls" and "mass gift" are exactly what someone types into a search
+  // box — and a destination you can reach should be a destination you can
+  // find. Each still resolves to its own hash route and opens on its tab.
+  { page: "audit",    label: "Audit log", group: "Moderation" },
+  { page: "errors",   label: "Error log", group: "Moderation" },
+  { page: "massgift", label: "Mass gift", group: "Events" },
+  { page: "polls",    label: "Polls",     group: "Events" },
 ];
 
 export function App() {
@@ -279,39 +297,25 @@ export function App() {
           <img src="/logos/Pokeidle.svg" alt="Pokémon Idle" className="admin-brand-mark" />
           <span className="admin-brand-tag">Admin</span>
         </div>
+        {/* Rendered FROM NAV_GROUPS. It used to be written out by hand
+            alongside the same list, so the two drifted every time a page
+            moved — the labels in the sidebar and the labels the command
+            palette searched were two different sets of strings. */}
         <nav className="admin-nav">
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">Overview</span>
-            <NavItem active={page === "analytics"} onClick={() => gotoPage("analytics")} label="Analytics" icon={<IconChart />} />
-            <NavItem active={page === "liveops"} onClick={() => gotoPage("liveops")} label="Live ops" icon={<IconPulse />} />
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">People</span>
-            <NavItem active={page === "users"} onClick={() => gotoPage("users")} label="Users" icon={<IconUsers />} />
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">Moderation</span>
-            <NavItem active={page === "chat"} onClick={() => gotoPage("chat")} label="Chat" icon={<IconChat />} />
-            <NavItem active={page === "bugs" || page === "audit"} onClick={() => gotoPage("bugs")} label="Reports & audit" icon={<IconBug />} />
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">Events</span>
-            <NavItem active={page === "tournaments"} onClick={() => gotoPage("tournaments")} label="Tournaments" icon={<IconTrophy />} />
-            <NavItem active={page === "giveaways"} onClick={() => gotoPage("giveaways")} label="Giveaways" icon={<IconGift />} />
-            <NavItem active={page === "massgift"} onClick={() => gotoPage("massgift")} label="Mass gift" icon={<IconGift />} />
-            <NavItem active={page === "polls"} onClick={() => gotoPage("polls")} label="Polls" icon={<IconPoll />} />
-            <NavItem active={page === "announcements"} onClick={() => gotoPage("announcements")} label="Announcements" icon={<IconMegaphone />} />
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">Diagnostics</span>
-            <NavItem active={page === "errors"} onClick={() => gotoPage("errors")} label="Error log" icon={<IconAlert />} />
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">Tools</span>
-            <NavItem active={page === "discord"} onClick={() => gotoPage("discord")} label="Discord" icon={<IconChat />} />
-            <NavItem active={page === "broadcast"} onClick={() => gotoPage("broadcast")} label="Broadcast" icon={<IconBroadcast />} />
-            <NavItem active={page === "map"} onClick={() => gotoPage("map")} label="Map editor" icon={<IconMap />} />
-          </div>
+          {NAV_GROUPS.map((group) => (
+            <div className="admin-nav-group" key={group.label}>
+              <span className="admin-nav-heading">{group.label}</span>
+              {group.items.map((item) => (
+                <NavItem
+                  key={item.page}
+                  active={page === item.page || (item.covers?.includes(page) ?? false)}
+                  onClick={() => gotoPage(item.page)}
+                  label={item.label}
+                  icon={item.icon}
+                />
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="admin-foot">
           <span className="admin-me" title={me?.username}>
@@ -366,18 +370,21 @@ export function App() {
         {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
         {page === "chat" && <ChatModerationPage />}
-        {/* One component, two tabs, two hash routes. */}
-        {(page === "bugs" || page === "audit") && (
-          <ReportsPage tab={page === "audit" ? "audit" : "bugs"} initialQuery={navParams.query} />
+        {/* Three combined pages. Each folded-in page keeps its own hash
+            route and opens on its own tab, so nothing that used to be
+            linkable stopped being linkable. */}
+        {(page === "bugs" || page === "audit" || page === "errors") && (
+          <ReportsPage tab={page} initialQuery={navParams.query} />
         )}
-        {page === "errors" && <ErrorLogsPage />}
+        {(page === "giveaways" || page === "massgift") && (
+          <RewardsPage tab={page} />
+        )}
+        {(page === "announcements" || page === "polls") && (
+          <BroadcastsPage tab={page} />
+        )}
         {page === "tournaments" && <TournamentsPage />}
-        {page === "announcements" && <AnnouncementsPage />}
         {page === "liveops" && <LiveOpsPage />}
-        {page === "giveaways" && <GiveawaysPage />}
         {page === "discord" && <DiscordPage />}
-        {page === "massgift" && <MassGiftPage />}
-        {page === "polls" && <PollsPage />}
         {page === "broadcast" && <BroadcastPage />}
         </main>
       </div>

@@ -493,26 +493,139 @@ function LiveChat(p: SharedProps) {
         <KeyHint />
       </div>
 
-      <ul className="chat-list card" ref={listRef} onScroll={onScroll}>
-        {visible.length === 0 && (
-          <li className="chat-empty">
-            {filter || p.author ? "No messages here match that filter." : "No messages yet in this channel."}
-          </li>
-        )}
-        {visible.map((m, i) => (
-          <MessageRow
-            key={m.id} m={m} index={i}
-            selected={p.selected.has(m.id)}
-            isCursor={p.cursor === i}
-            onToggle={p.toggleOne}
-            onFocus={() => p.setCursor(i)}
-            onFilterAuthor={() => p.setAuthor(m.user.username)}
-            onDelete={() => void p.deleteIds([m.id], "")}
-            showChannel={false}
-          />
-        ))}
-      </ul>
+      <div className="chat-panel card">
+        <ul className="chat-list" ref={listRef} onScroll={onScroll}>
+          {visible.length === 0 && (
+            <li className="chat-empty">
+              {filter || p.author ? "No messages here match that filter." : "No messages yet in this channel."}
+            </li>
+          )}
+          {visible.map((m, i) => (
+            <MessageRow
+              key={m.id} m={m} index={i}
+              selected={p.selected.has(m.id)}
+              isCursor={p.cursor === i}
+              onToggle={p.toggleOne}
+              onFocus={() => p.setCursor(i)}
+              onFilterAuthor={() => p.setAuthor(m.user.username)}
+              onDelete={() => void p.deleteIds([m.id], "")}
+              showChannel={false}
+            />
+          ))}
+        </ul>
+        <Composer channelId={activeChannel} connected={connStatus === "live"} />
+      </div>
     </>
+  );
+}
+
+/**
+ * Post into the channel you are watching.
+ *
+ * ── WHY IT WAS MISSING AND WHY IT MATTERS ───────────────────────────
+ * Moderation was read-and-delete only. Answering a player's question, telling
+ * a room to knock it off, or warning before removing something meant opening
+ * the game in another tab and finding the channel again — so in practice the
+ * only moderation action ever taken from here was deletion. A warning is
+ * usually the better tool and it was the harder one to reach.
+ *
+ * ── TWO KINDS, DELIBERATELY DISTINCT ────────────────────────────────
+ * "Message" posts as the signed-in admin's own account, in the channel on
+ * screen — an ordinary chat message that happens to carry an ADMIN badge.
+ * "Announcement" posts a system card to Global via the admin API, which is
+ * a different object with a different weight and reach.
+ *
+ * They are a visible toggle rather than a heuristic, because sending one when
+ * you meant the other is not recoverable: an announcement goes to everybody
+ * on the server, and it is not something to discover after pressing Enter.
+ */
+function Composer({ channelId, connected }: { channelId: string; connected: boolean }) {
+  const [text, setText] = useState("");
+  const [asAnnouncement, setAsAnnouncement] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // An announcement always lands in Global regardless of the channel being
+  // watched — that is the endpoint's behaviour, and the composer should say
+  // so rather than let an operator assume it posts where they are looking.
+  const announceElsewhere = asAnnouncement && channelId !== "global";
+
+  const send = async () => {
+    const content = text.trim();
+    if (!content || sending) return;
+    setSending(true);
+    setErr(null);
+    try {
+      if (asAnnouncement) {
+        await api.announce(content);
+      } else {
+        // The dashboard socket is a fully authenticated socket for this
+        // admin, so chat:send is the same path a player's own client uses —
+        // no second write path to keep in step with the rules (rate limit,
+        // sanitising, channel access) the server already enforces there.
+        const ack = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+          getSocket().emit("chat:send", { channelId, content }, resolve);
+          // A socket with no server on the other end never calls back, and a
+          // composer that hangs forever with no message is worse than one
+          // that says it failed.
+          setTimeout(() => resolve({ ok: false, error: "timed out" }), 8000);
+        });
+        if (!ack?.ok) throw new Error(ack?.error ?? "send failed");
+      }
+      setText("");
+      // The message arrives back over chat:message like everyone else's, so
+      // there is nothing to insert locally — and nothing to de-dupe.
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="chat-composer">
+      {err && <div className="chat-composer__err">{err}</div>}
+      <div className="chat-composer__row">
+        <div className="seg-toggle">
+          <button className={`seg-tab ${!asAnnouncement ? "active" : ""}`}
+                  onClick={() => setAsAnnouncement(false)}
+                  title="Post as yourself, in this channel">Message</button>
+          <button className={`seg-tab ${asAnnouncement ? "active" : ""}`}
+                  onClick={() => setAsAnnouncement(true)}
+                  title="Post a system announcement card to Global">Announce</button>
+        </div>
+        <input
+          className="search-input chat-composer__input"
+          value={text}
+          maxLength={500}
+          placeholder={asAnnouncement
+            ? "Announcement to every player in Global…"
+            : `Message #${prettyChannel(channelId)} as yourself…`}
+          onChange={(e) => { setText(e.target.value); setErr(null); }}
+          onKeyDown={(e) => {
+            // Enter sends. Escape is the page's "clear selection" shortcut,
+            // but while typing it should get you out of the box first.
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+            if (e.key === "Escape") { e.stopPropagation(); (e.target as HTMLInputElement).blur(); }
+          }}
+          disabled={!connected && !asAnnouncement}
+        />
+        <button className={asAnnouncement ? "btn-warn btn-small" : "btn-primary btn-small"}
+                onClick={() => void send()}
+                disabled={!text.trim() || sending || (!connected && !asAnnouncement)}>
+          {sending ? "Sending…" : asAnnouncement ? "Announce" : "Send"}
+        </button>
+      </div>
+      <div className="chat-composer__hint dim small">
+        {!connected && !asAnnouncement
+          ? "Not connected — reconnect before sending."
+          : announceElsewhere
+            ? <>Announcements always post to <strong>Global</strong>, not #{prettyChannel(channelId)}.</>
+            : asAnnouncement
+              ? "Posts a system card visible to every player."
+              : <>Posts as you, with an ADMIN badge. {text.length}/500</>}
+      </div>
+    </div>
   );
 }
 

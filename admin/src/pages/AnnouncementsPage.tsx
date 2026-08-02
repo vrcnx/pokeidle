@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { confirm, notify } from "../components/Confirm";
 import { api, type ChatMessage, type AdminAnnouncement, type AdminAnnouncementRow, type AnnouncementType } from "../api";
+import { SectionHead } from "../components/Section";
 
 // Two distinct tools live here, because they are genuinely different things:
 //
@@ -39,11 +40,11 @@ function rowStatus(r: AdminAnnouncementRow, live: AdminAnnouncement | null): str
 
 export function AnnouncementsPage() {
   return (
-    <div className="page announcements-page">
-      <header className="page-head">
-        <h1>Announcements</h1>
-        <p className="dim">Two tools: a persistent banner pinned to every player's chat header, and a one-off broadcast into global chat.</p>
-      </header>
+    <div className="announcements-page">
+      <SectionHead
+        title="Announcements"
+        blurb="A persistent banner pinned to every player's chat header, and a one-off broadcast into global chat. The banner is for anything a player still needs to see after the chat moves on."
+      />
       <BannerManager />
       <ChatBroadcast />
     </div>
