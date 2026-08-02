@@ -37,7 +37,9 @@ import "./hub.css";
 // for whether it manages its own scrolling (chat does; a settings form
 // does not).
 
-export type HubSection = "pvp" | "rewards" | "social" | "settings";
+export type HubSection =
+  | "map" | "mart" | "bag" | "pc" | "dex"
+  | "pvp" | "rewards" | "social" | "settings";
 
 export interface HubSectionContent {
   /**
@@ -64,19 +66,25 @@ interface SectionDef {
   id: HubSection;
   icon: string;
   label: string;
-  group: "play" | "account";
+  group: "world" | "play" | "account";
 }
 
 // Order is the priority order a player cares about, not alphabetical:
 // the thing you do, then the thing you get, then the people, then the knobs.
 const SECTIONS: SectionDef[] = [
+  { id: "map",      icon: "▣", label: "Map",      group: "world" },
+  { id: "mart",     icon: "⛁", label: "Mart",     group: "world" },
+  { id: "bag",      icon: "⛃", label: "Bag",      group: "world" },
+  { id: "pc",       icon: "▤", label: "PC",       group: "world" },
+  { id: "dex",      icon: "▥", label: "Pokédex", group: "world" },
   { id: "pvp",      icon: "⚔", label: "Battle",   group: "play" },
   { id: "rewards",  icon: "✦", label: "Rewards",  group: "play" },
-  { id: "social",   icon: "💬", label: "Social",   group: "account" },
+  { id: "social",   icon: "✉", label: "Social",   group: "account" },
   { id: "settings", icon: "⚙", label: "Settings", group: "account" },
 ];
 
 const GROUPS: Array<{ id: SectionDef["group"]; label: string }> = [
+  { id: "world",   label: "Go" },
   { id: "play",    label: "Play" },
   { id: "account", label: "You" },
 ];
@@ -192,7 +200,10 @@ export function pickLanding(
 ): HubSection {
   const order: HubSection[] = ["rewards", "social", "pvp"];
   for (const id of order) if ((badges[id] ?? 0) > 0 && !disabled?.[id]) return id;
-  if (!disabled?.pvp) return "pvp";
+  // The map, not Battle. Once this dialog is the whole game menu the neutral
+  // home is where you GO, and going somewhere is what a player opens a menu
+  // to do far more often than starting a ranked match.
+  if (!disabled?.map) return "map";
   return SECTIONS.find((s) => !disabled?.[s.id])?.id ?? "settings";
 }
 

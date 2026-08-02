@@ -3,6 +3,8 @@ import { RewardsBody, RewardsHeaderRight } from "./GiveawayModal";
 import { SocialPane } from "./SocialPanel";
 import { PvpHubPane, PvpHeaderRight } from "./PvpHubModal";
 import { SettingsPane } from "./GlobalDock";
+import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
+import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
 import { useGame } from "../state/GameContext";
 import { useAuth } from "../auth/AuthContext";
@@ -23,6 +25,17 @@ import { useT } from "../i18n/useT";
 // one would put three subsystems on the wire so somebody could change the
 // music volume.
 const SECTIONS: Record<HubSection, HubSectionContent> = {
+  // The five that used to be a tab strip pinned under the battle scene.
+  // They were always the same five destinations the hub is for — they just
+  // had their own navigation, in their own corner, competing with it.
+  // `fill` on all of them: each already manages its own scrolling region
+  // (a route list, a box grid, a dex), and an outer scroll on top of an
+  // inner one is how the PC ended up with two scrollbars.
+  map:  { Body: RouteCardList, fill: true },
+  mart: { Body: MartTab, fill: true },
+  bag:  { Body: BagTab, fill: true },
+  pc:   { Body: PCTab, fill: true },
+  dex:  { Body: DexTab, fill: true },
   pvp: {
     Body: PvpHubPane,
     HeaderRight: PvpHeaderRight,

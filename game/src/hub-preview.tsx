@@ -209,7 +209,14 @@ function Harness() {
   const [closed, setClosed] = useState(false);
   const [entering, setEntering] = useState<string | null>(null);
 
+  const filler = (label: string) => ({ Body: () => <Filler label={label} rows={10} /> });
   const sections: Record<HubSection, HubSectionContent> = {
+    // The five that came in from the tab strip. Stand-ins here: each real
+    // pane needs GameContext, and what the harness is checking is that the
+    // FRAME holds nine sections across three groups without the rail
+    // overflowing.
+    map: filler("Routes"), mart: filler("Mart"), bag: filler("Bag"),
+    pc: filler("Boxes"), dex: filler("Pokedex"),
     pvp: c.builder ? {
       Body: () => (
         <div className="pvp-hub-pane pvp-hub-pane--editing">

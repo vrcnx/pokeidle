@@ -9,14 +9,20 @@
 // The rule, in priority order: something free waiting, then someone waiting
 // to hear from you, then the neutral home. Never Settings — nobody opens a
 // hub hoping for the audio sliders.
+//
+// The neutral home is the MAP, not Battle. It was Battle when the hub held
+// four sections and all of them were things you do occasionally. Now that
+// the map, mart, bag, PC and Pokedex live here too, the hub IS the game's
+// menu — and going somewhere is what a player opens a menu to do far more
+// often than starting a ranked match.
 
 import { describe, expect, it } from "vitest";
 import { pickLanding } from "../src/components/HubModal";
 
 describe("pickLanding", () => {
-  it("goes to Battle when nothing is waiting", () => {
-    expect(pickLanding({})).toBe("pvp");
-    expect(pickLanding({ rewards: 0, social: 0 })).toBe("pvp");
+  it("goes to the map when nothing is waiting", () => {
+    expect(pickLanding({})).toBe("map");
+    expect(pickLanding({ rewards: 0, social: 0 })).toBe("map");
   });
 
   it("prefers a reward over everything else", () => {
@@ -40,7 +46,7 @@ describe("pickLanding", () => {
     // use — and that the rail is greying out behind them — is worse than
     // landing them anywhere else.
     it("skips the neutral home when it is unavailable", () => {
-      expect(pickLanding({}, { pvp: "in a battle" })).not.toBe("pvp");
+      expect(pickLanding({}, { map: "unavailable" })).not.toBe("map");
     });
 
     it("skips a badged section that is unavailable", () => {
@@ -50,7 +56,7 @@ describe("pickLanding", () => {
     it("still finds somewhere when everything but Settings is out", () => {
       const at = pickLanding(
         { rewards: 1, social: 1 },
-        { pvp: "x", rewards: "x", social: "x" },
+        { map: "x", mart: "x", bag: "x", pc: "x", dex: "x", pvp: "x", rewards: "x", social: "x" },
       );
       expect(at).toBe("settings");
     });

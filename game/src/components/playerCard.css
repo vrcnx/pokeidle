@@ -1,0 +1,148 @@
+/* =====================================================================
+   The player card
+   =====================================================================
+   What the bottom of the centre column became when the Map/Mart/Bag/PC/
+   Dex tab strip moved into the hub.
+
+   Those five were always destinations. Having them as a strip meant the
+   game had two answers to "where do I go to do a thing", and which one
+   was right depended on the thing — the strip for a route, the hub for a
+   giveaway, and no rule a player could learn. They are hub sections now.
+
+   This corner had to earn the space back, so it says something no other
+   part of the screen does: your lead Pokémon, your badges, and how much
+   of the dex is actually filled.
+   ===================================================================== */
+.player-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius, 8px);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+/* THE WHOLE SURFACE OPENS THE HUB.
+   A single "Menu" button in a 300px corner is a small target with a lot
+   of nothing around it. Making the card the target means the hit area is
+   the corner rather than a pill inside it. */
+.player-card-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 12px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.player-card-main:hover { background: var(--panel-2); }
+.player-card-main:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: -2px; }
+
+.player-card-lead {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.player-card-lead-empty { font-size: 20px; color: var(--text-dim); }
+
+.player-card-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.player-card-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-card-meta,
+.player-card-progress {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.player-card-meta strong,
+.player-card-progress strong {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.player-card-money { color: var(--gold); font-variant-numeric: tabular-nums; }
+
+.player-card-open { flex: 0 0 auto; font-size: 15px; color: var(--text-dim); line-height: 1; }
+.player-card-main:hover .player-card-open { color: var(--text-muted); }
+
+/* ── The five shortcuts ────────────────────────────────────────────
+   The strip's real virtue was that Map and Bag were ONE click away, and
+   losing that to tidiness would be a bad trade. They are still one
+   click — they just land in the hub instead of a panel with its own
+   navigation and its own rules.
+
+   Deliberately smaller and quieter than the strip was. They are a way
+   back to somewhere, not the primary furniture of the screen. */
+.player-card-links {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 0 6px 6px;
+}
+.player-card-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 40px;
+  padding: 4px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r);
+  background: none;
+  color: var(--ctl-fg);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.player-card-link:hover:not(.is-active) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.player-card-link:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+/* Selected is the same solid fill as every other control in the game, so
+   the corner tells you which hub section is open without inventing a
+   sixth way of saying "you are here". */
+.player-card-link.is-active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+}
+.player-card-link-icon { font-size: 13px; line-height: 1; }
+.player-card-link-label {
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .player-card-link { min-height: 44px; }
+  .player-card-main { padding: 12px; }
+}
+/* Very narrow columns: the labels are the first thing to go, not the
+   targets. Five icons at 44px still beats four labels and a scrollbar. */
+@media (max-width: 340px) {
+  .player-card-link-label { display: none; }
+}

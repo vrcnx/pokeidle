@@ -24,7 +24,7 @@ import {
 } from "../utils/evolution";
 import { useDragAndDrop } from "../hooks/useDrag";
 import { MetaDock } from "./GlobalDock";
-import { BottomTabs } from "./BottomTabs";
+import { PlayerCard } from "./PlayerCard";
 import { InventoryRibbon } from "./InventoryRibbon";
 import { PvpRail } from "./PvpArena";
 import { useIsPvpBattle } from "../state/pvp";
@@ -146,7 +146,10 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
     <div className="party-column control-column">
       {/* Wide: this rail becomes navigation + inventory — the tabs lead, and
           the dock actions move to the left rail under the trainer card. */}
-      {wide ? <BottomTabs /> : <MetaDock />}
+      {/* Wide layout put the five-tab strip here; it is hub sections now, so
+          this corner gets the player card for the same reason the centre
+          column's does. See PlayerCard.tsx. */}
+      {wide ? <PlayerCard /> : <MetaDock />}
       <section className="ctx-section party-card">
         {/* Heal moved here from the moves toolbar at the bottom of the centre
             column (br_27cfd612ddd30485fc). It is a PARTY action — it restores

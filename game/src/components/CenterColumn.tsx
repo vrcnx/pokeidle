@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BattleScene } from "./BattleScene";
 import { MovesPanel, MovesToolbar } from "./MovesPanel";
-import { BottomTabs } from "./BottomTabs";
+import { PlayerCard } from "./PlayerCard";
 import { ContextPanel } from "./ContextPanel";
 import { PvpCenter } from "./PvpArena";
 import { useIsPvpBattle } from "../state/pvp";
@@ -46,7 +46,9 @@ export function CenterColumn({ wide = false }: { wide?: boolean }) {
       {/* Wide layout keeps the centre purely about the fight: what you're
           battling sits under your moves, and the Map/Mart/Bag/PC/Dex tabs
           move to the right rail (see GameShell). */}
-      {wide ? <ContextPanel /> : <BottomTabs />}
+      {/* The five-tab strip that used to live here is now hub sections; the
+          corner is a player card with one way in. See PlayerCard.tsx. */}
+      {wide ? <ContextPanel /> : <PlayerCard />}
     </div>
   );
 }
