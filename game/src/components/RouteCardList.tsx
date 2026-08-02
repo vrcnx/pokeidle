@@ -331,30 +331,44 @@ function RaidTierList() {
           .slice(0, 8)
           .map(([k]) => k);
         return (
-          <li key={tier.id} className={`raid-tier${unlocked ? "" : " is-locked"}`}>
+          <li
+            key={tier.id}
+            className={`raid-tier${unlocked ? "" : " is-locked"}${ready ? " is-ready" : ""}`}
+            // The tier's colour lives in CSS keyed on this, not in the data.
+            // raidLegendaries.ts describes what a tier IS — its pool, its
+            // level, what unlocks it — and a hex code is not that.
+            data-tier={tier.id}
+          >
             <div className="raid-tier-main">
               <div className="raid-tier-text">
                 <strong className="raid-tier-name">{tier.name}</strong>
                 <span className="raid-tier-blurb">{tier.blurb}</span>
               </div>
               <span className="raid-tier-lv">
-                {t("Lv")} {tier.startLevel}
+                <span className="raid-tier-lv-k">{t("Lv")}</span>
+                <span className="raid-tier-lv-n">{tier.startLevel}</span>
               </span>
             </div>
 
             {/* Who you might actually meet. The tier names alone said
-                nothing about what was in them. */}
+                nothing about what was in them — "Birds & Beasts" is not a
+                roster. On its own plate, because a row of sprites floating
+                on the card background read as clip-art rather than as the
+                thing you are about to fight. */}
             <div className="raid-tier-lineup" aria-hidden>
-              {lineup.map((k) => (
-                <PokemonSprite
-                  key={k}
-                  speciesKey={k}
-                  alt=""
-                  width={34}
-                  height={34}
-                  style={{ imageRendering: "pixelated" }}
-                />
-              ))}
+              {tier.rarityTag && <span className="raid-tier-rarity">{tier.rarityTag}</span>}
+              <div className="raid-tier-roster">
+                {lineup.map((k) => (
+                  <PokemonSprite
+                    key={k}
+                    speciesKey={k}
+                    alt=""
+                    width={38}
+                    height={38}
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="raid-tier-foot">
@@ -371,7 +385,10 @@ function RaidTierList() {
                   {t("Ready in")} {Math.ceil(cd / 1000)}s
                 </span>
               ) : (
-                <span className="raid-tier-why raid-tier-ready">{t("Ready")}</span>
+                <span className="raid-tier-why raid-tier-ready">
+                  <span className="raid-tier-dot" aria-hidden />
+                  {t("Ready")}
+                </span>
               )}
               <button
                 type="button"

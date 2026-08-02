@@ -1,13 +1,30 @@
 /* =====================================================================
    THE RAIDS TAB
 
-   The Map's Raids tab used to hold a single travel card for Raid Island.
-   A tab named "Raids" whose contents were a route, with the actual choice
-   — which tier you want to fight — on the far side of it.
+   The Map's Raids tab used to hold a single travel card for Raid Island —
+   a tab named "Raids" whose contents were a route, with the actual choice
+   on the far side of it.
+
+   These are the only fights in the game you go looking for. Everything
+   else happens because you walked somewhere; a raid is a thing you pick,
+   at a difficulty you pick, against a roster you can read first. The cards
+   are built to be read that way — six posters, not six list rows.
+
+   ── THE COLOUR ──
+   Each tier has its own accent, keyed off `data-tier`. That is
+   information, not decoration: six cards whose only difference is the
+   words in them all look the same at a glance, and the tier you want is
+   the one thing a player is scanning for. It is a HUE per tier and
+   nothing else — same card, same weights, same spacing — so the set still
+   reads as one family.
+
+   The colour lives here rather than in raidLegendaries.ts, which describes
+   what a tier IS: its pool, its level, what unlocks it. A hex code is not
+   that.
 
    Checked against app.css before naming: `.raid-tier-card`,
    `.raid-tier-picker`, `.raid-tier-row` and `.raid-tier-select` exist and
-   belong to the arrival panel; bare `.raid-tier` and everything else below
+   belong to the arrival panel. Bare `.raid-tier` and everything else below
    matched nothing.
    ===================================================================== */
 .raid-tier-list {
@@ -15,64 +32,149 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
 }
 
 .raid-tier {
+  /* Overridden per tier below. Amber is the game's own accent, so an
+     unrecognised tier id degrades to the house colour rather than to
+     nothing. */
+  --tier: #fbbf24;
+  --tier-dim: rgba(251, 191, 36, 0.14);
+
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 13px 14px;
-  border-radius: var(--card-radius, 8px);
-  background: var(--panel-2);
+  gap: 11px;
+  padding: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  /* The tier's colour, bled in from the top-left and gone by halfway. A
+     flat tint across the whole card would fight the sprites; a gradient
+     that fades out leaves the roster on neutral ground. */
+  background:
+    linear-gradient(150deg, var(--tier-dim) 0%, transparent 55%),
+    var(--panel-2);
   box-shadow: inset 0 0 0 1px var(--border);
 }
-/* Locked tiers stay on the list rather than being hidden. What is coming
-   later is half the reason to keep playing, and a list that silently grows
-   never tells you that. */
-.raid-tier.is-locked { opacity: 0.5; }
+/* A hairline of the tier's colour down the leading edge. The one element
+   that is fully saturated, which is why it is 3px wide. */
+.raid-tier::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--tier);
+}
+
+.raid-tier[data-tier="johtoNursery"] { --tier: #86efac; --tier-dim: rgba(134, 239, 172, 0.13); }
+.raid-tier[data-tier="birdsBeasts"]  { --tier: #fbbf24; --tier-dim: rgba(251, 191, 36, 0.13); }
+.raid-tier[data-tier="titans"]       { --tier: #d97706; --tier-dim: rgba(217, 119, 6, 0.15); }
+.raid-tier[data-tier="guardians"]    { --tier: #2dd4bf; --tier-dim: rgba(45, 212, 191, 0.12); }
+.raid-tier[data-tier="coverLegends"] { --tier: #a78bfa; --tier-dim: rgba(167, 139, 250, 0.14); }
+.raid-tier[data-tier="mythical"]     { --tier: #f472b6; --tier-dim: rgba(244, 114, 182, 0.14); }
+
+/* Locked tiers stay on the list — what is coming later is half the reason
+   to keep playing, and a list that silently grows never tells you that.
+   They lose the colour rather than the card: greyscale says "not yet"
+   without making the text unreadable. */
+.raid-tier.is-locked { filter: grayscale(0.9); opacity: 0.55; }
 
 .raid-tier-main {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
-.raid-tier-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.raid-tier-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .raid-tier-name {
   font-family: var(--font-display);
-  font-size: 13.5px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 .raid-tier-blurb {
   font-size: 11.5px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-dim);
 }
+
+/* The level, as the number it is. Two elements so "Lv" can be small and
+   quiet while the figure carries the weight — it is the single best
+   proxy for how hard this is going to be. */
 .raid-tier-lv {
   flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.3);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.34);
   box-shadow: inset 0 0 0 1px var(--border);
+}
+.raid-tier-lv-k {
   font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.raid-tier-lv-n {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  white-space: nowrap;
+  line-height: 1;
+  color: var(--tier);
 }
 
-/* Who you might actually meet. The tier names alone said nothing about
-   what was in them, and "Birds & Beasts" is not a roster. */
+/* ── The roster ────────────────────────────────────────────────────
+   On its own plate. A row of sprites floating on the card background read
+   as clip-art; sunk into a darker well with the tier's glow behind them,
+   it reads as a line-up. */
 .raid-tier-lineup {
+  position: relative;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background:
+    radial-gradient(120% 130% at 50% 120%, var(--tier-dim) 0%, transparent 70%),
+    rgba(0, 0, 0, 0.26);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.raid-tier-roster {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 2px;
-  min-height: 34px;
+  min-height: 38px;
 }
-.raid-tier-lineup img { display: block; }
+.raid-tier-roster img {
+  display: block;
+  /* The sprites are the only colour that is not the tier's, so they get a
+     shadow to sit them on the plate rather than float above it. */
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+
+/* Mythical / Ultra Beast / Box Legend. Top-right of the plate, in the
+   tier's own colour — it is a property of the pool, so it belongs with the
+   pool rather than up in the title row. */
+.raid-tier-rarity {
+  position: absolute;
+  top: -7px;
+  right: 9px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--tier);
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tier);
+}
 
 .raid-tier-foot {
   display: flex;
@@ -81,28 +183,56 @@
   gap: 10px;
 }
 /* Why you cannot go, or that you can. Always present, so the button never
-   sits disabled with no explanation beside it. */
+   sits disabled with nothing beside it explaining why. */
 .raid-tier-why {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
-.raid-tier-ready { color: #86efac; font-weight: 600; }
+.raid-tier-ready { color: var(--tier); font-weight: 700; }
+/* A live dot, because "Ready" is the one state on this card that arrives on
+   its own while you are looking at it. */
+.raid-tier-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tier);
+  box-shadow: 0 0 0 0 var(--tier);
+  animation: raid-pulse 2s ease-out infinite;
+}
+@keyframes raid-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35); }
+  70%  { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
 
 .raid-tier-go {
   flex: 0 0 auto;
-  min-height: var(--ctl-h-sm, 26px);
-  padding: 0 16px;
+  min-height: var(--ctl-h, 32px);
+  padding: 0 20px;
   border: 0;
   border-radius: var(--ctl-r, 6px);
-  background: var(--ctl-on-bg);
-  color: var(--ctl-on-fg);
+  /* The one button on the card, in the tier's colour. Dark text on it: the
+     accents are all light enough that white would be the unreadable
+     choice on four of the six. */
+  background: var(--tier);
+  color: #0a0a0b;
   font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: filter 120ms, opacity 120ms;
+  transition: filter 120ms, transform 120ms, opacity 120ms;
 }
-.raid-tier-go:hover:not(:disabled) { filter: brightness(1.18); }
+.raid-tier-go:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+.raid-tier-go:active:not(:disabled) { transform: none; }
 .raid-tier-go:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
-.raid-tier-go:disabled { opacity: 0.35; cursor: not-allowed; }
+.raid-tier-go:disabled { opacity: 0.3; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .raid-tier-dot { animation: none; }
+  .raid-tier-go:hover:not(:disabled) { transform: none; }
+}
