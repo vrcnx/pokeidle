@@ -33,6 +33,22 @@ import { SectionHead } from "../components/Section";
 type Mode = "live" | "search";
 type ChannelFilter = "all" | "global" | "trade" | "area" | "dm" | string;
 
+// ── LIVE CHANNELS ───────────────────────────────────────────────────
+// The game client joins exactly two rooms a player can talk in: `global`
+// (MiniChat + SocialPanel) and `dm:<a>:<b>` (SocialPanel), plus `trade`,
+// which every socket is auto-joined to and which the Discord bot writes the
+// trade noticeboard into.
+//
+// `area:*` is NOT one of them any more. Nothing in game/src joins or posts to
+// an area room, so the moderation controls for it were controls that could
+// not do anything — an "Area" tab permanently disabled, and a search filter
+// whose only possible result was rows from before the feature was removed.
+// Both are gone.
+//
+// The channel LABELS below still understand `area:` on purpose: those old
+// messages are still in the table, and a row that renders as "other" because
+// nobody updated a switch statement is a worse outcome than a dead tab.
+
 function prettyChannel(id: string): string {
   if (id === "global") return "Global";
   if (id === "trade") return "Trade";
@@ -266,17 +282,31 @@ export function ChatModerationPage() {
                   className={`seg-tab ${mode === "search" ? "active" : ""}`}
                   onClick={() => setMode("search")}>Search</button>
         </div>
-        {/* Deliberately a quiet ghost button, not a red one sitting beside
-            Refresh. It is the largest destructive action in the dashboard and
-            it should take a moment of deliberate intent to reach. */}
-        <button className="btn-ghost btn-small chat-clear-all" onClick={clearPublic} disabled={busy}>
-          Clear<span className="chat-clear-all__long"> public chat</span>…
-        </button>
       </PageActions>
 
       {err && <div className="page-err">{err}</div>}
 
       {mode === "live" ? <LiveChat {...shared} /> : <ChatSearch {...shared} />}
+
+      {/* ── Clear public chat ──────────────────────────────────────
+          Below the feed it acts on, not in the topbar beside the view
+          switcher. It is the largest destructive action in the dashboard and
+          the header is the one place on every page that is always in reach —
+          the last place to put something you must not press by accident. Here
+          it reads as "everything above, gone", which is exactly what it does,
+          and getting to it means having scrolled past the thing you are about
+          to destroy. */}
+      <div className="chat-danger">
+        <span className="dim small">
+          Deletes every message in Global, Trade and every area channel — from the
+          database and from every connected player's screen. DMs are unaffected.
+          Selecting the offending messages and deleting those is almost always the
+          better tool.
+        </span>
+        <button className="btn-ghost btn-small chat-clear-all" onClick={clearPublic} disabled={busy}>
+          Clear public chat…
+        </button>
+      </div>
 
       {/* One bar, both modes. It was absent from both before. */}
       {selected.size > 0 && (
@@ -332,7 +362,6 @@ interface SharedProps {
 // re-emits chat:join. History is fetched once per channel and cached; live
 // messages append on top, de-duped by id the same way MiniChat does.
 function LiveChat(p: SharedProps) {
-  const [areaOptions, setAreaOptions] = useState<{ id: string; count: number }[]>([]);
   const [byChannel, setByChannel] = useState<Record<string, ChatMessage[]>>({});
   const [connStatus, setConnStatus] = useState<"connecting" | "live" | "disconnected">("connecting");
   const [filter, setFilter] = useState("");
@@ -341,12 +370,15 @@ function LiveChat(p: SharedProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const nearBottomRef = useRef(true);
 
-  // Live mode needs a concrete channel, not a category. "all"/"area"/"dm"
-  // are search filters; carrying one in from search would ask the socket to
-  // join a room that does not exist.
-  const activeChannel = p.channel === "all" || p.channel === "area" || p.channel === "dm"
-    ? "global"
-    : p.channel;
+  // Live mode needs a concrete channel, not a category. "all"/"dm" are
+  // search filters; carrying one in from search would ask the socket to join
+  // a room that does not exist. `area:*` is here for the same reason it is
+  // in prettyChannel: historical rows still carry those ids, and arriving
+  // from a search that touched one must not try to join a dead room.
+  const activeChannel =
+    p.channel === "all" || p.channel === "dm" || p.channel === "area" || p.channel.startsWith("area:")
+      ? "global"
+      : p.channel;
 
   useEffect(() => {
     const sock = getSocket();
@@ -384,12 +416,9 @@ function LiveChat(p: SharedProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (activeChannel.startsWith("area:")) {
-      getSocket().emit("chat:join", { channelId: activeChannel });
-    }
-  }, [activeChannel]);
-
+  // No explicit join: the socket is auto-joined to global and trade on
+  // connect, which is now every channel a player can reach. The area-room
+  // join this used to do had nothing to join — see the LIVE CHANNELS note.
   useEffect(() => {
     if (historyFetchedRef.current.has(activeChannel)) return;
     historyFetchedRef.current.add(activeChannel);
@@ -402,9 +431,6 @@ function LiveChat(p: SharedProps) {
             .slice(-LIVE_CACHE_CAP);
           return { ...prev, [activeChannel]: merged };
         });
-        if (activeChannel === "global") {
-          setAreaOptions(d.channels.filter((c) => c.id.startsWith("area:")));
-        }
       })
       .catch((e) => setErr(e.message));
   }, [activeChannel]);
@@ -465,20 +491,7 @@ function LiveChat(p: SharedProps) {
                   onClick={() => p.setChannel("global")}>Global</button>
           <button className={`seg-tab ${activeChannel === "trade" ? "active" : ""}`}
                   onClick={() => p.setChannel("trade")}>Trade</button>
-          <button className={`seg-tab ${activeChannel.startsWith("area:") ? "active" : ""}`}
-                  onClick={() => p.setChannel(activeChannel.startsWith("area:") ? activeChannel : areaOptions[0]?.id ?? "global")}
-                  disabled={areaOptions.length === 0}
-                  title={areaOptions.length === 0 ? "No area channels have recent activity yet" : undefined}>
-            Area
-          </button>
         </div>
-        {activeChannel.startsWith("area:") && areaOptions.length > 0 && (
-          <select value={activeChannel} onChange={(e) => p.setChannel(e.target.value)}>
-            {areaOptions.map((a) => (
-              <option key={a.id} value={a.id}>{prettyChannel(a.id)} ({a.count})</option>
-            ))}
-          </select>
-        )}
         <input
           className="search-input chat-filter-input"
           placeholder="Filter this channel…"
@@ -692,7 +705,13 @@ function ChatSearch(p: SharedProps) {
 
       <div className="chat-toolbar">
         <div className="seg-toggle">
-          {(["all", "global", "trade", "area", "dm"] as const).map((c) => (
+          {/* No "Area". Nothing in the game can post to an area room any
+              more — see the LIVE CHANNELS note — so it was a filter whose
+              only possible result was historical rows, and an empty one the
+              rest of the time. Old area messages still render with their
+              channel tag, and the Channels facet still lists them if any
+              exist, because that list is data rather than a guess. */}
+          {(["all", "global", "trade", "dm"] as const).map((c) => (
             <button key={c} className={`seg-tab ${channel === c ? "active" : ""}`}
                     onClick={() => p.setChannel(c)}>
               {c === "all" ? "All" : prettyChannel(c)}

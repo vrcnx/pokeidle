@@ -93,10 +93,16 @@
   padding: 10px var(--sp-4);
   border-top: 1px solid var(--line);
   background: var(--well);
+  /* Wraps rather than overflows. The card around it is overflow:hidden (so
+     the table's own scroller can round the corners), which means anything
+     that does not fit here is CLIPPED, not scrolled — at 320px that silently
+     cut the last-page button off the end of the pager. */
+  flex-wrap: wrap;
+  row-gap: var(--sp-2);
 }
 .table-foot__size { display: inline-flex; align-items: center; gap: 6px; }
 .table-foot__size select { padding: 3px 6px; font-size: 11.5px; }
-.table-foot__nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.table-foot__nav { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* The old table block. .chat-table and .snapshot-table still use it; the
    users table no longer does. */
@@ -929,6 +935,22 @@
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
+/* A tab row wider than its container scrolls ITSELF rather than pushing the
+   page sideways. .seg-tab carries flex-shrink:0 so the labels never squash to
+   unreadable slivers, which means without this a six-tab control (the
+   analytics chart series picker) simply ran off the edge of the card on a
+   phone — with the last tabs unreachable, since .admin-main clips overflow-x.
+   Applied to the primitive, not to the two pages where it was noticed. */
+.seg-tabs,
+.seg-toggle {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg-tabs::-webkit-scrollbar,
+.seg-toggle::-webkit-scrollbar { display: none; }
+.seg-tab { flex-shrink: 0; }
+
 /* A count on the tab, so the operator knows a filter is empty BEFORE
    clicking it and finding out. */
 .seg-tab__n {
@@ -999,39 +1021,11 @@
 .chart-dot { transition: r 120ms var(--ease); }
 .chart-svg:hover .chart-dot { r: 4; }
 
-.histogram {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 180px;
-  padding: 14px 0 6px;
-}
-.histogram-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; gap: 6px; }
-.histogram-bar-wrap { flex: 1; width: 100%; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
-.histogram-bar {
-  background: linear-gradient(180deg, var(--brand-hover), var(--brand));
-  border-radius: 4px 4px 0 0;
-  min-height: 2px;
-  transition: opacity 140ms var(--ease);
-}
-.histogram-col:hover .histogram-bar { opacity: 0.85; }
-.histogram-count {
-  position: absolute;
-  top: -15px;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 10px;
-  font-family: ui-monospace, monospace;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-.histogram-label {
-  font-size: 9.5px;
-  font-family: ui-monospace, monospace;
-  color: var(--text-muted);
-  letter-spacing: 0.4px;
-}
-
+/* An older, fully-overridden .histogram block lived here. Every rule in it
+   was re-declared further down (search "histogram-wrap"), and because this
+   file cascades top-to-bottom the copy was dead — but a dead copy of a
+   styling block is exactly how .tag lost its border for the whole app, so
+   it is removed rather than left to be edited by mistake. */
 /* ── User detail (full-page version) ─────────────────────────── */
 .user-detail-page { /* width from .page */ }
 
@@ -2033,10 +2027,23 @@
   box-shadow: var(--shadow-2);
 }
 
-/* Deliberately quiet. It is the largest destructive action in the dashboard
-   and it used to be a red button beside Refresh — the reachability of an
-   ordinary control with the consequences of a database wipe. */
-.chat-clear-all { color: var(--text-dim); }
+/* Sits below the feed it acts on. It was a red button beside Refresh, then
+   briefly in the topbar — both give an ordinary control's reachability to an
+   action with the consequences of a database wipe. Down here you have to have
+   scrolled past the thing you are about to destroy. */
+.chat-danger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: 10px var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--well);
+}
+.chat-danger > span { flex: 1; min-width: 220px; }
+.chat-clear-all { color: var(--text-dim); flex-shrink: 0; }
 .chat-clear-all:hover:not(:disabled) { color: var(--bad-text); background: var(--bad-soft); border-color: rgba(248, 113, 113, 0.35); }
 
 @media (max-width: 700px) {
@@ -3472,10 +3479,18 @@
 .histogram-note { margin: 0; }
 
 @media (max-width: 900px) {
-  /* Counts above every bar collide once the card is phone-width; the bars and
-     the hover title still carry the data. */
-  .histogram-count { display: none; }
-  .histogram-label { font-size: 8.5px; }
+  /* Twelve buckets do not fit a phone at a readable size.
+
+     The previous answer was to shrink the labels to 8.5px and hide the counts
+     — which is the wrong trade twice over: 8.5px is below what anyone can
+     read on a phone, and hiding the counts left a chart whose values were
+     only available by hovering, on a device with no hover.
+
+     Give each column a floor and let the row scroll. All twelve stay legible
+     and keep their numbers; you swipe instead of squint. */
+  .histogram-wrap { overflow-x: auto; scrollbar-width: thin; }
+  .histogram { min-width: 480px; }
+  .histogram-col { min-width: 34px; }
 }
 
 

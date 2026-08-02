@@ -286,7 +286,11 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
 .admin-body {
   display: grid;
-  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+  /* `auto` rather than a fixed height: on a phone the bar wraps to two rows
+     (see the MOBILE TOPBAR block) and a fixed row would clip the second. On
+     desktop the bar has an explicit min-height, so this still resolves to
+     exactly --topbar-h. */
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -463,6 +467,7 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .admin-topbar {
   display: flex;
   align-items: center;
+  min-height: var(--topbar-h);
   gap: var(--sp-3);
   /* The right gutter carries the content column's scrollbar width. The
      scrollbar belongs to .admin-main, so without this the bar's right edge
@@ -1195,8 +1200,43 @@ select {
      the actions both outrank it. */
   .topbar-note { display: none; }
 }
+/* ── MOBILE TOPBAR ──────────────────────────────────────────────────
+   Below 700px the bar wraps to two rows: identity on the first, the page's
+   own controls on the second.
+
+   One row does not fit, and every way of forcing it is worse. Squeezing the
+   title truncated it to "Analyti…" — a page label that no longer says which
+   page. Squeezing the actions turns real buttons into slivers. Hiding the
+   actions removes the thing the operator came to press. A second row costs
+   ~38px on a phone and keeps all three legible.
+
+   The actions row scrolls horizontally on its own when a page brings more
+   controls than fit, rather than pushing the document sideways. */
 @media (max-width: 700px) {
-  /* Below this the bar cannot hold page actions and the account chrome at
-     once. Actions win — they are what the operator came to press. */
+  .admin-topbar {
+    flex-wrap: wrap;
+    align-items: center;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 6px;
+  }
+  /* The title must never be the thing that shrinks. */
+  .topbar-crumb { flex-shrink: 0; }
+  .topbar-spacer { display: none; }
+  .topbar-page-actions:not(:empty) {
+    order: 10;
+    flex-basis: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* The divider only made sense when this sat inline with the title. */
+    padding-right: 0;
+    margin-right: 0;
+    border-right: 0;
+  }
+  .topbar-page-actions::-webkit-scrollbar { display: none; }
+  /* Account chrome loses to the page's own controls. */
   .topbar-env, .admin-signout { display: none; }
+  /* Push the search button hard right on the first row. */
+  .topbar-actions { margin-left: auto; }
 }
