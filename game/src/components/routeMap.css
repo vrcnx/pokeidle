@@ -1,0 +1,219 @@
+/* =====================================================================
+   THE MAP
+
+   It was a stack of full-width rows: a name on the left, a line of
+   sprites floating on the card background, a caught count and a Go
+   button pushed to the far right of 900px of empty space. Every row
+   identical — a town with nothing in it looked exactly like a route with
+   six species on it, and at that width the eye had to travel the whole
+   line to connect the name to its button.
+
+   A grid of place cards instead. Each one says what kind of place it is,
+   what lives there, how much of it you have caught, and how to go — in
+   that order, in a card you can read without moving your eyes across the
+   dialog.
+
+   ── COLOUR BY PLACE ──
+   Route, town, cave, water, raid. That is the first thing a player wants
+   from a map and the only thing the old list did not show at all. A hue
+   per type and nothing else: same card, same spacing, same weights.
+
+   Overrides live here rather than in app.css because these classes are
+   defined there for the mobile shell too, and this file is loaded after —
+   selectors are two classes deep so they win on specificity rather than
+   on load order, which is the thing that keeps biting in this codebase.
+   ===================================================================== */
+.route-card-list .route-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  align-content: start;
+  gap: 10px;
+  padding: 2px;
+}
+
+.route-card-list .route-card {
+  --place: #94a3b8;
+  --place-dim: rgba(148, 163, 184, 0.12);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, var(--place-dim) 0%, transparent 58%),
+    var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+/* The place's colour, as an edge. One saturated element per card. */
+.route-card-list .route-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--place);
+}
+
+.route-card-list .route-card[data-type="route"] { --place: #86efac; --place-dim: rgba(134, 239, 172, 0.11); }
+.route-card-list .route-card[data-type="town"]  { --place: #fbbf24; --place-dim: rgba(251, 191, 36, 0.11); }
+.route-card-list .route-card[data-type="cave"]  { --place: #a78bfa; --place-dim: rgba(167, 139, 250, 0.12); }
+.route-card-list .route-card[data-type="water"] { --place: #38bdf8; --place-dim: rgba(56, 189, 248, 0.12); }
+.route-card-list .route-card[data-type="raid"]  { --place: #f472b6; --place-dim: rgba(244, 114, 182, 0.13); }
+
+/* Where you are. A full ring rather than a tint — this is the one card in
+   the grid a player is looking FOR. */
+.route-card-list .route-card.current {
+  box-shadow: inset 0 0 0 2px var(--gold);
+  background: linear-gradient(145deg, rgba(251, 191, 36, 0.14) 0%, transparent 58%), var(--panel-2);
+}
+/* Locked places stay on the map. Half the point of a map is what you have
+   not reached yet, and a list that grows silently never shows you that. */
+.route-card-list .route-card.locked { filter: grayscale(1); opacity: 0.45; }
+
+.route-card-list .route-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.route-card-list .route-card-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--place);
+  color: var(--place);
+  font-size: 13px;
+}
+.route-card-list .route-card-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-card-list .route-card-current-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #0a0a0b;
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+/* ── What lives here ───────────────────────────────────────────────
+   On its own sunken plate with the place's colour behind it. As a bare
+   row on the card the sprites read as decoration; sunk into a well they
+   read as the reason to go. */
+.route-card-list .route-card-mons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  min-height: 40px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 140% at 50% 130%, var(--place-dim) 0%, transparent 70%),
+    rgba(0, 0, 0, 0.26);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.route-card-list .route-card-mon { display: inline-flex; }
+.route-card-list .route-card-mon img { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+.route-card-list .route-card-mon-mystery {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+}
+.route-card-list .route-card-mon-more {
+  margin-left: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* ── The foot ──────────────────────────────────────────────────────
+   Progress and the action on one line, pinned to the bottom so every
+   card in a row ends together however many species it holds. */
+.route-card-list .route-card-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* A bar, not just "5/5 Caught". The number alone made a fresh route and a
+   finished one look the same until you read both halves of it. */
+.route-card-list .route-card-progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.route-card-list .route-card-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.route-card-list .route-card-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--place);
+}
+.route-card-list .route-card-bar.is-done span { background: #86efac; }
+
+.route-card-list .route-card-go {
+  flex: 0 0 auto;
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--place);
+  color: #0a0a0b;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: filter 120ms, transform 120ms, opacity 120ms;
+}
+.route-card-list .route-card-go:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+.route-card-list .route-card-go:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.route-card-list .route-card-go:disabled { opacity: 0.4; cursor: not-allowed; }
+/* You are already here. Muted rather than removed, so the card keeps the
+   same shape as the ones either side of it. */
+.route-card-list .route-card.current .route-card-go {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-card-list .route-card-go:hover:not(:disabled) { transform: none; }
+}
