@@ -337,58 +337,6 @@ export function PvpHubPane() {
               <TierTrack rating={ratingValue} unranked={isUnranked} />
             </div>
 
-            {/* RIGHT: the team, and a way in to change it.
-                Six sprites in the corner that did nothing. Every other game
-                puts the lineup where you manage the lineup, and this screen
-                already has a team builder one button away — it just opened
-                from READY UP, mid-commitment, which is the worst moment to
-                discover you brought the wrong Pokémon. Clicking the strip
-                opens the same builder with nothing at stake. */}
-            <button
-              type="button"
-              className="pvp2-team-strip"
-              onClick={() => {
-                closePvpHub();
-                openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } });
-              }}
-              title={t("Edit your battle team")}
-            >
-              <span className="pvp2-team-label">
-                {t("TEAM")}
-                <span className="pvp2-team-edit">{t("Edit")}</span>
-              </span>
-              <span className="pvp2-team-row">
-                {Array.from({ length: 6 }).map((_, i) => {
-                  const mon = teamForStrip[i];
-                  return (
-                    <span key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
-                      {mon
-                        ? (
-                          <PokemonSprite
-                            speciesKey={mon.speciesKey}
-                            isShiny={mon.isShiny}
-                            alt=""
-                            width={28}
-                            height={28}
-                            style={{ imageRendering: "pixelated" }}
-                            title={`${mon.name} · Lv ${mon.level}`}
-                          />
-                        )
-                        : <span aria-hidden>·</span>
-                      }
-                    </span>
-                  );
-                })}
-              </span>
-              {/* Levels are capped at 50 in ranked, so a party of Lv 100s is
-                  not the advantage it looks like — and the count is the thing
-                  a player is actually checking when they glance here. */}
-              <span className="pvp2-team-note">
-                {teamForStrip.length === 0
-                  ? t("No Pokémon yet")
-                  : `${teamForStrip.length}/6 · ${t("capped at Lv 50")}`}
-              </span>
-            </button>
           </article>
         </section>
 
@@ -398,7 +346,7 @@ export function PvpHubPane() {
             is going well on the right. Stacked, these were a 900px column of
             half-empty rows with the bottom third of the pane blank. */}
         <div className="hub-split pvp2-body">
-        <section className="pvp2-cta">
+        <section className="pvp2-arena">
           <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
             {(["ranked", "casual", "tournament", "practice"] as Mode[]).map((m) => (
               <button
@@ -412,6 +360,7 @@ export function PvpHubPane() {
               </button>
             ))}
           </div>
+          <div className="pvp2-arena-core">
           <ReadyUpSlab
             inBattle={inBattle}
             inQueue={inQueue}
@@ -447,6 +396,59 @@ export function PvpHubPane() {
               </span>
             </div>
           )}
+          </div>
+          {/* RIGHT: the team, and a way in to change it.
+              Six sprites in the corner that did nothing. Every other game
+              puts the lineup where you manage the lineup, and this screen
+              already has a team builder one button away — it just opened
+              from READY UP, mid-commitment, which is the worst moment to
+              discover you brought the wrong Pokémon. Clicking the strip
+              opens the same builder with nothing at stake. */}
+          <button
+            type="button"
+            className="pvp2-team-strip"
+            onClick={() => {
+              closePvpHub();
+              openTeamBuilder({ mode: "queue", levelCap: 50, onConfirm: () => { /* user closes */ } });
+            }}
+            title={t("Edit your battle team")}
+          >
+            <span className="pvp2-team-label">
+              {t("TEAM")}
+              <span className="pvp2-team-edit">{t("Edit")}</span>
+            </span>
+            <span className="pvp2-team-row">
+              {Array.from({ length: 6 }).map((_, i) => {
+                const mon = teamForStrip[i];
+                return (
+                  <span key={i} className={`pvp2-team-slot ${mon ? "filled" : "empty"} ${mon?.isShiny ? "is-shiny" : ""}`}>
+                    {mon
+                    ? (
+                      <PokemonSprite
+                        speciesKey={mon.speciesKey}
+                        isShiny={mon.isShiny}
+                        alt=""
+                        width={28}
+                        height={28}
+                        style={{ imageRendering: "pixelated" }}
+                        title={`${mon.name} · Lv ${mon.level}`}
+                      />
+                    )
+                    : <span aria-hidden>·</span>
+                    }
+                  </span>
+                );
+              })}
+            </span>
+            {/* Levels are capped at 50 in ranked, so a party of Lv 100s is
+                not the advantage it looks like — and the count is the thing
+                a player is actually checking when they glance here. */}
+            <span className="pvp2-team-note">
+              {teamForStrip.length === 0
+                ? t("No Pokémon yet")
+                : `${teamForStrip.length}/6 · ${t("capped at Lv 50")}`}
+            </span>
+          </button>
         </section>
 
         {/* Form and standings — a column beside the CTA, not a row under it. */}
@@ -532,6 +534,32 @@ export function PvpHubPane() {
               </ul>
             )}
           </div>
+          {/* TOURNAMENTS
+              It was a collapsed strip reading "🏆 TOURNAMENTS · 0 open ▸" —
+              a disclosure triangle over an empty list, which asks a player to
+              click to discover there is nothing there. When something IS
+              running it is the biggest event in the mode and deserves to be
+              open by default; when nothing is, the honest thing is one line
+              saying what tournaments are and that none is scheduled. Either
+              way, no click to find out. */}
+          <section className="pvp-tour">
+            <header className="pvp2-panel-head">
+              <span className="pvp-tour-icon" aria-hidden>🏆</span>
+              <h4>{t("TOURNAMENTS")}</h4>
+              {openTournaments.length > 0 && (
+                <span className="pvp-tour-count">{openTournaments.length} {t("open")}</span>
+              )}
+            </header>
+            {tournaments.length === 0 ? (
+              <p className="dim small pvp2-empty">
+                {loaded
+                  ? t("No tournament scheduled. They are bracketed events with their own prizes — announced in global chat when one opens.")
+                  : t("Loading…")}
+              </p>
+            ) : (
+              <TournamentList list={tournaments} onChange={(t) => setTournaments(t)} />
+            )}
+          </section>
         </aside>
         </div>
 
@@ -575,33 +603,6 @@ export function PvpHubPane() {
             </div>
           </section>
         )}
-
-        {/* TOURNAMENTS
-            It was a collapsed strip reading "🏆 TOURNAMENTS · 0 open ▸" —
-            a disclosure triangle over an empty list, which asks a player to
-            click to discover there is nothing there. When something IS
-            running it is the biggest event in the mode and deserves to be
-            open by default; when nothing is, the honest thing is one line
-            saying what tournaments are and that none is scheduled. Either
-            way, no click to find out. */}
-        <section className="pvp-tour">
-          <header className="pvp2-panel-head">
-            <span className="pvp-tour-icon" aria-hidden>🏆</span>
-            <h4>{t("TOURNAMENTS")}</h4>
-            {openTournaments.length > 0 && (
-              <span className="pvp-tour-count">{openTournaments.length} {t("open")}</span>
-            )}
-          </header>
-          {tournaments.length === 0 ? (
-            <p className="dim small pvp2-empty">
-              {loaded
-                ? t("No tournament scheduled. They are bracketed events with their own prizes — announced in global chat when one opens.")
-                : t("Loading…")}
-            </p>
-          ) : (
-            <TournamentList list={tournaments} onChange={(t) => setTournaments(t)} />
-          )}
-        </section>
 
         {/* QUEUE OVERLAY
             The scan keeps running underneath. The AI offer is an ADDITION to a

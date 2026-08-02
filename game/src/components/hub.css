@@ -504,37 +504,84 @@
 }
 
 /* ── Battle pane ───────────────────────────────────────────────────
-   The arena on the frame's split: the CTA on the left, the standings
-   that say whether pressing it is going well on the right.
+   This screen has ONE job — get you into a battle — and it was laid out
+   like a stats dashboard: a card, a floating button, two narrow panels,
+   and a full-width box at the bottom holding two lines of grey text.
+   Measured on the real thing at 934x808, content stopped at 610px and
+   the left column was empty from the button down. Roughly 40% of the
+   pane was nothing.
 
-   It was a vertical stack — trainer card, mode chips, READY UP, then a
-   two-up row of "LAST 10" and "TOP 3", then tournaments — which at
-   900px of pane produced a column of half-empty rows and left the
-   bottom third of the dialog blank. */
-.pvp-hub-pane { gap: 16px; }
-.pvp2-body { align-items: stretch; }
-
-/* The CTA column owns the vertical space: the mode chips sit at the top,
-   READY UP takes the middle, and anything conditional (the practice
-   opponent picker) sits under it. `justify-content: center` on the slab's
-   own row is what stops a 40px button floating in 400px of nothing. */
-.pvp2-cta {
+   Three rules fix it:
+     * the split FILLS the pane, so there is no "below the content".
+     * the CTA lives in an arena that owns its column and centres what
+       matters, instead of a 40px button stranded at the top of 300px of
+       air.
+     * everything you merely CHECK — form, ladder, tournaments — is in
+       the rail, stacked, where a narrow column is the right shape.
+       Tournaments was full-width and therefore the biggest element on a
+       screen where it is the least important. */
+.pvp-hub-pane {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 0;
+  gap: 14px;
+  min-height: 100%;
 }
-.pvp2-cta .pvp-slab { margin: 0; }
+/* flex:1 + min-height:0 is the whole trick: the split takes every pixel
+   the trainer card did not, and its two columns stretch to match. */
+.pvp2-body {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+/* ── The arena ─────────────────────────────────────────────────────
+   A surface, not a gap. The mode chips sit at the top, the team sits at
+   the bottom, and READY UP takes everything between — so the button is
+   the centre of the panel at any height rather than something that
+   happens to be near the top of it. */
+.pvp2-arena {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  border-radius: 12px;
+  /* A faint lift toward the gold, so the half of the screen you act on
+     reads as warmer than the half you read. One stop, not a gradient
+     anybody would name. */
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(251, 191, 36, 0.05), transparent 60%),
+    var(--panel-2);
+}
+.pvp2-arena .g-tabs,
+.pvp2-arena .pvp-mode-chips { justify-content: center; flex-wrap: wrap; }
+
+/* The middle. `justify-content: center` is what stops a 40px button
+   floating in 300px of nothing. */
+.pvp2-arena-core {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.pvp2-arena .pvp-slab { margin: 0; }
+/* The CTA gets real presence at this size — it is the reason the screen
+   exists and it was a 40px pill. */
+.pvp2-arena .pvp-slab { min-height: 72px; }
 
 .pvp2-side {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
 }
-/* The two panels stack in the companion column rather than sitting
-   side by side, so each gets the full 264px instead of 132. */
 .pvp2-side > .pvp2-panel { margin: 0; }
+/* The last panel in the rail absorbs whatever height is left, so the
+   column ends flush with the arena instead of stopping short. */
+.pvp2-side > :last-child { flex: 1 1 auto; }
 
 /* A forfeit shown in the record. Red, because it is the one entry in
    "W / L / FF" that is neither a win nor a loss and cost rating anyway —
@@ -543,7 +590,12 @@
 .pvp2-ff { color: #f87171; }
 
 @media (max-width: 760px) {
-  .pvp-hub-pane { gap: 14px; }
+  .pvp-hub-pane { gap: 12px; }
+  /* Stacked, the arena no longer has a column to fill, so it sizes to
+     its content and the rail follows underneath. */
+  .pvp2-body { flex: 0 0 auto; }
+  .pvp2-arena-core { flex: 0 0 auto; }
+  .pvp2-side > :last-child { flex: 0 0 auto; }
 }
 
 /* ── The tier ladder ───────────────────────────────────────────────
@@ -811,3 +863,31 @@
 .pvp2-match-play { flex: 0 0 auto; font-size: 9px; color: var(--text-dim); opacity: 0; transition: opacity 120ms ease; }
 .pvp2-match:hover .pvp2-match-play,
 .pvp2-match:focus-visible .pvp2-match-play { opacity: 1; }
+
+/* ── The trainer card, without the gutter ──────────────────────────
+   The team strip used to sit at the far right of this card, which left
+   a wide empty gutter between the rating and it — and stranded the tier
+   track's "116 to Silver" three hundred pixels from the bar it
+   describes. The team moved into the arena, where what you are bringing
+   to a fight belongs, and the identity column now spans the card. */
+.pvp-hero-trainer-card .pvp2-identity { flex: 1 1 auto; min-width: 0; }
+/* The track is the width of the card it sits in, so its legend lands
+   under the bar rather than across the room from it. */
+.pvp-hero-trainer-card .pvp-track { max-width: 560px; }
+
+/* The team, inside the arena. Full width of the column, sprites in a
+   row that breathes — at the card's old size they were 28px squares
+   crammed against the edge. */
+.pvp2-arena .pvp2-team-strip { flex: 0 0 auto; }
+.pvp2-arena .pvp2-team-row { justify-content: space-between; gap: 6px; }
+.pvp2-arena .pvp2-team-slot { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
+
+/* Touch floors for the Battle pane's own rows.
+   At the END of the file on purpose: `.pvp2-match { min-height: 38px }` is
+   declared in the Recent-matches block above, and at equal specificity the
+   later rule wins — a media query adds no weight of its own. Putting this
+   override earlier is exactly how it silently did nothing the first time. */
+@media (max-width: 900px) {
+  .pvp2-match { min-height: 44px; }
+  .pvp2-team-strip { min-height: 44px; }
+}

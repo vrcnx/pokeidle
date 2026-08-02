@@ -235,26 +235,18 @@ function Harness() {
                   <span className="pvp2-rec-f"><strong>1</strong>FF</span>
                 </p>
                 <TierTrack rating={984} unranked={false} />
-                <button className="pvp2-team-strip" style={{ marginTop: 12 }}>
-                  <span className="pvp2-team-label">TEAM<span className="pvp2-team-edit">Edit</span></span>
-                  <span className="pvp2-team-row">
-                    {Array.from({ length: 6 }, (_, i) => (
-                      <span key={i} className={`pvp2-team-slot ${i < 4 ? "filled" : "empty"}`}>·</span>
-                    ))}
-                  </span>
-                  <span className="pvp2-team-note">4/6 · capped at Lv 50</span>
-                </button>
               </div>
             </article>
           </section>
           <div className="hub-split pvp2-body">
-            <section className="pvp2-cta">
+            <section className="pvp2-arena">
               <div className="g-tabs">
                 <button className="g-tab active">Ranked</button>
                 <button className="g-tab">Casual</button>
                 <button className="g-tab">Tournament</button>
                 <button className="g-tab">Practice</button>
               </div>
+              <div className="pvp2-arena-core">
               <div className="pvp-slab-wrap">
                 <button className="pvp-slab">
                   <span className="pvp-slab-title">READY UP</span>
@@ -266,6 +258,16 @@ function Harness() {
                   <span className="pvp-stake-loss">−16</span><span className="dim">if you lose</span>
                 </p>
               </div>
+              </div>
+              <button className="pvp2-team-strip">
+                <span className="pvp2-team-label">TEAM<span className="pvp2-team-edit">Edit</span></span>
+                <span className="pvp2-team-row">
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <span key={i} className={`pvp2-team-slot ${i < 6 ? "filled" : "empty"}`}>·</span>
+                  ))}
+                </span>
+                <span className="pvp2-team-note">6/6 · capped at Lv 50</span>
+              </button>
             </section>
             <aside className="pvp2-side">
               <div className="pvp2-panel">
@@ -313,9 +315,17 @@ function Harness() {
                   ))}
                 </ul>
               </div>
+              <section className="pvp-tour">
+                <header className="pvp2-panel-head">
+                  <span className="pvp-tour-icon">🏆</span><h4>TOURNAMENTS</h4>
+                </header>
+                <p className="dim small pvp2-empty">
+                  No tournament scheduled. They are bracketed events with their own prizes.
+                </p>
+              </section>
             </aside>
           </div>
-          <section className="pvp-tour">
+          <section className="pvp-tour" style={{ display: "none" }}>
             <header className="pvp2-panel-head">
               <span className="pvp-tour-icon">🏆</span>
               <h4>TOURNAMENTS</h4>
