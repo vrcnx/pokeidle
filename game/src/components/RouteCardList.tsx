@@ -3,6 +3,7 @@ import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
 import { regions, regionForLocation } from "../data/regions";
+import { HubHeaderSlot, useInHubHeader } from "./HubModal";
 import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
@@ -92,40 +93,50 @@ export function RouteCardList() {
 
   const currentName = routes[state.currentLocation]?.name ?? state.currentLocation;
 
+  const inHub = useInHubHeader();
+  const meta = (
+    <span className="route-head-meta">
+      <nav className="route-region-tabs" role="tablist">
+        {regionList.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            role="tab"
+            aria-selected={activeRegion === r.id}
+            className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
+            onClick={() => setActiveRegion(r.id)}
+          >
+            {r.name}
+          </button>
+        ))}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeRegion === RAID_TAB}
+          className={`route-region-tab ${activeRegion === RAID_TAB ? "active" : ""}`}
+          onClick={() => setActiveRegion(RAID_TAB)}
+        >
+          {t("Raids")}
+        </button>
+      </nav>
+      <span className="dim small route-here">{t("Here: ")}{currentName}</span>
+    </span>
+  );
+  const head = inHub
+    ? <HubHeaderSlot>{meta}</HubHeaderSlot>
+    : <TabPaneHead title="" className="route-card-head-pane" meta={meta} />;
+
   return (
     <div className="tab-pane route-card-list">
-      <TabPaneHead
-        title=""
-        className="route-card-head-pane"
-        meta={
-          <span className="route-head-meta">
-            <nav className="route-region-tabs" role="tablist">
-              {regionList.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeRegion === r.id}
-                  className={`route-region-tab ${activeRegion === r.id ? "active" : ""}`}
-                  onClick={() => setActiveRegion(r.id)}
-                >
-                  {r.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeRegion === RAID_TAB}
-                className={`route-region-tab ${activeRegion === RAID_TAB ? "active" : ""}`}
-                onClick={() => setActiveRegion(RAID_TAB)}
-              >
-                {t("Raids")}
-              </button>
-            </nav>
-            <span className="dim small route-here">{t("Here: ")}{currentName}</span>
-          </span>
-        }
-      />
+      {/* The region tabs go in the HUB's header when there is one: that bar
+          held a title and a close button with 700px of nothing between them,
+          while this row sat directly underneath it. Two bars, one empty.
+
+          Outside the hub — MobileShell mounts this too — there is no header
+          to move into, so the row keeps the TabPaneHead it always had. The
+          markup is built once and placed twice; a second copy for the other
+          case is how two tab rows end up disagreeing about what a region is. */}
+      {head}
       <div className="route-card-grid">
         {routesInRegion.map((route) => (
           <RouteCard key={route.id} route={route} onTravel={travel} />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HubViews } from "./HubModal";
 import { api, type ChatMessage, type FriendEntry, type FriendList, type MeProfile } from "../net/api";
 import { getSocket } from "../net/socket";
 import { useAuth } from "../auth/AuthContext";
@@ -160,7 +161,7 @@ export function SocialPane() {
 
   return (
     <div className="social-pane">
-        <div className="hub-views">
+        <HubViews>
           <div className="g-tabs" role="tablist" aria-label={t("Social")}>
             <button
               type="button"
@@ -191,7 +192,7 @@ export function SocialPane() {
               {t("Trainers")}
             </button>
           </div>
-        </div>
+        </HubViews>
 
         {tab === "chat" && (
           <ChatTab

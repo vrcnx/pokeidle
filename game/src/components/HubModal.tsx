@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal,
@@ -173,6 +174,56 @@ export function useHubSection(): HubSection | null {
   return s;
 }
 
+// ── The header slot ─────────────────────────────────────────────────
+// The pane header was a title and a close button with 700px of nothing
+// between them, while several sections opened with their own row of tabs
+// immediately below it — Map's regions, the Dex's filters. Two bars, one of
+// them empty.
+//
+// A section puts its tab row in the header by wrapping it in
+// <HubHeaderSlot>. It is a PORTAL rather than a prop because the state
+// behind those tabs belongs to the section: hoisting the markup by hand
+// would mean hoisting `activeRegion` out of RouteCardList into a store
+// shared with a header component, for a purely visual move.
+//
+// Outside the hub it renders in place. RouteCardList and the tab panes are
+// mounted by MobileShell too, where there is no header to portal into and
+// the row belongs exactly where it was written.
+const HubHeadSlotCtx = createContext<HTMLElement | null>(null);
+
+/** True when there is a hub header to portal into. For a section that needs
+ *  DIFFERENT chrome in the two cases — the Map's tabs want a TabPaneHead
+ *  wrapper on mobile and none in the header — rather than just a different
+ *  parent. */
+export function useInHubHeader(): boolean {
+  return !!useContext(HubHeadSlotCtx);
+}
+
+export function HubHeaderSlot({ children }: { children: ReactNode }) {
+  const el = useContext(HubHeadSlotCtx);
+  if (!el) return <>{children}</>;
+  return createPortal(children, el);
+}
+
+/**
+ * Level two of the structure rule — the row that says which VIEW within a
+ * section — placed in the header.
+ *
+ * Every section that has one already wrapped it in `.hub-views`, so this is
+ * the same row in the same class; only its parent changed. Rewards' three
+ * tabs, Social's three, Settings' six and the Map's regions now all sit on
+ * the title bar instead of on a second bar directly beneath it.
+ *
+ * Falls back to rendering in place, which is not hypothetical: these panes
+ * are components, and one of them mounted outside the hub would otherwise
+ * lose its tabs entirely rather than merely misplace them.
+ */
+export function HubViews({ children }: { children: ReactNode }) {
+  const el = useContext(HubHeadSlotCtx);
+  const row = <div className="hub-views">{children}</div>;
+  return el ? createPortal(row, el) : row;
+}
+
 export interface HubModalProps {
   sections: Record<HubSection, HubSectionContent>;
   /** Who the player is, for the top of the rail. A slot rather than
@@ -291,6 +342,9 @@ export function HubFrame({
   const dialogRef = useModalEnter(".hub-pane");
   const navRef = useRef<HTMLDivElement | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
+  // State and not a ref: the portal has to re-render once the node exists,
+  // and a ref assignment does not tell React that.
+  const [headSlot, setHeadSlot] = useState<HTMLElement | null>(null);
   // Every page of the dialog animates, not just the one it opened on.
   // Keyed on `active`, so it re-runs on every section change — the pane is
   // already remounted per section (see the `key` below), and without this
@@ -486,12 +540,18 @@ export function HubFrame({
                 <h2>{t(def.label)}</h2>
                 {content.note && <p className="hub-head-note">{content.note}</p>}
               </div>
+              {/* Where a section's own tabs land. Always rendered, so the
+                  node exists before the pane below it mounts and looks for
+                  it — a portal target created in the same commit as its
+                  content would be null on the first pass. */}
+              <div className="hub-head-slot" ref={setHeadSlot} />
               {content.HeaderRight && (
                 <div className="hub-head-right"><content.HeaderRight /></div>
               )}
               <button className="g-modal-close hub-close" onClick={onClose} aria-label={t("Close")}>×</button>
             </header>
 
+            <HubHeadSlotCtx.Provider value={headSlot}>
             <div
               ref={paneRef}
               // key: remount on section change so a pane never inherits the
@@ -504,6 +564,7 @@ export function HubFrame({
             >
               <content.Body />
             </div>
+            </HubHeadSlotCtx.Provider>
             {content.Layer && <content.Layer />}
           </div>
 

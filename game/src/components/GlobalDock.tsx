@@ -13,7 +13,7 @@ import { openChangelog } from "./ChangelogModal";
 import { openHowToPlay } from "./HowToPlayModal";
 import { openDailyReward } from "../state/dailies";
 import { useDailyStatus } from "../state/dailies";
-import { openHub, closeHub, useHubSection } from "./HubModal";
+import { openHub, closeHub, useHubSection, HubViews } from "./HubModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
@@ -521,7 +521,7 @@ function SettingsPane() {
         {/* Level two of the hub's structure rule. The shared .g-tab, in the
             shared .hub-views row, so Settings' six views are the same
             control as Rewards' three and the map's region pills. */}
-        <div className="hub-views">
+        <HubViews>
           <div className="g-tabs" role="tablist" aria-label={t("Settings sections")}>
             <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
             <SettingsTabBtn label={t("Game")}    tab="game"    active={tab} onPick={setTab} />
@@ -530,7 +530,7 @@ function SettingsPane() {
             <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
             <SettingsTabBtn label={t("Account")} tab="account" active={tab} onPick={setTab} />
           </div>
-        </div>
+        </HubViews>
 
         <div className="settings-pane-body">
           <div className="g-grid">

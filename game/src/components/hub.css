@@ -300,7 +300,34 @@
   padding: 16px 18px 14px 24px;
   border-bottom: 1px solid var(--border);
 }
-.hub-head-text { flex: 1 1 auto; min-width: 0; }
+/* The title no longer takes the slack — the slot does. A section with tabs
+   should get the room, and one without leaves the header looking exactly as
+   it did, because an empty slot is zero wide. */
+.hub-head-text { flex: 0 1 auto; min-width: 0; }
+
+/* ── The section's own controls, in the header ─────────────────────
+   Filled by <HubHeaderSlot> from inside the pane. Empty for most
+   sections, and it costs nothing when it is: no padding, no border, no
+   min-width, so the header collapses back to a title and a close button.
+
+   It scrolls sideways rather than wrapping. The header is a fixed bar at
+   the top of a dialog; a tab row that grew to two lines would push the
+   pane down and change the height of every section that has one. */
+.hub-head-slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.hub-head-slot::-webkit-scrollbar { display: none; height: 0; }
+.hub-head-slot:empty { display: none; }
+/* Anything portalled in sits at the LEFT of the slot, next to the title it
+   belongs to, rather than drifting towards the close button. */
+.hub-head-slot > * { flex: 0 0 auto; }
 .hub-head h2 {
   margin: 0;
   font-size: 19px;
@@ -356,6 +383,17 @@
   margin-bottom: 16px;
 }
 .hub-pane--fill .hub-views { margin: 0; padding: 14px 18px 12px; }
+/* In the header the row is furniture, not a band across the pane: it keeps
+   the tabs and drops the spacing that separated it from the content below,
+   because there is no content below it any more. `space-between` goes too —
+   it would push a section's two tab groups to opposite ends of a slot whose
+   width is whatever is left over. */
+.hub-head-slot .hub-views {
+  margin: 0;
+  padding: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
 
 /* ── The column system ─────────────────────────────────────────────
    Two helpers, offered by the frame so no pane invents its own

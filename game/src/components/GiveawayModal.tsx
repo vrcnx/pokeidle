@@ -5,7 +5,7 @@ import { useT } from "../i18n/useT";
 import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
 import { PromoCard } from "./PromoCard";
-import { openHub } from "./HubModal";
+import { openHub, HubViews } from "./HubModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
 import {
   useGiveaways,
@@ -366,7 +366,7 @@ export function RewardsPane({
           this says which VIEW. A horizontal row of the shared .g-tab, so
           it is the same control as the region pills and the chat channels
           rather than a fourth idea about what a tab is. */}
-      <div className="hub-views">
+      <HubViews>
         <div className="g-tabs" role="tablist" aria-label={t("Rewards")}>
           {tabs.map((x) => (
             <button
@@ -387,7 +387,7 @@ export function RewardsPane({
             </button>
           ))}
         </div>
-      </div>
+      </HubViews>
 
       {body}
     </>
