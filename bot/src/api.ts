@@ -155,6 +155,65 @@ export type PrizeDescriptor =
   | { kind: "money"; amount: number }
   | { kind: "pokemon"; label: string; mon?: { speciesKey?: string; isShiny?: boolean; level?: number } };
 
+/** Mirrors server/src/lib/botTournaments.ts. No userIds by design — a Discord
+ *  embed can be screenshotted into a public channel, so usernames only. */
+export interface TournamentSummary {
+  id: string;
+  name: string;
+  format: string;
+  status: string;
+  levelCap: number | null;
+  startsAt: string | null;
+  finishedAt: string | null;
+  entrantCount: number;
+  championUsername: string | null;
+  prizeSummary: string | null;
+  roundWindowMinutes: number;
+  /** Null when the caller is unlinked, so the bot can say "run /link" rather
+   *  than implying they simply are not entered. */
+  you: { entered: boolean; eliminated: boolean; seed: number | null } | null;
+}
+
+export interface TournamentMatch {
+  roundNumber: number;
+  opponent: string | null;
+  isBye: boolean;
+  deadlineAt: string | null;
+  decided: boolean;
+  youWon: boolean | null;
+  note: string | null;
+}
+
+export interface TournamentDetail extends TournamentSummary {
+  currentRound: number | null;
+  totalRounds: number | null;
+  entrants: Array<{ username: string; seed: number | null; eliminated: boolean }>;
+  yourMatch: TournamentMatch | null;
+}
+
+export interface TournamentAnnouncement {
+  id: string;
+  name: string;
+  format: string;
+  levelCap: number | null;
+  entrantCount: number;
+  prizeSummary: string | null;
+  roundWindowMinutes: number;
+  startsAt: string | null;
+  channelId: string | null;
+}
+
+export interface TournamentResult {
+  id: string;
+  name: string;
+  championUsername: string | null;
+  championDiscordId: string | null;
+  entrantCount: number;
+  prizeSummary: string | null;
+  channelId: string | null;
+  announceMessageId: string | null;
+}
+
 export interface DesiredMember {
   discordId: string;
   userId: string;
@@ -226,6 +285,42 @@ export const api = {
       delivered: boolean; deliveredAt: string | null; stuck: boolean;
       attempts: number; lastError: string | null;
     }> }>("GET", `/api/bot/prizes?discordId=${encodeURIComponent(discordId)}`),
+
+  // Tournaments. Read-only by design — entering stays in the game client, see
+  // the tournament section of server/src/routes/bot.ts for why.
+  //
+  // `discordId` is optional on both: the bracket is public, and only the `you`
+  // and `yourMatch` fields need to know who is asking. An unlinked member still
+  // gets the full standings, which is what makes these usable in #ladder-talk
+  // rather than only in DMs.
+  tournaments: (discordId: string | null, limit: number) =>
+    call<{ v: number; linked: boolean; tournaments: TournamentSummary[] }>(
+      "GET",
+      `/api/bot/tournaments?limit=${limit}` +
+        (discordId ? `&discordId=${encodeURIComponent(discordId)}` : ""),
+    ),
+  tournament: (id: string, discordId: string | null) =>
+    call<{ v: number; linked: boolean; tournament: TournamentDetail }>(
+      "GET",
+      `/api/bot/tournaments/${encodeURIComponent(id)}` +
+        (discordId ? `?discordId=${encodeURIComponent(discordId)}` : ""),
+    ),
+
+  // Tournament announce poll. Same contract as the giveaway one: post first,
+  // then mark, and `claimed:false` means another instance won the race.
+  pendingTournaments: () =>
+    call<{ toAnnounce: TournamentAnnouncement[]; toReport: TournamentResult[] }>(
+      "GET", "/api/bot/tournaments/pending",
+    ),
+  markTournamentAnnounced: (id: string, messageId: string, channelId: string) =>
+    call<{ ok: true; claimed: boolean }>(
+      "POST", `/api/bot/tournaments/${encodeURIComponent(id)}/announced`,
+      { messageId, channelId },
+    ),
+  markTournamentReported: (id: string) =>
+    call<{ ok: true; claimed: boolean }>(
+      "POST", `/api/bot/tournaments/${encodeURIComponent(id)}/reported`, {},
+    ),
 
   // Community XP. A SEPARATE currency from the game economy — it buys Discord
   // standing and nothing the game can see. Note what awardMessageXp does NOT

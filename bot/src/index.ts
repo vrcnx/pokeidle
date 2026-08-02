@@ -17,6 +17,7 @@ import { config } from "./config.js";
 import { handleButton, handleCommand } from "./handlers.js";
 import { startRoleSync } from "./roleSync.js";
 import { startGiveawaySync } from "./giveawaySync.js";
+import { startTournamentSync } from "./tournamentSync.js";
 import { startBugReportIngest } from "./bugReports.js";
 import { startXpListener } from "./xp.js";
 
@@ -57,6 +58,10 @@ client.once(Events.ClientReady, (c) => {
   // ticked. Polled rather than pushed — the game server holds no Discord
   // token. See giveawaySync.ts.
   startGiveawaySync(client);
+  // Tournaments ticked for announcement in the admin dashboard, plus the
+  // champion post when a bracket resolves. Same poll-not-push reasoning as
+  // giveaways — see tournamentSync.ts.
+  startTournamentSync(client);
   // Bug reports posted in the community bug channel, into the admin
   // dashboard's existing triage queue. Off unless DISCORD_BUG_CHANNEL_ID is
   // set. Listens live AND sweeps recent history on boot, so a report posted

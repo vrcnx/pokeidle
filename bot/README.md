@@ -77,6 +77,35 @@ The same `BOT_TOKEN` value must be set on the game server. Generate it once:
 openssl rand -hex 32
 ```
 
+Every script below loads `.env` automatically via Node's built-in
+`--env-file-if-exists`, so no `dotenv` dependency and no shell `export` dance.
+`-if-exists` rather than `--env-file` is deliberate: the Docker image ships no
+`.env` and takes its config from the platform, and a hard `--env-file` would
+turn that into a boot crash.
+
+A **blank** value is not the same as a missing one. `--env-file-if-exists` will
+happily load a file where `DISCORD_BOT_TOKEN=` has nothing after the `=`, and
+you get "need DISCORD_BOT_TOKEN…" from a file that plainly contains the key.
+Check the values, not just the keys:
+
+```bash
+node --env-file-if-exists=.env -e "for (const k of ['DISCORD_BOT_TOKEN','DISCORD_CLIENT_ID','DISCORD_GUILD_ID','API_BASE','BOT_TOKEN']) console.log(process.env[k]?.trim() ? 'set  ' : 'EMPTY', k)"
+```
+
+Once the token and guild id are in, the **channel ids fill themselves**:
+
+```bash
+npm run channels            # list every channel with its id
+npm run channels -- --write # write the four the bot uses into .env
+```
+
+The alternative is enabling Developer Mode and hand-copying four snowflakes,
+which is four chances to put the mod-log id in the bug-channel slot and not
+find out until a bug report lands in the wrong place. The bot's token can
+already read the channel list, so this is the same information without the
+transcription step. It rewrites only the keys it owns and leaves the rest of
+the file — comments and secrets included — untouched.
+
 ### 3. Register slash commands
 
 ```bash
@@ -161,6 +190,7 @@ session to unlink would strand exactly the people who need it.
 | `/dex [trainer]` | anyone | public |
 | `/prizes` | **self only** | ephemeral |
 | `/trade offer <offering> <wanting>` | linked | posts to `#trade-chat` |
+| `/tournament list\|info <id>` | anyone | public |
 | `/giveaway start\|draw\|status` | staff roles | public / ephemeral |
 
 `/team` works on anyone — it is the same information as the in-game trainer
@@ -170,6 +200,32 @@ information the game does not publish for other players; a Discord command that
 did would hand out a ladder advantage the game withholds.
 
 Unlinked users get "run `/link` first" as an instruction, never a bare error.
+
+`/tournament` is **read-only, and there is no `join` subcommand on purpose**.
+Entering a bracket commits you to being online inside a round window, and a
+no-show hands a real opponent a walkover (`server/src/lib/tournamentRunner.ts`).
+A one-tap Discord button makes that commitment far too cheap; opening the game
+to enter is friction doing useful work.
+
+It works for unlinked members too — the bracket is public, and only the "your
+pairing" section needs to know who is asking. That is what makes it usable in
+`#ladder-talk` rather than only in DMs.
+
+### Why `/tournament info` exists at all
+
+The runner drives brackets **asynchronously**: a round stays open for
+`roundWindowMinutes` (default 1440 — a full day) and starts each pairing the
+moment both players happen to be online together, because a synchronous
+16-player draw needs 16 people in the same 20 minutes and this game has ~34
+accounts online in a given hour.
+
+That design has one hole, and it is not in the runner: a player cannot act on a
+pairing they do not know about, and the game can only tell them once they are
+already online — which is precisely the state the async window exists to work
+around. `/tournament info` is where that closes. It reports who you were drawn
+against and renders the deadline as a live Discord countdown, which is also why
+these two surfaces are embeds rather than rendered cards: "in 4 hours" baked
+into a PNG is wrong by the time anyone scrolls past it.
 
 ---
 

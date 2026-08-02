@@ -1,0 +1,52 @@
+-- Discord announcement fields on Tournament, so a bracket created in the admin
+-- dashboard can be announced in the community server and its champion posted
+-- when it resolves.
+--
+-- ── ADDITIVE ONLY ────────────────────────────────────────────────────
+-- Four nullable/defaulted columns on one existing table. Nothing is dropped,
+-- retyped or backfilled, so this is safe to apply against the live server
+-- while it is serving traffic, and every statement is IF NOT EXISTS so a rerun
+-- or a partially-applied deploy is a no-op rather than a failure. Deliberately
+-- the same shape as 20260801120000_giveaway_discord_announce — a second way of
+-- doing the same job would be a second thing to get wrong.
+--
+-- ── WHY announceToDiscord DEFAULTS TO false ──────────────────────────
+-- A tournament is always a community event, so `true` looks like the obvious
+-- default. It is wrong for exactly the same reason it was wrong on Giveaway:
+-- the column applies to EVERY EXISTING ROW, and every tournament in this
+-- database predates the bot. A default of true would have the bot's first poll
+-- announce brackets that are already finished — posting "sign up!" for an event
+-- someone won last week.
+--
+-- New tournaments get the flag from the dashboard, where the operator ticking
+-- the box is the signal that the event is meant to be public.
+--
+-- ── WHY discordMessageId IS THE IDEMPOTENCY MARKER ───────────────────
+-- The bot polls on a timer; without a durable "already posted" marker every
+-- tick reposts. The poll filters on `discordMessageId IS NULL` and the bot
+-- writes the id back the moment the message exists — post first, mark second.
+--
+-- That ordering is chosen, not incidental. A crash between posting and marking
+-- costs one duplicate message a human can delete. The other ordering costs a
+-- tournament that is never announced at all, which nobody notices until the
+-- bracket generates with two entrants.
+--
+-- The marker is written under a `discordMessageId IS NULL` guard, so two bot
+-- instances racing produce one winner and one loser that knows it lost and can
+-- delete its duplicate.
+--
+-- ── WHY discordResultsAt IS SEPARATE ─────────────────────────────────
+-- Announcement and result are two posts at two different times, and for
+-- tournaments the gap is much larger than for giveaways: a round window is
+-- 1440 minutes by default, so a 4-round bracket can take the better part of a
+-- week between "open" and "champion".
+--
+-- ── WHY NO INDEX ─────────────────────────────────────────────────────
+-- Tournament is an operator-created table — tens of rows, not millions — and
+-- the existing @@index([status, createdAt]) already narrows the poll. A
+-- sequential scan every 30 seconds is cheaper than maintaining another index.
+
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "announceToDiscord" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "discordChannelId" TEXT;
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "discordMessageId" TEXT;
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "discordResultsAt" TIMESTAMP(3);

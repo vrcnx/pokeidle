@@ -69,6 +69,13 @@ import {
   userIdForDiscord,
   LINK_CODE_TTL_MS,
 } from "../lib/discordLink.js";
+import {
+  botTournamentDetail,
+  botTournamentList,
+  botTournamentsPending,
+  markTournamentAnnounced,
+  markTournamentReported,
+} from "../lib/botTournaments.js";
 import { desiredRoles, type DesiredRoles } from "../lib/discordRoles.js";
 import { linkRewardPrizes } from "../lib/discordLinkReward.js";
 import { drawGiveaway } from "../lib/giveawayDraw.js";
@@ -403,6 +410,73 @@ app.get("/prizes", async (c) => {
       lastError: r.deliveredAt ? null : r.lastError,
     })),
   });
+});
+
+// ══ Tournaments ═════════════════════════════════════════════════════
+//
+// READ ONLY. Signing up stays in the game client: entering a bracket commits
+// you to showing up inside a round window, and a one-tap Discord button makes
+// that commitment far too cheap. A no-show costs a real opponent a real match
+// (lib/tournamentRunner.ts awards them a walkover), so the friction of opening
+// the game to enter is doing useful work and is not an oversight.
+//
+// The reason this surface exists at all is `yourMatch` — see the header of
+// lib/botTournaments.ts. Rounds are asynchronous and up to 24h long, and until
+// now the only way to learn who you had been drawn against was to already be
+// online, which is the exact problem the async window exists to solve.
+
+/** The caller's account, or null when they sent no discordId or are unlinked.
+ *  Unlike `subject()` this never errors: tournament data is public, and only
+ *  the "you" fields depend on knowing who is asking. */
+async function optionalViewer(c: Context): Promise<string | null> {
+  const discordId = c.req.query("discordId")?.trim();
+  if (!discordId) return null;
+  return (await userIdForDiscord(discordId)) ?? null;
+}
+
+// GET /api/bot/tournaments?discordId=&limit=
+app.get("/tournaments", async (c) => {
+  if (!readLimiter.consume(limitKey(c, "tlist"))) return c.json({ error: "rate_limited" }, 429);
+  const limit = parseInt(c.req.query("limit") ?? "10", 10);
+  const viewerId = await optionalViewer(c);
+  const tournaments = await botTournamentList(viewerId, Number.isFinite(limit) ? limit : 10);
+  return c.json({ v: BOT_DTO_VERSION, linked: viewerId !== null, tournaments });
+});
+
+// GET /api/bot/tournaments/:id?discordId=
+app.get("/tournaments/:id", async (c) => {
+  if (!readLimiter.consume(limitKey(c, "tinfo"))) return c.json({ error: "rate_limited" }, 429);
+  const viewerId = await optionalViewer(c);
+  const tournament = await botTournamentDetail(c.req.param("id"), viewerId);
+  if (!tournament) {
+    return c.json(
+      { error: "not_found", reason: "I couldn't find a tournament with that id." },
+      404,
+    );
+  }
+  return c.json({ v: BOT_DTO_VERSION, linked: viewerId !== null, tournament });
+});
+
+// GET /api/bot/tournaments/pending — the announce poll.
+// Registered BEFORE /tournaments/:id or "pending" would be read as an id.
+app.get("/tournaments/pending", async (c) => {
+  return c.json(await botTournamentsPending());
+});
+
+// POST /api/bot/tournaments/:id/announced { messageId, channelId }
+app.post("/tournaments/:id/announced", async (c) => {
+  const body = await jsonObject(c);
+  const messageId = typeof body.messageId === "string" ? body.messageId.trim() : "";
+  const channelId = typeof body.channelId === "string" ? body.channelId.trim() : "";
+  if (!messageId || !channelId) return c.json({ error: "messageId and channelId required" }, 400);
+  const claimed = await markTournamentAnnounced(c.req.param("id"), messageId, channelId);
+  return c.json({ ok: true, claimed });
+});
+
+// POST /api/bot/tournaments/:id/reported
+app.post("/tournaments/:id/reported", async (c) => {
+  const claimed = await markTournamentReported(c.req.param("id"));
+  return c.json({ ok: true, claimed });
 });
 
 // ══ Role sync ═══════════════════════════════════════════════════════

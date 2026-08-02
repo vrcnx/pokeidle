@@ -102,6 +102,25 @@ export const commands = [
         ),
     ),
 
+  // Read-only on purpose — there is no `join` subcommand and there should not
+  // be one. Entering commits you to showing up inside a round window, and a
+  // no-show hands a real opponent a walkover; opening the game to enter is
+  // friction doing useful work. See server/src/routes/bot.ts.
+  new SlashCommandBuilder()
+    .setName("tournament")
+    .setDescription("PvP tournaments")
+    .addSubcommand((s) =>
+      s.setName("list").setDescription("Open and running tournaments"),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName("info")
+        .setDescription("Standings, your pairing and your round deadline")
+        .addStringOption((o) =>
+          o.setName("id").setDescription("Tournament id (from /tournament list)").setRequired(true),
+        ),
+    ),
+
   new SlashCommandBuilder()
     .setName("giveaway")
     .setDescription("Run a giveaway (staff only)")

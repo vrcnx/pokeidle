@@ -34,7 +34,7 @@ import {
 import { api, toUserMessage, versionWarning } from "./api.js";
 import { config } from "./config.js";
 import { GIVEAWAY_ENTER_PREFIX } from "./commands.js";
-import { tradeListingEmbed } from "./embeds.js";
+import { tournamentDetailEmbed, tournamentListEmbed, tradeListingEmbed } from "./embeds.js";
 import {
   dexCard,
   giveawayCard,
@@ -525,6 +525,37 @@ async function postModLog(
   }
 }
 
+// ── Tournaments ─────────────────────────────────────────────────────
+//
+// Not ephemeral. A bracket is shared context — the point of posting it in
+// #ladder-talk is that everyone sees who is left. The one personal part
+// (`yourMatch`) is only populated for the caller, so a public reply leaks
+// nothing another entrant could not already see in the in-game bracket.
+
+async function handleTournament(i: ChatInputCommandInteraction): Promise<void> {
+  const sub = i.options.getSubcommand();
+  await i.deferReply();
+  try {
+    if (sub === "list") {
+      const res = await api.tournaments(i.user.id, 10);
+      await i.editReply({
+        content: versionWarning(res.v),
+        embeds: [tournamentListEmbed(res.tournaments, res.linked)],
+      });
+      return;
+    }
+
+    const id = i.options.getString("id", true).trim();
+    const res = await api.tournament(id, i.user.id);
+    await i.editReply({
+      content: versionWarning(res.v),
+      embeds: [tournamentDetailEmbed(res.tournament, res.linked)],
+    });
+  } catch (e) {
+    await fail(i, e);
+  }
+}
+
 // ── Giveaway entry button ───────────────────────────────────────────
 
 export async function handleButton(i: ButtonInteraction): Promise<void> {
@@ -556,6 +587,7 @@ const HANDLERS: Record<string, (i: ChatInputCommandInteraction) => Promise<void>
   xp: handleXp,
   levels: handleLevels,
   trade: handleTrade,
+  tournament: handleTournament,
   giveaway: handleGiveaway,
 };
 

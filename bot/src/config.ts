@@ -85,6 +85,22 @@ export const config = {
    *  earned in, which is the least surprising default. */
   xpAnnounceChannelId: optional("DISCORD_XP_ANNOUNCE_CHANNEL_ID", ""),
 
+  /** Where tournaments are announced and champions posted. Blank = the sync
+   *  logs and leaves the tournament pending rather than guessing a channel:
+   *  posting a bracket into #general because the ladder channel was unset is
+   *  worse than not posting it, and leaving it pending means setting the id is
+   *  enough to make it appear on the next tick. */
+  ladderChannelId: optional("DISCORD_LADDER_CHANNEL_ID", ""),
+
+  /** Pinged when a tournament opens. Names, matched case-insensitively —
+   *  same convention as adminRoles and the managed roles in roleSync.ts, so
+   *  the game server never has to hold a guild-specific role id. */
+  ladderPingRole: optional("DISCORD_LADDER_PING_ROLE", "PvP Ladder"),
+
+  /** Kill switch, same reasoning as GIVEAWAY_SYNC_DISABLED: two instances
+   *  against one guild would both try to announce. */
+  tournamentSyncDisabled: optional("TOURNAMENT_SYNC_DISABLED", "") === "1",
+
   /**
    * Roles allowed to run /giveaway. Names, matched case-insensitively against
    * the member's roles.
