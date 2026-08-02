@@ -1,0 +1,327 @@
+/* =====================================================================
+   The Hub frame
+   =====================================================================
+   One dialog for PvP, Rewards, Social and Settings. Everything here is
+   the frame; the four panes style themselves and know nothing about
+   this file.
+
+   Scoped stylesheet, imported by HubModal.tsx, following the
+   giveaways.css / pvpArena.css pattern. NOT app.css: that file is
+   ~600KB with rules from several eras, and the control-primitives pass
+   was spent unpicking exactly that.
+
+   Every control below is the shared primitive from the CONTROL
+   PRIMITIVES block at the end of app.css — the --ctl-* scale, and gold
+   for "you are here". A hub whose own navigation did not follow the
+   game's control rules would be a poor advertisement for them.
+   ===================================================================== */
+
+/* A hub needs a stable frame. Its whole promise is that the furniture
+   stays put while the content changes, so the dialog is a fixed panel
+   and the pane is what scrolls — a shell that resized on every section
+   change would undo the thing it exists to provide.
+
+   960px because the widest pane (Battle) carries a 6-mon team strip and
+   a match history side by side; 620px because Social's chat needs a
+   readable column of messages above the composer. */
+.g-modal.hub-modal {
+  width: min(960px, 96vw);
+  height: min(640px, 88vh);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.hub-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+}
+
+/* ── The rail ──────────────────────────────────────────────────────
+   Its own surface, one step darker than the pane. That single tonal
+   step is what makes the frame read as furniture and the pane as
+   content — without it the dialog is one flat rectangle with a line
+   down it. */
+.hub-side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 12px;
+  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.hub-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 2px;
+}
+.hub-brand-mark { font-size: 11px; color: var(--gold); line-height: 1; }
+.hub-brand-text {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/* Scrolls independently of the rail, so a future fifth section cannot
+   push the whole rail into overflow. */
+.hub-nav-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scrollbar-gutter: stable;
+}
+.hub-nav { display: flex; flex-direction: column; gap: 2px; }
+/* Group headings — "Play" / "You". Four items do not strictly need
+   grouping, but the two groups answer a real question at a glance:
+   which of these change the game, and which change my account. */
+.hub-nav-head {
+  padding: 0 10px 4px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.hub-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: var(--ctl-h-lg);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r);
+  background: none;
+  color: var(--ctl-fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.hub-tab:hover:not(.is-active):not(:disabled) {
+  background: var(--ctl-bg-hover);
+  color: var(--ctl-fg-hover);
+}
+.hub-tab:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
+.hub-tab.is-active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+  font-weight: 700;
+}
+/* Disabled is a real state here — Battle is unusable mid-fight — so it
+   has to look unavailable rather than merely quiet, and it keeps its
+   tooltip explaining why. */
+.hub-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hub-tab-icon { flex: 0 0 auto; width: 17px; font-size: 13px; line-height: 1; text-align: center; }
+.hub-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Gold would be wrong: on the rail gold already means "you are here",
+   and a badge means "something is waiting", which is a different claim.
+   Red is the one colour in this app that already means "unread" (the
+   dock's request badge), so it stays red. 5.9:1 on #7f1d1d. */
+.hub-tab-badge {
+  flex: 0 0 auto;
+  min-width: 18px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #7f1d1d;
+  color: #fecaca;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.hub-tab.is-active .hub-tab-badge { background: #991b1b; color: #fee2e2; }
+
+/* ── The pane side ─────────────────────────────────────────────────── */
+.hub-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+/* One header for every section. Sections contribute only the right-hand
+   slot, which is what keeps four panes written by four different hands
+   from disagreeing about where a title sits. */
+.hub-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.hub-head-text { flex: 1 1 auto; min-width: 0; }
+.hub-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.hub-head-note {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.hub-head-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Static, not absolutely positioned: the close button is a flex item in
+   the header row, so it can never overlap a long title or a section's
+   header content the way a positioned one does at narrow widths. */
+.hub-modal .hub-close { position: static; flex: 0 0 auto; }
+
+.hub-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 18px;
+  scrollbar-gutter: stable;
+}
+/* Sections that lay out to the full height and scroll their own
+   subregions — chat, whose composer must stay pinned to the bottom
+   rather than sitting below the fold of an outer scroll. */
+.hub-pane--fill {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* ── The shared pane header row ────────────────────────────────────
+   Level two of the structure rule: the sidebar said which AREA, this
+   says which VIEW. Every pane that has more than one view uses this,
+   so the tab row is in the same place with the same metrics in all
+   four sections. */
+.hub-views {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.hub-pane--fill .hub-views { margin: 0; padding: 12px 16px 10px; }
+
+/* ── Mobile: the rail becomes a strip ──────────────────────────────
+   760px, because below that 208px of rail stops being a fifth of the
+   dialog and starts being a third. The DOM does not change — the rail
+   is still the rail, it just runs across the top and scrolls sideways.
+   Group headings go: "Play" and "You" earn their space in a column and
+   cost more than they are worth in a 44px strip. */
+@media (max-width: 760px) {
+  .g-modal.hub-modal { width: 96vw; height: min(640px, 90vh); max-height: 90vh; }
+  .hub-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .hub-side {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .hub-brand { display: none; }
+  .hub-nav-scroll { flex-direction: row; gap: 6px; overflow-x: auto; overflow-y: hidden; }
+  .hub-nav { flex-direction: row; gap: 4px; }
+  .hub-nav-head { display: none; }
+  .hub-tab { width: auto; min-height: 40px; padding: 0 12px; white-space: nowrap; }
+  .hub-head { padding: 12px 12px 10px 16px; }
+  .hub-head h2 { font-size: 15px; }
+  .hub-pane { padding: 12px 14px 16px; }
+  .hub-pane--fill .hub-views { padding: 10px 12px 8px; }
+}
+
+/* Below this the two groups' worth of tabs stop fitting even sideways
+   without the labels crowding the badges. Icons keep their labels — an
+   icon-only rail is a memory test — but the padding tightens. */
+@media (max-width: 420px) {
+  .hub-tab { padding: 0 9px; gap: 7px; font-size: 12px; }
+  .hub-head { gap: 8px; }
+}
+
+/* =====================================================================
+   Pane shims
+   =====================================================================
+   The four sections arrived as dialogs and each leaned on a piece of
+   modal chrome for its layout — .g-modal-body's padding and scroll,
+   .g-modal-head's row, .g-modal-foot's separator. The frame provides
+   those now, so each pane needs a few lines saying what it lost.
+
+   These live here rather than in app.css because they exist only in the
+   hub: nothing else mounts a settings form or a PvP arena without a
+   dialog around it.
+   ===================================================================== */
+
+/* ── Settings ──────────────────────────────────────────────────────
+   A profile line, the view row, the view, and the account actions.
+   The hub's .hub-pane already scrolls and already pads, so the pane
+   itself is a plain column. */
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+}
+/* The hero was `.g-profile-hero.settings-hero` inside a modal that gave
+   it edge-to-edge bleed. In a padded pane it is a card like everything
+   else — one more surface at the same radius as the rest. */
+.settings-pane .g-profile-hero {
+  margin: 0;
+  border-radius: var(--card-radius, 8px);
+}
+.settings-pane-body { flex: 1 1 auto; min-height: 0; }
+/* Sign out, and nothing else. The old footer also carried a "Close"
+   that duplicated the × and the ESC key three inches away; two dismiss
+   controls in one corner teach people that neither is the real one. */
+.settings-pane-foot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Social ────────────────────────────────────────────────────────
+   The one `fill` section: full height, its own scrolling message list,
+   composer pinned. .hub-pane--fill removes the outer padding and
+   scroll so this column can own both. */
+.social-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.social-pane > *:not(.hub-views) { min-height: 0; }
+
+/* ── Battle ────────────────────────────────────────────────────────
+   Kept its own arena styling from pvpArena.css; all it lost was the
+   modal box around it. */
+.pvp-hub-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+}

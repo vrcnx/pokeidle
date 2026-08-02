@@ -16,7 +16,7 @@ import { warmupParty, warmupSpecies } from "../utils/spriteWarmup";
 import { useAchievementTracker } from "../state/achievements";
 import { AchievementToast } from "./AchievementToast";
 import { AchievementsModal } from "./AchievementsModal";
-import { GiveawayModal } from "./GiveawayModal";
+import { GameHub } from "./GameHub";
 import { EvolutionModal } from "./EvolutionModal";
 import { RegionStarterSelect } from "./RegionStarterSelect";
 import { ChangelogModal } from "./ChangelogModal";
@@ -38,7 +38,6 @@ import { TradeRoomModal } from "./TradeRoomModal";
 import { BattleInviteToast } from "./BattleInviteToast";
 import { TeamBuilderModal } from "./TeamBuilderModal";
 import { RandomBattleQueueToast } from "./RandomBattleQueueToast";
-import { PvpHubModal } from "./PvpHubModal";
 import { PvpReplayModal } from "./PvpReplayModal";
 import { PvpSpectatorModal } from "./PvpSpectatorModal";
 import { ReportBugModal } from "./ReportBugModal";
@@ -136,12 +135,13 @@ export function GameShell() {
       <BattleInviteToast />
       <TeamBuilderModal />
       <RandomBattleQueueToast />
-      <PvpHubModal />
       <PvpReplayModal />
       <PvpSpectatorModal />
       <ReportBugModal />
       <AchievementsModal />
-      <GiveawayModal />
+      {/* One dialog for PvP, Rewards, Social and Settings. It replaced four,
+          three of which were mounted here and one inside the dock. */}
+      <GameHub />
       <AchievementToast />
     </div>
   );

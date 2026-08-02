@@ -1,0 +1,284 @@
+// Dev-only harness for the Hub frame and the Rewards pane.
+//
+// ── WHY ─────────────────────────────────────────────────────────────
+// The hub is only interesting in the states that are hardest to reach: a
+// pending friend request AND an uncollected reward AND a Battle section
+// disabled mid-fight, all at once. Nobody can produce that combination on
+// demand in a real session, which means without this page the frame would
+// only ever be looked at in its easiest state.
+//
+// It mounts the REAL <HubFrame/> and the REAL <RewardsPane/> with the real
+// stylesheets — same JSX, same CSS, same conditionals. Only the data and the
+// three heavier sections are replaced: Social, Battle and Settings each need
+// a signed-in session, a socket and a save, and standing in for them here is
+// enough to prove the FRAME holds them. Their own contents are their own
+// components' business.
+//
+// The lesson from controls-preview: a harness that renders something simpler
+// than the app renders certifies the wrong thing. So the stand-ins are sized
+// like the real panes — a tall scrolling body, a full-height chat layout —
+// rather than a paragraph of lorem.
+//
+// Never part of a production build: Vite only bundles entries reachable from
+// index.html, and nothing in the app imports this.
+//
+//   cd game && npm run dev  →  http://localhost:5173/hub-preview.html
+
+import { StrictMode, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { HubFrame, type HubSection, type HubSectionContent } from "./components/HubModal";
+import { RewardsPane } from "./components/GiveawayModal";
+import type { GiveawayStats, Promo, PublicGiveaway } from "./net/api";
+import "./app.css";
+
+const H = 3_600_000;
+const D = 86_400_000;
+const now = Date.now();
+
+const promo = (over: Partial<Promo> = {}): Promo => ({
+  id: "discord-link",
+  title: "Join the Discord",
+  blurb: "Link your account to the community server and the reward is yours.",
+  icon: "discord",
+  prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
+  state: "available",
+  cta: { label: "Get the code", href: "/link-discord" },
+  note: null,
+  ...over,
+} as Promo);
+
+const SECOND = promo({
+  id: "starter-pack",
+  title: "New trainer pack",
+  blurb: "A hand up for anyone still on their first badge.",
+  icon: "gift",
+  prizes: [
+    { kind: "item", itemId: "rarecandy", quantity: 5 },
+    { kind: "money", amount: 25_000 },
+  ],
+  cta: { label: "Collect", href: "/rewards" },
+} as Partial<Promo>);
+
+const gw = (over: Partial<PublicGiveaway> = {}): PublicGiveaway => ({
+  id: "g1",
+  title: "Master Ball Giveaway",
+  description: "10 winners, one Master Ball each. Entries close in 24 hours.",
+  status: "open",
+  createdAt: new Date(now - 2 * H).toISOString(),
+  startsAt: null,
+  endsAt: new Date(now + D).toISOString(),
+  drawnAt: null,
+  winnerCount: 10,
+  minAccountLevel: null,
+  prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
+  prizeSummary: "1x masterball",
+  entryCount: 412,
+  hasEntered: false,
+  youWon: false,
+  youWonDelivered: null,
+  winners: [],
+  drawSeed: null,
+  ...over,
+} as PublicGiveaway);
+
+// Real production shapes: 12 winners on one row, three long usernames, rows
+// with endsAt === null.
+const past: PublicGiveaway[] = [
+  gw({
+    id: "h1", title: "Shiny Mew draw", status: "drawn",
+    endsAt: new Date(now - 3 * H).toISOString(),
+    drawnAt: new Date(now - 3 * H).toISOString(),
+    prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
+    winners: ["dudsdiem", "dwellbreathe", "lilkidkolaps63", "koruem", "naill"],
+    youWon: true, youWonDelivered: false,
+    drawSeed: "3f9a1c0e5b7d28461ba0",
+  }),
+  gw({
+    id: "h2", title: "Bottle cap bundle", status: "drawn",
+    endsAt: new Date(now - 2 * D).toISOString(),
+    drawnAt: new Date(now - 2 * D).toISOString(),
+    prizes: [
+      { kind: "item", itemId: "goldbottlecap", quantity: 1 },
+      { kind: "item", itemId: "silverbottlecap", quantity: 2 },
+    ],
+    winnerCount: 12, entryCount: 33, hasEntered: true,
+    winners: ["koruem", "naill", "dudsdiem", "a", "b", "c", "d", "e", "f", "g", "h", "i"],
+    drawSeed: "88c1e4d2f60a9b37",
+  }),
+  gw({
+    id: "h3", title: "Weekend money drop", status: "closed",
+    endsAt: new Date(now - 9 * D).toISOString(), drawnAt: null,
+    prizes: [{ kind: "money", amount: 250_000 } as any],
+    winners: [], entryCount: 9,
+  }),
+];
+
+const stats: GiveawayStats = {
+  total: 16,
+  prizesAwarded: 86,
+  distinctWinners: 48,
+  firstAt: "2026-07-17T11:37:33.170Z",
+  you: { entered: 1, won: 1 },
+};
+
+/** A stand-in sized like the pane it replaces, so the frame is exercised
+ *  against realistic content rather than a sentence. */
+function Filler({ label, rows = 14 }: { label: string; rows?: number }) {
+  return (
+    <>
+      <div className="hub-views">
+        <div className="g-tabs" role="tablist">
+          <button className="g-tab active">{label}</button>
+          <button className="g-tab">Second view</button>
+          <button className="g-tab">Third view</button>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} style={{
+            padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)",
+            fontSize: 12, color: "var(--text-muted)",
+          }}>
+            {label} row {i + 1}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Chat's shape: a full-height column whose middle scrolls and whose
+ *  composer is pinned. This is the case `fill` exists for. */
+function ChatFiller() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <div className="hub-views">
+        <div className="g-tabs" role="tablist">
+          <button className="g-tab active">Chat</button>
+          <button className="g-tab">Friends</button>
+          <button className="g-tab">Trainers</button>
+        </div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {Array.from({ length: 40 }, (_, i) => (
+          <p key={i} style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+            <strong style={{ color: "var(--text)" }}>trainer{i % 7}</strong> message {i + 1}
+          </p>
+        ))}
+      </div>
+      <div style={{ flex: "0 0 auto", display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--border)" }}>
+        <input style={{ flex: 1 }} placeholder="Message Global…" />
+        <button className="g-btn-primary g-btn-small">Send</button>
+      </div>
+    </div>
+  );
+}
+
+type Case = {
+  name: string;
+  promos: Promo[];
+  live: PublicGiveaway[];
+  past: PublicGiveaway[];
+  badges?: Partial<Record<HubSection, number>>;
+  disabled?: Partial<Record<HubSection, string>>;
+  start?: HubSection;
+};
+
+const CASES: Case[] = [
+  { name: "Everything waiting", promos: [promo(), SECOND], live: [gw(), gw({ id: "g2", title: "Evolution Stone Bundle", hasEntered: true, endsAt: new Date(now + 40 * 60_000).toISOString() })], past, badges: { rewards: 2, social: 3 }, start: "rewards" },
+  { name: "Battle (default)", promos: [promo()], live: [gw()], past, badges: { rewards: 1 }, start: "pvp" },
+  { name: "Battle disabled", promos: [], live: [], past, disabled: { pvp: "You're already in a PvP battle" }, badges: { social: 1 }, start: "social" },
+  { name: "Social (fill)", promos: [], live: [], past, badges: { social: 12 }, start: "social" },
+  { name: "Settings", promos: [], live: [], past, start: "settings" },
+  { name: "Rewards — nothing free", promos: [], live: [], past: [], start: "rewards" },
+  { name: "Rewards — long archive", promos: [promo({ state: "claimed", cta: null, note: "Already collected — thanks for joining." })], live: [], past: [...past, ...past.map((p, i) => ({ ...p, id: `x${i}` })), ...past.map((p, i) => ({ ...p, id: `y${i}` }))], start: "rewards" },
+  { name: "Big badge (99+)", promos: [promo()], live: [gw()], past, badges: { social: 128, rewards: 1 }, start: "rewards" },
+];
+
+function Harness() {
+  const [i, setI] = useState(0);
+  const c = CASES[i];
+  const [active, setActive] = useState<HubSection>(c.start ?? "pvp");
+  const [closed, setClosed] = useState(false);
+  const [entering, setEntering] = useState<string | null>(null);
+
+  const sections: Record<HubSection, HubSectionContent> = {
+    pvp: {
+      Body: () => <Filler label="Ranked" rows={16} />,
+      HeaderRight: () => <span className="pvp2-elo-chip">34 matches</span>,
+      note: "Ranked ladder, casual matches and tournaments.",
+    },
+    rewards: {
+      Body: () => (
+        <RewardsPane
+          promos={c.promos}
+          live={c.live}
+          past={c.past}
+          stats={stats}
+          loading={false}
+          error={null}
+          highlightId={null}
+          entering={entering}
+          onEnter={(g) => { setEntering(g.id); window.setTimeout(() => setEntering(null), 900); }}
+          canLoadMore={c.past.length > 3}
+          moreState="idle"
+          onLoadMore={() => {}}
+          viewerName="koruem"
+        />
+      ),
+      HeaderRight: () => (
+        <span className="rw-record">
+          <span className="rw-record-fig is-gold"><strong>{stats.you.won}</strong>win</span>
+          <span className="rw-record-fig"><strong>{stats.you.entered}</strong>entry</span>
+        </span>
+      ),
+      note: "Everything you can get for free — no purchase, ever.",
+    },
+    social: { Body: ChatFiller, fill: true },
+    settings: { Body: () => <Filler label="Stats" rows={20} />, note: "Your account, your game, and the knobs." },
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg, #06070a)" }}>
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 500,
+        display: "flex", gap: 6, flexWrap: "wrap", padding: 8,
+        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)",
+      }}>
+        {CASES.map((cc, idx) => (
+          <button
+            key={cc.name}
+            onClick={() => { setI(idx); setActive(cc.start ?? "pvp"); setClosed(false); }}
+            style={{
+              padding: "5px 10px", fontSize: 12, borderRadius: 6, cursor: "pointer",
+              border: "1px solid " + (i === idx ? "#fbbf24" : "rgba(255,255,255,0.14)"),
+              background: i === idx ? "rgba(251,191,36,0.16)" : "transparent",
+              color: i === idx ? "#fbbf24" : "#cbd5e1",
+            }}
+          >{cc.name}</button>
+        ))}
+      </div>
+
+      {closed
+        ? <p style={{ paddingTop: 80, textAlign: "center", color: "#64748b" }}>
+            Closed. Pick a case above to reopen.
+          </p>
+        : <HubFrame
+            key={i}
+            active={active}
+            onSelect={setActive}
+            onClose={() => setClosed(true)}
+            sections={sections}
+            disabled={c.disabled}
+            badges={c.badges}
+            title="Hub"
+          />}
+    </div>
+  );
+}
+
+const el = document.getElementById("root")!;
+const g = window as unknown as { __hubRoot?: ReturnType<typeof createRoot> };
+g.__hubRoot ??= createRoot(el);
+const strict = new URLSearchParams(location.search).get("strict") !== "0";
+g.__hubRoot.render(strict ? <StrictMode><Harness /></StrictMode> : <Harness />);

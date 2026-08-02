@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useGame } from "../state/GameContext";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
+import { openHub, closeHub } from "./HubModal";
 import {
   joinRandomQueue,
   leaveRandomQueue,
@@ -44,31 +45,24 @@ type Mode = "ranked" | "casual" | "tournament" | "practice";
  *  the real queue feel worse rather than better. */
 const LONELY_QUEUE_MS = 20_000;
 
-let _open = false;
-const _listeners = new Set<(o: boolean) => void>();
-export function openPvpHub() {
-  _open = true;
-  for (const l of _listeners) l(true);
-}
-export function closePvpHub() {
-  _open = false;
-  for (const l of _listeners) l(false);
-}
-function useOpen(): boolean {
-  const [o, setO] = useState(_open);
-  useEffect(() => {
-    _listeners.add(setO);
-    return () => { _listeners.delete(setO); };
-  }, []);
-  return o;
-}
+/** Open the hub on Battle. Kept as a named entry point so callers that mean
+ *  "take me to PvP" still say so — see HubModal's note on openGiveaways. */
+export function openPvpHub() { openHub("pvp"); }
+export function closePvpHub() { closeHub(); }
 
-export function PvpHubModal() {
-  // ALL HOOKS BEFORE THE EARLY RETURN — React #310 was caused by a
-  // useMemo sitting below `if (!isOpen) return null`. Same hook
-  // graph every render now.
-  const isOpen = useOpen();
-  const dialogRef = useModalEnter(".pvp-hero-trainer-card");
+/**
+ * The Battle PANE.
+ *
+ * `isOpen` used to be this component's own module-level flag, and it did two
+ * jobs: gate the render, and gate a dozen "don't act while closed" checks on
+ * queue and tournament buttons. The hub only mounts a section while it is
+ * the active one, so the render gate is gone — but the action guards are not
+ * dead weight, they stop an in-flight request from acting after the player
+ * has navigated away, so `isOpen` survives as a constant true and the guards
+ * keep their meaning.
+ */
+export function PvpHubPane() {
+  const isOpen = true;
   const pvp = usePvpState();
   const game = useGame();
   const { me } = useAuth();
@@ -140,7 +134,7 @@ export function PvpHubModal() {
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closePvpHub(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeHub(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen]);
@@ -260,27 +254,7 @@ export function PvpHubModal() {
   const teamForStrip = game.state.party.slice(0, 6);
 
   return (
-    <div className="modal-overlay" onClick={closePvpHub}>
-      <div
-        ref={dialogRef}
-        className={`g-modal pvp-hub-arena2 ${inQueue ? "is-queued" : ""}`}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={t("PvP battle hub")}
-      >
-        {/* HEADER */}
-        <header className="pvp2-head">
-          <div className="pvp2-head-title">
-            <IconSwords size={14} />
-            <span>{t("BATTLE HUB")}</span>
-          </div>
-          {!isUnranked && rating && (
-            <span className="pvp2-elo-chip">{rating.matchesPlayed} {t("matches")}</span>
-          )}
-          <button className="pvp2-close" onClick={closePvpHub} aria-label={t("Close")}>
-            <IconClose size={18} />
-          </button>
-        </header>
+    <div className={`pvp-hub-pane ${inQueue ? "is-queued" : ""}`}>
 
         {/* TRAINER CARD — horizontal, packed with info */}
         <section className="pvp2-trainer-row">
@@ -592,9 +566,34 @@ export function PvpHubModal() {
             <button className="g-btn-ghost g-btn-small" onClick={cancelQueue}>{t("Stand Down")}</button>
           </div>
         )}
-      </div>
     </div>
   );
+}
+
+/**
+ * "34 matches", for the hub header. The pane's own header is gone and this is
+ * the one thing from it worth keeping at the top.
+ *
+ * It fetches its own rating rather than taking one as a prop. The pane is
+ * already fetching the same row a few lines below, so this is a second
+ * request for one number — but the alternative is lifting PvP's whole rating
+ * state up into GameHub so it can be threaded back down into a header slot,
+ * which would make the hub's assembly file know what an Elo row is. One
+ * cached GET is the cheaper trade.
+ */
+export function PvpHeaderRight() {
+  const t = useT();
+  const [matches, setMatches] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.myRating()
+      .then((r) => { if (alive) setMatches(r?.matchesPlayed ?? null); })
+      // No chip. A header ornament is not worth an error state.
+      .catch(() => { /* ignore */ });
+    return () => { alive = false; };
+  }, []);
+  if (matches == null) return null;
+  return <span className="pvp2-elo-chip">{matches} {t("matches")}</span>;
 }
 
 function ReadyUpSlab({

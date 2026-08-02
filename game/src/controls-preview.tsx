@@ -25,6 +25,7 @@ import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSettings, IconChat, IconSwords,
 } from "./components/Icon";
+import "./components/hub.css";
 import "./app.css";
 
 // The icons are the REAL ones, in the real <span class="…-icon"> wrappers.
@@ -127,6 +128,27 @@ function Harness() {
         <Tabs cls="g-tab" wrap="g-tabs" items={["One", "Two", "Three"]} />
       </Row>
 
+      {/* The hub's rail is its own kind: a vertical nav at --ctl-h-lg, not a
+          tab row. It is here so it stays inside the consistency net — the
+          whole failure mode this page exists for is a control that nothing
+          ever puts next to its cousins. */}
+      <Row title="Hub rail" note=".hub-tab — vertical section nav, 38px, gold for 'you are here'">
+        <div className="hub-side" style={{ width: 208, borderRight: 0, borderRadius: 8 }}>
+          <div className="hub-nav-scroll">
+            <nav className="hub-nav" role="tablist">
+              <span className="hub-nav-head">Play</span>
+              <button className="hub-tab is-active"><span className="hub-tab-icon">⚔</span><span className="hub-tab-label">Battle</span></button>
+              <button className="hub-tab"><span className="hub-tab-icon">✦</span><span className="hub-tab-label">Rewards</span><span className="hub-tab-badge">2</span></button>
+            </nav>
+            <nav className="hub-nav" role="tablist">
+              <span className="hub-nav-head">You</span>
+              <button className="hub-tab"><span className="hub-tab-icon">💬</span><span className="hub-tab-label">Social</span><span className="hub-tab-badge">99+</span></button>
+              <button className="hub-tab" disabled title="Already in a PvP battle"><span className="hub-tab-icon">⚙</span><span className="hub-tab-label">Disabled</span></button>
+            </nav>
+          </div>
+        </div>
+      </Row>
+
       <Row title="Dock buttons" note=".dock-btn — stacked icon over label; .active means the panel is open">
         <div className="global-dock" style={{ maxWidth: 320 }}>
           <button type="button" className="dock-btn">
@@ -210,10 +232,13 @@ function audit(): string {
   //          label; a floating tab row is a single 26px line.
   //   dock — the party dock is a stacked grid cell; the meta dock in the
   //          top-left is a horizontal bar inside a 28px header.
+  //   hub rail — one shape. It is a single nav in a single dialog, so a
+  //          second shape here would be drift with nowhere to hide.
   // Anything above these numbers is drift, not design.
   const KINDS: Array<[string, string[], number]> = [
     ["tabs", [".bottom-tab", ".route-region-tab", ".mini-chat-tab", ".social-tab", ".g-tab"], 2],
     ["dock", [".dock-btn"], 2],
+    ["hub rail", [".hub-tab"], 1],
     ["buttons (default)", [".g-btn-primary:not(.g-btn-small)", ".g-btn-ghost:not(.g-btn-small)", ".g-btn-danger-ghost:not(.g-btn-small)"], 1],
     ["buttons (dense)", [".g-btn-small"], 1],
   ];

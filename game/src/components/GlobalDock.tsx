@@ -6,7 +6,6 @@ import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount, regionEliteFourCount } from "../utils/unlocks";
 import { useAuth } from "../auth/AuthContext";
 import { AccountIdentityCard } from "./AccountIdentityCard";
-import { SocialPanel } from "./SocialPanel";
 import { openLegal } from "./LegalModal";
 import { openReportBug } from "./ReportBugModal";
 import { openAchievements } from "./AchievementsModal";
@@ -14,14 +13,13 @@ import { openChangelog } from "./ChangelogModal";
 import { openHowToPlay } from "./HowToPlayModal";
 import { openDailyReward } from "../state/dailies";
 import { useDailyStatus } from "../state/dailies";
-import { openGiveaways } from "./GiveawayModal";
+import { openHub, closeHub, useHubSection } from "./HubModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { IconSettings, IconChat, IconSwords } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useLayoutMode, setLayoutMode, type LayoutMode } from "../state/layoutMode";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { openPvpHub } from "./PvpHubModal";
 import { useModalEnter, CountUp } from "../utils/animate";
 import { isProfanityFilterOn, setProfanityFilter, subscribeProfanityFilter } from "../utils/profanity";
 import { musicManager, type PublicState as MusicState } from "../utils/music";
@@ -30,77 +28,57 @@ import { LANGUAGES, getLanguage, setLanguage, subscribeLanguage, type Language }
 import { useT } from "../i18n/useT";
 import type { ReactNode } from "react";
 
-// Action dock split across columns:
-//   Left  (gameplay):  Heal — instant party heal
-//   Right (meta):      Settings + Social + PvP
-type PopupId = null | "settings" | "social" | "pvp";
-
-// Bus to coordinate state across the two dock components, since they're
-// rendered in different columns now.
-let openState: PopupId = null;
-const openListeners = new Set<(o: PopupId) => void>();
-function setOpenState(o: PopupId) {
-  openState = o;
-  for (const fn of openListeners) fn(o);
-}
-function useOpen(): [PopupId, (o: PopupId) => void] {
-  const [o, setO] = useState<PopupId>(openState);
-  useState(() => {
-    openListeners.add(setO);
-    return () => openListeners.delete(setO);
-  });
-  return [o, setOpenState];
-}
-
-// Right dock — Settings + Social + PvP. Mounts the modals/panels that those buttons open.
+// The meta dock — the row in the top-left of the desktop shell.
+//
+// It used to mount three unrelated dialogs and coordinate them through a
+// module-level bus, because opening one had to close the others or the
+// overlays stacked. All three are sections of the Hub now, so the dock is
+// what it should always have been: three buttons that open one thing at
+// three different starting points. The bus is gone with them.
+//
+// Battle is deliberately still here rather than only inside the hub. It is
+// the most-pressed of the three, and burying the game's competitive mode one
+// click deeper to prove a point about consolidation would be paying for
+// tidiness with the thing players actually came for.
 export function MetaDock() {
-  const [open, setOpen] = useOpen();
   const pvp = usePvpState();
   const t = useT();
-  // The PvP button is live-disabled mid-battle (nothing useful to do
-  // from the hub then) but stays enabled while queueing — the queue
-  // state is fine to inspect / leave from inside the hub.
+  // Live-disabled mid-battle — there is nothing useful to do in the hub then
+  // — but enabled while queueing, since inspecting or leaving the queue from
+  // inside the hub is fine.
   const inBattle = !!pvp.room;
-  // Polls /api/friends every 30s; non-zero count lights up a badge
-  // on the Social button so a fresh request is discoverable without
-  // having to open the panel. (DrWhy: "socials tab does not light up
-  // if a request is there unless you hit it" — fixed.)
+  // Polls /api/friends every 30s; a non-zero count lights the Social button
+  // so a fresh request is discoverable without opening anything. (DrWhy:
+  // "socials tab does not light up if a request is there unless you hit it".)
   const { count: incomingRequests } = useIncomingRequestCount();
+  const active = useHubSection();
   return (
-    <>
-      <div className="dock dock-meta" role="toolbar" aria-label={t("Account actions")}>
-        <DockButton
-          icon={<IconSwords size={18} />}
-          label={t("PvP")}
-          title={inBattle ? t("Already in a PvP battle") : t("PvP — battle other players")}
-          onClick={() => {
-            if (inBattle) return;
-            // Hub is its own modal; close any other dock popup so we
-            // don't stack overlays.
-            setOpen(null);
-            openPvpHub();
-          }}
-        />
-        <DockButton
-          icon={<IconSettings size={18} />}
-          label={t("Settings")}
-          active={open === "settings"}
-          onClick={() => setOpen(open === "settings" ? null : "settings")}
-        />
-        <DockButton
-          icon={<IconChat size={18} />}
-          label={t("Social")}
-          active={open === "social"}
-          title={incomingRequests > 0
-            ? `${t("Friends & chat")} · ${incomingRequests} ${incomingRequests === 1 ? t("pending request") : t("pending requests")}`
-            : t("Friends & chat")}
-          badge={incomingRequests}
-          onClick={() => setOpen(open === "social" ? null : "social")}
-        />
-      </div>
-      {open === "settings" && <SettingsModal onClose={() => setOpen(null)} />}
-      <SocialPanel open={open === "social"} onClose={() => setOpen(null)} />
-    </>
+    <div className="dock dock-meta" role="toolbar" aria-label={t("Account actions")}>
+      <DockButton
+        icon={<IconSwords size={18} />}
+        label={t("PvP")}
+        active={active === "pvp"}
+        disabled={inBattle}
+        title={inBattle ? t("Already in a PvP battle") : t("PvP — battle other players")}
+        onClick={() => { if (!inBattle) openHub("pvp"); }}
+      />
+      <DockButton
+        icon={<IconSettings size={18} />}
+        label={t("Settings")}
+        active={active === "settings"}
+        onClick={() => (active === "settings" ? closeHub() : openHub("settings"))}
+      />
+      <DockButton
+        icon={<IconChat size={18} />}
+        label={t("Social")}
+        active={active === "social"}
+        title={incomingRequests > 0
+          ? `${t("Friends & chat")} · ${incomingRequests} ${incomingRequests === 1 ? t("pending request") : t("pending requests")}`
+          : t("Friends & chat")}
+        badge={incomingRequests}
+        onClick={() => (active === "social" ? closeHub() : openHub("social"))}
+      />
+    </div>
   );
 }
 
@@ -485,7 +463,20 @@ function DockButton({ icon, label, active, disabled, title, badge, onClick }: Do
 // ---------------------------------------------------------------------------
 type SettingsTab = "stats" | "game" | "display" | "audio" | "chat" | "account";
 
-function SettingsModal({ onClose }: { onClose: () => void }) {
+/**
+ * The Settings PANE.
+ *
+ * It was a dialog: overlay, header, close button, ESC handler, footer with a
+ * second Close. All of that belongs to the hub frame now, exactly once. What
+ * is left is what Settings actually IS — a profile line, six views, and the
+ * account actions at the bottom.
+ *
+ * The footer's "Close" is gone rather than relocated. It duplicated the ×
+ * three inches away and the ESC key, and a dialog with two ways to dismiss
+ * it in the same corner teaches players that neither is the real one. Sign
+ * out survives, because it is not a dismiss.
+ */
+function SettingsPane() {
   const { state } = useGame();
   const { me, signOut } = useAuth();
   const dailyStatus = useDailyStatus();
@@ -509,29 +500,9 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const gymLeaders = region.gymLeaders;
   const eliteFour = region.eliteFour;
   const initial = (me?.name ?? me?.username ?? "?")[0]?.toUpperCase() ?? "?";
-  const dialogRef = useModalEnter(".g-profile-hero, .g-card");
-
-  // ESC dismisses — every modal in the codebase should.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="g-modal settings-modal-v2"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={t("Settings")}
-      >
-        <header className="g-modal-head">
-          <h2>{t("Settings")}</h2>
-          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
-        </header>
-
+    <div className="settings-pane">
         {me && (
           <section className="g-profile-hero settings-hero">
             <div className="g-avatar">{initial}</div>
@@ -547,16 +518,21 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           </section>
         )}
 
-        <nav className="settings-tabs" role="tablist" aria-label={t("Settings sections")}>
-          <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
-          <SettingsTabBtn label={t("Game")}    tab="game"    active={tab} onPick={setTab} />
-          <SettingsTabBtn label={t("Display")} tab="display" active={tab} onPick={setTab} />
-          <SettingsTabBtn label={t("Audio")}   tab="audio"   active={tab} onPick={setTab} />
-          <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
-          <SettingsTabBtn label={t("Account")} tab="account" active={tab} onPick={setTab} />
-        </nav>
+        {/* Level two of the hub's structure rule. The shared .g-tab, in the
+            shared .hub-views row, so Settings' six views are the same
+            control as Rewards' three and the map's region pills. */}
+        <div className="hub-views">
+          <div className="g-tabs" role="tablist" aria-label={t("Settings sections")}>
+            <SettingsTabBtn label={t("Stats")}   tab="stats"   active={tab} onPick={setTab} />
+            <SettingsTabBtn label={t("Game")}    tab="game"    active={tab} onPick={setTab} />
+            <SettingsTabBtn label={t("Display")} tab="display" active={tab} onPick={setTab} />
+            <SettingsTabBtn label={t("Audio")}   tab="audio"   active={tab} onPick={setTab} />
+            <SettingsTabBtn label={t("Chat")}    tab="chat"    active={tab} onPick={setTab} />
+            <SettingsTabBtn label={t("Account")} tab="account" active={tab} onPick={setTab} />
+          </div>
+        </div>
 
-        <div className="g-modal-body">
+        <div className="settings-pane-body">
           <div className="g-grid">
             {tab === "stats" && (
               <>
@@ -585,13 +561,13 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
-                      onClick={() => { onClose(); openGiveaways(); }}
+                      onClick={() => openHub("rewards")}
                     >
                       🎁 {t("View giveaways")}
                     </button>
                     <button
                       className="g-btn-ghost g-btn-small"
-                      onClick={() => { onClose(); openDailyReward(); }}
+                      onClick={() => { closeHub(); openDailyReward(); }}
                     >
                       🔥 {t("Daily reward")}{dailyStatus && !dailyStatus.claimedToday && <span className="daily-claimable-dot" aria-label={t("claim available")} />}
                     </button>
@@ -606,7 +582,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-ghost g-btn-small"
-                      onClick={() => { onClose(); openHowToPlay(); }}
+                      onClick={() => { closeHub(); openHowToPlay(); }}
                     >
                       {t("How to play")}
                     </button>
@@ -625,7 +601,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-ghost g-btn-small"
-                      onClick={() => { onClose(); openChangelog(); }}
+                      onClick={() => { closeHub(); openChangelog(); }}
                     >
                       {t("View changelog")}
                     </button>
@@ -640,7 +616,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
-                      onClick={() => { onClose(); openAchievements(); }}
+                      onClick={() => { closeHub(); openAchievements(); }}
                     >
                       {t("Open trophy gallery")}
                     </button>
@@ -699,7 +675,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className="settings-legal-links">
                     <button
                       className="g-btn-primary g-btn-small"
-                      onClick={() => { onClose(); openReportBug(); }}
+                      onClick={() => { closeHub(); openReportBug(); }}
                     >
                       {t("Report a bug")}
                     </button>
@@ -723,12 +699,10 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {me && (
-          <footer className="g-modal-foot">
-            <button className="g-btn-danger-ghost" onClick={signOut}>{t("Sign out")}</button>
-            <button className="g-btn-primary" onClick={onClose}>{t("Close")}</button>
+          <footer className="settings-pane-foot">
+            <button className="g-btn-danger-ghost g-btn-small" onClick={signOut}>{t("Sign out")}</button>
           </footer>
         )}
-      </div>
     </div>
   );
 }
@@ -746,7 +720,7 @@ function SettingsTabBtn({
       type="button"
       role="tab"
       aria-selected={active === tab}
-      className={`settings-tab ${active === tab ? "active" : ""}`}
+      className={`g-tab ${active === tab ? "active" : ""}`}
       onClick={() => onPick(tab)}
     >
       {label}
@@ -794,3 +768,5 @@ function LayoutPrefsCard() {
     </section>
   );
 }
+
+export { SettingsPane };

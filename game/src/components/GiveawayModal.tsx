@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, type GiveawayStats, type Promo, type PublicGiveaway } from "../net/api";
-import { useModalEnter } from "../utils/animate";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
 import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
 import { PromoCard } from "./PromoCard";
+import { openHub } from "./HubModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
 import {
   useGiveaways,
@@ -55,16 +55,34 @@ import "./giveaways.css";
 //      already holds a shared snapshot (utils/giveawayStore.ts), so the
 //      dialog paints from it immediately and refreshes behind the paint.
 
-let _open: ((targetId?: string) => void) | null = null;
 // targetId: scroll to and briefly highlight one specific giveaway card
 // (e.g. from the "View Giveaway" button on a chat announcement, or from the
 // rail) instead of just opening on an undifferentiated list — matters once
 // more than one giveaway can be live at the same time, which production does
 // routinely (four were published in one burst).
-export function openGiveaways(targetId?: string) { _open?.(targetId); }
+//
+// Kept as a named entry point rather than making every caller say
+// openHub("rewards"): the chat card's "View Giveaway" button wants ONE
+// giveaway, and that intent would be lost if it had to become a generic
+// "open the hub". It sets the highlight, then asks the hub for its section.
+// A module-level box rather than a callback into a mounted component. The
+// ordering matters: the Rewards pane does not exist until the hub switches to
+// it, so a callback registered by that pane is null at the exact moment this
+// is called. The box survives the gap, and the pane picks it up on mount.
+let _pendingHighlight: string | null = null;
+export function openGiveaways(targetId?: string) {
+  _pendingHighlight = targetId ?? null;
+  openHub("rewards");
+}
 
-export function GiveawayModal() {
-  const [open, setOpen] = useState(false);
+/**
+ * The Rewards pane, wired to the store and the network.
+ *
+ * Mounted by the hub only while Rewards is the active section, which is what
+ * makes the refetch on mount below mean "when somebody arrives here" — the
+ * same moment the old dialog's open-handler fired.
+ */
+export function RewardsBody() {
   const [entering, setEntering] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const t = useT();
@@ -77,29 +95,34 @@ export function GiveawayModal() {
   const [extra, setExtra] = useState<PublicGiveaway[]>([]);
   const [moreState, setMoreState] = useState<"idle" | "loading" | "done">("idle");
 
+  // Claim the pending highlight exactly once. Clearing it on read is what
+  // stops a later, undirected visit to Rewards from re-scrolling to whatever
+  // giveaway a chat card pointed at yesterday.
   useEffect(() => {
-    _open = (targetId) => { setOpen(true); setHighlightId(targetId ?? null); };
-    return () => { _open = null; };
+    if (_pendingHighlight) {
+      setHighlightId(_pendingHighlight);
+      _pendingHighlight = null;
+    }
   }, []);
 
-  // Opening is the acknowledgement: the rail's win pulse stops once the
-  // player has actually looked. The row still says they won.
+  // The section is mounted for as long as the hub is, so "on open" is now
+  // "when the highlight changes" plus the store's own visibility refresh.
+  // Kept as a mount-time fetch: the hub mounts its sections lazily, so this
+  // still runs exactly when somebody arrives.
   useEffect(() => {
-    if (!open) return;
     void refreshGiveaways();
-    // Opening is one of the three moments a promo can have changed under us —
-    // the other two are the first load and coming back from Discord.
+    // One of the three moments a promo can have changed under us — the other
+    // two are the first load and coming back from Discord.
     void refreshPromos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, []);
 
   // Re-run on the snapshot, not only on open: a player who opens the dialog
   // during the very first fetch would otherwise acknowledge an empty list and
   // the rail would keep pulsing at a win they have already looked at.
   useEffect(() => {
-    if (!open || !snap.giveaways) return;
+    if (!snap.giveaways) return;
     markWinsSeen(snap.giveaways.filter((g) => g.youWon).map((g) => g.id));
-  }, [open, snap.giveaways]);
+  }, [snap.giveaways]);
 
   // Once the list has content, scroll the targeted card into view. The
   // highlight itself is cleared after a few seconds — it's a "here it
@@ -112,13 +135,6 @@ export function GiveawayModal() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap.giveaways, highlightId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   const list = snap.giveaways;
   const live = useMemo(() => (list ?? []).filter((g) => g.status === "open"), [list]);
@@ -144,8 +160,6 @@ export function GiveawayModal() {
     () => [...(snap.promos ?? [])].sort((a, b) => rankPromo(a.state) - rankPromo(b.state)),
     [snap.promos],
   );
-
-  if (!open) return null;
 
   const enter = async (g: PublicGiveaway) => {
     setEntering(g.id);
@@ -182,7 +196,7 @@ export function GiveawayModal() {
   };
 
   return (
-    <RewardsDialog
+    <RewardsPane
       promos={sortedPromos}
       live={live}
       past={past}
@@ -196,12 +210,11 @@ export function GiveawayModal() {
       moreState={moreState}
       onLoadMore={loadMore}
       viewerName={me?.username ?? null}
-      onClose={() => setOpen(false)}
     />
   );
 }
 
-export interface RewardsDialogProps {
+export interface RewardsPaneProps {
   promos: Promo[];
   live: PublicGiveaway[];
   past: PublicGiveaway[];
@@ -219,30 +232,33 @@ export interface RewardsDialogProps {
    *  presentational half of this dialog must be mountable without the app's
    *  providers, which is the entire point of the split. */
   viewerName: string | null;
-  onClose: () => void;
 }
 
 /**
- * The dialog itself, with no store, no socket and no network.
+ * The Rewards PANE — no store, no socket, no network, and no dialog chrome.
  *
- * Split out for the same reason WelcomeBackDialog was: reaching this screen in
- * a state worth looking at needs a signed-in session, a configured promotion,
- * a live giveaway AND an archive behind it — which is not a loop anyone can
- * iterate a layout in. rewards-preview.tsx mounts THIS component with the real
- * stylesheet, so what gets checked is the same JSX and the same CSS, with only
- * the data replaced.
+ * It used to own an overlay, a header, a close button and a sidebar of its
+ * own. All four now belong to the hub frame, exactly once, which is the
+ * entire point of there being a hub: four sections cannot disagree about
+ * where a title sits if only one of them draws it.
+ *
+ * Split from its data for the same reason WelcomeBackDialog was: reaching
+ * this screen in a state worth looking at needs a signed-in session, a
+ * configured promotion, a live giveaway AND an archive behind it — not a
+ * loop anyone can iterate a layout in. hub-preview.tsx mounts this with the
+ * real stylesheet, so what gets checked is the same JSX and the same CSS
+ * with only the data replaced.
  *
  * That is not a hypothetical benefit. A CSS syntax error shipped in this app
  * recently that voided every design token in the game, and neither `tsc` nor
- * 541 passing tests noticed, because neither of them reads CSS.
+ * 548 passing tests noticed, because neither of them reads CSS.
  */
-export function RewardsDialog({
+export function RewardsPane({
   promos, live, past, stats, loading, error,
   highlightId, entering, onEnter,
-  canLoadMore, moreState, onLoadMore, viewerName, onClose,
-}: RewardsDialogProps) {
+  canLoadMore, moreState, onLoadMore, viewerName,
+}: RewardsPaneProps) {
   const t = useT();
-  const dialogRef = useModalEnter(".rw-pane");
   const [showFair, setShowFair] = useState(false);
   // null = "whatever the data says is most worth looking at". It stops being
   // null the moment the player picks a tab, and never goes back — a dialog
@@ -334,58 +350,70 @@ export function RewardsDialog({
             </button>
           )}
         </div>
+        {/* The feature's lifetime totals, under the archive they describe.
+            They used to sit in the dialog header, where four numbers
+            competed with the section title for the same glance and lost. */}
+        <LifetimeLine stats={stats} />
       </>
     );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="g-modal giveaway-modal rewards-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={t("Rewards")}
-      >
-        <header className="giveaway-head">
-          <div className="gw-head-main">
-            <h2>{t("Rewards")}</h2>
-            <p className="gw-head-sub">
-              {t("Everything you can get for free — no purchase, ever.")}
-            </p>
-          </div>
-          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
-        </header>
-
-        <div className="rw-shell">
-          <aside className="rw-side">
-            <nav className="rw-nav" role="tablist" aria-label={t("Rewards")}>
-              {tabs.map((x) => (
-                <button
-                  key={x.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active === x.id}
-                  className={`rw-tab rw-tab--${x.tone}${active === x.id ? " is-active" : ""}`}
-                  onClick={() => setPicked(x.id)}
-                >
-                  <span className="rw-tab-icon" aria-hidden>{x.icon}</span>
-                  <span className="rw-tab-label">{x.label}</span>
-                  {/* The badge counts what is ACTIONABLE, not what exists.
-                      "3" next to Giveaways meaning "three you have already
-                      entered" is the kind of number that trains people to
-                      stop reading badges. */}
-                  {x.badge != null && <span className="rw-tab-badge">{x.badge}</span>}
-                </button>
-              ))}
-            </nav>
-
-            <HaulPanel stats={stats} />
-          </aside>
-
-          <div className="rw-pane" role="tabpanel">{body}</div>
+    <>
+      {/* Level two of the hub's structure rule: the rail said which AREA,
+          this says which VIEW. A horizontal row of the shared .g-tab, so
+          it is the same control as the region pills and the chat channels
+          rather than a fourth idea about what a tab is. */}
+      <div className="hub-views">
+        <div className="g-tabs" role="tablist" aria-label={t("Rewards")}>
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={active === x.id}
+              className={`g-tab${active === x.id ? " active" : ""}`}
+              onClick={() => setPicked(x.id)}
+            >
+              <span className="rw-tab-icon" aria-hidden>{x.icon}</span>
+              <span>{x.label}</span>
+              {/* The badge counts what is ACTIONABLE, not what exists.
+                  "3" next to Giveaways meaning "three you have already
+                  entered" is the kind of number that trains people to
+                  stop reading badges. */}
+              {x.badge != null && <span className="rw-tab-badge">{x.badge}</span>}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+
+      {body}
+    </>
+  );
+}
+
+/**
+ * "2 wins · 8 entries", for the hub header.
+ *
+ * The player's own record, and only their own. The feature's lifetime totals
+ * moved into the Results view where the archive they describe actually lives
+ * — in a header they were four numbers competing with a section title for the
+ * same glance, and losing.
+ */
+export function RewardsHeaderRight() {
+  const t = useT();
+  const { stats } = useGiveaways();
+  if (!stats || stats.total === 0) return null;
+  return (
+    <span className="rw-record">
+      <span className={`rw-record-fig${stats.you.won > 0 ? " is-gold" : ""}`}>
+        <strong>{stats.you.won}</strong>
+        {stats.you.won === 1 ? t("win") : t("wins")}
+      </span>
+      <span className="rw-record-fig">
+        <strong>{stats.you.entered}</strong>
+        {stats.you.entered === 1 ? t("entry") : t("entries")}
+      </span>
+    </span>
   );
 }
 
@@ -455,46 +483,30 @@ function historyTime(g: PublicGiveaway): number {
 }
 
 /**
- * The bottom of the sidebar: the player's own record, then the feature's.
+ * "13 giveaways held · 68 prizes to 39 trainers · since 17 Jul", under the
+ * archive it describes.
  *
- * This used to be one grey line of totals — "13 held · 68 prizes to 39
- * trainers · since 17 Jul · you: 8 entered, 2 won" — with the player's own
- * numbers as the fourth clause of a sentence about somebody else. Their two
- * numbers are the interesting ones and now they are the big ones, which is
- * the whole difference between reporting a statistic and showing somebody
- * their record.
- *
- * The global totals stay, underneath and small. They are still doing real
- * work: a returning player who missed the last three giveaways needs to see
- * that there WERE three, and no number of archive rows says that as fast.
+ * The reason to show it at all is that a returning player who missed the
+ * last three giveaways needs to see that there WERE three, and no number of
+ * archive rows says that as fast. It sits at the BOTTOM of the Results view
+ * rather than in a header, because it is provenance: the question it answers
+ * ("is this real, does it keep happening?") is one you ask after reading,
+ * not before.
  */
-function HaulPanel({ stats }: { stats: GiveawayStats | null }) {
+function LifetimeLine({ stats }: { stats: GiveawayStats | null }) {
   const t = useT();
   if (!stats || stats.total === 0) return null;
   return (
-    <div className="rw-haul">
-      <span className="rw-haul-head">{t("Your record")}</span>
-      <div className="rw-haul-figures">
-        <span className={`rw-figure${stats.you.won > 0 ? " is-gold" : ""}`}>
-          <strong>{stats.you.won}</strong>
-          <em>{stats.you.won === 1 ? t("win") : t("wins")}</em>
+    <p className="rw-lifetime">
+      <span><strong>{stats.total}</strong> {t("giveaways held")}</span>
+      {stats.prizesAwarded > 0 && (
+        <span>
+          <strong>{stats.prizesAwarded}</strong>{t(" prizes to ")}
+          <strong>{stats.distinctWinners}</strong>{t(" trainers")}
         </span>
-        <span className="rw-figure">
-          <strong>{stats.you.entered}</strong>
-          <em>{stats.you.entered === 1 ? t("entry") : t("entries")}</em>
-        </span>
-      </div>
-      <p className="rw-haul-global">
-        <span><strong>{stats.total}</strong> {t("giveaways held")}</span>
-        {stats.prizesAwarded > 0 && (
-          <span>
-            <strong>{stats.prizesAwarded}</strong>{t(" prizes to ")}
-            <strong>{stats.distinctWinners}</strong>{t(" trainers")}
-          </span>
-        )}
-        {stats.firstAt && <span>{t("since ")}{shortDate(stats.firstAt)}</span>}
-      </p>
-    </div>
+      )}
+      {stats.firstAt && <span>{t("since ")}{shortDate(stats.firstAt)}</span>}
+    </p>
   );
 }
 

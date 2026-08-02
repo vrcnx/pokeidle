@@ -30,7 +30,19 @@ function dmChannel(a: string, b: string): ChannelKey {
   return `dm:${x}:${y}`;
 }
 
-export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * The Social PANE — chat, friends and the trainer directory.
+ *
+ * `fill` in the hub's terms: it lays out to the pane's full height and
+ * scrolls its own message list, because an outer scroll would put the
+ * composer below the fold. That is the whole reason HubSectionContent has
+ * the flag at all.
+ *
+ * Its tab row was already the shared .g-tab — it is the only one of the four
+ * sections that arrived speaking the design system — so it only had to move
+ * out of a modal header and into the shared .hub-views row.
+ */
+export function SocialPane() {
   const { me } = useAuth();
   const [tab, setTab] = useState<Tab>("chat");
   const [friends, setFriends] = useState<FriendList | null>(null);
@@ -56,9 +68,13 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
     } catch { /* */ }
   };
 
+  // Mount IS "opened" now: the hub renders a section only while it is the
+  // active one, so this component's lifetime is exactly the window in which
+  // a fresh friends list matters.
   useEffect(() => {
-    if (open) refreshFriends();
-  }, [open]);
+    refreshFriends();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!me) return;
@@ -133,27 +149,19 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
     );
   }, [activeChannel, messagesByChannel]);
 
-  // Hooks have to be called unconditionally — keep the early-return below
-  // the hook so opening/closing the panel re-runs the entrance.
-  const dialogRef = useModalEnter(undefined, open);
+  // The entrance animation belongs to the hub frame now — one dialog, one
+  // entrance. A second one here would play a modal-open animation on a pane
+  // that is already on screen.
   const t = useT();
 
-  if (!open) return null;
   if (!me) return null;
 
   const incomingCount = friends?.incoming.length ?? 0;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="g-modal social-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={t("Social")}
-      >
-        <header className="g-modal-head">
-          <div className="g-tabs">
+    <div className="social-pane">
+        <div className="hub-views">
+          <div className="g-tabs" role="tablist" aria-label={t("Social")}>
             <button
               type="button"
               role="tab"
@@ -183,8 +191,7 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
               {t("Trainers")}
             </button>
           </div>
-          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
-        </header>
+        </div>
 
         {tab === "chat" && (
           <ChatTab
@@ -215,7 +222,6 @@ export function SocialPanel({ open, onClose }: { open: boolean; onClose: () => v
           />
         )}
         {tab === "directory" && <DirectoryTab />}
-      </div>
     </div>
   );
 }

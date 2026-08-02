@@ -361,115 +361,27 @@
    lottery.
    ===================================================================== */
 
-/* A sidebar needs a stable frame. A shrink-to-fit dialog whose left rail
-   changes height every time you switch tabs looks broken, so the whole
-   thing is a fixed panel and the right-hand pane is what scrolls. */
-.giveaway-modal.rewards-modal {
-  width: min(820px, 96vw);
-  height: min(600px, 86vh);
-  max-height: 86vh;
-}
+/* ── The Rewards pane ──────────────────────────────────────────────
+   It was a dialog with its own sidebar. The sidebar became the hub's
+   rail, the header became the hub's header, and what is left is a pane:
+   a view row at the top and a list under it.
 
-/* ── Header ────────────────────────────────────────────────────────
-   Title, one line of subtitle, a hairline. That is the entire thing. */
-.giveaway-modal .giveaway-head {
-  align-items: center;
-  padding: 15px 20px 13px;
-  background: none;
-  flex: 0 0 auto;
-}
-.gw-head-main { min-width: 0; }
-.giveaway-modal .giveaway-head h2 {
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.gw-head-sub {
-  margin: 3px 0 0;
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--text-dim);
-}
-
-/* ── The two columns ───────────────────────────────────────────────
-   min-height: 0 on both, or the pane's own overflow never engages and
-   the modal's overflow:hidden clips the bottom of the list instead. */
-.rw-shell {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 194px minmax(0, 1fr);
-}
-.rw-side {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 14px 12px;
-  border-right: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.22);
-}
-.rw-pane {
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px 18px;
-  scrollbar-gutter: stable;
-}
+   Nothing here sizes a modal any more. The frame owns the box; a pane
+   that also had opinions about the dialog's width is exactly how four
+   dialogs ended up four different sizes. */
 .rw-list { display: flex; flex-direction: column; gap: 10px; }
 
-/* ── Tabs ──────────────────────────────────────────────────────────
-   Icon, label, badge. The active tab gets a solid surface and a 2px
-   accent on its left edge in its own tone, so which section you are in
-   is answered by colour before it is answered by reading. */
-.rw-nav { display: flex; flex-direction: column; gap: 3px; }
-.rw-tab {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: 38px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: var(--ctl-r);
-  background: none;
-  color: var(--ctl-fg);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-}
-.rw-tab:hover:not(.is-active) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
-.rw-tab:focus-visible { outline: 2px solid var(--ctl-on-line); outline-offset: 1px; }
-/* Gold, like every other selected control in the game. This started out
-   with a different accent per tab — teal, purple, gold — which was three
-   answers to "you are here" in one 194px column, and the exact thing the
-   control-primitives pass exists to stop. Colour that is not gold means
-   what KIND of thing something is, which is why the free-reward ICON is
-   still teal and the card below it still is too. */
-.rw-tab.is-active {
-  background: var(--ctl-on-bg);
-  border-color: var(--ctl-on-line);
-  color: var(--ctl-on-fg);
-  font-weight: 700;
-}
-.rw-tab-icon { flex: 0 0 auto; width: 17px; font-size: 13px; line-height: 1; text-align: center; }
-.rw-tab--promo .rw-tab-icon { color: #5eead4; }
-.rw-tab--promo.is-active .rw-tab-icon { color: inherit; }
-.rw-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The view row's icons, inside the shared .g-tab. */
+.rw-tab-icon { flex: 0 0 auto; font-size: 12px; line-height: 1; }
+.g-tab .rw-tab-icon { color: inherit; }
 
-/* Counts what is ACTIONABLE, so it is always worth looking at. Teal on
-   #134e4a measures 8.36:1 — the badge is 9.5px/800, nowhere near WCAG's
-   large-text threshold, so it takes the full 4.5:1. */
+/* Counts what is ACTIONABLE. Teal on #134e4a measures 8.36:1; the badge
+   is 9.5px/800, nowhere near WCAG's large-text threshold, so it takes
+   the full 4.5:1 like every other pill in this file. */
 .rw-tab-badge {
   flex: 0 0 auto;
-  min-width: 17px;
-  padding: 2px 5px;
+  min-width: 16px;
+  padding: 1px 5px;
   border-radius: 999px;
   background: #134e4a;
   color: #5eead4;
@@ -478,65 +390,60 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.rw-tab--live .rw-tab-badge { background: #4c1d95; color: #ddd6fe; }
+.g-tab.active .rw-tab-badge { background: rgba(0, 0, 0, 0.35); color: var(--gold-2); }
 
-/* ── Your record ───────────────────────────────────────────────────
-   Pushed to the bottom of the sidebar. The player's two numbers are the
-   big ones; the feature's totals sit under them, small, still proving
-   that this recurs. */
-.rw-haul {
-  margin-top: auto;
+/* ── The record, in the hub header ─────────────────────────────────
+   "1 win · 1 entry". The player's own numbers and only theirs: the
+   feature's lifetime totals moved down to the bottom of the Results
+   view, with the archive they describe. In a header they were four
+   numbers competing with a section title for one glance, and losing. */
+.rw-record { display: flex; align-items: baseline; gap: 12px; }
+.rw-record-fig {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 11px 10px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
-}
-.rw-haul-head {
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--text-dim);
 }
-.rw-haul-figures { display: flex; gap: 14px; }
-.rw-figure { display: flex; align-items: baseline; gap: 4px; }
-.rw-figure strong {
-  font-size: 19px;
+.rw-record-fig strong {
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.rw-figure em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--text-dim); }
 /* Gold only when there is something to be gold about. A trophy colour on
    a zero is the interface congratulating somebody for nothing. */
-.rw-figure.is-gold strong { color: #fbbf24; }
-.rw-haul-global {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin: 0;
-  padding-top: 7px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  font-size: 10px;
-  line-height: 1.45;
-  color: var(--text-dim);
-}
-.rw-haul-global strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rw-record-fig.is-gold strong { color: var(--gold); }
 
-/* ── Pane header ───────────────────────────────────────────────────
-   One line saying what this pane is, and the pane's one control. No
-   section title: the sidebar already said which section you are in, and
-   repeating it at the top of the pane is the tab label twice. */
+/* ── Pane header row ───────────────────────────────────────────────
+   One line saying what this view is, plus the view's one control. No
+   title: the hub header already said "Rewards" and the view row already
+   said which view, so a third heading would be the same word three
+   times. */
 .rw-pane-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 .rw-pane-note { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
+
+/* Lifetime totals, under the archive they describe. */
+.rw-lifetime {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.rw-lifetime strong { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 /* Free rewards are a finite, completable set — the one thing on this
    screen a progress bar is allowed to describe. */
@@ -671,44 +578,11 @@
   .promo-cta { grid-column: 1 / -1; justify-content: center; }
 }
 
-/* ── Mobile: the sidebar becomes a strip ───────────────────────────
-   700px, because that is where 194px of rail stops being a fifth of the
-   dialog and starts being half of it. The DOM does not change: the
-   sidebar is still the sidebar, it just runs across the top, its tabs
-   scroll sideways, and "your record" collapses from a stacked block to
-   one wrapped line — the numbers are still the biggest thing in it, they
-   just stop owning a column of their own. */
-@media (max-width: 700px) {
-  .giveaway-modal.rewards-modal { width: 96vw; height: min(620px, 86vh); }
-  .rw-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .rw-side {
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  /* The TABS scroll sideways, not the strip. If the strip is the scroller,
-     "2 wins / 8 entries" scrolls off the right edge with them — and the
-     player's own record is the one thing in here that should never need
-     hunting for. */
-  .rw-nav { flex-direction: row; flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; }
-  .rw-tab { width: auto; white-space: nowrap; padding: 0 12px; min-height: 40px; }
-  .rw-haul {
-    margin-top: 0;
-    flex: 0 0 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    padding: 5px 10px;
-  }
-  .rw-haul-head { display: none; }
-  .rw-haul-global { display: none; }
-  .rw-figure strong { font-size: 15px; }
-  .rw-pane { padding: 12px 12px 16px; }
-  .rw-pane-head { gap: 8px; }
-}
+/* No mobile block for the Rewards pane: the hub frame owns the
+   responsive behaviour now (hub.css, 760px), and a pane that also had
+   opinions about the dialog's width at a different breakpoint is exactly
+   how the four dialogs ended up disagreeing in the first place. The one
+   thing left that is genuinely the pane's own is below. */
 
 /* Repeat winners are visible in a 12-row history (one name has 5 of 68
    wins), which is exactly the "it's rigged" conversation the draw seed
