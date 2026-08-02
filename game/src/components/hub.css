@@ -1179,18 +1179,36 @@
   min-height: 0;
   flex: 1;
 }
-.tb-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+/* The body owns the height and does NOT scroll — the two columns do,
+   independently. An outer scroll would move the team out of view while
+   you pick from the pool, which is the arrangement this replaced. */
+.tb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .tb-cols {
+  flex: 1;
+  min-height: 0;
   display: grid;
   /* The team is a fixed, finite six; the pool is unbounded. So the team
      column is sized and the pool takes the rest. */
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
+  /* STRETCH, not start, and no max-height. They were capped at 46vh, so
+     on a tall dialog both columns stopped short and left ~190px of the
+     pane empty underneath — measured on the built pane. Filling means the
+     pool shows more rows on a bigger screen, which is the entire point of
+     having one. */
+  align-items: stretch;
 }
-/* Both columns scroll independently and stop at the same line, so the
-   footer never moves and the pool never pushes the team off screen. */
-.tb-cols > .g-card { margin: 0; max-height: 46vh; overflow-y: auto; }
+.tb-cols > .g-card {
+  margin: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Each column scrolls its own list, so the headers and the search box
+   stay put and the footer never moves. */
+.team-builder-strip-list,
+.team-builder-pool-grid { flex: 1; min-height: 0; overflow-y: auto; }
 
 .tb-foot {
   flex: 0 0 auto;
@@ -1263,3 +1281,55 @@
    permanent animation is a permanent request for attention, and this one
    is already gold, 72px tall and centre stage. */
 .pvp2-arena .pvp-slab::before { display: none; }
+
+/* ── Team builder: search ──────────────────────────────────────────
+   A box runs to hundreds of rows in production, and scrolling a grid to
+   find one Pokémon is most of why this screen felt like work. Filters
+   on nickname, species name or species key — whichever the player is
+   thinking in. */
+.tb-pool-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tb-pool-head h3 { margin: 0; }
+.tb-search {
+  flex: 0 1 220px;
+  min-width: 0;
+  height: var(--ctl-h-sm);
+  padding: 0 10px;
+  border: 1px solid var(--ctl-line);
+  border-radius: var(--ctl-r);
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--ctl-fs-sm);
+}
+.tb-search::placeholder { color: var(--text-dim); }
+.tb-search:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+.tb-noresults { grid-column: 1 / -1; padding: 12px 2px; }
+
+/* Denser pool. At a 4-across fixed grid a wide dialog showed twelve
+   Pokémon; auto-fill shows what actually fits. */
+.tb-cols .team-builder-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+/* What a Pokémon will actually FIGHT at. "Lv 100" on a 50-capped match
+   is the number that is wrong everywhere else in the game, and this is
+   the screen where the player is choosing on the strength of it. */
+.tb-capped { color: var(--gold); font-weight: 700; }
+
+@media (max-width: 900px) {
+  .tb-cols { flex: 0 0 auto; }
+  .tb-body { overflow-y: auto; }
+  .team-builder-strip-list,
+  .team-builder-pool-grid { overflow: visible; }
+  .tb-search { flex: 1 1 100%; min-height: 40px; }
+}

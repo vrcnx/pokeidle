@@ -73,6 +73,8 @@ export function TeamBuilderPane({
   // Selected Pokémon ids — order matters for lead vs. bench. We store
   // ids rather than indices because the box can be re-sorted.
   const [picked, setPicked] = useState<string[]>([]);
+  /** Filters the pool only. The team column is six rows and never needs it. */
+  const [query, setQuery] = useState("");
 
   // Pre-fill with the player's current party on every fresh open. The
   // common flow is "Battle Hub → Ready Up → confirm my usual team",
@@ -90,6 +92,17 @@ export function TeamBuilderPane({
     ...state.party.map((p) => ({ source: "party" as const, mon: p })),
     ...state.box.map((p) => ({ source: "box" as const, mon: p })),
   ];
+
+  // Name, nickname or species — whichever the player is thinking in. A box
+  // runs to hundreds of rows in production, and scrolling a grid to find one
+  // Pokémon is the whole reason this screen felt like work.
+  const q = query.trim().toLowerCase();
+  const pool = q
+    ? all.filter(({ mon }) =>
+        (mon.nickname ?? "").toLowerCase().includes(q) ||
+        mon.name.toLowerCase().includes(q) ||
+        mon.speciesKey.toLowerCase().includes(q))
+    : all;
 
   const toggle = (id: string) => {
     setPicked((cur) => {
@@ -158,7 +171,11 @@ export function TeamBuilderPane({
                       />
                       <div className="team-builder-strip-info">
                         <strong>{p.nickname ?? p.name}{p.isShiny ? " ✨" : ""}</strong>
-                        <small className="dim">{t("Lv")} {p.level}</small>
+                        <small className="dim">
+                          {levelCap != null && p.level > levelCap
+                            ? <>{t("Lv")} {p.level} <span className="tb-capped">{"→"} {levelCap}</span></>
+                            : <>{t("Lv")} {p.level}</>}
+                        </small>
                       </div>
                       <div className="team-builder-strip-actions">
                         <button
@@ -189,10 +206,25 @@ export function TeamBuilderPane({
           {/* RIGHT: everything you own, beside the team rather than under
               it, so a pick and its effect are visible at the same time. */}
           <section className="g-card team-builder-pool">
-            <h3>{t("Pick from your party + box")}</h3>
+            <div className="tb-pool-head">
+              <h3>{t("Pick from your party + box")}</h3>
+              <input
+                type="search"
+                className="tb-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("Search %n Pokémon").replace("%n", String(all.length))}
+                aria-label={t("Search your Pokémon")}
+              />
+            </div>
             <div className="team-builder-pool-grid">
               {all.length === 0 && <p className="dim">{t("No Pokémon yet.")}</p>}
-              {all.map(({ source, mon }) => {
+              {all.length > 0 && pool.length === 0 && (
+                <p className="dim small tb-noresults">
+                  {t("Nothing matches")} “{query}”.
+                </p>
+              )}
+              {pool.map(({ source, mon }) => {
                 const sel = picked.includes(mon.id);
                 const slotNum = sel ? picked.indexOf(mon.id) + 1 : null;
                 return (

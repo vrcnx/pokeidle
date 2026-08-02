@@ -185,6 +185,9 @@ type Case = {
   badges?: Partial<Record<HubSection, number>>;
   disabled?: Partial<Record<HubSection, string>>;
   start?: HubSection;
+  /** Renders the REAL team builder in the Battle slot, so its two columns
+   *  and its search box are exercised rather than assumed. */
+  builder?: boolean;
 };
 
 const CASES: Case[] = [
@@ -195,6 +198,7 @@ const CASES: Case[] = [
   { name: "Settings", promos: [], live: [], past, start: "settings" },
   { name: "Rewards — nothing free", promos: [], live: [], past: [], start: "rewards" },
   { name: "Rewards — long archive", promos: [promo({ state: "claimed", cta: null, note: "Already collected — thanks for joining." })], live: [], past: [...past, ...past.map((p, i) => ({ ...p, id: `x${i}` })), ...past.map((p, i) => ({ ...p, id: `y${i}` }))], start: "rewards" },
+  { name: "Team builder", promos: [], live: [], past: [], start: "pvp", builder: true },
   { name: "Big badge (99+)", promos: [promo()], live: [gw()], past, badges: { social: 128, rewards: 1 }, start: "rewards" },
 ];
 
@@ -206,7 +210,67 @@ function Harness() {
   const [entering, setEntering] = useState<string | null>(null);
 
   const sections: Record<HubSection, HubSectionContent> = {
-    pvp: {
+    pvp: c.builder ? {
+      Body: () => (
+        <div className="pvp-hub-pane pvp-hub-pane--editing">
+          <header className="pvp2-edit-head">
+            <button className="g-btn-ghost g-btn-small">{"←"} Back to Battle</button>
+            <h3>Your battle team</h3>
+          </header>
+          {/* The builder's real markup, not the real component: it calls
+              useGame() and this harness has no GameProvider. What changed
+              here is the LAYOUT — two columns that fill the pane and scroll
+              their own lists — so the class names are what need exercising. */}
+          <div className="tb-pane">
+            <div className="tb-body">
+              <p className="dim small team-builder-cap">
+                Levels in this match are capped to <strong>Lv 50</strong>. Your saved Pokémon are unchanged.
+              </p>
+              <div className="tb-cols">
+                <section className="g-card team-builder-strip">
+                  <h3>Your team <span className="dim small">(6/6)</span></h3>
+                  <ol className="team-builder-strip-list">
+                    {["Blastoise","Darkrai","Arcanine","Deoxys","Tentacruel","Kingler"].map((n,i) => (
+                      <li key={n} className="team-builder-strip-item">
+                        <span className="team-builder-slot">{i + 1}</span>
+                        <div className="team-builder-strip-info">
+                          <strong>{n}</strong>
+                          <small className="dim">Lv 100 <span className="tb-capped">{"→"} 50</span></small>
+                        </div>
+                        <div className="team-builder-strip-actions">
+                          <button className="g-btn-ghost g-btn-tiny">{"↑"}</button>
+                          <button className="g-btn-ghost g-btn-tiny">{"↓"}</button>
+                          <button className="g-btn-ghost g-btn-tiny">{"×"}</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+                <section className="g-card team-builder-pool">
+                  <div className="tb-pool-head">
+                    <h3>Pick from your party + box</h3>
+                    <input type="search" className="tb-search" placeholder="Search 48 Pokémon" />
+                  </div>
+                  <div className="team-builder-pool-grid">
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <button key={i} className={`team-builder-pool-card ${i < 6 ? "selected" : ""}`}>
+                        <strong>Pokémon {i + 1}</strong>
+                        <small className="dim">Lv {100 - i} · {i < 6 ? "party" : "box"}</small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+            <footer className="tb-foot">
+              <button className="g-btn-ghost">Cancel</button>
+              <span className="tb-foot-spacer" />
+              <button className="g-btn-primary">Confirm team</button>
+            </footer>
+          </div>
+        </div>
+      ),
+    } : {
       // The REAL tier track, on the REAL split — the two things the Battle
       // rebuild actually added. A stand-in that skipped them would certify a
       // pane that no longer exists.
