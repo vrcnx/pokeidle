@@ -900,15 +900,6 @@
 @media (max-width: 1100px) {
   .chart-grid { grid-template-columns: 1fr; }
 }
-.chart-card { margin-bottom: 0; }
-.chart-wrap { width: 100%; }
-.chart-svg { width: 100%; height: auto; display: block; margin-top: 6px; }
-.chart-axis {
-  font-size: 9.5px;
-  fill: var(--text-dim);
-  font-family: ui-monospace, monospace;
-  letter-spacing: 0.3px;
-}
 .chart-dot { transition: r 120ms var(--ease); }
 .chart-svg:hover .chart-dot { r: 4; }
 
@@ -1409,16 +1400,11 @@
   opacity: 0.7;
 }
 
-.chart-card {
-  background: var(--surface-1);
-  border-radius: var(--radius-card);
-  padding: var(--card-pad);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: var(--shadow-1);
-  margin-bottom: 0;
-}
+/* .chart-card is a .card — it does not re-declare the surface, the radius or
+   the padding. This block used to, against --radius-card and --card-pad, which
+   are defined nowhere; and its `margin-bottom: 0` was what made the gap
+   beneath the primary chart collapse to zero while every other gap was 16-20. */
+.chart-card { display: flex; flex-direction: column; gap: var(--sp-3); }
 .chart-card .chart-card__header {
   display: flex;
   align-items: center;
@@ -2899,7 +2885,7 @@
   display: flex;
   gap: var(--sp-2);
   flex-wrap: wrap;
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-4);   /* the page rhythm — see SPACING below */
 }
 .signal {
   display: inline-flex;
@@ -2932,8 +2918,8 @@
 .kpi-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-5);
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
 }
 .kpi-strip .kpi { min-width: 0; }
 /* One tile is emphasised — "active today" is the number the page exists
@@ -2942,7 +2928,7 @@
 .kpi--accent { border-color: var(--brand-line); background: linear-gradient(180deg, var(--brand-soft), transparent 70%), var(--surface-1); }
 .kpi--accent .kpi-value { color: var(--brand-text); }
 
-.analytics-row { margin-bottom: var(--sp-5); }
+.analytics-row { margin-bottom: var(--sp-4); }
 
 .chart-card--primary .card-head { align-items: center; }
 
@@ -3044,3 +3030,24 @@
   .histogram-count { display: none; }
   .histogram-label { font-size: 8.5px; }
 }
+
+
+/* ── SPACING ────────────────────────────────────────────────────────
+   One value between every card and every section: --sp-4, 16px.
+
+   It was four values. Measured on the analytics page: page-head to signal bar
+   20px, signal bar to KPI strip 16, KPI strip to chart 20, chart to the row
+   below it ZERO (a stray `.chart-card { margin-bottom: 0 }` from the old
+   sheet), row to row 20 — with a 16px grid gap between cards in a row and a
+   12px gap between KPI tiles. Six spacings for one relationship.
+
+   Nothing here is subtle individually; together they are why the page reads as
+   unaligned even though every card is fine on its own. The eye is very good at
+   spotting an inconsistent rhythm and very bad at naming it. */
+.page-head { margin-bottom: var(--sp-4); }
+.grid { gap: var(--sp-4); }
+.kpi-grid { gap: var(--sp-4); margin-bottom: var(--sp-4); }
+/* A card in a grid or flex container must not add its own margin on top of the
+   container's gap — that is how one row ends up further from its neighbour
+   than the others. */
+.grid > .card, .kpi-strip > .kpi, .kpi-grid > .kpi { margin-bottom: 0; }
