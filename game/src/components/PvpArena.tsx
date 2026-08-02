@@ -95,10 +95,52 @@ import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
 import "../pvpArena.css";
 
-/** Indigo Plateau: the League arena. Neutral ground, already shipped, and
- *  it reads as "competitive" rather than "a route you grind". */
-const ARENA_BG = "/backgrounds/indigoPlat.webp";
-const ARENA_BG_FALLBACK = "/backgrounds/champion_blue.webp";
+/**
+ * The arenas a PvP match can be fought on.
+ *
+ * Every match used to happen at Indigo Plateau. It was the right ONE choice
+ * — neutral ground, reads as competitive rather than as a route you grind —
+ * but it is the same picture every time, and a ladder you climb for hours
+ * looked like one long battle in one room.
+ *
+ * These are all League and landmark arenas that already ship with the game,
+ * so this costs nothing to download. Deliberately not the ordinary route
+ * backdrops: a ranked match should not look like a patch of grass.
+ */
+const ARENAS = [
+  "/backgrounds/indigoPlat.webp",
+  "/backgrounds/champion_blue.webp",
+  "/backgrounds/champion_lanceJohto.webp",
+  "/backgrounds/e4_lance.webp",
+  "/backgrounds/e4_agatha.webp",
+  "/backgrounds/e4_bruno.webp",
+  "/backgrounds/e4_lorelei.webp",
+  "/backgrounds/e4_karen.webp",
+  "/backgrounds/e4_will.webp",
+  "/backgrounds/dragonsDen.webp",
+  "/backgrounds/bellTower.webp",
+  "/backgrounds/ceruleanCave.webp",
+];
+/** Indigo Plateau stays the fallback: it is the one that has always been
+ *  here, so a missing file lands somewhere known rather than on nothing. */
+const ARENA_BG_FALLBACK = "/backgrounds/indigoPlat.webp";
+
+/**
+ * One arena per BATTLE, picked from the room id.
+ *
+ * Hashed rather than random: both players are running this component
+ * separately, and `Math.random()` in each of them would put the two of them
+ * in different rooms — which is the kind of thing nobody notices until
+ * somebody posts a screenshot. The room id is the one value both sides
+ * already agree on, so the same battle looks the same to both of them
+ * without the server having to send anything new.
+ */
+function arenaFor(roomId: string | undefined): string {
+  if (!roomId) return ARENA_BG_FALLBACK;
+  let h = 0;
+  for (let i = 0; i < roomId.length; i++) h = (h * 31 + roomId.charCodeAt(i)) | 0;
+  return ARENAS[Math.abs(h) % ARENAS.length];
+}
 
 // ─── Shared bits ────────────────────────────────────────────────────
 
@@ -237,6 +279,9 @@ function PvpBattleWindow({ room }: { room: BattleRoom }) {
  * not drift.
  */
 function PvpScene({ room }: { room: BattleRoom }) {
+  // Same arena for both players, different arena for the next battle — see
+  // arenaFor. battleId is the value both sides already agree on.
+  const arenaBg = arenaFor(room.battleId);
   const t = useT();
   const you = room.view.you;
   const foe = room.view.foe;
@@ -255,7 +300,7 @@ function PvpScene({ room }: { room: BattleRoom }) {
       <div className="scene-content">
         <img
           className="battle-bg"
-          src={ARENA_BG}
+          src={arenaBg}
           alt=""
           aria-hidden
           draggable={false}
