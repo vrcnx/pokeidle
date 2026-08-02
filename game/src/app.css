@@ -18978,6 +18978,11 @@ html, body {
   flex-direction: column;
   overflow: hidden;
 }
+/* Wider ONLY when there is a second column to fill it. A dialog that is
+   always two columns is a dialog that is half empty most of the time — the
+   sections here are all optional, so the shape follows the content instead of
+   the content rattling around in a fixed shape. */
+.g-modal.wb-modal.has-aside { width: min(720px, calc(100vw - 24px)); }
 
 .wb-head {
   padding: 22px 22px 16px;
@@ -19005,9 +19010,34 @@ html, body {
 .wb-body {
   padding: 4px 20px 8px;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+/* Left = a receipt for time already passed. Right = the reason to stay.
+   The rule between them does the separating; a gap alone at this width reads
+   as two things that drifted apart rather than two columns. */
+.has-aside .wb-body {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  column-gap: 20px;
+  padding-bottom: 16px;
+}
+.has-aside .wb-aside {
+  padding: 16px 0 0 20px;
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
+/* Single-column: the aside is just the last block, with a rule above it if
+   anything preceded it. */
+.wb-aside { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 0; }
+.wb-main + .wb-aside { border-top: 1px solid var(--border); }
+/* The last section in the left column keeps its rule when a right column
+   exists, so both columns end on the same line rather than one trailing a
+   stray border. */
+.has-aside .wb-main .wb-section:last-child { border-bottom: 0; }
 
 /* Sections are separated by a rule rather than by whitespace alone. With a
    variable number of them, whitespace alone reads as "these got spaced oddly"
@@ -19110,7 +19140,80 @@ html, body {
   color: var(--gold, #fbbf24);
 }
 
+/* ── Aside cards ────────────────────────────────────────────────── */
+.wb-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  /* EXPLICIT. .g-btn-* and the bare `button` rule both centre their content,
+     and a centred card with an icon on the left is not a card. This is the
+     same trap the CTA fell into — see .wb-cta. */
+  justify-content: flex-start;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  height: auto;
+}
+button.wb-card { cursor: pointer; transition: border-color 120ms, background 120ms, transform 120ms; }
+button.wb-card:hover { border-color: var(--text-dim); background: var(--panel-3); }
+button.wb-card:active { transform: translateY(1px); }
+.wb-card-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.wb-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wb-card-text > strong {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  /* Announcements are free text an admin wrote; three lines is plenty and a
+     paragraph should not own the column. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wb-card-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-card-cta {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--gold, #fbbf24);
+}
+/* A prize waiting to be collected is the single most valuable thing in the
+   dialog, so it is the only card that gets colour. */
+.wb-card--win {
+  border-color: color-mix(in srgb, var(--gold, #fbbf24) 45%, transparent);
+  background: color-mix(in srgb, var(--gold, #fbbf24) 12%, var(--panel-2));
+}
+.wb-card--win .wb-card-text > strong { color: var(--gold, #fbbf24); }
+.wb-card--note { align-items: flex-start; }
+.wb-note-warning, .wb-note-maintenance {
+  border-color: color-mix(in srgb, #f87171 40%, transparent);
+  background: color-mix(in srgb, #f87171 10%, var(--panel-2));
+}
+
 /* ── What's new ─────────────────────────────────────────────────── */
+.wb-news-block { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.wb-news-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
 .wb-version {
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: 10.5px;
@@ -19155,22 +19258,54 @@ html, body {
 /* One button, full width. Two actions ("Claim", then "Close") would make the
    player confirm twice that they would like their reward — the stacked-modal
    problem in miniature. */
+/* The primary action, and the only one. Not built on .g-btn-primary: that
+   class carries a fixed `height: 32px` (so padding is silently ignored) and
+   an inline-flex with NO justify-content — which is why the label sat jammed
+   against the left edge of a full-width bar looking like a mistake. Every
+   property it needs is set here rather than fought for. */
 .wb-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  /* The shared .g-btn-* rule sets a fixed `height: 32px`, so padding alone
-     does nothing — the button silently stayed 32px tall no matter what was
-     asked of it. This is the primary action of the dialog and wants a real
-     target, so the height is released back to the content. */
   height: auto;
-  min-height: 46px;
-  padding: 12px 20px;
+  min-height: 48px;
+  padding: 13px 22px;
+  border: 0;
+  border-radius: 11px;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 800;
-  background: var(--gold, #fbbf24);
-  border-color: var(--gold, #fbbf24);
-  color: #0a0a0a;
+  letter-spacing: 0.2px;
+  color: #14100a;
+  cursor: pointer;
+  /* A hair of gradient and a warm glow: flat yellow at this size reads as a
+     placeholder rather than a button worth pressing. */
+  background: linear-gradient(180deg, #fcd34d, var(--gold, #fbbf24) 62%, #f0ad1a);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 6px 18px -6px rgba(251, 191, 36, 0.55);
+  transition: transform 110ms var(--ease, ease), box-shadow 140ms, filter 140ms;
 }
-.wb-cta:disabled { opacity: 0.7; }
+.wb-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 9px 22px -6px rgba(251, 191, 36, 0.68);
+}
+/* Presses DOWN, not up. A primary action should feel like it took the input. */
+.wb-cta:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 3px 10px -4px rgba(251, 191, 36, 0.5);
+}
+.wb-cta:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wb-cta:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+/* Nudges on hover — the small motion that says "this goes somewhere". */
+.wb-cta-arrow { transition: transform 140ms var(--ease, ease); }
+.wb-cta:hover:not(:disabled) .wb-cta-arrow { transform: translateX(3px); }
 
 @media (max-width: 480px) {
   /* `!important` here is not enthusiasm — it is matching. `.modal-overlay` is
@@ -19197,4 +19332,16 @@ html, body {
      rather than inherited by accident. */
   .wb-body { padding-left: 16px; padding-right: 16px; }
   .wb-head, .wb-foot { padding-left: 16px; padding-right: 16px; }
+}
+
+/* Two columns need real width for both to be worth having. Below this the
+   aside stacks under the rewards — still in priority order, just vertical. */
+@media (max-width: 620px) {
+  .has-aside .wb-body { grid-template-columns: minmax(0, 1fr); }
+  .has-aside .wb-aside {
+    padding: 16px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .has-aside .wb-main .wb-section:last-child { border-bottom: 0; }
 }

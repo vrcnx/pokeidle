@@ -9,10 +9,14 @@ import {
   type WelcomeBackData,
 } from "../state/welcomeBack";
 import { openChangelog } from "./ChangelogModal";
+import { openGiveaways } from "./GiveawayModal";
 import { CURRENT_VERSION } from "../data/changelog";
 import { useT } from "../i18n/useT";
 import { pushToast } from "./Toast";
 import { useModalEnter } from "../utils/animate";
+import { useAnnouncement } from "../state/announcement";
+import { useGiveaways } from "../utils/giveawayStore";
+import type { Announcement, PublicGiveaway } from "../net/api";
 
 /**
  * One dialog for everything that happened while the player was gone.
@@ -41,6 +45,10 @@ import { useModalEnter } from "../utils/animate";
  * confirm twice that they would like their reward.
  */
 
+const ANNOUNCE_ICON: Record<string, string> = {
+  info: "📣", event: "✨", giveaway: "🎁", warning: "⚠️", maintenance: "🔧",
+};
+
 /** "8h 12m", "42m" — compact enough for a sentence. */
 function humanDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 60_000));
@@ -66,6 +74,16 @@ function humanDuration(ms: number): string {
 export function WelcomeBackModal() {
   const { open, data } = useWelcomeBack();
   const { dispatch } = useGame();
+  // Read live rather than collected: an announcement never JUSTIFIES opening
+  // this dialog (it has its own banner), it is context to include once the
+  // dialog is opening for another reason. Putting it in the collector would
+  // have made "an admin pinned a notice" enough to interrupt everyone.
+  const announcement = useAnnouncement();
+  // Same reasoning: a live giveaway does not justify interrupting anyone, but
+  // "you won" and "there is one open you have not entered" are the two most
+  // useful things a returning player can be told, and both are already in a
+  // store the game keeps warm.
+  const { giveaways } = useGiveaways();
   const [busy, setBusy] = useState(false);
   const t = useT();
   // Guards the claim against a double-fire from Enter plus a click.
@@ -107,21 +125,29 @@ export function WelcomeBackModal() {
   return (
     <WelcomeBackDialog
       data={data}
+      announcement={announcement}
+      giveaways={giveaways}
       busy={busy}
       onFinish={finish}
       onClose={closeWelcomeBack}
       onOpenChangelog={() => { closeWelcomeBack(); openChangelog(); }}
+      onOpenGiveaway={(id) => { closeWelcomeBack(); openGiveaways(id); }}
     />
   );
 }
 
 /** Presentation. No stores, no network — everything it shows is a prop. */
-export function WelcomeBackDialog({ data, busy, onFinish, onClose, onOpenChangelog }: {
+export function WelcomeBackDialog({
+  data, announcement, giveaways, busy, onFinish, onClose, onOpenChangelog, onOpenGiveaway,
+}: {
   data: WelcomeBackData;
+  announcement: Announcement | null;
+  giveaways: PublicGiveaway[] | null;
   busy: boolean;
   onFinish: () => void;
   onClose: () => void;
   onOpenChangelog: () => void;
+  onOpenGiveaway: (id: string) => void;
 }) {
   const t = useT();
   const ref = useModalEnter(".wb-stagger");
@@ -140,10 +166,26 @@ export function WelcomeBackDialog({ data, busy, onFinish, onClose, onOpenChangel
   const dayOfCycle = daily ? ((daily.streakIfClaimed - 1) % 7) + 1 : 1;
   const shownStreak = daily ? (daily.claimedToday ? daily.streak : daily.streakIfClaimed) : 0;
 
+  // ── What goes in the second column ────────────────────────────────
+  // Ordered by how much it matters to someone who just walked back in. A win
+  // they have not collected beats an open draw, which beats server news,
+  // which beats release notes — nobody has ever come back to a game for the
+  // patch notes.
+  const won = (giveaways ?? []).filter((g) => g.youWon);
+  const enterable = (giveaways ?? []).filter((g) => g.status === "open" && !g.hasEntered && !g.youWon);
+  // Two columns require TWO columns of content. Widening for a full right
+  // column and an empty left one is the same failure as the reverse — and it
+  // is reachable: someone who returns to nothing but release notes has an
+  // empty rewards column. When only one side has anything, it runs down the
+  // middle of the narrow card instead.
+  const hasMain = !!away || gifts.length > 0 || !!daily;
+  const asideContent = won.length > 0 || enterable.length > 0 || !!announcement || news.length > 0;
+  const twoUp = hasMain && asideContent;
+
   return (
     <div className="modal-overlay wb-overlay" onClick={() => closeWelcomeBack()}>
       <div
-        className="g-modal wb-modal"
+        className={`g-modal wb-modal${twoUp ? " has-aside" : ""}`}
         ref={ref}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -162,6 +204,10 @@ export function WelcomeBackDialog({ data, busy, onFinish, onClose, onOpenChangel
         </header>
 
         <div className="wb-body">
+         {/* Omitted entirely when empty, so a single-column dialog carrying
+             only aside content does not leave a phantom grid cell above it. */}
+         {hasMain && (
+         <div className="wb-main">
           {/* ── 1. Banked while gone ───────────────────────────── */}
           {(away || gifts.length > 0) && (
             <section className="wb-section wb-stagger">
@@ -247,36 +293,81 @@ export function WelcomeBackDialog({ data, busy, onFinish, onClose, onOpenChangel
             </section>
           )}
 
-          {/* ── 3. What changed ────────────────────────────────── */}
-          {news.length > 0 && (
-            <section className="wb-section wb-stagger">
-              <div className="wb-section-head">
-                <h3 className="wb-section-title">{t("What's new")}</h3>
-                <span className="wb-version">v{CURRENT_VERSION}</span>
-              </div>
-              {/* A summary, not the notes. Nobody comes back to a game for
-                  the patch notes, but they should be able to reach them. */}
-              <ul className="wb-news">
-                {news.slice(0, 2).flatMap((entry) =>
-                  entry.sections.flatMap((sec) => sec.items),
-                ).slice(0, 4).map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
-              </ul>
-              <button className="wb-link" onClick={onOpenChangelog}>
-                {t("Read the full notes")}
+         </div>
+         )}
+
+         {/* ── Second column: what is happening NOW ─────────────────
+             The left column is a receipt for time already passed. This one
+             is the reason to stay: a prize waiting to be collected, a draw
+             still open, what the server is telling everyone. Release notes
+             sit at the bottom because that is where they rank. */}
+         {asideContent && (
+          <aside className="wb-aside wb-stagger">
+            <h3 className="wb-section-title">{t("Happening now")}</h3>
+
+            {won.map((g) => (
+              <button className="wb-card wb-card--win" key={g.id} onClick={() => onOpenGiveaway(g.id)}>
+                <span className="wb-card-icon" aria-hidden>🏆</span>
+                <span className="wb-card-text">
+                  <strong>{t("You won!")}</strong>
+                  <span className="wb-card-sub">{g.title} · {g.prizeSummary}</span>
+                </span>
               </button>
-            </section>
-          )}
+            ))}
+
+            {enterable.slice(0, 2).map((g) => (
+              <button className="wb-card wb-card--action" key={g.id} onClick={() => onOpenGiveaway(g.id)}>
+                <span className="wb-card-icon" aria-hidden>🎟️</span>
+                <span className="wb-card-text">
+                  <strong>{g.title}</strong>
+                  <span className="wb-card-sub">
+                    {g.prizeSummary} · {g.entryCount.toLocaleString()} {t("entered")}
+                  </span>
+                </span>
+                <span className="wb-card-cta">{t("Enter")}</span>
+              </button>
+            ))}
+
+            {announcement && (
+              <div className={`wb-card wb-card--note wb-note-${announcement.type}`}>
+                <span className="wb-card-icon" aria-hidden>{ANNOUNCE_ICON[announcement.type] ?? "📣"}</span>
+                <span className="wb-card-text">
+                  <strong>{announcement.message}</strong>
+                </span>
+              </div>
+            )}
+
+            {news.length > 0 && (
+              <div className="wb-news-block">
+                <div className="wb-section-head">
+                  <h4 className="wb-news-title">{t("What's new")}</h4>
+                  <span className="wb-version">v{CURRENT_VERSION}</span>
+                </div>
+                {/* A summary, not the notes. They should be reachable, not
+                    unavoidable. */}
+                <ul className="wb-news">
+                  {news.slice(0, 2).flatMap((entry) =>
+                    entry.sections.flatMap((sec) => sec.items),
+                  ).slice(0, 3).map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+                <button className="wb-link" onClick={onOpenChangelog}>
+                  {t("Read the full notes")}
+                </button>
+              </div>
+            )}
+          </aside>
+         )}
         </div>
 
         <footer className="wb-foot">
-          <button className="g-btn-primary wb-cta" onClick={finish} disabled={busy}>
+          <button className="wb-cta" onClick={finish} disabled={busy}>
             {busy
               ? t("Claiming…")
               : canClaim
-                ? t("Claim & play")
-                : t("Let's play")}
+                ? <>{t("Claim & play")} <span className="wb-cta-arrow" aria-hidden>→</span></>
+                : <>{t("Let's play")} <span className="wb-cta-arrow" aria-hidden>→</span></>}
           </button>
         </footer>
       </div>

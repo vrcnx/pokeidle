@@ -19,7 +19,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { WelcomeBackDialog } from "./components/WelcomeBackModal";
 import type { WelcomeBackData } from "./state/welcomeBack";
-import type { AwayProgress, DailyStatus } from "./net/api";
+import type { Announcement, AwayProgress, DailyStatus, PublicGiveaway } from "./net/api";
 import type { ChangelogEntry } from "./types";
 import "./app.css";
 
@@ -64,16 +64,39 @@ const NEWS: ChangelogEntry[] = [{
   }],
 }] as any;
 
+const ANNOUNCE: Announcement = {
+  id: "an1", type: "maintenance",
+  message: "Server restart at 22:00 UTC — battles pause for about five minutes.",
+  href: null, linkLabel: null,
+  createdAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 6 * 3_600_000).toISOString(),
+};
+
+const gw = (over: Partial<PublicGiveaway>): PublicGiveaway => ({
+  id: "g1", title: "Master Ball Friday", description: "", status: "open",
+  createdAt: new Date().toISOString(), startsAt: null,
+  endsAt: new Date(Date.now() + 2 * 86400000).toISOString(), drawnAt: null,
+  winnerCount: 3, minAccountLevel: null, prizes: [], prizeSummary: "1× Master Ball",
+  entryCount: 412, hasEntered: false, youWon: false,
+  ...over,
+} as PublicGiveaway);
+
 // Every combination worth looking at. The dialog's whole job is to hold a
-// VARIABLE set of sections together, so a harness that only ever shows the
-// full one proves nothing about the others.
-const CASES: { name: string; data: WelcomeBackData }[] = [
-  { name: "Everything", data: { away: AWAY, daily: DAILY, news: NEWS, gifts: ["a Master Ball", "50,000"], returning: true } },
-  { name: "Away only", data: { away: AWAY, daily: null, news: [], gifts: [], returning: true } },
-  { name: "Daily only", data: { away: null, daily: DAILY, news: [], gifts: [], returning: true } },
-  { name: "Daily claimed", data: { away: null, daily: { ...DAILY, claimedToday: true, streak: 5, streakIfClaimed: 6, nextClaimInMs: 7 * 3_600_000 + 20 * 60_000 }, news: [], gifts: [], returning: true } },
+// VARIABLE set of sections together — and to decide whether the second column
+// exists at all — so a harness that only ever shows the full one proves
+// nothing about the rest.
+type Case = { name: string; data: WelcomeBackData; announcement?: Announcement | null; giveaways?: PublicGiveaway[] | null };
+const CASES: Case[] = [
+  { name: "Everything", data: { away: AWAY, daily: DAILY, news: NEWS, gifts: ["a Master Ball", "50,000"], returning: true },
+    announcement: ANNOUNCE, giveaways: [gw({ youWon: true, status: "drawn", title: "Shiny Mew draw", prizeSummary: "Shiny Mew Lv50" }), gw({})] },
+  { name: "Rewards only (1 col)", data: { away: AWAY, daily: DAILY, news: [], gifts: [], returning: true } },
+  { name: "Won a giveaway", data: { away: null, daily: DAILY, news: [], gifts: [], returning: true },
+    giveaways: [gw({ id: "g9", youWon: true, status: "drawn", title: "Shiny Mew draw", prizeSummary: "Shiny Mew Lv50" })] },
+  { name: "Open giveaway", data: { away: AWAY, daily: null, news: [], gifts: [], returning: true }, giveaways: [gw({})] },
+  { name: "Announcement", data: { away: null, daily: DAILY, news: [], gifts: [], returning: true }, announcement: ANNOUNCE },
   { name: "News only", data: { away: null, daily: null, news: NEWS, gifts: [], returning: true } },
-  { name: "Gift only", data: { away: null, daily: null, news: [], gifts: ["a Shiny Mew"], returning: true } },
+  { name: "Away only", data: { away: AWAY, daily: null, news: [], gifts: [], returning: true } },
+  { name: "Daily claimed", data: { away: null, daily: { ...DAILY, claimedToday: true, streak: 5, streakIfClaimed: 6, nextClaimInMs: 7 * 3_600_000 + 20 * 60_000 }, news: [], gifts: [], returning: true } },
   { name: "First visit", data: { away: null, daily: { ...DAILY, streak: 0, longestStreak: 0, streakIfClaimed: 1 }, news: [], gifts: [], returning: false } },
   { name: "Short away, day 7", data: { away: { ...AWAY, capped: false, elapsedMs: 47 * 60_000, money: 1_130 }, daily: { ...DAILY, streak: 6, streakIfClaimed: 7 }, news: [], gifts: [], returning: true } },
   { name: "Long name gift", data: { away: null, daily: null, news: [], gifts: ["3× Rare Candy, 2× Master Ball, 120,000 and a Shiny Charizard Lv100"], returning: true } },
@@ -119,10 +142,13 @@ function Harness() {
         : <WelcomeBackDialog
             key={i}
             data={CASES[i].data}
+            announcement={CASES[i].announcement ?? null}
+            giveaways={CASES[i].giveaways ?? null}
             busy={busy}
             onFinish={() => setClosed(true)}
             onClose={() => setClosed(true)}
             onOpenChangelog={() => setClosed(true)}
+            onOpenGiveaway={() => setClosed(true)}
           />}
     </div>
   );
