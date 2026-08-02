@@ -11,6 +11,7 @@ import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
 import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
 import { installGlobalErrorReporters } from "./net/errorReporter";
+import { captureFirstTouch } from "./net/attribution";
 import "./app.css";
 
 // Wire window.onerror + unhandledrejection capture before the React
@@ -18,6 +19,13 @@ import "./app.css";
 // caught. The reporter dedups + rate-limits client-side and the server
 // has its own limiter as the second wall.
 installGlobalErrorReporters();
+
+// Remember where this visitor came from, before anything can navigate and
+// overwrite document.referrer. No-op on every visit after the first — it is
+// FIRST touch, so the Reddit post that brought someone here still gets the
+// credit for the signup they make a week later. Sent to the server only once
+// there is an account to attach it to (see net/attribution.ts).
+captureFirstTouch();
 
 // Pull admin-edited map positions before the first render. We don't
 // block on this — if the network fails (offline, server down) the

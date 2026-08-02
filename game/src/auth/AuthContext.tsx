@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type MeProfile } from "../net/api";
 import { setStreamMode } from "../state/streamMode";
+import { sendFirstTouch } from "../net/attribution";
 
 interface AuthState {
   status: "loading" | "anonymous" | "authenticated";
@@ -26,6 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMe(profile);
       setStreamMode(!!profile.isStream, profile.streamConfig ?? null);
       setStatus("authenticated");
+      // There is an account now, so the stored first touch has something to
+      // attach to. Deliberately not awaited: this is reporting, and a slow or
+      // blocked call must not hold up the game rendering. It self-limits to
+      // one request per browser, and the server ignores it for any account
+      // older than half an hour — so an existing player costs one no-op.
+      void sendFirstTouch();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setMe(null);

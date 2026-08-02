@@ -21,6 +21,7 @@ import pollsRoute from "./routes/polls.js";
 import internalRoute from "./routes/internal.js";
 import botRoute from "./routes/bot.js";
 import discordRoute from "./routes/discord.js";
+import attributionRoute from "./routes/attribution.js";
 import { makeRateLimiter } from "./lib/rateLimit.js";
 import { recordError } from "./lib/errorReporting.js";
 import { logger } from "./lib/logger.js";
@@ -229,6 +230,9 @@ app.route("/api/bot", botRoute);
 // the bot DM'd them. Session auth, NOT the bot token — the two halves
 // authenticate differently on purpose.
 app.route("/api/discord", discordRoute);
+// Signup attribution capture. One POST, fired once by a freshly-created
+// account, recording where that visitor first landed — see routes/attribution.ts.
+app.route("/api/attribution", attributionRoute);
 
 // Global error handler — anything that throws inside a route handler
 // without being caught lands here. We persist a structured ErrorLog

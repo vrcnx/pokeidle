@@ -126,7 +126,13 @@
   /* ── Shell metrics ───────────────────────────────────────────*/
   --sidebar-w:    224px;
   --sidebar-rail: 60px;
-  --topbar-h:     56px;
+  /* 46px, down from 56. The bar holds one line of 13.5px text and a row of
+     26px controls; 56 was padding around padding. Ten pixels back on every
+     page, and the bar reads as chrome rather than as a section. */
+  --topbar-h:     46px;
+  /* The single horizontal gutter for the whole content column — the topbar
+     and the page below it both read it, so they always line up. */
+  --gutter:       var(--sp-5);
   --content-max:  1600px;
 }
 
@@ -445,20 +451,12 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 }
 .admin-signout:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); color: var(--text); }
 
-/* ── Collapsed rail ───────────────────────────────────────────── */
-
-.admin-shell[data-collapsed="true"] .admin-brand { justify-content: center; padding: 0; }
-.admin-shell[data-collapsed="true"] .admin-brand-tag,
-.admin-shell[data-collapsed="true"] .admin-nav-heading,
-.admin-shell[data-collapsed="true"] .admin-nav-item-label,
-.admin-shell[data-collapsed="true"] .admin-nav-badge,
-.admin-shell[data-collapsed="true"] .admin-me-name,
-.admin-shell[data-collapsed="true"] .admin-signout { display: none; }
-.admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: center; padding: 9px 0; gap: 0; border-left-color: transparent; }
-.admin-shell[data-collapsed="true"] .admin-nav-item svg { width: 17px; height: 17px; }
-.admin-shell[data-collapsed="true"] .admin-nav-group { padding: var(--sp-2) var(--sp-2); }
-.admin-shell[data-collapsed="true"] .admin-foot { justify-content: center; padding: var(--sp-3) 0; }
-.admin-shell[data-collapsed="true"] .admin-me { flex: 0; }
+/* The collapsed rail is gone, along with its toggle. It bought 164px of
+   content width in exchange for a nav you could no longer read, on a
+   dashboard whose widest page already fits — and the persisted state meant
+   anyone who hit the button once got the unreadable version on every
+   subsequent visit without an obvious way back. Cmd-K covers the case it was
+   really for (getting somewhere without the nav in the way). */
 
 /* ── Topbar ────────────────────────────────────────────────────── */
 
@@ -466,7 +464,12 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 0 var(--sp-5);
+  /* The right gutter carries the content column's scrollbar width. The
+     scrollbar belongs to .admin-main, so without this the bar's right edge
+     sits ~10px outboard of every card beneath it — the same misalignment
+     the left gutter had, just harder to spot. --scrollbar-w is measured
+     once at mount (see App.tsx) and is 0 on overlay-scrollbar platforms. */
+  padding: 0 calc(var(--gutter) + var(--scrollbar-w, 0px)) 0 var(--gutter);
   border-bottom: 1px solid var(--line);
   background: var(--surface-1);
   position: relative;
@@ -494,6 +497,158 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .topbar-spacer { flex: 1; min-width: 0; }
 .topbar-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 
+/* ── Global search ─────────────────────────────────────────────────
+   Rendered as a faux input rather than a real one. A live input in the bar
+   would need its results to hang off it in a popover sized to the input,
+   which is a worse place to read twelve results than the middle of the
+   screen; and it would take focus on every stray click into the chrome.
+   The button opens the dialog, and the dialog owns the field. */
+.topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 28px;
+  width: 220px;
+  padding: 0 8px 0 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 450;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.topbar-search:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); background: var(--surface-2); }
+.topbar-search svg { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.8; }
+.topbar-search__label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-search__kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.cmdk-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(3, 6, 14, 0.62);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  /* Top-anchored, not centred: the dialog grows downward as results arrive,
+     and a vertically centred box would slide under the cursor while you type. */
+  align-items: flex-start;
+  padding: 12vh var(--sp-4) var(--sp-4);
+}
+.cmdk {
+  width: min(620px, 100%);
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.cmdk-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.cmdk-input-row > svg { width: 16px; height: 16px; color: var(--text-dim); flex-shrink: 0; }
+.cmdk-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  font-size: 14.5px;
+  color: var(--text);
+}
+.cmdk-input::placeholder { color: var(--text-dim); }
+.cmdk-spinner {
+  width: 13px; height: 13px; flex-shrink: 0;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: cmdk-spin 0.6s linear infinite;
+}
+@keyframes cmdk-spin { to { transform: rotate(360deg); } }
+
+.cmdk-list { overflow-y: auto; max-height: 46vh; padding: var(--sp-2) 0; }
+.cmdk-section {
+  padding: var(--sp-2) var(--sp-4) 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  /* EXPLICIT, for the same reason the nav items are: the base `button` rule
+     centres its content, and a centred result row looks like a mistake. */
+  justify-content: flex-start;
+  text-align: left;
+  padding: 7px var(--sp-4);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+.cmdk-item.is-sel { background: var(--brand-soft); }
+.cmdk-kind {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 52px;
+  text-align: center;
+}
+.cmdk-kind--user { color: var(--brand-text); background: var(--brand-soft); border-color: var(--brand-line); }
+.cmdk-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-hint { flex-shrink: 0; }
+.cmdk-empty { padding: var(--sp-5) var(--sp-4); color: var(--text-dim); font-size: 13px; text-align: center; }
+.cmdk-foot {
+  display: flex;
+  gap: var(--sp-4);
+  padding: 8px var(--sp-4);
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.cmdk-foot kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  margin-right: 3px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
 /* Environment marker. An operations console should always answer "am I
    about to do this to production?" without being asked — this dashboard
    writes to live saves. */
@@ -518,11 +673,16 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
 /* ── Content ───────────────────────────────────────────────────── */
 
+/* The horizontal padding MUST match .admin-topbar's. The bar and the page
+   are one column, and when their gutters differ every card edge sits a few
+   pixels inboard of the title above it — close enough to look like a
+   rendering fault rather than a deliberate inset. Kept as a shared token so
+   they cannot drift apart again. */
 .admin-main {
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
-  padding: var(--sp-5) var(--sp-6) var(--sp-9);
+  padding: var(--sp-5) var(--gutter) var(--sp-9);
 }
 /* No max-width. With the sidebar already taking its share, capping the
    content too would waste an ultrawide monitor twice. Pages that read
@@ -920,8 +1080,7 @@ select {
    every mobile rule here inert. */
 
 @media (max-width: 900px) {
-  .admin-shell,
-  .admin-shell[data-collapsed="true"] { grid-template-columns: minmax(0, 1fr); }
+  .admin-shell { grid-template-columns: minmax(0, 1fr); }
 
   .admin-sidebar {
     position: fixed;
@@ -936,21 +1095,10 @@ select {
   /* Closed is the default; the drawer only exists while open. */
   .admin-sidebar[data-mobile-open="false"] { display: none; }
 
-  /* The rail is a desktop affordance. On mobile the drawer is always
-     full width, so the collapsed overrides must not leak into it. */
-  .admin-shell[data-collapsed="true"] .admin-brand-tag,
-  .admin-shell[data-collapsed="true"] .admin-nav-heading,
-  .admin-shell[data-collapsed="true"] .admin-nav-item-label,
-  .admin-shell[data-collapsed="true"] .admin-nav-badge,
-  .admin-shell[data-collapsed="true"] .admin-me-name,
-  .admin-shell[data-collapsed="true"] .admin-signout { display: revert; }
-  .admin-shell[data-collapsed="true"] .admin-nav-item { justify-content: flex-start; padding: 7px var(--sp-2); gap: 10px; }
-  .admin-shell[data-collapsed="true"] .admin-nav-item.active::before { display: block; }
-  .admin-shell[data-collapsed="true"] .admin-brand { justify-content: flex-start; padding: 0 var(--sp-4); }
-  .admin-shell[data-collapsed="true"] .admin-foot { justify-content: flex-start; padding: var(--sp-3); }
-
-  .admin-topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
-  .admin-main { padding: var(--sp-4) var(--sp-3) var(--sp-8); }
+  /* One override, both surfaces — they read the same token. */
+  .admin-shell { --gutter: var(--sp-3); }
+  .admin-topbar { gap: var(--sp-2); }
+  .admin-main { padding-top: var(--sp-4); padding-bottom: var(--sp-8); }
   .page-head h1 { font-size: 18px; }
   .card { padding: var(--sp-4); }
   .card-flush { margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-4) * -1); }
@@ -960,14 +1108,22 @@ select {
 }
 
 @media (min-width: 901px) {
-  /* The burger is mobile-only and the rail toggle is desktop-only, but
-     both are always rendered — swapping by CSS rather than by condition
-     means no layout shift when the viewport crosses the breakpoint. */
+  /* The burger is mobile-only, but it is always rendered — swapping by CSS
+     rather than by condition means no layout shift when the viewport
+     crosses the breakpoint. */
   .topbar-burger { display: none; }
   .admin-scrim { display: none; }
 }
-@media (max-width: 900px) {
-  .topbar-rail-toggle { display: none; }
+
+@media (max-width: 720px) {
+  /* The label goes before the shortcut hint does, because the hint is what
+     teaches the shortcut — and a bare magnifier still reads as search. */
+  .topbar-search { width: auto; }
+  .topbar-search__label { display: none; }
+}
+@media (pointer: coarse) {
+  /* No keyboard, no shortcut to advertise. */
+  .topbar-search__kbd { display: none; }
 }
 
 @media (max-width: 560px) {
@@ -996,9 +1152,9 @@ select {
    already showed, a paragraph, and a button row — costing ~100px on
    fifteen pages before any content. */
 
-/* One-line context beside the title. Truncates rather than wrapping:
-   the bar is a fixed 56px and a two-line note would push the layout
-   around as pages change. */
+/* One-line context beside the title. Truncates rather than wrapping: the
+   bar is a fixed height and a two-line note would push the layout around
+   as pages change. */
 .topbar-note {
   font-size: 12px;
   color: var(--text-dim);

@@ -3051,3 +3051,138 @@
    container's gap — that is how one row ends up further from its neighbour
    than the others. */
 .grid > .card, .kpi-strip > .kpi, .kpi-grid > .kpi { margin-bottom: 0; }
+
+/* ── Section headings ───────────────────────────────────────────────
+   A named band of a page, with a rule under it.
+
+   The rule is doing the real work. A page of same-weight cards has no visible
+   grouping, and a bare heading at this density reads as one more card title —
+   the eye needs a hard horizontal stop to accept "a new part starts here".
+
+   The space ABOVE a section is deliberately larger than the --sp-4 between
+   cards: 32 against 16. That contrast IS the mechanism — if the gap between
+   groups equals the gap within a group, there are no groups, only a list. The
+   preceding card's own 16px bottom margin collapses into this 32, so the
+   rhythm stays exactly 2:1 wherever a section lands. */
+.section-head {
+  margin: var(--sp-7) 0 var(--sp-4);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+}
+.section-head:first-child { margin-top: 0; }
+.section-head__title {
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0;
+}
+.section-head__blurb {
+  font-size: 12.5px;
+  margin: 3px 0 0;
+}
+
+/* ── Acquisition panel ──────────────────────────────────────────────
+   Five cards on one grid. Coverage and channels lead at full-ish width
+   because they are the interpretation the rest depends on; sources,
+   campaigns and landing pages are peers below. */
+/* Two columns, fixed — not auto-fit.
+   There are exactly four cards under the full-width coverage strip, so an
+   auto-fit track count is either 2 (a clean pair of rows) or 3 (a row of
+   three and one orphan hanging off the left edge). Auto-fit picks by
+   available width and lands on the orphan at most desktop sizes. Naming the
+   count means the layout is the same shape at every width it is used at. */
+.acq {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+@media (max-width: 1000px) {
+  .acq { grid-template-columns: minmax(0, 1fr); }
+}
+.acq > .card { margin-bottom: 0; }
+/* Coverage is a caveat, not a metric — it reads across the full width so it
+   cannot be skipped on the way to the charts. */
+.acq-coverage { grid-column: 1 / -1; }
+.acq-coverage__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.acq-coverage__head .kpi-label { display: block; }
+.acq-coverage__head .kpi-value { display: block; margin: 2px 0; }
+.acq-coverage__head .kpi-sub { display: block; }
+.acq-caveat { margin: var(--sp-2) 0 0; }
+.acq-empty { margin-bottom: var(--sp-4); }
+.acq-empty h3 { margin: 0 0 var(--sp-2); font-size: 14px; font-weight: 620; }
+
+/* Stacked channel bar. */
+.acq-stack {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-3);
+  margin-bottom: var(--sp-3);
+}
+.acq-stack__seg { display: block; min-width: 2px; }
+
+.acq-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.acq-legend li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12.5px;
+}
+.acq-dot { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.acq-legend__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acq-legend__pct { font-weight: 600; }
+.acq-legend__n { min-width: 44px; text-align: right; }
+
+/* Ranked rows with an inline bar — sources, campaigns, landing pages. */
+.acq-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.acq-row {
+  display: grid;
+  /* label | badge | bar | n | pct. The bar takes what is left, so a long
+     source name shortens the bar rather than pushing the numbers off. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(48px, 90px) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12.5px;
+}
+.acq-row__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.acq-row__badge {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.acq-row__bar {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.acq-row__bar i { display: block; height: 100%; border-radius: 999px; }
+.acq-row__n { min-width: 34px; text-align: right; font-weight: 600; }
+.acq-row__pct { min-width: 32px; text-align: right; }
+
+@media (max-width: 640px) {
+  /* The bar is the first thing to go: at this width it is under 40px and
+     communicates nothing the number beside it does not. */
+  .acq-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .acq-row__badge, .acq-row__bar { display: none; }
+}

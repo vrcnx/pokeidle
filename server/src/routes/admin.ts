@@ -1487,6 +1487,85 @@ app.get("/analytics", async (c) => {
   });
 });
 
+// ── GET /acquisition ────────────────────────────────────────────────
+// Where signups come from. Separate from /analytics on purpose: that endpoint
+// already fans out to ~25 queries and loads every user's accountLevel into
+// memory, and bolting five more GROUP BYs onto it would make the whole page
+// wait on a panel most visits do not scroll to. A separate call also means
+// the acquisition panel can carry its own loading and error state instead of
+// taking the page down with it when the table is not there yet.
+//
+// ── ON COVERAGE ─────────────────────────────────────────────────────
+// Every number here is "of the signups we have attribution for", and that is
+// NOT every signup: collection started on a date, and some browsers will drop
+// the write. So the response carries both `signups` (everyone who registered
+// in the window) and `attributed` (how many we can place). Reporting shares
+// without that denominator is how a dashboard ends up confidently claiming
+// 100% of traffic is direct.
+app.get("/acquisition", async (c) => {
+  const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") ?? "30", 10) || 30));
+  const since = new Date(Date.now() - days * 86400000);
+
+  // Signups in the window, from User — the denominator, and the only figure
+  // here that does not depend on the attribution table existing.
+  const signups = await prisma.user.count({ where: { createdAt: { gte: since } } });
+
+  try {
+    const where = { createdAt: { gte: since } };
+    const [attributed, firstRow, channels, sources, campaigns, landings] = await Promise.all([
+      prisma.signupAttribution.count({ where }),
+      prisma.signupAttribution.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+      prisma.signupAttribution.groupBy({ by: ["channel"], where, _count: { _all: true } }),
+      // Grouped WITH the channel so the table can colour each source by how it
+      // classified — seeing "reddit.com — referral" would be a bug worth
+      // catching, and it is invisible if the channel is dropped here.
+      prisma.signupAttribution.groupBy({
+        by: ["source", "channel"], where, _count: { _all: true },
+        orderBy: { _count: { source: "desc" } }, take: 15,
+      }),
+      prisma.signupAttribution.groupBy({
+        by: ["campaign", "source", "medium"],
+        where: { ...where, campaign: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { campaign: "desc" } }, take: 10,
+      }),
+      prisma.signupAttribution.groupBy({
+        by: ["landingPath"],
+        where: { ...where, landingPath: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { landingPath: "desc" } }, take: 10,
+      }),
+    ]);
+
+    return c.json({
+      windowDays: days,
+      signups,
+      attributed,
+      collectingSince: firstRow?.createdAt.toISOString() ?? null,
+      channels: channels
+        .map((r) => ({ channel: r.channel, signups: r._count._all }))
+        .sort((a, b) => b.signups - a.signups),
+      sources: sources.map((r) => ({ source: r.source, channel: r.channel, signups: r._count._all })),
+      campaigns: campaigns.map((r) => ({
+        campaign: r.campaign ?? "—", source: r.source, medium: r.medium, signups: r._count._all,
+      })),
+      landingPages: landings.map((r) => ({ path: r.landingPath ?? "/", signups: r._count._all })),
+    });
+  } catch (e) {
+    // Same tolerance as the DailyActive block above: on a server whose
+    // migration has not landed yet, the panel should say "not collecting"
+    // rather than 500 the request.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/does not exist|no such table|P2021/i.test(msg)) {
+      return c.json({
+        windowDays: days, signups, attributed: 0, collectingSince: null,
+        channels: [], sources: [], campaigns: [], landingPages: [],
+      });
+    }
+    throw e;
+  }
+});
+
 // ── Map editor: positions in Postgres so they survive deploys and can
 // be read by the game frontend at boot. The game's hard-coded routes.ts
 // values stay around as defaults; DB rows override them per location.

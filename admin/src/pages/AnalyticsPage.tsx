@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type Analytics } from "../api";
 import { navigateTo, type Page } from "../App";
 import { PageActions, PageNote } from "../components/PageChrome";
+import { AcquisitionPanel } from "../components/AcquisitionPanel";
 
 // "Cadence" layout — design panel winner.
 // One focal point per row. 12-column grid, 24px gutters, 32px between
@@ -145,6 +146,11 @@ export function AnalyticsPage() {
         ]}
       />
 
+      <SectionHead
+        title="Audience"
+        blurb="Who is playing, and whether they come back."
+      />
+
       {/* One uniform strip. Activity and retention belong on the same line —
           they answer the same question, "are people here and do they come
           back" — and splitting them across a hero tile, four compacts and a
@@ -198,6 +204,17 @@ export function AnalyticsPage() {
         <LineChart days={heroChart.days} counts={heroChart.counts} color={heroColor} height={300} />
       </section>
 
+      <SectionHead
+        title="Acquisition"
+        blurb="Where new players come from — referring sites, campaigns and landing pages."
+      />
+      <AcquisitionPanel days={30} />
+
+      <SectionHead
+        title="Engagement"
+        blurb="What players do once they are here, and how far they get."
+      />
+
       {/* Three up. PvP, trades and the level curve are peers — none earns half
           the page, and side by side they can be read against one another. */}
       <section className="grid grid-3 analytics-row">
@@ -229,6 +246,11 @@ export function AnalyticsPage() {
           <Histogram buckets={data.levelBuckets ?? []} highlightLevel={avgLevel} />
         </article>
       </section>
+
+      <SectionHead
+        title="Community"
+        blurb="Leaderboards and catalogue totals."
+      />
 
       <section className="grid grid-3 analytics-row">
         <article className="card">
@@ -279,6 +301,28 @@ export function AnalyticsPage() {
           </ul>
         </article>
       </section>
+    </div>
+  );
+}
+
+/**
+ * A named band of the page.
+ *
+ * ── WHY THE PAGE NEEDED THESE ───────────────────────────────────────
+ * Before this it was fourteen cards in a column, every one the same weight,
+ * with nothing saying that the top three answer "who is here", the next four
+ * answer "where did they come from", and the last three are reference data. A
+ * reader had to reconstruct that grouping from the card titles on every visit.
+ *
+ * The rule is what does the separating — a heading alone at this density reads
+ * as one more card title. It is drawn as a hairline through the whole width so
+ * the eye gets a hard stop, which is the thing that was missing.
+ */
+function SectionHead({ title, blurb }: { title: string; blurb: string }) {
+  return (
+    <div className="section-head">
+      <h2 className="section-head__title">{title}</h2>
+      <p className="section-head__blurb dim">{blurb}</p>
     </div>
   );
 }

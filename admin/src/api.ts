@@ -197,6 +197,31 @@ export interface Analytics {
   };
 }
 
+/**
+ * Where signups come from.
+ *
+ * ── READ `signups` AND `attributed` TOGETHER ────────────────────────
+ * Every breakdown below counts only the signups we could place. `signups` is
+ * everyone who registered in the window; `attributed` is how many of them have
+ * an origin recorded. Rendering a channel split without showing that ratio is
+ * how a dashboard ends up asserting "80% direct" when the truth is "we have
+ * data on 20% of signups and most of those were direct".
+ */
+export interface Acquisition {
+  windowDays: number;
+  /** All signups in the window — the denominator. */
+  signups: number;
+  /** How many of those carry an attribution row. */
+  attributed: number;
+  /** When collection started. null = the table is empty or absent. */
+  collectingSince: string | null;
+  channels: { channel: string; signups: number }[];
+  /** Grouped with the channel so a mis-classified source is visible. */
+  sources: { source: string; channel: string; signups: number }[];
+  campaigns: { campaign: string; source: string; medium: string | null; signups: number }[];
+  landingPages: { path: string; signups: number }[];
+}
+
 export type GiveawayPrizeInput =
   | { kind: "item"; itemId: string; quantity: number }
   | { kind: "money"; amount: number }
@@ -432,6 +457,10 @@ export const api = {
 
   // Analytics
   analytics: () => req<Analytics>("GET", "/api/admin/analytics"),
+  /** Separate call from analytics() on purpose — that endpoint already fans
+   *  out to ~25 queries, and the acquisition panel should be able to load,
+   *  fail and reload without taking the rest of the page with it. */
+  acquisition: (days = 30) => req<Acquisition>("GET", `/api/admin/acquisition?days=${days}`),
 
   // Map editor
   getMapPositions: () =>

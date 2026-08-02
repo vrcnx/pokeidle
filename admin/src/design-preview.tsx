@@ -88,15 +88,68 @@ const ANALYTICS: Analytics = {
 
 // Patch before any component mounts. `api` is a plain object, so this needs no
 // build-time indirection.
+// Partial coverage on purpose: attribution starts the day it ships, so for
+// weeks the panel's real job is to be honest about what it does NOT know. A
+// tidy 100%-covered mock would never exercise the caveat.
+const ACQUISITION = {
+  windowDays: 30,
+  signups: 517,
+  attributed: 214,
+  collectingSince: new Date(Date.now() - 11 * 86400000).toISOString(),
+  channels: [
+    { channel: "social", signups: 96 },
+    { channel: "direct", signups: 61 },
+    { channel: "organic", signups: 38 },
+    { channel: "referral", signups: 14 },
+    { channel: "paid", signups: 4 },
+    { channel: "email", signups: 1 },
+  ],
+  sources: [
+    { source: "discord.com", channel: "social", signups: 54 },
+    { source: "direct", channel: "direct", signups: 61 },
+    { source: "google.com", channel: "organic", signups: 31 },
+    { source: "reddit.com", channel: "social", signups: 28 },
+    { source: "youtube.com", channel: "social", signups: 11 },
+    { source: "a-very-long-referring-hostname-that-should-truncate.example.com", channel: "referral", signups: 6 },
+    { source: "chatgpt.com", channel: "organic", signups: 5 },
+    { source: "t.co", channel: "social", signups: 3 },
+  ],
+  campaigns: [
+    { campaign: "summer-launch", source: "discord.com", medium: "social", signups: 22 },
+    { campaign: "r-pokemon-post", source: "reddit.com", medium: null, signups: 9 },
+    { campaign: "yt-devlog-3", source: "youtube.com", medium: "cpc", signups: 4 },
+  ],
+  landingPages: [
+    { path: "/", signups: 181 },
+    { path: "/link-discord", signups: 24 },
+    { path: "/reset-password", signups: 3 },
+  ],
+};
+
 Object.assign(api, {
   analytics: async () => ANALYTICS,
+  acquisition: async () => ACQUISITION,
   me: async () => ({ id: "u1", username: "phoenix", isAdmin: true }),
+  // Enough for the command palette to render its player rows, including a
+  // banned one — the row that carries an extra hint and is the easiest to
+  // overflow.
+  listUsers: async (q: string) => {
+    const all = [
+      { id: "1", username: "sak4i", accountLevel: 3615, bannedUntil: null },
+      { id: "2", username: "stratus_varius", accountLevel: 1119, bannedUntil: null },
+      { id: "3", username: "averyverylongtrainernamethatwraps", accountLevel: 902, bannedUntil: null },
+      { id: "4", username: "koruem2", accountLevel: 611, bannedUntil: new Date().toISOString() },
+    ].filter((u) => u.username.includes(q.toLowerCase()));
+    return { total: all.length, page: 0, pageSize: 6, users: all as any };
+  },
 });
 
 // ── Harness chrome ──────────────────────────────────────────────────
 // The real shell, so pages are judged inside the layout they ship in.
 
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { CommandPalette } from "./components/CommandPalette";
+import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
 const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "analytics", label: "Analytics", render: () => <AnalyticsPage /> },
@@ -104,8 +157,9 @@ const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
 
 function Harness() {
   const [page] = useState(PAGES[0]);
+  useScrollbarWidthVar();
   return (
-    <div className="admin-shell" data-collapsed="false">
+    <div className="admin-shell">
       <aside className="admin-sidebar" data-mobile-open="false">
         <div className="admin-brand">
           <svg className="admin-brand-mark" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#6366f1" strokeWidth={2}>
@@ -140,16 +194,24 @@ function Harness() {
       </aside>
       <div className="admin-body">
         <header className="admin-topbar">
-          <button className="topbar-icon-btn topbar-rail-toggle" aria-label="Collapse sidebar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>
-          </button>
           <span className="topbar-crumb">{page.label}</span>
           {/* Same slots the real shell renders, so a page previewed here puts
               its chrome exactly where it will in the app. */}
           <span id="topbar-page-note" className="topbar-note" />
           <span className="topbar-spacer" />
           <div id="topbar-page-actions" className="topbar-page-actions" />
-          <div className="topbar-actions"><span className="topbar-env is-prod"><span>Preview</span></span></div>
+          <div className="topbar-actions">
+            <CommandPalette
+              pages={[
+                { page: "analytics", label: "Analytics", group: "Overview" },
+                { page: "liveops", label: "Live ops", group: "Overview" },
+                { page: "users", label: "Users", group: "People" },
+              ]}
+              onGoPage={() => {}}
+              onGoUser={() => {}}
+            />
+            <span className="topbar-env is-prod"><span>Preview</span></span>
+          </div>
         </header>
         <main className="admin-main">{page.render()}</main>
       </div>

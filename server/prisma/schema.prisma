@@ -167,6 +167,60 @@ model User {
   /// 20260731120000_add_discord_link remains the complete description
   /// of the table.
   discordLink        DiscordLink?
+  /// Where this account came from. Absent for every account created before
+  /// collection began, and for anyone whose browser blocked the write —
+  /// which is why the dashboard reports coverage rather than assuming the
+  /// rows it has are the whole picture.
+  signupAttribution  SignupAttribution?
+}
+
+/// How one account arrived: the referring site, the campaign tags on the
+/// landing URL, and the channel those classify to.
+///
+/// ── WHY A SEPARATE TABLE ────────────────────────────────────────────
+/// User is loaded on every save, every socket connect and every leaderboard
+/// query, and already carries a multi-megabyte saveData column. Attribution
+/// is read by exactly one page in the admin dashboard. Bolting eight more
+/// columns onto the hottest row in the database to serve the coldest reader
+/// would be the wrong trade.
+///
+/// It also makes "we have no attribution for this account" a missing row
+/// rather than eight nulls, so coverage is a join away instead of a
+/// convention everyone has to remember.
+///
+/// ── WHY THE VALUES ARE PRE-NORMALISED ───────────────────────────────
+/// channel/source are written already lowercased, de-www'd and classified by
+/// server/src/lib/acquisition.ts. The read side does nothing but GROUP BY, so
+/// there is no second implementation to drift.
+model SignupAttribution {
+  /// The account, and the primary key: one attribution per account, first
+  /// write wins. Not a surrogate id — there is no such thing as a second
+  /// acquisition for the same signup.
+  userId       String   @id
+  createdAt    DateTime @default(now())
+
+  /// direct | organic | social | referral | paid | email
+  channel      String
+  /// The grouping key: utm_source when the link was tagged, else the
+  /// referring host, else "direct". Never null.
+  source       String
+  medium       String?
+  campaign     String?
+  term         String?
+  content      String?
+  /// Host only — never the full referring URL. See acquisition.ts.
+  referrerHost String?
+  /// Path only, query stripped.
+  landingPath  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The dashboard windows by date and groups by channel/source; both are
+  /// scans over a table with one row per signup, so the indexes matter at
+  /// the scale this reaches rather than the scale it is at.
+  @@index([createdAt])
+  @@index([channel])
+  @@index([source])
 }
 
 /// Per-account constant secret that lets an OBS/24-7 stream auto-login via
@@ -981,6 +1035,27 @@ model Tournament {
   /// sweep must never pay twice.
   prizes         String?
   prizeGrantedAt DateTime?
+
+  /// ── Discord announcement (the community bot, bot/) ──────────────
+  /// Same four-column shape as Giveaway, and for the same reasons — read
+  /// migrations/20260801120000_giveaway_discord_announce for the full
+  /// argument. The short version: the game server holds no Discord token, so
+  /// the bot POLLS these; `discordMessageId IS NULL` is the idempotency
+  /// marker, and the bot posts first and marks second.
+  ///
+  /// Defaults to false rather than true even though a tournament is always a
+  /// community event. Every tournament that exists today predates the bot, and
+  /// a default of true would have the first poll announce a bracket that has
+  /// already been won.
+  announceToDiscord Boolean @default(false)
+  /// Overrides the bot's default ladder channel. Null = bot's choice.
+  discordChannelId  String?
+  /// Set once the OPEN announcement is posted. Also the poll's filter.
+  discordMessageId  String?
+  /// Set once the CHAMPION post is made. Separate marker because they are two
+  /// posts at two different times — often days apart, given a round window is
+  /// 24h by default.
+  discordResultsAt  DateTime?
 
   entries TournamentEntry[]
 

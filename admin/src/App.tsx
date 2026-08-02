@@ -17,6 +17,8 @@ import { PollsPage } from "./pages/PollsPage";
 import { BroadcastPage } from "./pages/BroadcastPage";
 import { DiscordPage } from "./pages/DiscordPage";
 import { ConfirmHost } from "./components/Confirm";
+import { CommandPalette, type PaletteTarget } from "./components/CommandPalette";
+import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
 export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements" | "broadcast" | "discord";
@@ -135,6 +137,12 @@ const PAGE_TITLES: Record<Page, string> = Object.fromEntries(
   NAV_GROUPS.flatMap((g) => g.items.map((i) => [i.page, i.label])),
 ) as Record<Page, string>;
 
+// Derived, not hand-listed: a new destination added to NAV_GROUPS is
+// searchable the moment it is navigable, with no second place to forget.
+const PALETTE_TARGETS: PaletteTarget[] = NAV_GROUPS.flatMap((g) =>
+  g.items.map((i) => ({ page: i.page, label: i.label, group: g.label })),
+);
+
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<AdminMe | null>(null);
@@ -178,21 +186,8 @@ export function App() {
     setMobileNav(false);
   };
 
-  // ── Shell chrome ────────────────────────────────────────────────
-  // Rail collapse persists: an operator who wants the wide table area
-  // wants it on every visit, and re-collapsing on each load is the kind
-  // of small friction that makes a tool feel unfinished.
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem("admin-nav-collapsed") === "1"; } catch { return false; }
-  });
-  const toggleCollapsed = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      try { localStorage.setItem("admin-nav-collapsed", next ? "1" : "0"); } catch { /* private mode */ }
-      return next;
-    });
-  };
   const [mobileNav, setMobileNav] = useState(false);
+  useScrollbarWidthVar();
 
   // Escape closes the drawer. Expected of any overlay, and the only
   // keyboard route out of it.
@@ -262,7 +257,7 @@ export function App() {
   const isProd = typeof window !== "undefined" && window.location.hostname !== "localhost";
 
   return (
-    <div className="admin-shell" data-collapsed={collapsed ? "true" : "false"}>
+    <div className="admin-shell">
       {mobileNav && (
         <button
           className="admin-scrim"
@@ -323,9 +318,9 @@ export function App() {
 
       <div className="admin-body">
         <header className="admin-topbar">
-          {/* Burger on mobile, rail toggle on desktop — same slot, so the
-              chrome does not reflow when the viewport crosses the breakpoint.
-              Which one shows is CSS, not conditional rendering. */}
+          {/* Mobile only — the desktop nav is always visible, so there is
+              nothing here to toggle. Hidden by CSS rather than by condition,
+              so the chrome does not reflow across the breakpoint. */}
           <button
             className="topbar-icon-btn topbar-burger"
             aria-label="Open navigation"
@@ -333,14 +328,6 @@ export function App() {
             onClick={() => setMobileNav(true)}
           >
             <IconMenu />
-          </button>
-          <button
-            className="topbar-icon-btn topbar-rail-toggle"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={toggleCollapsed}
-          >
-            <IconSidebar />
           </button>
           <span className="topbar-crumb">{PAGE_TITLES[page] ?? "Admin"}</span>
           {/* Filled by <PageNote> / <PageActions> from whichever page is
@@ -351,6 +338,11 @@ export function App() {
           <span className="topbar-spacer" />
           <div id="topbar-page-actions" className="topbar-page-actions" />
           <div className="topbar-actions">
+            <CommandPalette
+              pages={PALETTE_TARGETS}
+              onGoPage={(p) => gotoPage(p as Page)}
+              onGoUser={(userId) => navigateTo("users", { userId })}
+            />
             <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
               {isProd ? "Production" : "Local"}
             </span>
@@ -416,15 +408,6 @@ function IconMenu() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" />
-    </svg>
-  );
-}
-
-/** Panel-with-rail glyph for the collapse toggle. */
-function IconSidebar() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
     </svg>
   );
 }
