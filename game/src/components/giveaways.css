@@ -726,20 +726,27 @@
 }
 .gw-winner-list li.is-you { background: linear-gradient(180deg, #fbbf24, #f59e0b); color: #1a0e00; }
 
+/* Solid, white label, matching every other button in the game. It was a
+   --panel-2 fill with a visible border and --text-muted text, which is
+   the outlined-and-grey treatment the solid pass removed everywhere
+   else. Pill radius stays: this one is a "load more" affordance at the
+   end of a list, and the shape is what says so. */
 .gw-more {
   align-self: center;
   margin-top: 4px;
-  padding: 7px 18px;
-  border: 1px solid var(--border);
+  min-height: var(--ctl-h-sm);
+  padding: 0 18px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--panel-2);
-  color: var(--text-muted);
+  background: var(--panel-3);
+  color: #fff;
   font-family: inherit;
   font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
+  transition: background 120ms ease;
 }
-.gw-more:hover:not(:disabled) { color: var(--text); border-color: rgba(192, 132, 252, 0.45); }
+.gw-more:hover:not(:disabled) { background: var(--panel-4); }
 .gw-more:disabled { opacity: 0.55; cursor: default; }
 
 /* ── Live card additions ───────────────────────────────────────────

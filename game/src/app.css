@@ -164,6 +164,24 @@
   --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-pixel: "Press Start 2P", "Courier New", monospace;
   --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  /* ── The display face ─────────────────────────────────────────
+     Every piece of BOLD text in the app: headings, button and tab
+     labels, stat numbers, section heads.
+
+     Body copy stays on the system stack. It is the right choice for
+     long text — it is already loaded, it renders at any size, and it is
+     what the reader's OS has tuned. But it also meant every emphatic
+     thing in the game was Segoe UI Bold on Windows and SF Bold on a Mac:
+     correct, legible, and completely characterless. A game's numbers and
+     verbs should look like they belong to the game.
+
+     Outfit is geometric with a genuinely heavy 700/800, and — the part
+     that actually decided it — it stays clear at the 9-10px uppercase
+     labels this UI is full of, where the more characterful candidates
+     (Space Grotesk, Chakra Petch) start to mush. Alternatives are loaded
+     in controls-preview.html so this can be compared rather than argued
+     about. */
+  --font-display: "Outfit", var(--font-body);
 
   --fs-2xs: 10px;
   --fs-xs:  11px;
@@ -19775,4 +19793,180 @@ button.wb-card:active { transform: translateY(1px); }
   .g-btn-small.g-btn-ghost { min-height: 40px; }
   .dock-btn,
   .town-action-btn { min-height: 44px; }
+}
+
+/* =====================================================================
+   DISPLAY TYPE + SOLID CONTROLS
+   =====================================================================
+   Two changes, both at the end of the file for the same reason the
+   CONTROL PRIMITIVES block is: plain declarations winning on source
+   order, no !important anywhere.
+
+   1. Every bold thing in the app moves to --font-display.
+   2. Buttons become solid fills with white labels. No outline-only
+      buttons anywhere.
+   ===================================================================== */
+
+/* â”€â”€ Bold text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Headings, emphasis, numbers, and every control label. Body copy is
+   untouched: the system stack is genuinely better for reading, and the
+   contrast between a neutral paragraph and a display-weight number is
+   most of what makes a stat line feel like a stat line.
+
+   `strong` and `b` are in the list deliberately. This UI puts its
+   numbers in <strong> almost everywhere â€” money, levels, entry counts,
+   win totals â€” so "all bold text" and "every number that matters" turn
+   out to be the same selector. */
+h1, h2, h3, h4, h5, h6,
+strong, b,
+.g-tab, .bottom-tab, .route-region-tab, .mini-chat-tab, .social-tab,
+.hub-tab, .hub-brand-text, .hub-nav-head,
+.g-btn, .g-btn-primary, .g-btn-ghost, .g-btn-danger-ghost, .g-btn-small,
+.dock-btn, .dock-btn-label,
+.town-action-btn, .town-action-label,
+.bottom-tab-label,
+.gw-rail-label, .gw-rail-pill,
+/* The feature-scoped buttons. They live in giveaways.css and so were not
+   caught by the primitive selectors above, but they are buttons and a
+   player cannot tell which stylesheet a control came from. */
+.promo-cta, .giveaway-enter, .gw-more, .gw-past-youwon, .rw-tab-badge,
+.hub-tab-badge, .promo-done {
+  font-family: var(--font-display);
+}
+/* Tabular numerals wherever a number is the point. A stat that shifts
+   sideways as it ticks reads as unstable, and this UI has counters
+   updating in place all over it. */
+strong, b { font-variant-numeric: tabular-nums; }
+
+/* The battle scene keeps the pixel font. It is set earlier in this file
+   at a lower specificity, so it is restated here â€” otherwise the
+   `strong` rule above would quietly repaint the trainer tag. */
+.scene-status,
+.hp-card,
+.trainer-tag strong {
+  font-family: var(--font-pixel);
+}
+
+/* Outfit's uppercase is slightly wider than the system stack's, and this
+   UI has a lot of 9-10px caps with letter-spacing already applied. Pull
+   a hair of it back so the labels do not grow into their neighbours. */
+.hub-nav-head,
+.bottom-tab-label,
+.dock-btn-label,
+.town-action-label { letter-spacing: 0.16em; }
+
+/* â”€â”€ Solid buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Every button is a filled surface with a white label. There are no
+   outline-only buttons left: an outlined control on a near-black
+   background is a rectangle of nothing with a hairline around it, and
+   next to a solid one it reads as disabled rather than secondary.
+
+   The border stays on all of them, but its job changed â€” it is now the
+   edge of a solid shape rather than the shape itself, so it matches the
+   fill instead of contrasting with it.
+
+   Emphasis is carried by FILL LIGHTNESS, which is the one axis that
+   survives on a black UI: gold for the primary action, a raised neutral
+   for the secondary, a dark red for the destructive one. */
+.g-btn-primary,
+.g-btn-ghost,
+.g-btn-danger-ghost,
+.g-btn-small,
+.g-btn {
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* Secondary â€” the default. Solid, raised one step off the surface it
+   sits on, white label. This replaces the old ghost: transparent
+   background, muted grey label, visible outline. */
+.g-btn-ghost,
+.g-btn-small:not(.g-btn-primary):not(.g-btn-danger-ghost),
+.g-btn {
+  background: var(--panel-3);
+  color: #fff;
+}
+.g-btn-ghost:hover:not(:disabled),
+.g-btn-small:not(.g-btn-primary):not(.g-btn-danger-ghost):hover:not(:disabled),
+.g-btn:hover:not(:disabled) {
+  background: var(--panel-4);
+  color: #fff;
+}
+
+/* Primary â€” solid gold, dark label.
+   The one place in this design that does NOT take a white label, and
+   the reason is arithmetic rather than preference: white on #fbbf24
+   measures 1.8:1, which is unreadable. Near-black on gold is 11:1.
+   Darkening the gold far enough to carry white text (amber-800) lands
+   somewhere brown that no longer matches the gold used everywhere else
+   for selection, which is a worse trade than the exception.
+
+   Gold as the primary action is not a clash with gold as "you are
+   here": nobody reads a Send button as a location. The rule that
+   mattered was one selection treatment, not one use of the colour. */
+.g-btn-primary,
+.g-btn-small.g-btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #1a1400;
+}
+.g-btn-primary:hover:not(:disabled),
+.g-btn-small.g-btn-primary:hover:not(:disabled) {
+  background: var(--gold-2);
+  border-color: var(--gold-2);
+  color: #1a1400;
+}
+
+/* Destructive â€” solid, white label, 8.3:1. Red-800 rather than a bright
+   red: it has to be unmistakable without being the loudest thing in a
+   dialog whose primary action is somewhere else. */
+.g-btn-danger-ghost,
+.g-btn-small.g-btn-danger-ghost {
+  background: #991b1b;
+  border-color: #991b1b;
+  color: #fff;
+}
+.g-btn-danger-ghost:hover:not(:disabled),
+.g-btn-small.g-btn-danger-ghost:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* The two stacked docks are buttons too, and they were the most
+   outline-ish things in the game: a hairline box around a transparent
+   middle. Solid, white label. */
+.dock-btn,
+.town-action-btn {
+  background: var(--panel-2);
+  border-color: transparent;
+  color: #fff;
+}
+.dock-btn:hover:not(:disabled),
+.town-action-btn:hover:not(:disabled) {
+  background: var(--panel-3);
+  border-color: transparent;
+}
+/* â€¦except when selected, where gold is still the answer. Keeps its
+   border, because that is what makes a gold tint at 10% read as chosen
+   rather than merely lighter. */
+.dock-btn.active {
+  background: var(--ctl-on-bg);
+  border-color: var(--ctl-on-line);
+  color: var(--ctl-on-fg);
+}
+
+/* â”€â”€ Tabs are NOT buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Deliberately left transparent-until-selected. A tab set is a single
+   control showing which of N is current; filling every tab makes all N
+   look equally chosen and the row stops reading as a choice at all.
+   The white label still applies to the one that IS selected â€” that is
+   what gold-on-tinted-fill already gave it. */
+.g-tab:not(.active),
+.bottom-tab:not(.active),
+.route-region-tab:not(.active),
+.mini-chat-tab:not(.active),
+.social-tab:not(.active),
+.hub-tab:not(.is-active) {
+  color: var(--ctl-fg);
 }

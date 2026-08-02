@@ -19,7 +19,7 @@
 //
 //   cd game && npm run dev  →  http://localhost:5173/controls-preview.html
 
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
@@ -95,8 +95,28 @@ function StackedTabs() {
   );
 }
 
+// The candidates, loaded in controls-preview.html. A font is not a thing
+// anybody can choose from a description — "geometric with a heavy 800" is
+// true of three of these — so the switcher writes --font-display on :root
+// and the whole page re-renders in it, including the real controls above.
+const FONTS: Array<[string, string]> = [
+  ["Outfit", '"Outfit", var(--font-body)'],
+  ["Space Grotesk", '"Space Grotesk", var(--font-body)'],
+  ["Archivo", '"Archivo", var(--font-body)'],
+  ["Sora", '"Sora", var(--font-body)'],
+  ["System (before)", "var(--font-body)"],
+];
+
 function Harness() {
   const [report, setReport] = useState<string | null>(null);
+  const [font, setFont] = useState(0);
+
+  // Applied to the document, not a wrapper: --font-display is read by rules
+  // all over app.css, and scoping it to a subtree here would leave half the
+  // page comparing against itself.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--font-display", FONTS[font][1]);
+  }, [font]);
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px", color: "var(--text)" }}>
@@ -107,6 +127,32 @@ function Harness() {
         <code>--ctl-h-sm</code> 26 / <code>--ctl-h-lg</code> 38), and gold means
         "you are here" and nothing else.
       </p>
+
+      <Row title="Display font" note="--font-display — every bold thing in the app: headings, buttons, tabs, numbers">
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {FONTS.map(([name], i) => (
+            <button
+              key={name}
+              className={`g-tab ${font === i ? "active" : ""}`}
+              onClick={() => setFont(i)}
+            >{name}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+          <h2 style={{ margin: 0, fontSize: 22 }}>Master Ball Giveaway</h2>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
+            Body copy stays on the system stack — it is better for reading, and the
+            contrast is most of what makes a stat line feel like a stat line.
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
+            You have <strong>2</strong> wins from <strong>8</strong> entries ·{" "}
+            <strong>$129,010,829</strong> · <strong>Lv 514</strong>
+          </p>
+          <p style={{ margin: 0, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--text-dim)" }}>
+            The 10px uppercase labels this UI is full of
+          </p>
+        </div>
+      </Row>
 
       <Row title="Bottom tab strip" note=".bottom-tab — the centre column's primary nav; fills its container, stacks icon over label">
         <StackedTabs />
@@ -202,6 +248,23 @@ function Harness() {
           <button className="g-btn-small g-btn-ghost">Here</button>
           <button className="g-btn-small g-btn-ghost" disabled>Locked</button>
         </div>
+      </Row>
+
+      <Row title="Primary button — the one exception" note="white on #fbbf24 is 1.8:1, so the primary takes a dark label; everything else is white">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button className="g-btn-primary">Gold · dark label (11:1)</button>
+          <button className="g-btn-primary" style={{ background: "#92400e", borderColor: "#92400e", color: "#fff" }}>
+            Amber-800 · white label (7.1:1)
+          </button>
+          <button className="g-btn-primary" style={{ background: "#f5f5f5", borderColor: "#f5f5f5", color: "#0a0a0a" }}>
+            The old inverted white (18:1)
+          </button>
+        </div>
+        <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-dim)", maxWidth: "62ch", lineHeight: 1.5 }}>
+          Only the first is live. The second honours "white text" but lands somewhere
+          brown that stops matching the gold used for selection everywhere else; the
+          third is what shipped before. Say which and it is one declaration.
+        </p>
       </Row>
 
       <Row title="Machine check" note="every control of a kind must agree on height, radius, type size and border">
