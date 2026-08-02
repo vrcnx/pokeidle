@@ -1,0 +1,108 @@
+/* =====================================================================
+   THE RAIDS TAB
+
+   The Map's Raids tab used to hold a single travel card for Raid Island.
+   A tab named "Raids" whose contents were a route, with the actual choice
+   — which tier you want to fight — on the far side of it.
+
+   Checked against app.css before naming: `.raid-tier-card`,
+   `.raid-tier-picker`, `.raid-tier-row` and `.raid-tier-select` exist and
+   belong to the arrival panel; bare `.raid-tier` and everything else below
+   matched nothing.
+   ===================================================================== */
+.raid-tier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+
+.raid-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: var(--card-radius, 8px);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+/* Locked tiers stay on the list rather than being hidden. What is coming
+   later is half the reason to keep playing, and a list that silently grows
+   never tells you that. */
+.raid-tier.is-locked { opacity: 0.5; }
+
+.raid-tier-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.raid-tier-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.raid-tier-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.raid-tier-blurb {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.raid-tier-lv {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Who you might actually meet. The tier names alone said nothing about
+   what was in them, and "Birds & Beasts" is not a roster. */
+.raid-tier-lineup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: 34px;
+}
+.raid-tier-lineup img { display: block; }
+
+.raid-tier-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Why you cannot go, or that you can. Always present, so the button never
+   sits disabled with no explanation beside it. */
+.raid-tier-why {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.raid-tier-ready { color: #86efac; font-weight: 600; }
+
+.raid-tier-go {
+  flex: 0 0 auto;
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 120ms, opacity 120ms;
+}
+.raid-tier-go:hover:not(:disabled) { filter: brightness(1.18); }
+.raid-tier-go:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+.raid-tier-go:disabled { opacity: 0.35; cursor: not-allowed; }

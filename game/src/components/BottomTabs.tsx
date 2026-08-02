@@ -475,10 +475,22 @@ export function BagTab() {
   const t = useT();
   const [shelf, setShelf] = useState<ItemCategory | "all">("all");
 
-  const items = useMemo(
-    () => Object.entries(state.inventory).filter(([, n]) => n > 0),
-    [state.inventory],
-  );
+  // Sorted, always. `Object.entries` hands back insertion order, which for a
+  // save is the order things were first picked up — so the bag was shuffled
+  // by the player's own history and rearranged itself every time a new item
+  // arrived. Pocket first (so "All" reads as the pockets in order), then
+  // name, so an item is where you left it.
+  const items = useMemo(() => {
+    const rank = new Map(CATEGORY_ORDER.map((c, i) => [c, i]));
+    return Object.entries(state.inventory)
+      .filter(([, n]) => n > 0)
+      .sort(([a], [b]) => {
+        const ca = rank.get(getCatalogCategory(a)) ?? 99;
+        const cb = rank.get(getCatalogCategory(b)) ?? 99;
+        if (ca !== cb) return ca - cb;
+        return getItemInfo(a).name.localeCompare(getItemInfo(b).name);
+      });
+  }, [state.inventory]);
 
   // Only shelves you actually have something on. The old page rendered a
   // heading per category and skipped the empty ones; this is the same rule,
@@ -640,6 +652,20 @@ function BagCard({
   const usedFromWildPanel = itemId in consumables && itemId !== "expShare";
   const sellPrice = cat?.sellPrice ?? 0;
   const canSell = sellPrice > 0;
+  // WHERE an item is used, on the item. Player question: "how come I can't
+  // use the bottle caps" — and the answer was that you can, from a Pokémon's
+  // detail sheet, where a Hyper Training card appears once you own one. The
+  // Bag never said so, and the Bag is where you go holding the item.
+  const useHere = itemId === "expShare";
+  const useHint = useHere
+    ? null
+    : usedFromWildPanel
+      ? t("Use it from the Wild Pokémon panel — pick the species to apply it to.")
+      : itemId === "goldbottlecap" || itemId === "silverbottlecap"
+        ? t("Open a Pokémon's details — Hyper Training is at the bottom.")
+        : cat?.category === "stone"
+          ? t("Open a Pokémon's details, or use the party menu's Evolve action.")
+          : null;
 
   const [qty, setQty] = useState(1);
   const clamp = (n: number) => Math.max(1, Math.min(count, Math.floor(n) || 1));
@@ -680,6 +706,25 @@ function BagCard({
           }
         />
       </div>
+
+      {useHint && <p className="bag-use-hint">{useHint}</p>}
+
+      {/* The only item that is used FROM the bag. Its button lived in
+          BagPanel.tsx, which nothing has rendered for a long time — so
+          USE_EXP_SHARE existed, worked, and had no way to be reached. */}
+      {useHere && (
+        <button
+          type="button"
+          className="mart-buy-btn-v2 bag-use-v2"
+          onClick={() => {
+            dispatch({ type: "USE_EXP_SHARE" });
+            pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
+          }}
+          title={t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
+        >
+          {t("Use")}
+        </button>
+      )}
 
       {canSell ? (
         <>

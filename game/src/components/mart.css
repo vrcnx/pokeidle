@@ -293,3 +293,16 @@
   color: var(--text);
   letter-spacing: 0;
 }
+
+/* Where an item is used, when it is not used here. The answer to a player
+   question — "how come I can't use the bottle caps" — which had a real
+   answer (a Pokémon's detail sheet) that the Bag never gave. */
+.bag-use-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+/* Using is not selling. Neutral rather than the sell green, because it
+   costs nothing and returns nothing. */
+.bag-use-v2 { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }

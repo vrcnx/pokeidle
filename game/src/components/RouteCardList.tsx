@@ -1,10 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useGame } from "../state/GameContext";
 import { routes } from "../data/routes";
 import { encounters } from "../data/encounters";
 import { regions, regionForLocation } from "../data/regions";
-import { HubHeaderSlot, useInHubHeader } from "./HubModal";
+import { HubHeaderSlot, useInHubHeader, closeHub } from "./HubModal";
+import {
+  raidTiersOrdered, isTierUnlocked,
+  type RaidTier, type RaidTierId,
+} from "../data/raidLegendaries";
 import { PokemonSprite } from "./Sprite";
+import "./raidTiers.css";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
 import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
@@ -137,11 +142,16 @@ export function RouteCardList() {
           markup is built once and placed twice; a second copy for the other
           case is how two tab rows end up disagreeing about what a region is. */}
       {head}
-      <div className="route-card-grid">
-        {routesInRegion.map((route) => (
-          <RouteCard key={route.id} route={route} onTravel={travel} />
-        ))}
-      </div>
+      {/* The Raids tab is a raid picker, not a route. See RaidTierList. */}
+      {activeRegion === RAID_TAB ? (
+        <RaidTierList />
+      ) : (
+        <div className="route-card-grid">
+          {routesInRegion.map((route) => (
+            <RouteCard key={route.id} route={route} onTravel={travel} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -250,5 +260,134 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
         </ul>
       )}
     </div>
+  );
+}
+
+// ── The Raids tab ───────────────────────────────────────────────────
+// It used to list Raid Island as a travel card: one card, one Go button,
+// and the actual choice — which tier you want to fight — was on the other
+// side of it, in the panel that appears once you have arrived. A tab named
+// "Raids" that contains a route rather than any raids.
+//
+// The tiers are here now, and Start does the travelling. The trip was never
+// a decision; it was a step between you and the decision.
+function RaidTierList() {
+  const { state, dispatch } = useGame();
+  const t = useT();
+
+  // Ticks only while something is cooling down. A raid tier's readiness is
+  // the one thing on this tab that changes without the player touching it.
+  const [now, setNow] = useState(() => Date.now());
+  const cooldownLeftFor = (id: RaidTierId) => {
+    // Old saves only have the global raidCooldownEnd — honour it for every
+    // tier so an upgrading player is not handed free raids mid-cooldown.
+    // Once any new raid completes, the per-tier map takes over.
+    const end = state.raidCooldowns
+      ? state.raidCooldowns[id] ?? 0
+      : state.raidCooldownEnd ?? 0;
+    return Math.max(0, end - now);
+  };
+  const anyCooling = raidTiersOrdered.some((x) => cooldownLeftFor(x.id) > 0);
+  useEffect(() => {
+    if (!anyCooling) return;
+    const h = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(h);
+  }, [anyCooling]);
+
+  const islandUnlocked = state.unlockedLocations.includes("raidIsland");
+
+  if (!islandUnlocked) {
+    return (
+      <p className="mart-note">
+        {t("Raid Island opens once you have beaten the Champion.")}
+      </p>
+    );
+  }
+
+  const start = (tier: RaidTier) => {
+    // Travel first, THEN start. The raid runs at Raid Island — the battle
+    // screen, the music and the "leave raid" route all assume you are
+    // standing there — so this does the trip rather than pretending the
+    // location does not matter. Two dispatches, applied in order by the
+    // reducer, so the raid begins in the place it belongs to.
+    if (state.currentLocation !== "raidIsland") {
+      dispatch({ type: "TRAVEL", payload: { locationId: "raidIsland" } });
+    }
+    dispatch({ type: "START_RAID", payload: { tier: tier.id } });
+    closeHub();
+  };
+
+  return (
+    <ul className="raid-tier-list">
+      {raidTiersOrdered.map((tier) => {
+        const unlocked = isTierUnlocked(tier, state);
+        const cd = cooldownLeftFor(tier.id);
+        const busy = state.inRaid;
+        const ready = unlocked && cd === 0 && !busy;
+        // Most likely spawns first — the same order the arrival panel uses,
+        // so the tier reads the same from either side.
+        const lineup = Object.entries(tier.pool)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8)
+          .map(([k]) => k);
+        return (
+          <li key={tier.id} className={`raid-tier${unlocked ? "" : " is-locked"}`}>
+            <div className="raid-tier-main">
+              <div className="raid-tier-text">
+                <strong className="raid-tier-name">{tier.name}</strong>
+                <span className="raid-tier-blurb">{tier.blurb}</span>
+              </div>
+              <span className="raid-tier-lv">
+                {t("Lv")} {tier.startLevel}
+              </span>
+            </div>
+
+            {/* Who you might actually meet. The tier names alone said
+                nothing about what was in them. */}
+            <div className="raid-tier-lineup" aria-hidden>
+              {lineup.map((k) => (
+                <PokemonSprite
+                  key={k}
+                  speciesKey={k}
+                  alt=""
+                  width={34}
+                  height={34}
+                  style={{ imageRendering: "pixelated" }}
+                />
+              ))}
+            </div>
+
+            <div className="raid-tier-foot">
+              {!unlocked ? (
+                <span className="raid-tier-why">
+                  {tier.unlockChampionDefeated && !state.championDefeated
+                    ? t("Beat the Champion")
+                    : `${t("Needs")} ${tier.unlockBadges} ${t("badges")}`}
+                </span>
+              ) : busy ? (
+                <span className="raid-tier-why">{t("Already in a raid")}</span>
+              ) : cd > 0 ? (
+                <span className="raid-tier-why">
+                  {t("Ready in")} {Math.ceil(cd / 1000)}s
+                </span>
+              ) : (
+                <span className="raid-tier-why raid-tier-ready">{t("Ready")}</span>
+              )}
+              <button
+                type="button"
+                className="raid-tier-go"
+                disabled={!ready}
+                onClick={() => start(tier)}
+                title={ready
+                  ? t("Travel to Raid Island and begin")
+                  : undefined}
+              >
+                {t("Raid")}
+              </button>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
