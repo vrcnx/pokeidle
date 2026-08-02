@@ -55,7 +55,9 @@ vi.mock("../src/net/api", () => ({
 
 const MONEY = { value: 900_000_000 };
 
-import { AuctionCard, ListPokemonForm } from "../src/components/AuctionBoard";
+import {
+  AuctionCard, ListPokemonForm, PROXY_RULE_SECRECY, PROXY_RULE_HINT,
+} from "../src/components/AuctionBoard";
 import type { PublicAuction } from "../src/net/api";
 
 function auction(over: Partial<PublicAuction> = {}): PublicAuction {
@@ -206,22 +208,39 @@ describe("THE SECRECY PROMISE DOES NOT OVERCLAIM", () => {
   // pin the PROPERTY — never claim unreadability, always admit narrowing —
   // rather than one exact sentence, so the copy can be reworded without
   // silently reacquiring the overclaim.
+  // These assert on the exported STRINGS rather than the rendered card.
+  // The explanation is collapsed behind "How bidding works" now — 74 words
+  // under every lot was read once and scrolled past forever after — so a
+  // render assertion would be testing a disclosure widget, not the promise.
+  // The promise is the thing that must not regress, wherever it is shown.
   it("never claims the maximum is unreadable", () => {
-    const html = render(auction());
-    expect(html).not.toContain("Nobody else can see this number");
-    expect(html).not.toMatch(/no ?one else can see/i);
+    expect(PROXY_RULE_SECRECY).not.toContain("Nobody else can see this number");
+    expect(PROXY_RULE_SECRECY).not.toMatch(/no ?one else can see/i);
   });
 
   it("admits a rival can narrow the maximum down", () => {
-    const html = render(auction());
-    expect(html).toMatch(/narrow it down/i);
-    expect(html).toMatch(/never shown to anyone/i);
+    expect(PROXY_RULE_SECRECY).toMatch(/narrow it down/i);
+    expect(PROXY_RULE_SECRECY).toMatch(/never shown to anyone/i);
   });
 
   it("still explains that the price only moves as far as it is pushed", () => {
     // The genuinely reassuring half, and the part that IS true: naming a high
     // maximum does not mean paying it.
-    expect(render(auction())).toMatch(/only rises as far as a rival actually/i);
+    expect(PROXY_RULE_SECRECY).toMatch(/only rises as far as a rival actually/i);
+  });
+
+  it("still tells the player the maximum cannot be lowered or cancelled", () => {
+    // The other half of the contract, and the one with real consequences —
+    // a player who thinks they can walk it back will name a number they
+    // cannot afford.
+    expect(PROXY_RULE_HINT).toMatch(/can't lower or cancel/i);
+    expect(PROXY_RULE_HINT).toMatch(/outbid immediately/i);
+  });
+
+  it("is reachable from the card rather than merely existing", () => {
+    // The disclosure must be there, or the rules are documentation nobody
+    // can find from where the decision is made.
+    expect(render(auction())).toMatch(/How bidding works/i);
   });
 });
 

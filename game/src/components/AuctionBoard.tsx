@@ -184,16 +184,27 @@ export function AuctionBoard() {
       )}
 
       {view === "mine" && (
-        <div className="auction-board-list">
-          <h4 className="auction-board-subhead">{t("Selling")}</h4>
-          {(mine?.selling.length ?? 0) === 0 && <div className="dim small">{t("You have no listings.")}</div>}
-          {mine?.selling.map((a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />)}
-          <h4 className="auction-board-subhead">{t("Bidding on")}</h4>
-          {(mine?.bidding.length ?? 0) === 0 && <div className="dim small">{t("You haven't bid on anything.")}</div>}
-          {mine?.bidding.map((a) => (
-            <AuctionCard key={a.id} auction={a} onBid={loadMine} proxyPaused={pausedIds.has(a.id)} />
-          ))}
-        </div>
+        /* MY AUCTIONS, rebuilt.
+           It was two flat lists — "Selling" and "Bidding on" — rendering the
+           same browse card, which meant the four questions a player actually
+           opens this tab to ask were all unanswered:
+
+             am I about to lose something?   (outbid, ending soon)
+             did I win?                      (sold/settled, nothing said so)
+             what am I owed?                 (no money anywhere)
+             what is stuck?                  (an expired lot with no bids
+                                              reads identically to a live one)
+
+           So it leads with a summary line of the numbers, then groups by
+           WHAT NEEDS ATTENTION rather than by which side of the trade you
+           are on. A lot you are winning and a lot you have been outbid on
+           are the same "bidding" row to a data model and completely
+           different news to a person. */
+        <MineView
+          mine={mine}
+          pausedIds={pausedIds}
+          onChanged={loadMine}
+        />
       )}
 
       {view === "list" && (
@@ -205,6 +216,179 @@ export function AuctionBoard() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The proxy-bidding rules, as exported constants.
+ *
+ * They are constants because the explanation is now collapsed behind "How
+ * bidding works" — 74 words under every lot on the board is read once and
+ * scrolled past forever after — and a test that asserts on the RENDERED
+ * card would have to drive component state to see them.
+ *
+ * The property being protected has nothing to do with visibility: an
+ * earlier version promised "Nobody else can see this number", which is
+ * false and provably so (a rival who bids and watches where the price stops
+ * reads the maximum exactly — 9 probes for $950,000, 17 for $2,345,678,
+ * losing both times). Probing is inherent to every sealed-max auction; the
+ * overclaim was the defect. Pinning these strings here keeps that fix from
+ * silently reverting no matter where the copy is displayed.
+ */
+export const PROXY_RULE_SECRECY =
+  "We'll bid the minimum needed to keep you in front, up to your maximum. " +
+  "Your number is never shown to anyone — though a determined rival can " +
+  "narrow it down by bidding against you. The price only rises as far as a " +
+  "rival actually pushes it.";
+
+export const PROXY_RULE_HINT =
+  "If another player has set a higher maximum you may be outbid immediately. " +
+  "You can raise your maximum later, but you can't lower or cancel it.";
+
+/**
+ * The "My auctions" tab.
+ *
+ * Everything here is derived from the two lists the server already returns;
+ * there is no new endpoint. What is new is the reading: `status`, `endsAt`
+ * and `youAreHighBidder` were all on the wire and none of them were shown.
+ */
+function MineView({
+  mine, pausedIds, onChanged,
+}: {
+  mine: { selling: PublicAuction[]; bidding: PublicAuction[] } | null;
+  pausedIds: Set<string>;
+  onChanged: () => void;
+}) {
+  const t = useT();
+  const selling = mine?.selling ?? [];
+  const bidding = mine?.bidding ?? [];
+
+  const active = (a: PublicAuction) => a.status === "active";
+  // Grouped by what the player has to DO about it, not by which side of
+  // the trade they are on.
+  const outbid      = bidding.filter((a) => active(a) && !a.youAreHighBidder);
+  const winning     = bidding.filter((a) => active(a) && a.youAreHighBidder);
+  const won         = bidding.filter((a) => a.status === "sold" && a.youAreHighBidder);
+  const lost        = bidding.filter((a) => a.status !== "active" && !a.youAreHighBidder);
+  const liveListing = selling.filter(active);
+  const soldListing = selling.filter((a) => a.status === "sold");
+  // An expired or cancelled lot came back unsold. It is not a failure the
+  // player can see anywhere else, and the mon is still theirs.
+  const unsold      = selling.filter((a) => a.status === "expired" || a.status === "cancelled");
+
+  // Money, both directions. Committed = what the player is currently on the
+  // hook for if every lot they lead closes now; earned = what their sold
+  // listings actually fetched.
+  const committed = winning.reduce((n, a) => n + a.currentBid, 0);
+  const earned    = soldListing.reduce((n, a) => n + a.currentBid, 0);
+
+  if (!mine) return <div className="dim small">{t("Loading…")}</div>;
+  if (selling.length === 0 && bidding.length === 0) {
+    return (
+      <div className="auc-mine-empty">
+        <strong>{t("Nothing on the block")}</strong>
+        <p className="dim small">
+          {t("Bids you place and Pokémon you list both show up here — what you are winning, what you have been outbid on, and what has sold.")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auc-mine">
+      {/* The four numbers, before any list. */}
+      <div className="auc-mine-summary">
+        <span className={`auc-mine-fig${outbid.length > 0 ? " is-warn" : ""}`}>
+          <strong>{outbid.length}</strong><em>{t("outbid")}</em>
+        </span>
+        <span className={`auc-mine-fig${winning.length > 0 ? " is-good" : ""}`}>
+          <strong>{winning.length}</strong><em>{t("winning")}</em>
+        </span>
+        <span className="auc-mine-fig">
+          <strong>{liveListing.length}</strong><em>{t("listed")}</em>
+        </span>
+        <span className="auc-mine-money">
+          {committed > 0 && (
+            <span>{t("Committed")} <strong>{formatMoney(committed)}</strong></span>
+          )}
+          {earned > 0 && (
+            <span>{t("Earned")} <strong className="is-good">{formatMoney(earned)}</strong></span>
+          )}
+        </span>
+      </div>
+
+      <MineGroup
+        title={t("Outbid — act now")}
+        tone="warn"
+        list={outbid}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={onChanged} proxyPaused={pausedIds.has(a.id)} />}
+      />
+      <MineGroup
+        title={t("You're winning")}
+        tone="good"
+        list={winning}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={onChanged} proxyPaused={pausedIds.has(a.id)} />}
+      />
+      <MineGroup
+        title={t("Won")}
+        tone="good"
+        list={won}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={onChanged} readOnly />}
+      />
+      <MineGroup
+        title={t("Your listings")}
+        list={liveListing}
+        empty={t("You have nothing listed.")}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />}
+      />
+      <MineGroup
+        title={t("Sold")}
+        tone="good"
+        list={soldListing}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />}
+      />
+      {/* Deliberately last and deliberately present: a lot that ended with
+          no bids currently looks identical to a live one. */}
+      <MineGroup
+        title={t("Ended without a sale")}
+        list={unsold}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />}
+      />
+      <MineGroup
+        title={t("Didn't win")}
+        list={lost}
+        empty={null}
+        render={(a) => <AuctionCard key={a.id} auction={a} onBid={() => {}} readOnly />}
+      />
+    </div>
+  );
+}
+
+/** A titled group that renders nothing at all when it is empty and has no
+ *  empty message — an "Outbid (0)" heading is a heading about nothing. */
+function MineGroup({
+  title, list, empty, tone, render,
+}: {
+  title: string;
+  list: PublicAuction[];
+  empty: string | null;
+  tone?: "warn" | "good";
+  render: (a: PublicAuction) => React.ReactNode;
+}) {
+  if (list.length === 0 && !empty) return null;
+  return (
+    <section className="auc-mine-group">
+      <h4 className={`auc-mine-head${tone ? ` is-${tone}` : ""}`}>
+        {title}
+        {list.length > 0 && <span className="auc-mine-count">{list.length}</span>}
+      </h4>
+      {list.length === 0 ? <p className="dim small">{empty}</p> : list.map(render)}
+    </section>
   );
 }
 
@@ -230,6 +414,8 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showBids, setShowBids] = useState(false);
+  /** The proxy-bidding explanation, collapsed by default. */
+  const [showRules, setShowRules] = useState(false);
   const [bids, setBids] = useState<AuctionBid[] | null>(null);
 
   // THE PREFILL FIX. AuctionCard previously had NO effect at all, so `amount`
@@ -332,7 +518,19 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
             {formatMoney(auction.currentBid > 0 ? auction.currentBid : auction.startingBid)}
           </strong>
         </div>
-        <div className="dim small">{t("Ends in")} {timeLeft(auction.endsAt)} · {auction.bidCount} {t("bids")}</div>
+        {/* WHO is in front, not just how many bids there were. "3 bids" is a
+            count; "3 bids, ma62087 in front at $600" is the state of the
+            auction, and it was hidden behind "Show bids" — a click to learn
+            the one thing every visitor to this card came to find out. */}
+        {auction.bidCount > 0 && auction.currentBidderUsername && (
+          <div className="auction-card-lastbid">
+            <span className="auction-card-lastbid-who">{auction.currentBidderUsername}</span>
+            <span className="dim">{t("in front")}</span>
+          </div>
+        )}
+        <div className="dim small">
+          {t("Ends in")} {timeLeft(auction.endsAt)} {"·"} {auction.bidCount} {auction.bidCount === 1 ? t("bid") : t("bids")}
+        </div>
         <button type="button" className="auction-card-bidlink" onClick={toggleBids}>
           {showBids ? t("Hide bids") : t("Show bids")}
         </button>
@@ -423,9 +621,24 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
                   {t("Your balance is")} {formatMoney(money)} {t("and the minimum bid is")} {formatMoney(auction.minNextBid)}.
                 </div>
               )}
-              <label className="auc2-maxlabel" htmlFor={`auc2-max-${auction.id}`}>
-                {t("Your maximum")}
-              </label>
+              <div className="auc2-maxrow">
+                <label className="auc2-maxlabel" htmlFor={`auc2-max-${auction.id}`}>
+                  {t("Your maximum")}
+                </label>
+                {/* The rules were two paragraphs under every card on the
+                    board — 74 words a player reads once and then scrolls past
+                    forever, on every lot. They are still exactly as true and
+                    exactly as available; they are just not shouted at
+                    somebody who already knows how it works. */}
+                <button
+                  type="button"
+                  className="auc2-info-btn"
+                  aria-expanded={showRules}
+                  onClick={() => setShowRules((v) => !v)}
+                >
+                  {t("How bidding works")}
+                </button>
+              </div>
               <div className="auc2-bidrow">
                 <input
                   id={`auc2-max-${auction.id}`}
@@ -460,6 +673,8 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
                   so the promise below is the literal behaviour: the only way
                   to move the price to your maximum is for somebody to actually
                   commit that much. */}
+              {showRules && (
+              <>
               <div className="auc2-secret">
                 {/* This used to promise "Nobody else can see this number." That was
                     FALSE, and provably so: a rival who bids against you and watches
@@ -470,11 +685,13 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
                     secrecy the mechanism cannot deliver is worse than not promising
                     it, because a player sets their true ceiling on the strength of
                     it. Say what is actually true instead. */}
-                {t("We'll bid the minimum needed to keep you in front, up to your maximum. Your number is never shown to anyone — though a determined rival can narrow it down by bidding against you. The price only rises as far as a rival actually pushes it.")}
+                {t(PROXY_RULE_SECRECY)}
               </div>
               <div className="auc2-hint">
-                {t("If another player has set a higher maximum you may be outbid immediately. You can raise your maximum later, but you can't lower or cancel it.")}
+                {t(PROXY_RULE_HINT)}
               </div>
+              </>
+              )}
             </>
           )}
         </div>

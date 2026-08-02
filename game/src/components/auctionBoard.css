@@ -232,3 +232,126 @@
     color: #ff8a8a;
   }
 }
+
+/* =====================================================================
+   MY AUCTIONS
+   =====================================================================
+   It was two flat lists — "Selling" and "Bidding on" — rendering the
+   same browse card, so the four questions a player opens this tab to
+   ask went unanswered: am I about to lose something, did I win, what am
+   I owed, and what is stuck. Every fact needed to answer them
+   (`status`, `endsAt`, `youAreHighBidder`) was already on the wire.
+
+   Grouped by what needs ATTENTION rather than by which side of the
+   trade you are on. A lot you are winning and a lot you have been
+   outbid on are one "bidding" row to a data model and completely
+   different news to a person.
+   ===================================================================== */
+.auc-mine { display: flex; flex-direction: column; gap: 18px; }
+
+.auc-mine-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.auc-mine-fig { display: flex; align-items: baseline; gap: 5px; }
+.auc-mine-fig strong {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.auc-mine-fig em { font-style: normal; font-size: 10.5px; color: var(--text-dim); }
+/* Colour only when the number is non-zero. A red 0 beside "outbid" is an
+   alarm about nothing, and this tab is read at a glance. */
+.auc-mine-fig.is-warn strong { color: #f87171; }
+.auc-mine-fig.is-good strong { color: #86efac; }
+.auc-mine-money {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.auc-mine-money strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.auc-mine-money .is-good { color: #86efac; }
+
+.auc-mine-group { display: flex; flex-direction: column; gap: 8px; }
+.auc-mine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.auc-mine-head.is-warn { color: #fca5a5; }
+.auc-mine-head.is-good { color: #86efac; }
+.auc-mine-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.auc-mine-empty { display: flex; flex-direction: column; gap: 6px; padding: 24px 2px; }
+.auc-mine-empty strong { font-size: 13px; }
+.auc-mine-empty p { margin: 0; max-width: 56ch; line-height: 1.55; }
+
+/* ── Card: who is in front ─────────────────────────────────────────
+   "3 bids" is a count. "3 bids, ma62087 in front" is the state of the
+   auction — and it was behind a "Show bids" click. */
+.auction-card-lastbid {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+}
+.auction-card-lastbid-who {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ── Card: the rules, on request ───────────────────────────────────
+   74 words of proxy-bidding explanation under EVERY lot on the board,
+   read once and scrolled past forever after. Still one tap away, still
+   word-for-word as true — the strings are exported constants now and
+   auctionCardRender.test.ts pins them so the honest wording cannot
+   regress wherever it is shown. */
+.auc2-maxrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.auc2-info-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 10.5px;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.auc2-info-btn:hover { color: var(--text-muted); }
+.auc2-info-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .auc2-info-btn { padding: 12px 0; margin: -12px 0; }
+  .auc-mine-money { margin-left: 0; width: 100%; }
+}
