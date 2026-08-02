@@ -271,8 +271,18 @@ export function PvpHubPane() {
   return (
     <div className={`pvp-hub-pane ${inQueue ? "is-queued" : ""}`}>
 
-        {/* TRAINER CARD — horizontal, packed with info */}
-        <section className="pvp2-trainer-row">
+
+        {/* MODE CHIPS + READY UP — tighter row, less hero space */}
+        {/* The arena, on the hub's own column system: the thing you came to
+            press on the left, the standings that tell you whether pressing it
+            is going well on the right. Stacked, these were a 900px column of
+            half-empty rows with the bottom third of the pane blank. */}
+        <div className="hub-split pvp2-body">
+        <section className="pvp2-arena">
+          {/* Who you are, at the top of the arena rather than in a full-width
+              card above it. The card spanned both columns while everything
+              under it was two — a T that lined up with nothing — and once the
+              team strip moved down here it had 278px of empty right side. */}
           <article className="pvp-hero-trainer-card">
             {/* LEFT: portrait + tier badge */}
             <div className="pvp2-portrait-wrap">
@@ -342,15 +352,7 @@ export function PvpHubPane() {
             </div>
 
           </article>
-        </section>
 
-        {/* MODE CHIPS + READY UP — tighter row, less hero space */}
-        {/* The arena, on the hub's own column system: the thing you came to
-            press on the left, the standings that tell you whether pressing it
-            is going well on the right. Stacked, these were a 900px column of
-            half-empty rows with the bottom third of the pane blank. */}
-        <div className="hub-split pvp2-body">
-        <section className="pvp2-arena">
           <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
             {/* Tournament only exists when one does. A mode chip that leads
                 to "no tournament scheduled" is a door onto a wall. */}

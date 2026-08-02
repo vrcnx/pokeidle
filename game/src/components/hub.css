@@ -968,3 +968,57 @@
     background: linear-gradient(to right, var(--panel-2) 0%, rgba(21, 21, 22, 0.85) 55%, rgba(21, 21, 22, 0.4) 100%);
   }
 }
+
+/* =====================================================================
+   The arena is the hero, and the rail is everything else
+   =====================================================================
+   Measured on the built pane at 1440x960, three things were making this
+   look uneven, and they compounded:
+
+     * the trainer card was FULL WIDTH over a two-column split — a T
+       shape whose top edge lined up with nothing below it;
+     * once the team strip moved into the arena, that card had 278px of
+       empty right side, because the tier track caps at 560px and there
+       was nothing else left in it;
+     * the READY UP button sat 127px LEFT of its own panel's centre. It
+       inherits a width from pvpArena.css and was left-aligned inside a
+       stretch container, so the one element that should be dead centre
+       was visibly off it.
+
+   The card is now the head of the arena. One hero panel, one rail, two
+   column edges running the full height — everything aligns to the same
+   two lines. */
+
+/* The identity, inside the arena. No card chrome of its own: it is the
+   top of a panel now, not a panel on top of a panel. */
+.pvp2-arena .pvp-hero-trainer-card {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+/* The track spans the identity block rather than stopping at 560px in
+   the middle of a wide card. */
+.pvp2-arena .pvp-hero-trainer-card .pvp-track { max-width: none; }
+.pvp2-arena .pvp2-portrait-wrap { flex: 0 0 auto; }
+
+/* CENTRED. The slab carries its own width from pvpArena.css, so the
+   wrapper centres it rather than stretching it — stretch is what left it
+   hugging the left edge of a 606px panel. */
+.pvp2-arena .pvp-slab-wrap { align-items: center; }
+.pvp2-arena .pvp-slab {
+  width: min(340px, 100%);
+  justify-content: center;
+}
+.pvp2-arena .pvp2-bot-picker { align-self: center; }
+
+/* The team sits on the arena's floor, full width, with its label and
+   count on the same line as the sprites' row above them. */
+.pvp2-arena .pvp2-team-strip { margin-top: auto; }

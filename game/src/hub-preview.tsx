@@ -212,7 +212,8 @@ function Harness() {
       // pane that no longer exists.
       Body: () => (
         <div className="pvp-hub-pane">
-          <section className="pvp2-trainer-row">
+          <div className="hub-split pvp2-body">
+            <section className="pvp2-arena">
             {/* Full width, like the real card. At `flex: 1` inside a narrow
                 wrapper the tier bands rendered 17px each, which would have
                 certified a track nobody could read. */}
@@ -237,9 +238,7 @@ function Harness() {
                 <TierTrack rating={984} unranked={false} />
               </div>
             </article>
-          </section>
-          <div className="hub-split pvp2-body">
-            <section className="pvp2-arena">
+
               {/* Ranked and Practice only — Casual is gone, and Tournament
                   appears only when one is running. */}
               <div className="g-tabs">
