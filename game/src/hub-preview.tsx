@@ -240,10 +240,10 @@ function Harness() {
           </section>
           <div className="hub-split pvp2-body">
             <section className="pvp2-arena">
+              {/* Ranked and Practice only — Casual is gone, and Tournament
+                  appears only when one is running. */}
               <div className="g-tabs">
                 <button className="g-tab active">Ranked</button>
-                <button className="g-tab">Casual</button>
-                <button className="g-tab">Tournament</button>
                 <button className="g-tab">Practice</button>
               </div>
               <div className="pvp2-arena-core">
@@ -315,14 +315,6 @@ function Harness() {
                   ))}
                 </ul>
               </div>
-              <section className="pvp-tour">
-                <header className="pvp2-panel-head">
-                  <span className="pvp-tour-icon">🏆</span><h4>TOURNAMENTS</h4>
-                </header>
-                <p className="dim small pvp2-empty">
-                  No tournament scheduled. They are bracketed events with their own prizes.
-                </p>
-              </section>
             </aside>
           </div>
           <section className="pvp-tour" style={{ display: "none" }}>

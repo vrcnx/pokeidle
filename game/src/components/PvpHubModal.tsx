@@ -35,7 +35,11 @@ import "../pvpArena.css";
 // v2 packs the same data into a horizontal trainer-card with team
 // strip + stats grid, then a 2-col bottom row for match tape + top 3.
 
-type Mode = "ranked" | "casual" | "tournament" | "practice";
+// Casual is gone. It was a chip that queued into the SAME matchmaking pool
+// as ranked and then declined to pay out — a second door to one room, where
+// the only difference was that walking through it wasted the match. With a
+// population this size every real battle should count.
+type Mode = "ranked" | "tournament" | "practice";
 
 /** How long a player has to be alone in the queue before the AI is offered.
  *
@@ -348,7 +352,11 @@ export function PvpHubPane() {
         <div className="hub-split pvp2-body">
         <section className="pvp2-arena">
           <div className="pvp-mode-chips" role="tablist" aria-label={t("Match mode")}>
-            {(["ranked", "casual", "tournament", "practice"] as Mode[]).map((m) => (
+            {/* Tournament only exists when one does. A mode chip that leads
+                to "no tournament scheduled" is a door onto a wall. */}
+            {((openTournaments.length > 0
+                ? ["ranked", "tournament", "practice"]
+                : ["ranked", "practice"]) as Mode[]).map((m) => (
               <button
                 key={m}
                 role="tab"
@@ -534,32 +542,24 @@ export function PvpHubPane() {
               </ul>
             )}
           </div>
-          {/* TOURNAMENTS
-              It was a collapsed strip reading "🏆 TOURNAMENTS · 0 open ▸" —
-              a disclosure triangle over an empty list, which asks a player to
-              click to discover there is nothing there. When something IS
-              running it is the biggest event in the mode and deserves to be
-              open by default; when nothing is, the honest thing is one line
-              saying what tournaments are and that none is scheduled. Either
-              way, no click to find out. */}
-          <section className="pvp-tour">
-            <header className="pvp2-panel-head">
-              <span className="pvp-tour-icon" aria-hidden>🏆</span>
-              <h4>{t("TOURNAMENTS")}</h4>
-              {openTournaments.length > 0 && (
-                <span className="pvp-tour-count">{openTournaments.length} {t("open")}</span>
-              )}
-            </header>
-            {tournaments.length === 0 ? (
-              <p className="dim small pvp2-empty">
-                {loaded
-                  ? t("No tournament scheduled. They are bracketed events with their own prizes — announced in global chat when one opens.")
-                  : t("Loading…")}
-              </p>
-            ) : (
+          {/* TOURNAMENTS — only when there is one.
+              It was a section that rendered every day to say no tournament
+              was scheduled, which is a box explaining its own absence. When
+              one IS running it is the biggest event in the mode and shows
+              itself; the rest of the time the rail is shorter, which is the
+              correct amount of space for nothing. */}
+          {tournaments.length > 0 && (
+            <section className="pvp-tour">
+              <header className="pvp2-panel-head">
+                <span className="pvp-tour-icon" aria-hidden>🏆</span>
+                <h4>{t("TOURNAMENTS")}</h4>
+                {openTournaments.length > 0 && (
+                  <span className="pvp-tour-count">{openTournaments.length} {t("open")}</span>
+                )}
+              </header>
               <TournamentList list={tournaments} onChange={(t) => setTournaments(t)} />
-            )}
-          </section>
+            </section>
+          )}
         </aside>
         </div>
 
@@ -897,7 +897,7 @@ function ReadyUpSlab({
     <div className="pvp-slab-wrap">
       <button className="pvp-slab" onClick={onReady}>
         <span className="pvp-slab-title">{t("READY UP")}</span>
-        <span className="pvp-slab-sub">{mode === "ranked" ? t("Ranked · Lv 50") : t("Casual · Friends only")}</span>
+        <span className="pvp-slab-sub">{t("Ranked · Lv 50")}</span>
       </button>
       {/* What the button is worth. A ranked button that does not say what is
           at stake asks the player to press it on faith — and the swing is the
