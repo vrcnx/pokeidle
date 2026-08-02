@@ -23,7 +23,6 @@ import {
   levelEvolutionTargets,
 } from "../utils/evolution";
 import { useDragAndDrop } from "../hooks/useDrag";
-import { PlayerCard } from "./PlayerCard";
 import { InventoryRibbon } from "./InventoryRibbon";
 import { PvpRail } from "./PvpArena";
 import { useIsPvpBattle } from "../state/pvp";
@@ -115,11 +114,13 @@ function statusBadgeClass(s: StatusCondition): string {
 }
 
 // RIGHT rail (Twitch-stream layout): control panel. Order top→bottom:
-//   1. PlayerCard (who you are, and one way into the hub)
+//   1. UnlockHint (Next Goal — what you are working towards, over the six
+//      Pokémon you are working towards it with)
 //   2. Party list (the player's team)
 //   3. ContextPanel (status hints + battle log)
-//   4. UnlockHint (Next Goal card — collapsed by default)
-//   5. InventoryRibbon (profile strip pinned to the bottom: Lv / $ / badges)
+//   4. InventoryRibbon — MOBILE ONLY. Desktop shows a trainer card in the
+//      left rail; mobile has no left rail, so the strip is still its Lv/$/
+//      badges readout.
 // Drag a party row onto another to swap slots; drag a box Pokémon onto a
 // party slot to move/swap. The drag system is pointer-events-based so it
 // works on touch.
@@ -143,15 +144,10 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
   if (pvpBattle) return <PvpRail />;
   return (
     <div className="party-column control-column">
-      {/* TOP OF THE RIGHT RAIL, in both layouts.
-          This slot held the five-tab strip in wide and the PvP/Settings/
-          Social dock in classic. Both are gone for the same reason: every
-          destination they pointed at is a hub section now, so two toolbars
-          were pointing at one dialog from two different corners.
-          The player card replaces them — it opens the hub, it carries the
-          five shortcuts the strip had, and it says who you are, which
-          neither of them did. */}
-      <PlayerCard />
+      {/* NEXT GOAL, top-right. It moved off the left rail to sit above the
+          party — the thing you are working towards, over the six Pokémon
+          you are working towards it with. */}
+      <UnlockHint />
       <section className="ctx-section party-card">
         {/* Heal moved here from the moves toolbar at the bottom of the centre
             column (br_27cfd612ddd30485fc). It is a PARTY action — it restores
@@ -175,11 +171,11 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
 
       {/* Wide moves the wild-Pokémon panel into the centre, under the moves. */}
       {!wide && <ContextPanel />}
-      {/* On desktop the profile strip AND the Next Goal card are hoisted to
-          the top of the left chat rail (see LocationColumn); the right rail
-          hides them here to avoid showing them twice. Mobile's party tab
-          keeps both. `showProfileStrip` gates the whole hoisted set. */}
-      {showProfileStrip && <UnlockHint />}
+      {/* The Next Goal card is at the TOP of this rail now, so the copy that
+          used to sit down here is gone — leaving it would have rendered two
+          of them on mobile, where `showProfileStrip` is true.
+          The profile strip stays for mobile only: the desktop rails show a
+          trainer card instead, and mobile has no left rail to put one in. */}
       {showProfileStrip && <InventoryRibbon />}
     </div>
   );

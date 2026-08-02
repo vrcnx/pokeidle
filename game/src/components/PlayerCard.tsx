@@ -1,14 +1,20 @@
+import { useState } from "react";
 import { useGame } from "../state/GameContext";
 import { useAuth } from "../auth/AuthContext";
 import { useT } from "../i18n/useT";
 import { openHub, useHubSection, type HubSection } from "./HubModal";
+import { TrainerCardModal } from "./TrainerCardModal";
 import { PokemonSprite } from "./Sprite";
+import {
+  IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
+  IconSwords, IconChat, IconSettings,
+} from "./Icon";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount } from "../utils/unlocks";
 import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
 import "./trainerCorner.css";
 
-// The top of the right rail.
+// The top of the LEFT rail.
 //
 // ── WHAT WAS HERE ───────────────────────────────────────────────────
 // A five-tab strip — Map, Mart, Bag, PC, Dex — pinned under the battle
@@ -32,6 +38,10 @@ export function PlayerCard() {
   const { me } = useAuth();
   const t = useT();
   const openSection = useHubSection();
+  // Local, exactly as the profile strip this replaced kept it. There is no
+  // module-level opener for the trainer card and inventing one for a single
+  // caller would be a global for no reason.
+  const [cardOpen, setCardOpen] = useState(false);
 
   const lead = state.party[0];
   const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
@@ -44,12 +54,23 @@ export function PlayerCard() {
   // strip's real virtue was that Map and Bag were ONE click away, and losing
   // that to tidiness would be a bad trade — so they are still one click,
   // they just land in the hub instead of a panel with its own rules.
-  const shortcuts: Array<{ id: HubSection; icon: string; label: string }> = [
-    { id: "map",  icon: "▣", label: t("Map") },
-    { id: "mart", icon: "⛁", label: t("Mart") },
-    { id: "bag",  icon: "⛃", label: t("Bag") },
-    { id: "pc",   icon: "▤", label: t("PC") },
-    { id: "dex",  icon: "▥", label: t("Dex") },
+  // The app's own icon set — the same drawings the tab strip used for these
+  // five, which is what made that strip readable at a glance.
+  const go = [
+    { id: "map"  as HubSection, Icon: IconMap,      label: t("Map") },
+    { id: "mart" as HubSection, Icon: IconCart,     label: t("Mart") },
+    { id: "bag"  as HubSection, Icon: IconBackpack, label: t("Bag") },
+    { id: "pc"   as HubSection, Icon: IconMonitor,  label: t("PC") },
+    { id: "dex"  as HubSection, Icon: IconBook,     label: t("Dex") },
+  ];
+  // The three that used to be their own dock. They point at hub sections
+  // like everything else here, so a second toolbar for them was one toolbar
+  // too many — and it sat directly under this card, which is why they read
+  // as belonging to it long before they were part of it.
+  const you = [
+    { id: "pvp"      as HubSection, Icon: IconSwords,   label: t("PvP") },
+    { id: "social"   as HubSection, Icon: IconChat,     label: t("Social") },
+    { id: "settings" as HubSection, Icon: IconSettings, label: t("Settings") },
   ];
 
   return (
@@ -57,8 +78,12 @@ export function PlayerCard() {
       <button
         type="button"
         className="trainer-corner-main"
-        onClick={() => openHub()}
-        title={t("Open the menu")}
+        // The strip this replaced opened the trainer card, and that is the
+        // action this surface means — it is the block ABOUT you. Every hub
+        // section is one press away in the two rows below, so nothing is
+        // lost by not making the whole card a menu button.
+        onClick={() => setCardOpen(true)}
+        title={t("Open trainer card")}
       >
         <span className="trainer-corner-lead">
           {lead
@@ -92,20 +117,27 @@ export function PlayerCard() {
         <span className="trainer-corner-open" aria-hidden>›</span>
       </button>
 
-      <nav className="trainer-corner-links" aria-label={t("Go")}>
-        {shortcuts.map((sc) => (
-          <button
-            key={sc.id}
-            type="button"
-            className={`trainer-corner-link${openSection === sc.id ? " is-active" : ""}`}
-            onClick={() => openHub(sc.id)}
-            title={sc.label}
-          >
-            <span className="trainer-corner-link-icon" aria-hidden>{sc.icon}</span>
-            <span className="trainer-corner-link-label">{sc.label}</span>
-          </button>
-        ))}
-      </nav>
+      {[go, you].map((row, n) => (
+        <nav
+          key={n}
+          className={`trainer-corner-links trainer-corner-links--${n === 0 ? "go" : "you"}`}
+          aria-label={n === 0 ? t("Go") : t("You")}
+        >
+          {row.map((sc) => (
+            <button
+              key={sc.id}
+              type="button"
+              className={`trainer-corner-link${openSection === sc.id ? " is-active" : ""}`}
+              onClick={() => openHub(sc.id)}
+              title={sc.label}
+            >
+              <span className="trainer-corner-link-icon" aria-hidden><sc.Icon size={15} /></span>
+              <span className="trainer-corner-link-label">{sc.label}</span>
+            </button>
+          ))}
+        </nav>
+      ))}
+      {cardOpen && <TrainerCardModal onClose={() => setCardOpen(false)} />}
     </section>
   );
 }

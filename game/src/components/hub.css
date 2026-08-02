@@ -219,7 +219,15 @@
    tooltip explaining why. */
 .hub-tab:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.hub-tab-icon { flex: 0 0 auto; width: 18px; font-size: 13px; line-height: 1; text-align: center; }
+/* Drawn icons now, so the box just needs to centre them. */
+.hub-tab-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  line-height: 1;
+}
 .hub-tab-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Red, not gold: on this rail gold is the primary action and elevation
    is "you are here", so "something is waiting" needs a third signal of

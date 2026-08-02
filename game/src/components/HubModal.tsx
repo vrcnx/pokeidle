@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import {
+  IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
+  IconSwords, IconTicket, IconChat, IconSettings,
+} from "./Icon";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import { useIncomingRequestCount } from "../state/friendRequests";
@@ -64,7 +68,11 @@ export interface HubSectionContent {
 
 interface SectionDef {
   id: HubSection;
-  icon: string;
+  /** The app's own icon set, not a unicode glyph. The glyphs (▣ ⛁ ⛃ ▤ ▥)
+   *  were a placeholder that shipped: they render at whatever weight the
+   *  font feels like, sit off the baseline, and look nothing like the
+   *  drawn icons the tab strip used for the same five destinations. */
+  Icon: ComponentType<{ size?: number; className?: string }>;
   label: string;
   group: "world" | "play" | "account";
 }
@@ -72,15 +80,15 @@ interface SectionDef {
 // Order is the priority order a player cares about, not alphabetical:
 // the thing you do, then the thing you get, then the people, then the knobs.
 const SECTIONS: SectionDef[] = [
-  { id: "map",      icon: "▣", label: "Map",      group: "world" },
-  { id: "mart",     icon: "⛁", label: "Mart",     group: "world" },
-  { id: "bag",      icon: "⛃", label: "Bag",      group: "world" },
-  { id: "pc",       icon: "▤", label: "PC",       group: "world" },
-  { id: "dex",      icon: "▥", label: "Pokédex", group: "world" },
-  { id: "pvp",      icon: "⚔", label: "Battle",   group: "play" },
-  { id: "rewards",  icon: "✦", label: "Rewards",  group: "play" },
-  { id: "social",   icon: "✉", label: "Social",   group: "account" },
-  { id: "settings", icon: "⚙", label: "Settings", group: "account" },
+  { id: "map",      Icon: IconMap,       label: "Map",      group: "world" },
+  { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world" },
+  { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world" },
+  { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world" },
+  { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world" },
+  { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play" },
+  { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play" },
+  { id: "social",   Icon: IconChat,      label: "Social",   group: "account" },
+  { id: "settings", Icon: IconSettings,  label: "Settings", group: "account" },
 ];
 
 const GROUPS: Array<{ id: SectionDef["group"]; label: string }> = [
@@ -364,7 +372,7 @@ export function HubFrame({
                           title={why || undefined}
                           onClick={() => onSelect(s.id)}
                         >
-                          <span className="hub-tab-icon" aria-hidden>{s.icon}</span>
+                          <span className="hub-tab-icon" aria-hidden><s.Icon size={15} /></span>
                           <span className="hub-tab-label">{t(s.label)}</span>
                           {/* Counts what is ACTIONABLE. A badge that also
                               counts things already dealt with is a badge

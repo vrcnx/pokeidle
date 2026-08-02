@@ -113,14 +113,24 @@
 
    Deliberately smaller and quieter than the strip was. They are a way
    back to somewhere, not the primary furniture of the screen. */
-/* The five spread across the full width rather than huddling. They are
-   the row that replaced a five-tab strip, and the strip filled its
-   container — losing that would make them look like leftovers. */
+/* TWO rows, both full width. Five destinations, then the three that used
+   to be their own dock directly underneath this card — they read as
+   belonging to it long before they were part of it.
+   Separate <nav>s rather than one row of eight: at 300px of rail, eight
+   labelled targets is 37px each, and the two rows are genuinely different
+   kinds of place (somewhere to go, versus something about you). */
 .trainer-corner-links {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 3px;
-  padding: 0 8px 8px;
+  padding: 0 8px;
+}
+.trainer-corner-links--go   { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.trainer-corner-links--you  {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 3px;
+  padding-top: 6px;
+  padding-bottom: 8px;
+  border-top: 1px solid var(--border);
 }
 .trainer-corner-link {
   display: flex;
@@ -148,7 +158,10 @@
   border-color: var(--ctl-on-line);
   color: var(--ctl-on-fg);
 }
-.trainer-corner-link-icon { font-size: 13px; line-height: 1; }
+/* The app's own drawn icons, not unicode glyphs. The glyphs rendered at
+   whatever weight the font felt like and sat off the baseline; these are
+   the same drawings the tab strip used, which is what made it readable. */
+.trainer-corner-link-icon { display: inline-flex; line-height: 1; }
 .trainer-corner-link-label {
   font-family: var(--font-display);
   font-size: 8.5px;

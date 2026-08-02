@@ -1,8 +1,6 @@
 import { MiniChat } from "./MiniChat";
-import { MetaDock } from "./GlobalDock";
+import { PlayerCard } from "./PlayerCard";
 import { ChannelHeader } from "./ChannelHeader";
-import { InventoryRibbon } from "./InventoryRibbon";
-import { UnlockHint } from "./ContextPanel";
 import { GiveawayRail } from "./GiveawayRail";
 
 // LEFT rail (Twitch-stream layout): chat is the elastic watch surface
@@ -14,10 +12,16 @@ import { GiveawayRail } from "./GiveawayRail";
 export function LocationColumn({ wide = false }: { wide?: boolean }) {
   return (
     <div className="location-column chat-column">
-      <InventoryRibbon />
-      {/* Wide: PvP / Settings / Social sit directly under the trainer card. */}
-      {wide && <MetaDock />}
-      <UnlockHint />
+      {/* THE TRAINER CARD, top-left.
+          It replaces both the profile strip and the PvP/Settings/Social
+          dock that used to sit here. The strip showed Lv, money and badges
+          — all three of which this card shows — so keeping both would have
+          printed the same numbers twice, 40px apart. The strip's action
+          (open the trainer card) is what pressing this card does.
+          The dock's three buttons are the second row of shortcuts: they
+          point at hub sections like the other five, so a separate toolbar
+          for them was one toolbar too many. */}
+      <PlayerCard />
       {/* The only always-present way into giveaways. It sits here, between
           the goal card and chat, because a giveaway announcement arrives IN
           chat — so the standing control and the thing that announces it are
