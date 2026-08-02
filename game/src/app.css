@@ -3138,26 +3138,57 @@ body.dnd-active {
   gap: 0;
 }
 
-/* A section, not a card. No surface of its own — it is already inside one —
-   so the only thing separating two of them is a rule. Nesting a bordered card
-   inside a bordered card is what made this column read as clutter. */
+/* ── .ctx-section, in two roles ────────────────────────────────────
+   The class is used in two genuinely different places, and it needs to look
+   different in each:
+
+     · OUTSIDE the context panel it is a CARD in its own right — the party
+       card (PartyColumn), the PvP log and team cards (PvpArena). Those sit
+       directly in a column with nothing around them, so they have to carry
+       their own surface.
+
+     · INSIDE the context panel it is a SECTION of the one card that panel now
+       is, so it must NOT have a surface — a bordered card inside a bordered
+       card is the clutter that treatment was introduced to remove.
+
+   Getting this wrong is not subtle: stripping the surface unconditionally
+   left the party card as transparent text floating over the game background.
+   The default is the card; the panel opts its children out. */
 .ctx-section {
   display: flex;
   flex-direction: column;
   gap: var(--gap-in);
+  background: var(--panel);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
   padding: var(--card-pad-default);
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-  border-radius: 0;
-  /* Sections take their content height; exactly one per phase may absorb the
-     slack (see the growth policy with the wide-layout rules). Letting every
-     section flex is what pulsed the gym cards on each town trainer. */
   flex: 0 0 auto;
   min-height: 0;
 }
+
+/* Inside the panel: a section, divided by a rule rather than by a border and
+   a gap. .unlock-hint is included because it is rendered as
+   `ctx-section unlock-hint` in here and would otherwise pull its own card
+   chrome back in from the universal card rule. */
+.context-panel .ctx-section,
+.context-panel .ctx-section.unlock-hint {
+  /* `!important` to match, not for emphasis: the CARD UNIFORMITY block near
+     the end of this file sets .unlock-hint's chrome with !important, and
+     importance beats specificity — an ordinary rule here cannot opt it out.
+     The .ctx-section.unlock-hint form is (0,3,0) so it also outranks
+     `.party-column .unlock-hint`, which is !important AND later in the file;
+     at (0,2,0) this rule lost to it and the goal card stayed a card inside
+     the card. In the panel it is always rendered with both classes. */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
 /* The last section has nothing below it to be divided from, and the card's
    own edge already closes the list. */
-.ctx-section:last-child { border-bottom: 0; }
+.context-panel .ctx-section:last-child,
+.context-panel .ctx-section.unlock-hint:last-child { border-bottom: 0 !important; }
 .ctx-section h4 {
   margin: 0;
   font-size: 10px;
