@@ -214,6 +214,102 @@ Object.assign(api, {
       box: [{ id: "m3", speciesKey: "eevee", name: "Eevee", level: 15, isShiny: false }],
     }),
   }),
+  // Chat: a mix of ordinary messages, a system card, a long message, and one
+  // person posting five in a row — the flood the bulk tools exist for.
+  recentChat: async (_limit = 100, opts?: any) => {
+    const now = Date.now();
+    const mk = (i: number, over: Record<string, unknown> = {}) => ({
+      id: `m${i}`,
+      channelId: i % 7 === 0 ? "trade" : i % 5 === 0 ? "area:Viridian Forest" : "global",
+      content: i % 6 === 0
+        ? "does anyone want to trade a thunderstone? i have a spare shiny eevee and honestly i just want to finish the dex before the weekend"
+        : `message ${i}`,
+      createdAt: new Date(now - i * 47_000).toISOString(),
+      user: { id: `u${i % 5}`, username: ["sak4i", "spammer", "koruem2", "phoenix", "newbie"][i % 5], name: null, isAdmin: i % 5 === 3, accountLevel: [3615, 4, 611, 87, 12][i % 5] },
+      ...over,
+    });
+    const rows = [
+      mk(0, { kind: "announcement", content: "Server maintenance at 22:00 UTC.", user: { id: "u3", username: "phoenix", name: "Phoenix", isAdmin: true, accountLevel: 87 } }),
+      // Five in a row from one account — the sweep case.
+      ...Array.from({ length: 5 }, (_, i) => mk(i + 1, {
+        id: `spam${i}`, content: "FREE MASTER BALLS >> pokeidle-gift.example.com",
+        user: { id: "u1", username: "spammer", name: null, isAdmin: false, accountLevel: 4 },
+      })),
+      ...Array.from({ length: 24 }, (_, i) => mk(i + 6)),
+    ];
+    const filtered = opts?.username
+      ? rows.filter((r) => r.user.username.toLowerCase() === String(opts.username).toLowerCase())
+      : opts?.q
+        ? rows.filter((r) => r.content.toLowerCase().includes(String(opts.q).toLowerCase()))
+        : rows;
+    return {
+      messages: filtered as any,
+      channels: [
+        { id: "global", count: 214 },
+        { id: "trade", count: 41 },
+        { id: "area:Viridian Forest", count: 18 },
+        { id: "dm:abc", count: 6 },
+      ],
+    };
+  },
+  deleteChat: async () => ({ ok: true as const }),
+  bulkDeleteChat: async (ids: string[]) => ({ ok: true as const, deleted: ids.length }),
+  clearAllChat: async () => ({ ok: true as const, deleted: 279 }),
+
+  // Bug reports: one of each status, one from Discord (no user agent, no
+  // game state), and one with a long description.
+  listBugReports: async (status = "") => {
+    const all = [
+      { id: "b1", status: "open", title: "Battle softlocks when the opponent faints on the same turn",
+        reporterName: "sak4i", source: "game", page: "/battle",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131",
+        description: "If both Pokemon faint on the same turn the battle screen stays on 'choosing move' forever and I have to reload. Happened three times today, always with Explosion.",
+        context: JSON.stringify({ level: 3615, location: "Victory Road", party: 6 }) },
+      { id: "b2", status: "open", title: "Shop prices reset after trading",
+        reporterName: "koruem2", source: "discord", page: "https://discord.com/channels/1/2/3",
+        userAgent: null, description: "prices go back to default after a trade completes", context: null },
+      { id: "b3", status: "investigating", title: "Pokedex count off by one",
+        reporterName: "phoenix", source: "game", page: "/pokedex",
+        userAgent: "Mozilla/5.0 (Macintosh) Safari/17", description: "Says 84 but I count 85.",
+        context: JSON.stringify({ caught: 84 }) },
+      { id: "b4", status: "resolved", title: "Away rewards not claimable on mobile",
+        reporterName: "newbie", source: "game", page: "/", userAgent: "Mozilla/5.0 (iPhone)",
+        description: "Button did nothing.", context: null, adminNotes: "Fixed in 1.4.2 — the tap target was under the safe-area inset." },
+      { id: "b5", status: "wontfix", title: "Add Gen 2",
+        reporterName: "stratus_varius", source: "game", page: null, userAgent: null,
+        description: "please", context: null },
+    ].map((r, i) => ({
+      ...r, reporterId: `u${i}`, adminNotes: (r as any).adminNotes ?? null,
+      discordMessageId: r.source === "discord" ? "123" : null,
+      createdAt: new Date(Date.now() - (i + 1) * 5 * 3600e3).toISOString(),
+      updatedAt: new Date(Date.now() - (i + 1) * 3600e3).toISOString(),
+    }));
+    const rows = status ? all.filter((r) => r.status === status) : all;
+    return {
+      reports: rows as any,
+      counts: { all: all.length, open: 2, investigating: 1, resolved: 1, wontfix: 1 },
+    };
+  },
+  updateBugReport: async () => ({ ok: true as const }),
+
+  listAudit: async () => ({
+    entries: [
+      { id: "a1", action: "user.ban", createdAt: new Date(Date.now() - 12 * 60e3).toISOString(),
+        admin: { id: "u3", username: "phoenix" }, target: { id: "u1", username: "spammer" },
+        meta: { until: "2026-08-09T00:00:00Z", reason: "Advertising" } },
+      { id: "a2", action: "chat.bulkDelete", createdAt: new Date(Date.now() - 13 * 60e3).toISOString(),
+        admin: { id: "u3", username: "phoenix" }, target: null,
+        meta: { requested: 5, deleted: 5 } },
+      { id: "a3", action: "user.promote", createdAt: new Date(Date.now() - 4 * 3600e3).toISOString(),
+        admin: { id: "u9", username: "cnx" }, target: { id: "u2", username: "koruem2" }, meta: {} },
+      { id: "a4", action: "chat.delete", createdAt: new Date(Date.now() - 26 * 3600e3).toISOString(),
+        admin: { id: "u3", username: "phoenix" }, target: { id: "cm_9f2", username: "?" }, meta: null },
+      { id: "a5", action: "user.save_patch", createdAt: new Date(Date.now() - 50 * 3600e3).toISOString(),
+        admin: { id: "u9", username: "cnx" }, target: { id: "u0", username: "sak4i" },
+        meta: { keys: ["inventory", "money"], saveVersion: 812 } },
+    ] as any,
+  }),
+
   listSnapshots: async () => ({
     snapshots: [
       { id: "s1", saveVersion: 812, reason: "auto", createdAt: new Date(Date.now() - 3600e3).toISOString(),
@@ -264,6 +360,8 @@ Object.assign(api, {
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { UsersPage } from "./pages/UsersPage";
+import { ChatModerationPage } from "./pages/ChatModerationPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { CommandPalette } from "./components/CommandPalette";
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
@@ -271,6 +369,9 @@ const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "analytics", label: "Analytics", render: () => <AnalyticsPage /> },
   { key: "liveops",   label: "Live ops",  render: () => <LiveOpsPage /> },
   { key: "users",     label: "Users",     render: () => <UsersPage /> },
+  { key: "chat",      label: "Chat",      render: () => <ChatModerationPage /> },
+  { key: "bugs",      label: "Reports",   render: () => <ReportsPage tab="bugs" /> },
+  { key: "audit",     label: "Audit",     render: () => <ReportsPage tab="audit" /> },
 ];
 
 function Harness() {
@@ -288,24 +389,25 @@ function Harness() {
           </svg>
           <span className="admin-brand-tag">Admin</span>
         </div>
+        {/* Derived from PAGES, not hand-written. The hand-written version
+            drifted the moment a page was added and left new pages
+            unreachable in the harness — which is how a preview stops being
+            used. */}
         <nav className="admin-nav">
           <div className="admin-nav-group">
-            <span className="admin-nav-heading">Overview</span>
-            <button className={`admin-nav-item ${page.key === "analytics" ? "active" : ""}`} onClick={() => setPage(PAGES[0])}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M3 3v18h18" /><path d="M7 14l3-3 3 3 5-5" /></svg>
-              <span className="admin-nav-item-label">Analytics</span>
-            </button>
-            <button className={`admin-nav-item ${page.key === "liveops" ? "active" : ""}`} onClick={() => setPage(PAGES[1])}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
-              <span className="admin-nav-item-label">Live ops</span>
-            </button>
-          </div>
-          <div className="admin-nav-group">
-            <span className="admin-nav-heading">People</span>
-            <button className={`admin-nav-item ${page.key === "users" ? "active" : ""}`} onClick={() => setPage(PAGES[2])}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0112 0" /></svg>
-              <span className="admin-nav-item-label">Users</span>
-            </button>
+            <span className="admin-nav-heading">Pages</span>
+            {PAGES.map((pg) => (
+              <button
+                key={pg.key}
+                className={`admin-nav-item ${page.key === pg.key ? "active" : ""}`}
+                onClick={() => setPage(pg)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                  <path d="M3 3v18h18" /><path d="M7 14l3-3 3 3 5-5" />
+                </svg>
+                <span className="admin-nav-item-label">{pg.label}</span>
+              </button>
+            ))}
           </div>
         </nav>
         <div className="admin-foot">
@@ -331,7 +433,9 @@ function Harness() {
               onGoPage={() => {}}
               onGoUser={() => {}}
             />
-            <span className="topbar-env is-prod"><span>Preview</span></span>
+            {/* Matches the real bar, which now shows the environment chip
+                only when it is NOT production. */}
+            <span className="topbar-env">Preview</span>
           </div>
         </header>
         <main className="admin-main">{page.render()}</main>

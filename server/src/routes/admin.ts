@@ -1884,6 +1884,47 @@ app.delete("/chat/:id", async (c) => {
   }
 });
 
+// ── POST /chat/bulk-delete ──────────────────────────────────────────
+// Delete a named set of messages in one call.
+//
+// ── WHY THIS EXISTS ─────────────────────────────────────────────────
+// Clearing a spam flood meant clicking a × on thirty rows, each behind its
+// own confirm dialog — sixty clicks and thirty audit rows for one incident.
+// The only alternative the dashboard offered was "Clear public chat", which
+// deletes EVERY message in every public channel. Faced with sixty clicks or
+// one big red button, a moderator under pressure presses the button, and the
+// whole server's chat history goes with the spammer's.
+//
+// ── WHY IDS AND NOT A PREDICATE ─────────────────────────────────────
+// The endpoint takes explicit ids, never "everything from user X" or
+// "everything matching this text". The moderator has the rows on screen and
+// has selected them; a server-side predicate would delete rows they never
+// saw, evaluated against a table that has moved on since they looked. The
+// blast radius should be exactly what was on screen.
+app.post("/chat/bulk-delete", async (c) => {
+  const me = c.get("user");
+  const body = await c.req.json<{ ids?: unknown }>().catch(() => ({} as { ids?: unknown }));
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((v): v is string => typeof v === "string" && v.length > 0)
+    : [];
+  if (ids.length === 0) return c.json({ error: "ids required" }, 400);
+  // Bounded. This is reached from a checkbox selection over a page of at most
+  // 500 rows, so anything larger is a malformed or hostile caller rather than
+  // a moderator.
+  if (ids.length > 500) return c.json({ error: "too many ids (max 500)" }, 400);
+
+  const result = await prisma.chatMessage.deleteMany({ where: { id: { in: ids } } });
+  // ONE audit row for the batch, carrying the ids. Thirty rows saying
+  // "chat.delete" would bury every other action taken that hour, and the
+  // thing worth auditing is the decision, which was made once.
+  void makeAudit(c)(me.id, "chat.bulkDelete", null, {
+    requested: ids.length,
+    deleted: result.count,
+    ids: ids.slice(0, 100),
+  });
+  return c.json({ ok: true, deleted: result.count });
+});
+
 // ── Giveaways ─────────────────────────────────────────────────────────
 // PrizeSchema / PrizeListSchema live in lib/giveaway.ts, next to the Prize type
 // they bound, so that EVERY route which mints a prize is gated by the same
@@ -3014,7 +3055,25 @@ app.get("/bug-reports", async (c) => {
           ORDER BY "createdAt" DESC
           LIMIT ${limit} OFFSET ${offset}`
       );
-  return c.json({ reports: rows });
+
+  // Counts per status, over the WHOLE table.
+  //
+  // Derived from the row list, these would be counts of the current page —
+  // so a triage queue with 300 open reports would say "50 open" because that
+  // is the page size, and the tab for a status you are not looking at would
+  // always read zero. The whole point of the number on a filter tab is to
+  // tell you what is behind it without going there.
+  const grouped = await prisma.$queryRawUnsafe<{ status: string; n: bigint }[]>(
+    `SELECT "status", COUNT(*)::bigint AS n FROM "BugReport" GROUP BY "status"`,
+  );
+  const counts: Record<string, number> = { all: 0 };
+  for (const g of grouped) {
+    const n = Number(g.n);
+    counts[g.status] = n;
+    counts.all += n;
+  }
+
+  return c.json({ reports: rows, counts });
 });
 
 app.patch("/bug-reports/:id", async (c) => {

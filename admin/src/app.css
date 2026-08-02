@@ -1754,352 +1754,356 @@
 }
 
 /* =================================================================
-   Chat moderation — sidebar + filter bar + message list
+   Chat moderation
+   -----------------------------------------------------------------
+   ONE row component, one list, one set of actions — used by both the live
+   feed and the history search. There used to be two of each (.chat-live-msg
+   and .chat-mod-row), which is why the two halves of this page looked and
+   behaved like different products, and why a fix to one never reached the
+   other.
    ================================================================= */
 .chat-mod-page { /* width from .page */ }
 
-.chat-filter-bar {
+.chat-toolbar {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-3);
   align-items: center;
-  margin-bottom: 18px;
   flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
 }
-.chat-filter-bar select {
-  background: var(--surface-2);
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-}
-.chat-toggle {
+.chat-toolbar select { flex-shrink: 0; }
+.chat-filter-input { flex: 1; min-width: 200px; }
+.chat-author-input { width: 180px; flex-shrink: 0; }
+
+/* An active author filter, as a removable chip. It used to be a value buried
+   in a text box on the OTHER mode, so "why am I only seeing one person" had
+   no visible answer. */
+.chat-author-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
-  padding: 0 6px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-text);
+  flex-shrink: 0;
 }
-.chat-toggle input { margin: 0; }
+.chat-author-chip:hover { background: var(--brand-soft); border-color: var(--brand); }
 
-.chat-mod-grid {
+.chat-keyhint { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.chat-keyhint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.chat-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--sp-4);
   align-items: start;
 }
 @media (max-width: 1100px) {
-  .chat-mod-grid { grid-template-columns: 1fr; }
+  .chat-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-.chat-mod-main {
-  background: var(--surface-1);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  box-shadow: var(--shadow-1);
-  min-height: 400px;
-}
-.chat-mod-stats {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  font-size: 12.5px;
-  padding-bottom: 12px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.chat-mod-stats strong { font-size: 14px; }
-.chat-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.chat-mod-list {
+/* The list scrolls inside itself rather than growing the page: a live feed
+   that pushes the toolbar off the top takes its own controls out of reach. */
+.chat-list {
   list-style: none;
-  margin: 0;
+  margin: 0 0 var(--sp-4);
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  max-height: 62vh;
+  overflow-y: auto;
 }
-.chat-mod-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "meta    actions"
-    "trainer trainer"
-    "body    body";
-  gap: 4px 12px;
-  padding: 12px 10px;
-  border-radius: var(--radius-sm);
-  border-bottom: 1px solid var(--border-soft);
-  transition: background 120ms var(--ease);
-}
-.chat-mod-row:last-child { border-bottom: 0; }
-.chat-mod-row:hover { background: var(--surface-2); }
+.chat-empty { padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--text-dim); font-size: 13px; }
 
-.chat-mod-row-meta {
-  grid-area: meta;
+.chat-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.chat-row:last-child { border-bottom: 0; }
+.chat-row:hover { background: var(--surface-2); }
+.chat-row.is-selected { background: var(--brand-soft); }
+/* The keyboard cursor. A left rule rather than a background, so it stays
+   legible on top of the selection tint — otherwise "selected" and "focused"
+   are the same colour and j/k navigation becomes invisible the moment you
+   select something. */
+.chat-row.is-cursor { box-shadow: inset 2px 0 0 var(--brand); }
+.chat-row.is-system { background: rgba(251, 191, 36, 0.05); }
+.chat-row.is-system:hover { background: rgba(251, 191, 36, 0.09); }
+
+.chat-row__check { margin-top: 3px; cursor: pointer; }
+.chat-row__main { min-width: 0; }
+.chat-row__head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 1px;
 }
-.chat-mod-row-trainer {
-  grid-area: trainer;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+.chat-row__author {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 620;
+  color: var(--text);
+  cursor: pointer;
 }
-.chat-mod-row-trainer strong { font-size: 13px; }
-.chat-mod-row-body {
-  grid-area: body;
+.chat-row__author:hover { color: var(--brand-text); text-decoration: underline; }
+.chat-row__time { margin-left: auto; flex-shrink: 0; }
+.chat-row__body {
   font-size: 13px;
   line-height: 1.5;
   color: var(--text);
   word-break: break-word;
 }
-.chat-mod-row-actions {
-  grid-area: actions;
-  display: flex;
-  gap: 6px;
-}
-.chat-match {
-  background: rgba(251, 191, 36, 0.3);
-  color: #fde68a;
-  padding: 0 2px;
-  border-radius: 2px;
-}
 
-/* Sidebar */
-.chat-mod-side {
+/* Actions on hover / cursor only. 200 rows x 2 always-visible buttons is 400
+   buttons of noise around the content you are trying to read. */
+.chat-row__actions {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 100ms var(--ease);
+  flex-shrink: 0;
 }
-.chat-side-card { margin-bottom: 0; }
-.chat-channel-list,
-.chat-top-users {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.chat-channel-row,
-.chat-top-user-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 120ms var(--ease);
-  font-size: 12.5px;
-}
-.chat-channel-row:hover,
-.chat-top-user-row:hover { background: var(--surface-2); }
-.chat-channel-row.selected { background: var(--brand-soft); color: var(--text); }
-.chat-top-name {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  overflow: hidden;
-}
-.chat-top-name strong { font-size: 12.5px; }
-.chat-top-name small  { font-size: 10.5px; }
+.chat-row:hover .chat-row__actions,
+.chat-row.is-cursor .chat-row__actions,
+.chat-row__actions:focus-within { opacity: 1; }
 
-/* =================================================================
-   Chat — Live view (real chat window, socket-pushed)
-   ================================================================= */
-.chat-live-wrap {
-  background: var(--surface-1);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-1);
-  display: flex;
-  flex-direction: column;
-  height: 72vh;
-  min-height: 480px;
-  overflow: hidden;
-}
-.chat-live-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border-soft);
-  flex-wrap: wrap;
-}
-.chat-live-toolbar select {
-  background: var(--surface-2);
-  padding: 6px 9px;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-}
-.chat-live-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.chat-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-.chat-live-status.live .chat-live-dot {
-  background: var(--good);
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
-}
-.chat-live-status.connecting .chat-live-dot {
-  background: var(--warn);
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
-  animation: chat-live-pulse 1.2s ease-in-out infinite;
-}
-.chat-live-status.disconnected .chat-live-dot {
-  background: var(--bad);
-  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
-}
-@keyframes chat-live-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-.chat-live-list {
-  list-style: none;
-  margin: 0;
-  padding: 10px 14px;
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.chat-live-msg {
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  transition: background 120ms var(--ease);
-}
-.chat-live-msg:hover { background: var(--surface-2); }
-.chat-live-msg:hover .chat-live-del { opacity: 1; }
-.chat-live-msg.system { background: rgba(251, 191, 36, 0.05); }
-.chat-live-msg.system:hover { background: rgba(251, 191, 36, 0.09); }
-.chat-live-msg-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 2px;
-}
-.chat-live-author {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--text);
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-}
-.chat-live-author:hover { text-decoration: underline; }
-.chat-live-lv {
+.chat-lv {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
+  font-weight: 700;
   padding: 1px 6px;
   border-radius: 999px;
-  color: #7dd3fc;
-  background: rgba(125, 211, 252, 0.12);
-  border: 1px solid rgba(125, 211, 252, 0.30);
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
-.chat-live-lv.lv-tier-rookie   { color: #7dd3fc; background: rgba(125, 211, 252, 0.12); border-color: rgba(125, 211, 252, 0.30); }
-.chat-live-lv.lv-tier-veteran  { color: #86efac; background: rgba(134, 239, 172, 0.12); border-color: rgba(134, 239, 172, 0.32); }
-.chat-live-lv.lv-tier-elite    { color: #fcd34d; background: rgba(252, 211, 77, 0.12);  border-color: rgba(252, 211, 77, 0.36); }
-.chat-live-lv.lv-tier-master   { color: #c4b5fd; background: rgba(196, 181, 253, 0.14); border-color: rgba(196, 181, 253, 0.38); }
-.chat-live-lv.lv-tier-champion {
+.chat-lv.lv-tier-rookie   { color: #7dd3fc; background: rgba(125, 211, 252, 0.12); border-color: rgba(125, 211, 252, 0.30); }
+.chat-lv.lv-tier-veteran  { color: #86efac; background: rgba(134, 239, 172, 0.12); border-color: rgba(134, 239, 172, 0.32); }
+.chat-lv.lv-tier-elite    { color: #fcd34d; background: rgba(252, 211, 77, 0.12);  border-color: rgba(252, 211, 77, 0.36); }
+.chat-lv.lv-tier-master   { color: #c4b5fd; background: rgba(196, 181, 253, 0.14); border-color: rgba(196, 181, 253, 0.38); }
+.chat-lv.lv-tier-champion {
   color: #fff;
   background: linear-gradient(90deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%);
   border-color: rgba(255, 255, 255, 0.45);
   box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
 }
-.chat-live-time { margin-left: 2px; }
-.chat-live-del {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
+
+.chat-match { background: rgba(251, 191, 36, 0.32); color: var(--text); border-radius: 2px; padding: 0 1px; }
+
+/* Facets — channels and top chatters. Both are "click to filter", so they
+   are one control with one look, not two lists that happen to resemble
+   each other. */
+.chat-side { display: grid; gap: var(--sp-4); }
+.chat-side > .card { margin-bottom: 0; }
+.chat-facet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.chat-facet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  /* EXPLICIT: the base button rule centres its content. */
+  text-align: left;
+  padding: 5px 8px;
+  background: transparent;
+  border: 0;
   border-radius: var(--radius-sm);
-  opacity: 0;
-  transition: opacity 120ms var(--ease), color 120ms var(--ease), background 120ms var(--ease);
+  font-size: 12px;
+  color: var(--text-muted);
 }
-.chat-live-del:hover { color: #fca5a5; background: var(--bad-soft); }
-.chat-live-body {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text);
-  word-break: break-word;
-  padding-left: 1px;
+.chat-facet:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.chat-facet.is-active { background: var(--brand-soft); color: var(--text); }
+.chat-facet__name { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.chat-facet__name strong { font-size: 12.5px; font-weight: 570; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-facet__name span { font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The bulk bar sticks to the bottom: a selection gathered by scrolling
+   through 200 rows must not have its action button 200 rows above. */
+.chat-bulk-bar {
+  position: sticky;
+  bottom: var(--sp-3);
+  z-index: 5;
+  box-shadow: var(--shadow-2);
+}
+
+/* Deliberately quiet. It is the largest destructive action in the dashboard
+   and it used to be a red button beside Refresh — the reachability of an
+   ordinary control with the consequences of a database wipe. */
+.chat-clear-all { color: var(--text-dim); }
+.chat-clear-all:hover:not(:disabled) { color: var(--bad-text); background: var(--bad-soft); border-color: rgba(248, 113, 113, 0.35); }
+
+@media (max-width: 700px) {
+  /* No keyboard worth advertising, and the author box needs the width. */
+  .chat-keyhint { display: none; }
+  /* "Clear…" rather than "Clear public chat…" — the prompt spells out what it
+     does in full, and this is the last five pixels between the bar fitting
+     and not. Not hidden entirely: an action you cannot reach on the device
+     you are holding is a worse answer than a shorter label. */
+  .chat-clear-all__long { display: none; }
+  .chat-author-input { width: 100%; }
+  .chat-row { grid-template-columns: 22px minmax(0, 1fr); }
+  /* Hover does not exist on touch, so the actions have to be permanent. */
+  .chat-row__actions { grid-column: 2; opacity: 1; margin-top: 4px; }
 }
 
 /* =================================================================
-   Audit log
+   Reports & audit — bug triage and the admin action log
+   -----------------------------------------------------------------
+   One page, two tabs. They share the list container, the toolbar and the
+   facet sidebar, because they were already the same shape — a filter bar, a
+   scrolling list of expandable rows, and a sidebar of counts you click to
+   filter by.
    ================================================================= */
-.audit-page { /* width from .page */ }
+.reports-page { /* width from .page */ }
 
-.audit-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.audit-row:last-child { border-bottom: 0; }
-.audit-row-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.audit-row-actors {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.audit-row-meta { font-size: 11.5px; margin-top: 2px; }
-.audit-row-meta summary { cursor: pointer; padding: 4px 0; }
-.audit-meta-pre {
-  background: var(--surface-0);
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  font-family: ui-monospace, "Cascadia Code", monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  margin: 6px 0 0;
-  white-space: pre-wrap;
-  overflow-x: auto;
-  max-height: 220px;
+.report-list {
+  list-style: none;
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  max-height: 68vh;
   overflow-y: auto;
 }
 
+/* ── Bug report row ───────────────────────────────────────────────── */
+.report-row { border-bottom: 1px solid var(--border-soft); }
+.report-row:last-child { border-bottom: 0; }
+.report-row.is-expanded { background: var(--surface-2); }
+
+/* The WHOLE summary is the toggle. It used to be a table row whose only
+   affordance was a ▾ glyph in the last cell — a click target one character
+   wide, at the far end of the row from the title you just read. */
+.report-summary {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  /* EXPLICIT: the base button rule centres its content. */
+  text-align: left;
+  padding: 9px var(--sp-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.report-summary:hover:not(:disabled) { background: var(--surface-2); }
+.report-chevron { display: inline-flex; color: var(--text-dim); transition: transform 120ms var(--ease); }
+.report-chevron svg { width: 14px; height: 14px; }
+.report-chevron.is-open { transform: rotate(90deg); }
+.report-title {
+  min-width: 0;
+  font-weight: 540;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-reporter { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.report-when { white-space: nowrap; }
+
+.report-detail {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-4) 38px;
+}
+.report-field { display: grid; gap: 5px; min-width: 0; }
+.report-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* The description is prose the player wrote. It was rendered in a <pre>,
+   which meant a paragraph typed without hard line breaks ran off the side. */
+.report-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.report-json {
+  background: var(--surface-0);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.report-detail textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.report-notes-foot { display: flex; align-items: center; gap: var(--sp-3); }
+
+/* ── Audit row ────────────────────────────────────────────────────── */
+.audit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px var(--sp-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.audit-row:last-child { border-bottom: 0; }
+.audit-row:hover { background: var(--surface-2); }
+/* One line: action, who, whom, when. It used to be three stacked rows per
+   entry, so a hundred entries was a very long page for four short facts. */
+.audit-row__main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.audit-row__when { margin-left: auto; white-space: nowrap; }
+.audit-row__meta { font-size: 11.5px; }
+.audit-row__meta summary { cursor: pointer; padding: 2px 0; }
+.audit-row__meta[open] summary { margin-bottom: 4px; }
+
 .tag.audit-action {
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.4px;
   text-transform: none;
   padding: 2px 7px;
   font-size: 10.5px;
 }
-.tag.audit-action--danger  { background: var(--bad-soft);  color: #fca5a5; }
-.tag.audit-action--warn    { background: var(--warn-soft); color: #fde68a; }
-.tag.audit-action--good    { background: var(--good-soft); color: #6ee7b7; }
+.tag.audit-action--danger  { background: var(--bad-soft);  border-color: rgba(248, 113, 113, 0.28); color: #fca5a5; }
+.tag.audit-action--warn    { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.28);  color: #fde68a; }
+.tag.audit-action--good    { background: var(--good-soft); border-color: rgba(52, 211, 153, 0.28);  color: #6ee7b7; }
 .tag.audit-action--neutral { background: var(--surface-3); color: var(--text-muted); }
+
+@media (max-width: 700px) {
+  /* The reporter column is the first to go — the name is repeated in the
+     expanded detail, and the title is what you are scanning for. */
+  .report-summary { grid-template-columns: 16px auto minmax(0, 1fr) auto; }
+  .report-reporter { display: none; }
+  .report-detail { padding-left: var(--sp-3); }
+}
 
 /* =================================================================
    Announcements

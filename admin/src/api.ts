@@ -505,6 +505,11 @@ export const api = {
     }>("GET", `/api/admin/chat/recent?${p.toString()}`);
   },
   deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/api/admin/chat/${id}`),
+  /** Delete a selected set in one call. Explicit ids only — never a
+   *  predicate — so the blast radius is exactly what the moderator had on
+   *  screen. Capped at 500 server-side. */
+  bulkDeleteChat: (ids: string[]) =>
+    req<{ ok: true; deleted: number }>("POST", `/api/admin/chat/bulk-delete`, { ids }),
   // Wipes every message in the public live-chat channels (global +
   // area:*). DMs are preserved. Server broadcasts chat:cleared so live
   // clients flush their cached messages immediately.
@@ -605,7 +610,13 @@ export const api = {
 
   // Bug reports — list + status update
   listBugReports: (status = "", limit = 50, offset = 0) =>
-    req<{ reports: BugReport[] }>(
+    req<{
+      reports: BugReport[];
+      /** Per-status totals over the whole table, plus `all`. NOT derived from
+       *  `reports` — that is one capped page, so those counts would be the
+       *  page size rather than the queue depth. */
+      counts: Record<string, number>;
+    }>(
       "GET",
       `/api/admin/bug-reports?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`,
     ),

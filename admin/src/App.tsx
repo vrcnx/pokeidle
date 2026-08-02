@@ -5,10 +5,9 @@ import { UsersPage } from "./pages/UsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { MapEditorPage } from "./pages/MapEditorPage";
 import { ChatModerationPage } from "./pages/ChatModerationPage";
-import { BugReportsPage } from "./pages/BugReportsPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { ErrorLogsPage } from "./pages/ErrorLogsPage";
 import { TournamentsPage } from "./pages/TournamentsPage";
-import { AuditLogPage } from "./pages/AuditLogPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
 import { GiveawaysPage } from "./pages/GiveawaysPage";
@@ -112,9 +111,13 @@ const NAV_GROUPS: NavGroupDef[] = [
     { page: "users", label: "Users", icon: <IconUsers /> },
   ] },
   { label: "Moderation", items: [
-    { page: "chat",  label: "Chat",        icon: <IconChat /> },
-    { page: "bugs",  label: "Bug reports", icon: <IconBug /> },
-    { page: "audit", label: "Audit log",   icon: <IconHistory /> },
+    { page: "chat", label: "Chat", icon: <IconChat /> },
+    // Bug reports and the audit log are one destination with two tabs. Both
+    // are "what happened that I should look at", both were the same
+    // layout, and both get read in the same sitting — two of fifteen nav
+    // slots for that was one too many. #/audit still resolves and selects
+    // its own tab, so existing deep links keep working.
+    { page: "bugs", label: "Reports & audit", icon: <IconBug /> },
   ] },
   { label: "Events", items: [
     { page: "tournaments",   label: "Tournaments",   icon: <IconTrophy /> },
@@ -139,9 +142,13 @@ const PAGE_TITLES: Record<Page, string> = Object.fromEntries(
 
 // Derived, not hand-listed: a new destination added to NAV_GROUPS is
 // searchable the moment it is navigable, with no second place to forget.
-const PALETTE_TARGETS: PaletteTarget[] = NAV_GROUPS.flatMap((g) =>
-  g.items.map((i) => ({ page: i.page, label: i.label, group: g.label })),
-);
+const PALETTE_TARGETS: PaletteTarget[] = [
+  ...NAV_GROUPS.flatMap((g) => g.items.map((i) => ({ page: i.page, label: i.label, group: g.label }))),
+  // The audit log has no nav entry of its own any more (it is a tab), but
+  // "audit" is exactly the kind of thing someone types into a search box —
+  // and a destination you can reach should be a destination you can find.
+  { page: "audit", label: "Audit log", group: "Moderation" },
+];
 
 export function App() {
   const [status, setStatus] = useState<Status>("loading");
@@ -245,6 +252,8 @@ export function App() {
     return <NotAuthorized kind={status} />;
   }
 
+  // Shadows the module-level map derived from NAV_GROUPS, because two pages
+  // share one nav entry and each still needs its own crumb.
   const PAGE_TITLES: Record<Page, string> = {
     analytics: "Analytics", liveops: "Live ops", users: "Users", map: "Map editor",
     chat: "Chat", bugs: "Bug reports", errors: "Error log", tournaments: "Tournaments",
@@ -283,8 +292,7 @@ export function App() {
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Moderation</span>
             <NavItem active={page === "chat"} onClick={() => gotoPage("chat")} label="Chat" icon={<IconChat />} />
-            <NavItem active={page === "bugs"} onClick={() => gotoPage("bugs")} label="Bug reports" icon={<IconBug />} />
-            <NavItem active={page === "audit"} onClick={() => gotoPage("audit")} label="Audit log" icon={<IconHistory />} />
+            <NavItem active={page === "bugs" || page === "audit"} onClick={() => gotoPage("bugs")} label="Reports & audit" icon={<IconBug />} />
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">Events</span>
@@ -343,9 +351,13 @@ export function App() {
               onGoPage={(p) => gotoPage(p as Page)}
               onGoUser={(userId) => navigateTo("users", { userId })}
             />
-            <span className={`topbar-env${isProd ? " is-prod" : ""}`}>
-              {isProd ? "Production" : "Local"}
-            </span>
+            {/* The environment marker is shown only when it is NOT production.
+                A permanent amber "Production" pill is on screen 100% of the
+                time, which is the definition of a warning nobody reads — and
+                it cost a slot in the bar on every page. What actually needs
+                calling out is the unusual case: that you are looking at a
+                local server and your changes are going nowhere real. */}
+            {!isProd && <span className="topbar-env">Local</span>}
           </div>
         </header>
 
@@ -354,10 +366,12 @@ export function App() {
         {page === "users" && <UsersPage focusUserId={navParams.userId} initialQuery={navParams.query} />}
         {page === "map" && <MapEditorPage />}
         {page === "chat" && <ChatModerationPage />}
-        {page === "bugs" && <BugReportsPage />}
+        {/* One component, two tabs, two hash routes. */}
+        {(page === "bugs" || page === "audit") && (
+          <ReportsPage tab={page === "audit" ? "audit" : "bugs"} initialQuery={navParams.query} />
+        )}
         {page === "errors" && <ErrorLogsPage />}
         {page === "tournaments" && <TournamentsPage />}
-        {page === "audit" && <AuditLogPage />}
         {page === "announcements" && <AnnouncementsPage />}
         {page === "liveops" && <LiveOpsPage />}
         {page === "giveaways" && <GiveawaysPage />}
