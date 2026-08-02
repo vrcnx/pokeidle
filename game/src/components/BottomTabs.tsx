@@ -457,84 +457,149 @@ function InfoTip({ text, note }: { text: string; note?: string }) {
 // ---------------------------------------------------------------------------
 // Bag — flat inventory list with inline sell controls.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Bag.
+//
+// The same shape as the Mart, deliberately. They are two views of one idea —
+// a shelf of items with a quantity and a price — and they had two completely
+// different layouts: the Mart a grid of cards, the Bag a stack of category
+// headings over full-width rows whose Sell button expanded INTO a stepper,
+// replacing the row's own controls while you used it.
+//
+// Shelves on the header bar, cards in a grid, a typeable quantity and one
+// Sell button that names the sum. If you can buy in this game you already
+// know how to sell.
+// ---------------------------------------------------------------------------
 export function BagTab() {
   const { state, dispatch } = useGame();
   const t = useT();
-  const items = Object.entries(state.inventory).filter(([, n]) => n > 0);
-  // Group by catalog category. Items the catalog doesn't know about land in
-  // "utility" so the Bag still shows them.
-  const groups: Record<ItemCategory, [string, number][]> = {
-    pokeball: [], medicine: [], status: [], battle: [], berry: [],
-    held: [], stone: [], utility: [], treasure: [], tm: [], hm: [], key: [],
-  };
-  for (const [id, count] of items) groups[getCatalogCategory(id)].push([id, count]);
+  const [shelf, setShelf] = useState<ItemCategory | "all">("all");
 
-  // Active "sell" row — at most one at a time, like the mart's buy
-  // stepper. Click "Sell" on a row to open the stepper; commit to fire
-  // SELL_ITEM, cancel to close without selling.
-  const [sellPending, setSellPending] = useState<{ itemId: string; qty: number } | null>(null);
+  const items = useMemo(
+    () => Object.entries(state.inventory).filter(([, n]) => n > 0),
+    [state.inventory],
+  );
+
+  // Only shelves you actually have something on. The old page rendered a
+  // heading per category and skipped the empty ones; this is the same rule,
+  // moved to the tabs.
+  const shelves = useMemo(() => {
+    const present = new Set<ItemCategory>();
+    for (const [id] of items) present.add(getCatalogCategory(id));
+    return CATEGORY_ORDER.filter((c) => present.has(c));
+  }, [items]);
+
+  useEffect(() => {
+    if (shelf !== "all" && !shelves.includes(shelf)) setShelf("all");
+  }, [shelves, shelf]);
+
+  const shown = shelf === "all"
+    ? items
+    : items.filter(([id]) => getCatalogCategory(id) === shelf);
 
   return (
     <div className="tab-pane bag-tab">
-      <TabPaneHead
-        title={t("Bag")}
-        meta={`${items.length} item type${items.length === 1 ? "" : "s"}`}
-      />
+      <HubViews>
+        <div className="g-tabs" role="tablist" aria-label={t("Bag pockets")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={shelf === "all"}
+            className={`g-tab${shelf === "all" ? " active" : ""}`}
+            onClick={() => setShelf("all")}
+          >
+            {t("All")}
+          </button>
+          {shelves.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="tab"
+              aria-selected={shelf === c}
+              className={`g-tab${shelf === c ? " active" : ""}`}
+              onClick={() => setShelf(c)}
+            >
+              {t(CATEGORY_LABELS[c])}
+            </button>
+          ))}
+        </div>
+        <span className="mart-wallet-chip" title={t("Your money")}>
+          ${state.money.toLocaleString()}
+        </span>
+      </HubViews>
 
-      {/* Active effects — temporary buffs that aren't held items, like
-          Exp Share. Toggleable so the player can pause the countdown
-          when they don't want it consuming battles. */}
+      {/* Active effects stay above the shelves and outside them. They are not
+          items you are holding — they are things already running, with a
+          countdown and a pause, and burying them under a pocket tab would
+          hide the one part of this page that changes on its own. */}
       {state.activeEffects.length > 0 && (
-        <section className="bag-category bag-effects">
-          <h4 className="bag-category-head">{t("Active Effects")}</h4>
-          <ul className="bag-list-v2">
+        <section className="bag-active">
+          <h4 className="bag-active-head">
+            {t("Active Effects")}
+            {/* The count, because the list below is capped and scrolls. A
+                scroll region with nothing visibly cut off at its edge reads
+                as the whole list. */}
+            <span className="bag-active-n">{state.activeEffects.length}</span>
+          </h4>
+          <ul className="mart-grid bag-active-list">
             {state.activeEffects.map((eff) => {
               const info = getItemInfo(eff.itemId);
               // Repel/Honey are per-species and per-route, so name the target.
               // Without it the list showed a bare "Max Repel" and the player
-              // had no way to tell which Pokémon on which route it was on.
+              // had no way to tell which Pokemon on which route it was on.
               const target = eff.speciesKey
                 ? `${pokemonTable[eff.speciesKey]?.name ?? eff.speciesKey}${
-                    eff.routeKey ? ` · ${routes[eff.routeKey]?.name ?? eff.routeKey}` : ""
+                    eff.routeKey ? ` - ${routes[eff.routeKey]?.name ?? eff.routeKey}` : ""
                   }`
                 : "";
               return (
                 <li
                   key={`${eff.itemId}|${eff.speciesKey}|${eff.routeKey ?? ""}`}
-                  className={`bag-row-v2 ${eff.paused ? "paused" : ""}`}
+                  className={`mart-card${eff.paused ? " mart-locked" : ""}`}
                 >
-                  <img
-                    src={itemSpriteUrl(eff.itemId, itemSpriteSlug(eff.itemId))}
-                    alt=""
-                    width={28}
-                    height={28}
-                    style={{ imageRendering: "pixelated", opacity: eff.paused ? 0.5 : 1 }}
-                  />
-                  <span className="bag-row-name">
-                    {info.name}
-                    {target && <small className="dim" style={{ marginLeft: 8 }}>{target}</small>}
-                    {eff.paused && <small className="dim" style={{ marginLeft: 8 }}>{t("paused")}</small>}
-                  </span>
-                  <span className="bag-row-count">{eff.battlesRemaining.toLocaleString()} {t("battles")}</span>
-                  <button
-                    type="button"
-                    className="effect-toggle-btn"
-                    onClick={() =>
-                      dispatch({
-                        type: "TOGGLE_EFFECT_PAUSED",
-                        // Target this exact effect — an id-only toggle paused
-                        // every repel on every species at once.
-                        payload: {
-                          itemId: eff.itemId,
-                          speciesKey: eff.speciesKey,
-                          routeKey: eff.routeKey ?? "",
-                        },
-                      })
-                    }
-                    title={eff.paused ? t("Resume — start ticking down again") : t("Pause — keep battles remaining without consuming")}
-                  >
-                    {eff.paused ? t("Resume") : t("Pause")}
-                  </button>
+                  <div className="mart-card-head">
+                    <img
+                      className="mart-card-sprite"
+                      src={itemSpriteUrl(eff.itemId, itemSpriteSlug(eff.itemId))}
+                      alt=""
+                      width={32}
+                      height={32}
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                    <div className="mart-card-text">
+                      <strong className="mart-card-name">{info.name}</strong>
+                      <span className="bag-effect-target">
+                        {target || t("Everywhere")}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bag-effect-foot">
+                    <span className="bag-effect-left">
+                      {eff.battlesRemaining.toLocaleString()} {t("battles")}
+                      {eff.paused && <span className="dim"> - {t("paused")}</span>}
+                    </span>
+                    <button
+                      type="button"
+                      className="mart-qty-preset"
+                      onClick={() =>
+                        dispatch({
+                          type: "TOGGLE_EFFECT_PAUSED",
+                          // Target this exact effect - an id-only toggle
+                          // paused every repel on every species at once.
+                          payload: {
+                            itemId: eff.itemId,
+                            speciesKey: eff.speciesKey,
+                            routeKey: eff.routeKey ?? "",
+                          },
+                        })
+                      }
+                      title={eff.paused
+                        ? t("Resume - start ticking down again")
+                        : t("Pause - keep battles remaining without consuming")}
+                    >
+                      {eff.paused ? t("Resume") : t("Pause")}
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -543,119 +608,145 @@ export function BagTab() {
       )}
 
       {items.length === 0 ? (
-        <p className="dim small">{t("Nothing in your bag.")}</p>
+        <p className="mart-note">{t("Nothing in your bag.")}</p>
+      ) : shown.length === 0 ? (
+        <p className="mart-note">{t("Nothing in this pocket.")}</p>
       ) : (
-        <div className="bag-categories">
-          {CATEGORY_ORDER.map((cat) => {
-            const list = groups[cat];
-            if (!list || list.length === 0) return null;
-            return (
-              <section key={cat} className="bag-category">
-                <h4 className="bag-category-head">{CATEGORY_LABELS[cat]}</h4>
-                <ul className="bag-list-v2">
-                  {list.map(([id, count]) => {
-                    const info = getItemInfo(id);
-                    const cat = itemsCatalog[id];
-                    const notReady = cat && cat.implemented === false;
-                    // Repel tiers and Honey are activated from the Wild
-                    // Pokémon panel, not from here. The Bag offers only
-                    // "Sell", which is why players reported buying a Max
-                    // Repel and finding no way to use it.
-                    const usedFromWildPanel = id in consumables && id !== "expShare";
-                    const sellPrice = cat?.sellPrice ?? 0;
-                    const canSell = sellPrice > 0;
-                    const isPending = sellPending?.itemId === id;
-                    const sellQty = isPending ? sellPending!.qty : 1;
-                    const sellTotal = sellPrice * sellQty;
-                    return (
-                      <li
-                        key={id}
-                        className={`bag-row-v2 ${notReady ? "not-ready" : ""}`}
-                        title={`${info.name} — ${info.description}${
-                          usedFromWildPanel
-                            ? "\nTo use it: open the Wild Pokémon panel and click the species you want it applied to."
-                            : ""
-                        }${notReady ? " (catalog only — mechanic not implemented yet)" : ""}`}
-                      >
-                        <Sprite
-                          src={itemSpriteUrl(id, itemSpriteSlug(id))}
-                          alt=""
-                          width={28}
-                          height={28}
-                          style={{ imageRendering: "pixelated" }}
-                        />
-                        <span className="bag-row-name">{info.name}</span>
-                        <span className="bag-row-count">×{count}</span>
-                        {canSell && !isPending && (
-                          <button
-                            type="button"
-                            className="bag-sell-btn"
-                            onClick={() => setSellPending({ itemId: id, qty: 1 })}
-                            title={`Sell for $${sellPrice.toLocaleString()} each`}
-                          >
-                            {t("Sell")}
-                          </button>
-                        )}
-                        {isPending && (
-                          <div className="bag-sell-controls" role="group" aria-label={`Sell ${info.name}`}>
-                            <button
-                              type="button"
-                              className="mart-qty-step"
-                              onClick={() => setSellPending({ itemId: id, qty: Math.max(1, sellQty - 1) })}
-                              disabled={sellQty <= 1}
-                              aria-label={t("Decrease quantity")}
-                            >
-                              −
-                            </button>
-                            <span className="mart-qty-value">{sellQty}</span>
-                            <button
-                              type="button"
-                              className="mart-qty-step"
-                              onClick={() => setSellPending({ itemId: id, qty: Math.min(count, sellQty + 1) })}
-                              disabled={sellQty >= count}
-                              aria-label={t("Increase quantity")}
-                            >
-                              +
-                            </button>
-                            <button
-                              type="button"
-                              className="bag-sell-confirm"
-                              onClick={() => {
-                                dispatch({ type: "SELL_ITEM", payload: { itemId: id, quantity: sellQty } });
-                                pushToast({
-                                  kind: "success",
-                                  icon: "💰",
-                                  text:
-                                    sellQty > 1
-                                      ? `Sold ${sellQty}× ${info.name} for $${sellTotal.toLocaleString()}`
-                                      : `Sold ${info.name} for $${sellTotal.toLocaleString()}`,
-                                });
-                                setSellPending(null);
-                              }}
-                              title={`Sell ${sellQty} for $${sellTotal.toLocaleString()}`}
-                            >
-                              {t("Sell")} ${sellTotal.toLocaleString()}
-                            </button>
-                            <button
-                              type="button"
-                              className="bag-sell-cancel"
-                              onClick={() => setSellPending(null)}
-                              aria-label={t("Cancel selling")}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
+        <ul className="mart-grid">
+          {shown.map(([id, count]) => (
+            <BagCard key={id} itemId={id} count={count} dispatch={dispatch} />
+          ))}
+        </ul>
       )}
     </div>
+  );
+}
+
+function BagCard({
+  itemId, count, dispatch,
+}: {
+  itemId: string;
+  count: number;
+  dispatch: ReturnType<typeof useGame>["dispatch"];
+}) {
+  const t = useT();
+  const info = getItemInfo(itemId);
+  const cat = itemsCatalog[itemId];
+  const notReady = cat?.implemented === false;
+  // Repel tiers and Honey are activated from the Wild Pokemon panel, not
+  // from here. The Bag only ever offered "Sell", which is why players
+  // reported buying a Max Repel and finding no way to use it. The answer now
+  // travels with the item instead of living in a hover title on the row.
+  const usedFromWildPanel = itemId in consumables && itemId !== "expShare";
+  const sellPrice = cat?.sellPrice ?? 0;
+  const canSell = sellPrice > 0;
+
+  const [qty, setQty] = useState(1);
+  const clamp = (n: number) => Math.max(1, Math.min(count, Math.floor(n) || 1));
+  // The stack can shrink under the field - selling, or using an item
+  // elsewhere - and a quantity larger than what is left would ask the
+  // reducer for something it will refuse.
+  const safeQty = Math.min(qty, count);
+  const total = sellPrice * safeQty;
+
+  return (
+    <li className={`mart-card${notReady ? " mart-locked" : ""}`}>
+      <div className="mart-card-head">
+        <Sprite
+          className="mart-card-sprite"
+          src={itemSpriteUrl(itemId, itemSpriteSlug(itemId))}
+          alt=""
+          width={32}
+          height={32}
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div className="mart-card-text">
+          <strong className="mart-card-name">{info.name}</strong>
+          <span className="mart-card-price">
+            &times;{count}
+            {canSell && (
+              <span className="mart-card-owned"> - ${sellPrice.toLocaleString()} {t("each")}</span>
+            )}
+          </span>
+        </div>
+        <InfoTip
+          text={info.description}
+          note={
+            notReady
+              ? t("Catalogued, but the mechanic is not in the game yet.")
+              : usedFromWildPanel
+                ? t("To use it: open the Wild Pokemon panel and pick the species to apply it to.")
+                : undefined
+          }
+        />
+      </div>
+
+      {canSell ? (
+        <>
+          <div className="mart-qty">
+            <button
+              type="button"
+              className="mart-qty-btn"
+              onClick={() => setQty(clamp(safeQty - 1))}
+              disabled={safeQty <= 1}
+              aria-label={t("One fewer")}
+            >
+              &minus;
+            </button>
+            <input
+              className="mart-qty-input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={count}
+              value={safeQty}
+              onChange={(e) => setQty(clamp(Number(e.target.value)))}
+              aria-label={`${t("Quantity")} - ${info.name}`}
+            />
+            <button
+              type="button"
+              className="mart-qty-btn"
+              onClick={() => setQty(clamp(safeQty + 1))}
+              disabled={safeQty >= count}
+              aria-label={t("One more")}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="mart-qty-preset"
+              onClick={() => setQty(count)}
+              disabled={safeQty >= count}
+              title={`${t("The whole stack")} (${count})`}
+            >
+              {t("All")}
+            </button>
+          </div>
+          <button
+            type="button"
+            className="mart-buy-btn-v2 bag-sell-v2"
+            onClick={() => {
+              dispatch({ type: "SELL_ITEM", payload: { itemId, quantity: safeQty } });
+              pushToast({
+                kind: "success",
+                icon: "\u{1F4B0}",
+                text: safeQty > 1
+                  ? `Sold ${safeQty}x ${info.name} for $${total.toLocaleString()}`
+                  : `Sold ${info.name} for $${total.toLocaleString()}`,
+              });
+              setQty(1);
+            }}
+          >
+            {t("Sell")} {safeQty}
+            <span className="mart-buy-total">${total.toLocaleString()}</span>
+          </button>
+        </>
+      ) : (
+        // Key items, TMs, anything with no sell price. The card keeps its
+        // shape so the grid stays a grid; it just has nothing to offer.
+        <p className="mart-card-lock">{t("Can't be sold")}</p>
+      )}
+    </li>
   );
 }
 

@@ -221,3 +221,75 @@
   line-height: 1.5;
   color: var(--text-dim);
 }
+
+/* ── The Bag ───────────────────────────────────────────────────────
+   Deliberately the Mart's classes. They are two views of one idea — a shelf
+   of items with a quantity and a price — and they had two entirely
+   different layouts, so learning one taught you nothing about the other.
+   Only what genuinely differs is named separately below. */
+/* Bounded, and it scrolls. Player report: "when using a lot of Repel or
+   Honey, I can't see the other items below." Every active repel is
+   per-species AND per-route, so a player who repels five species across
+   four routes has twenty of them — as an uncapped list above the grid that
+   pushed the entire bag off the bottom of the pane.
+
+   Two rows tall, then it scrolls inside itself. The count in the heading is
+   what tells you there is more, since a scroll region with nothing cut off
+   at its edge looks like the whole list. */
+.bag-active {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.bag-active-list {
+  max-height: 232px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.bag-active-head {
+  margin: 0 0 8px !important;
+  font-family: var(--font-display) !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--text-muted) !important;
+}
+/* Where a repel is running — a species and a route, not a price. */
+.bag-effect-target {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bag-effect-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bag-effect-left {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+/* Selling is not buying. Same button, the other direction — green rather
+   than the neutral fill, so a mis-click in the wrong pane is visible before
+   it is pressed rather than after. */
+.bag-sell-v2 {
+  background: #14532d;
+  color: #dcfce7;
+}
+.bag-active-n {
+  margin-left: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: 0;
+}

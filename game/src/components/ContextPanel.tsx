@@ -789,7 +789,16 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
     // Exactly one flexible sibling — see the growth policy in app.css.
     <section className="ctx-section ctx-section--grow">
       <header className="ctx-row-head">
-        <h4>{t("Wild Pokémon")}</h4>
+        {/* WHERE, not just what. "Wild Pokémon" alone described this card
+            without ever saying which route it was describing — and the list
+            underneath changes completely when you travel, so the one fact
+            that makes it readable was the one fact missing. The name is on
+            the map, in the goal card and in the battle log, but never beside
+            the encounter table it belongs to. */}
+        <h4>
+          {t("Wild Pokémon")}
+          <span className="ctx-row-head-where">{routes[routeKey]?.name ?? routeKey}</span>
+        </h4>
         <button
           type="button"
           className="ctx-link"
