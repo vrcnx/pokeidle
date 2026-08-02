@@ -601,31 +601,28 @@ interface BoxView {
 type SortMode = "id" | "level" | "name";
 
 /** Cell density. A device preference, not save state — same reasoning as
- *  layoutMode: it describes the screen you're sitting at. */
+ *  layoutMode: it describes the screen you're sitting at.
+ *  Still used by the Pokedex, which keeps its own toggle and its own key.
+ *  The PC no longer has one — see PC_CELL. */
 type Density = "comfy" | "compact";
-const DENSITY_KEY = "pokemon-idle-pc-density";
 
-/** Per-density cell geometry, in px.
+/** The PC's cell geometry, in px.
  *   `min`  — the smallest acceptable cell width; drives the column count.
- *   `name` — height of the name strip under the square sprite plate
- *            (0 = no strip, which is what makes compact compact).
- *   `gap`  — grid gutter, and therefore part of the row pitch. */
-const DENSITY_METRICS: Record<Density, { min: number; name: number; gap: number }> = {
-  comfy:   { min: 72, name: 15, gap: 4 },
-  compact: { min: 48, name: 0,  gap: 3 },
-};
+ *   `name` — height of the name strip under the square sprite plate.
+ *   `gap`  — grid gutter, and therefore part of the row pitch.
+ *
+ *  One set of numbers, not two behind a toggle. The compact mode dropped
+ *  the name strip to fit more sprites in, which is a trade the PC's whole
+ *  job argues against: this is the surface you come to in order to FIND a
+ *  particular Pokemon, and the search box and the filter bar do that better
+ *  than more unlabelled sprites per screen ever did. The toggle also had no
+ *  label — a grid glyph beside a search field, with its meaning only in a
+ *  hover title. */
+const PC_CELL = { min: 72, name: 15, gap: 4 };
 
 /** Rows rendered above and below the visible window. Two covers a fast
  *  flick between frames without ever painting a blank band. */
 const OVERSCAN_ROWS = 2;
-
-function readDensity(): Density {
-  try {
-    return localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfy";
-  } catch {
-    return "comfy";
-  }
-}
 
 /**
  * Which ordering is the box CURRENTLY in, if any — so the sort menu can tick
@@ -665,7 +662,6 @@ export function PCTab() {
   const [query, setQuery] = useState("");
   const [shinyOnly, setShinyOnly] = useState(false);
   const [ivTier, setIvTier] = useState<IvTier>("any");
-  const [density, setDensity] = useState<Density>(readDensity);
 
   // Bulk release (br_ff6112fc5180462b81 — two players asked, one with 500
   // Magikarp to clear). Selection is a set of POKÉMON IDS, never indices: the
@@ -737,7 +733,7 @@ export function PCTab() {
     return () => ro.disconnect();
   }, []);
 
-  const metrics = DENSITY_METRICS[density];
+  const metrics = PC_CELL;
   const gap = metrics.gap;
   const cols = Math.max(1, Math.floor((size.w + gap) / (metrics.min + gap)));
   const cellW = size.w > 0 ? (size.w - gap * (cols - 1)) / cols : metrics.min;
@@ -771,7 +767,7 @@ export function PCTab() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setTopRow(0);
-  }, [query, shinyOnly, ivTier, density]);
+  }, [query, shinyOnly, ivTier]);
 
   const totalRows = Math.ceil(total / cols);
   // Clamp for THIS render as well as via the scroll reset above: the effect
@@ -806,14 +802,6 @@ export function PCTab() {
   // below. The two openContextMenu builders that used to be here are gone.
   const sortMode = currentSortMode(box);
   const clearFilters = () => { setQuery(""); setShinyOnly(false); setIvTier("any"); };
-
-  const toggleDensity = () => {
-    setDensity((prev) => {
-      const next: Density = prev === "comfy" ? "compact" : "comfy";
-      try { localStorage.setItem(DENSITY_KEY, next); } catch { /* private mode — session only */ }
-      return next;
-    });
-  };
 
   // ---- Bulk release ------------------------------------------------------
   // Everything the CURRENT filter shows that is legal to bulk-release. Derived
@@ -919,18 +907,6 @@ export function PCTab() {
             >×</button>
           )}
         </div>
-        <button
-          type="button"
-          className="pc-tool pc-tool-icon"
-          onClick={toggleDensity}
-          title={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
-          aria-label={density === "comfy" ? t("Switch to compact cells") : t("Switch to comfortable cells")}
-        >
-          {/* Shows the density it will switch TO. Real icons rather than
-              ▪ / ▦: U+25AA measures 5px wide however large the font is set,
-              which read as a speck of dust in the toolbar. */}
-          {density === "comfy" ? <IconGridSmall size={14} /> : <IconGridLarge size={14} />}
-        </button>
         {/* Named in words at every width — the ONE thing in this toolbar that
             leads to an irreversible action must not be an unlabelled glyph.
             Under 900px the "☑" is dropped and the word kept, rather than the
@@ -1498,7 +1474,7 @@ function dexCellTitle(
   return s.released ? t("Not found yet") : t("Not yet available");
 }
 
-/** Dex cell geometry per density — same contract as DENSITY_METRICS above:
+/** Dex cell geometry per density — min / name / gap, as PC_CELL above:
  *  `min` drives the column count, `name` is the label strip under the sprite
  *  plate (0 = no strip), `gap` is part of the row pitch. Slightly tighter
  *  than the PC's: dex cells carry no drag affordance or held-item badge. */
