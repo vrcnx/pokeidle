@@ -682,6 +682,13 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  /* Reserve the scrollbar's width whether or not there is a scrollbar.
+     Without this, a short page (Users with six rows) keeps the 10px the
+     topbar has already reserved for a scrollbar that is not there, so its
+     content sits 10px WIDER than the bar — the same misalignment as before,
+     inverted, and only on pages that happen to fit. It also stops the whole
+     layout jumping sideways when a page grows past one screen. */
+  scrollbar-gutter: stable;
   padding: var(--sp-5) var(--gutter) var(--sp-9);
 }
 /* No max-width. With the sidebar already taking its share, capping the

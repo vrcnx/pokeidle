@@ -360,10 +360,12 @@ export const api = {
     if (opts?.sort) p.set("sort", opts.sort);
     if (opts?.dir) p.set("dir", opts.dir);
     if (opts?.filter && opts.filter !== "all") p.set("filter", opts.filter);
-    return req<{ total: number; page: number; pageSize: number; users: AdminUser[] }>(
-      "GET",
-      `/api/admin/users?${p.toString()}`
-    );
+    return req<{
+      total: number; page: number; pageSize: number; users: AdminUser[];
+      /** How many each filter tab would find under the CURRENT search.
+       *  `all` is not `total` when a filter is active. */
+      counts: { all: number; banned: number; admins: number };
+    }>("GET", `/api/admin/users?${p.toString()}`);
   },
 
   /** Bulk ban/unban. `until: null` unbans. Bans only — bulk delete is

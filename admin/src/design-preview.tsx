@@ -190,18 +190,71 @@ Object.assign(api, {
     if ((window as any).__failLiveOps) throw new Error("simulated: network unreachable");
     return liveOpsMock();
   },
+  // The user detail page. Includes a save so the Pokémon/Items/Progress tabs
+  // render rather than falling through to "hasn't started the game yet".
+  getUser: async (id: string) => ({
+    id, username: "koruem2", name: "Koruem", email: "koruem@example.com",
+    accountLevel: 611, pokedexCaughtCount: 133, totalCaughtLevels: 20100,
+    isAdmin: false, emailVerified: false,
+    bannedUntil: new Date(Date.now() + 5 * 86400000).toISOString(),
+    banReason: "Chat abuse — repeated slurs in Global",
+    createdAt: new Date(Date.now() - 240 * 86400000).toISOString(),
+    lastSeenAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    saveVersion: 812,
+    _count: { friendsRequested: 4, friendsReceived: 7, messages: 1284 },
+    saveData: JSON.stringify({
+      money: 148_200, victoryTokens: 12,
+      inventory: { "poke-ball": 42, "great-ball": 12, "master-ball": 1, "rare-candy": 7 },
+      defeatedGyms: ["brock", "misty", "surge"],
+      defeatedEliteFour: [], championDefeated: false,
+      party: [
+        { id: "m1", speciesKey: "pikachu", name: "Pikachu", level: 62, isShiny: true, maxHp: 180, currentHp: 180 },
+        { id: "m2", speciesKey: "gengar", name: "Gengar", level: 58, isShiny: false, maxHp: 172, currentHp: 90 },
+      ],
+      box: [{ id: "m3", speciesKey: "eevee", name: "Eevee", level: 15, isShiny: false }],
+    }),
+  }),
+  listSnapshots: async () => ({
+    snapshots: [
+      { id: "s1", saveVersion: 812, reason: "auto", createdAt: new Date(Date.now() - 3600e3).toISOString(),
+        summary: { level: 611, badges: 3, caught: 133, money: 148200, bytes: 92_000 } },
+      { id: "s2", saveVersion: 799, reason: "pre-restore", createdAt: new Date(Date.now() - 9 * 3600e3).toISOString(),
+        summary: { level: 604, badges: 3, caught: 131, money: 121400, bytes: 90_100 } },
+    ],
+  }),
   me: async () => ({ id: "u1", username: "phoenix", isAdmin: true }),
-  // Enough for the command palette to render its player rows, including a
-  // banned one — the row that carries an extra hint and is the easiest to
-  // overflow.
-  listUsers: async (q: string) => {
-    const all = [
-      { id: "1", username: "sak4i", accountLevel: 3615, bannedUntil: null },
-      { id: "2", username: "stratus_varius", accountLevel: 1119, bannedUntil: null },
-      { id: "3", username: "averyverylongtrainernamethatwraps", accountLevel: 902, bannedUntil: null },
-      { id: "4", username: "koruem2", accountLevel: 611, bannedUntil: new Date().toISOString() },
-    ].filter((u) => u.username.includes(q.toLowerCase()));
-    return { total: all.length, page: 0, pageSize: 6, users: all as any };
+  // Feeds both the command palette and the Users table. Deliberately awkward:
+  // a very long display name, a very long email, a banned account, an admin,
+  // and a level in the thousands next to one in single digits — the rows most
+  // likely to break a column's width assumptions.
+  listUsers: async (q: string, page = 0, pageSize = 25, opts?: any) => {
+    const base = [
+      { id: "1", username: "sak4i", name: "Sak4i", email: "sak4i@example.com", accountLevel: 3615, pokedexCaughtCount: 151, totalCaughtLevels: 184220, isAdmin: false, bannedUntil: null, banReason: null },
+      { id: "2", username: "stratus_varius", name: "StratusVarius", email: "stratus.varius+pokeidle@some-very-long-mail-domain.example.com", accountLevel: 1119, pokedexCaughtCount: 148, totalCaughtLevels: 61044, isAdmin: false, bannedUntil: null, banReason: null },
+      { id: "3", username: "averyverylongtrainername", name: "A Very Long Display Name That Should Truncate", email: "long@example.com", accountLevel: 902, pokedexCaughtCount: 141, totalCaughtLevels: 30871, isAdmin: false, bannedUntil: null, banReason: null },
+      { id: "4", username: "koruem2", name: "Koruem", email: "koruem@example.com", accountLevel: 611, pokedexCaughtCount: 133, totalCaughtLevels: 20100, isAdmin: false, bannedUntil: new Date(Date.now() + 5 * 86400000).toISOString(), banReason: "Chat abuse" },
+      { id: "5", username: "phoenix", name: "Phoenix", email: "phoenixvandale@gmail.com", accountLevel: 87, pokedexCaughtCount: 84, totalCaughtLevels: 8120, isAdmin: true, bannedUntil: null, banReason: null },
+      { id: "6", username: "newbie", name: null, email: "newbie@example.com", accountLevel: 2, pokedexCaughtCount: 3, totalCaughtLevels: 14, isAdmin: false, bannedUntil: null, banReason: null },
+    ].map((u, i) => ({
+      ...u,
+      createdAt: new Date(Date.now() - (i + 1) * 9 * 86400000).toISOString(),
+      lastSeenAt: new Date(Date.now() - i * 1.7 * 86400000).toISOString(),
+    }));
+    const term = q.trim().toLowerCase();
+    let rows = term
+      ? base.filter((u) => u.username.includes(term) || u.email.includes(term) || (u.name ?? "").toLowerCase().includes(term))
+      : base;
+    if (opts?.filter === "banned") rows = rows.filter((u) => u.bannedUntil);
+    if (opts?.filter === "admins") rows = rows.filter((u) => u.isAdmin);
+    return {
+      total: rows.length, page, pageSize,
+      users: rows.slice(page * pageSize, (page + 1) * pageSize) as any,
+      counts: {
+        all: base.length,
+        banned: base.filter((u) => u.bannedUntil).length,
+        admins: base.filter((u) => u.isAdmin).length,
+      },
+    };
   },
 });
 
@@ -210,12 +263,14 @@ Object.assign(api, {
 
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { LiveOpsPage } from "./pages/LiveOpsPage";
+import { UsersPage } from "./pages/UsersPage";
 import { CommandPalette } from "./components/CommandPalette";
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
 const PAGES: { key: string; label: string; render: () => JSX.Element }[] = [
   { key: "analytics", label: "Analytics", render: () => <AnalyticsPage /> },
   { key: "liveops",   label: "Live ops",  render: () => <LiveOpsPage /> },
+  { key: "users",     label: "Users",     render: () => <UsersPage /> },
 ];
 
 function Harness() {
@@ -247,7 +302,7 @@ function Harness() {
           </div>
           <div className="admin-nav-group">
             <span className="admin-nav-heading">People</span>
-            <button className="admin-nav-item">
+            <button className={`admin-nav-item ${page.key === "users" ? "active" : ""}`} onClick={() => setPage(PAGES[2])}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0112 0" /></svg>
               <span className="admin-nav-item-label">Users</span>
             </button>

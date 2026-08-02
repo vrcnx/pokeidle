@@ -10,17 +10,97 @@
 
 .users-toolbar {
   display: flex;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
   align-items: center;
+  flex-wrap: wrap;
 }
 
-/* The page tables are the same object as .admin-table and are styled by it
-   in foundation.css; what stays here is only what differs — the row-click
-   affordance and the first-column emphasis. Three near-identical table
-   implementations is how a dashboard ends up with three different header
-   greys. */
-.users-table, .chat-table, .snapshot-table {
+/* Search is the primary control on this page, so it gets the width and an
+   affordance that says "search" without a placeholder having to. */
+.users-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 220px;
+  padding-left: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.users-search:focus-within { border-color: var(--brand-line); background: var(--surface-1); }
+.users-search > svg { width: 14px; height: 14px; color: var(--text-dim); flex-shrink: 0; }
+/* The wrapper carries the box, so the input inside must not draw a second
+   one — otherwise it reads as a field inside a field. */
+.users-search .search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 7px 0;
+  margin: 0;
+}
+.users-search__clear {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 17px;
+  line-height: 1;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.users-search__clear:hover { color: var(--text); }
+
+/* The users table is .admin-table now and inherits everything from
+   foundation.css. Only the page-specific cells are below. */
+.users-name { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.users-avatar {
+  width: 26px; height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-text);
+}
+.users-name__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.users-name__text strong { font-weight: 570; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.users-name__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.users-email { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.users-open-col { width: 1%; text-align: right; }
+/* The Open button is redundant with the row click — it exists for discovery,
+   so it stays out of the way until the row is under the cursor. */
+.users-open-col .btn-tiny { opacity: 0; transition: opacity 100ms var(--ease); }
+.admin-table tr:hover .users-open-col .btn-tiny,
+.users-open-col .btn-tiny:focus-visible { opacity: 1; }
+
+/* ── Table card ─────────────────────────────────────────────────────
+   A card whose entire body is a table, with its pager attached. The pager
+   used to float below the table as a detached centred row with nothing tying
+   the two together — and on a page where the table is the content, "which
+   table does this pager belong to" should never be a question. */
+.card-table { padding: 0; overflow: hidden; }
+.card-table > .table-wrap { border: 0; border-radius: 0; }
+.table-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 10px var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--well);
+}
+.table-foot__size { display: inline-flex; align-items: center; gap: 6px; }
+.table-foot__size select { padding: 3px 6px; font-size: 11.5px; }
+.table-foot__nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+/* The old table block. .chat-table and .snapshot-table still use it; the
+   users table no longer does. */
+.chat-table, .snapshot-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -29,7 +109,7 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-.users-table th, .chat-table th, .snapshot-table th {
+.chat-table th, .snapshot-table th {
   padding: 10px 14px;
   text-align: left;
   font-size: 10px;
@@ -45,19 +125,16 @@
   top: 0;
   z-index: 1;
 }
-.users-table td, .chat-table td, .snapshot-table td {
+.chat-table td, .snapshot-table td {
   padding: 10px 14px;
   text-align: left;
   font-size: 12.5px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: middle;
 }
-.users-table tr:last-child td, .chat-table tr:last-child td, .snapshot-table tr:last-child td { border-bottom: 0; }
-.users-table tbody tr, .chat-table tbody tr, .snapshot-table tbody tr { transition: background 100ms var(--ease); }
-.users-table tbody tr:hover, .chat-table tbody tr:hover { background: var(--surface-2); cursor: pointer; }
-.users-table tbody tr.selected { background: var(--brand-soft); }
-.users-table td:first-child { font-weight: 600; }
-.users-table td.tabular { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.chat-table tr:last-child td, .snapshot-table tr:last-child td { border-bottom: 0; }
+.chat-table tbody tr, .snapshot-table tbody tr { transition: background 100ms var(--ease); }
+.chat-table tbody tr:hover { background: var(--surface-2); cursor: pointer; }
 
 /* Tag VARIANTS. The base .tag lives in foundation.css — it was duplicated
    here, and because this file is imported after it, the copy silently won:
@@ -71,6 +148,7 @@
 .tag.trade    { background: rgba(192, 132, 252, 0.14); border-color: rgba(192, 132, 252, 0.3); color: #c084fc; }
 .tag.gift     { background: rgba(244, 114, 182, 0.14); border-color: rgba(244, 114, 182, 0.3); color: #f9a8d4; }
 
+/* Still used by pages that have not moved to .table-foot yet. */
 .pager {
   display: flex;
   align-items: center;
@@ -397,7 +475,7 @@
 
 /* ── Map editor ──────────────────────────────────────────────── */
 
-.map-editor-page { max-width: 1200px; }
+.map-editor-page { max-width: var(--page-wide); }
 .map-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
 .map-snap { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
 .map-canvas-wrap {
@@ -953,34 +1031,97 @@
 }
 
 /* ── User detail (full-page version) ─────────────────────────── */
-.user-detail-page { max-width: 1440px; }
-.detail-back {
-  background: transparent;
-  color: var(--text-muted);
-  padding: 4px 0 14px;
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.detail-back:hover { color: var(--text); background: transparent; }
-.user-detail-head {
+.user-detail-page { /* width from .page */ }
+
+/* ── Entity header ──────────────────────────────────────────────────
+   Who this is, what state they are in, and the six numbers an operator
+   checks first — in one band at the top of the page.
+
+   Previously the name sat alone under a back-link and the numbers were a
+   nine-cell grid inside the Profile TAB, so switching to Items or Pokémon
+   left you editing a save with no idea whose it was or what level they are.
+   The facts belong to the page, not to one tab of it. */
+.entity-head {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 18px;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
 }
-.user-detail-head h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.02em; font-weight: 700; }
-.user-detail-status { display: flex; align-items: center; gap: 8px; }
+.entity-avatar {
+  width: 44px; height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-text);
+}
+.entity-id { min-width: 0; flex: 1; }
+.entity-id h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  font-weight: 640;
+}
+.entity-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+/* The facts. A <dl> because that is what they are — and grid rather than
+   flex so the labels and values line up in columns instead of drifting with
+   the width of each value. */
+.entity-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, max-content));
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+  flex-shrink: 0;
+}
+.entity-facts > div { display: flex; flex-direction: column; gap: 1px; }
+.entity-facts dt {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.entity-facts dd { margin: 0; font-size: 13.5px; font-weight: 560; color: var(--text); }
+
+@media (max-width: 800px) {
+  /* Stacked, and the facts wrap under the identity rather than squeezing it
+     to nothing. */
+  .entity-facts { width: 100%; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); }
+}
 
 .detail-tabs-page {
   padding: 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
+  margin-bottom: var(--sp-4);
   background: transparent;
+  /* Eight tabs do not fit a phone. .admin-main clips overflow-x, so without
+     this the last four were not merely off-screen — they were unreachable,
+     with no scrollbar and nothing to hint they existed. */
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
+.detail-tabs-page .detail-tab { flex-shrink: 0; }
 .detail-body-page { background: transparent; padding: 0; overflow: visible; }
 .detail-savebar-page {
   position: sticky;
@@ -1299,7 +1440,9 @@
    row. All cards live on --surface-1, 12px radius, no border.
    ================================================================= */
 
-.analytics-cadence { max-width: 1440px; margin: 0 auto; }
+/* Width comes from .page — see the PAGE WIDTH block at the end of this
+   file. This page used to set its own 1440px cap, which is why it and Live
+   ops did not line up on a wide monitor. */
 
 .analytics-cadence {
   --row-gap: 32px;
@@ -1613,7 +1756,7 @@
 /* =================================================================
    Chat moderation — sidebar + filter bar + message list
    ================================================================= */
-.chat-mod-page { max-width: 1440px; margin: 0 auto; }
+.chat-mod-page { /* width from .page */ }
 
 .chat-filter-bar {
   display: flex;
@@ -1908,7 +2051,7 @@
 /* =================================================================
    Audit log
    ================================================================= */
-.audit-page { max-width: 1440px; margin: 0 auto; }
+.audit-page { /* width from .page */ }
 
 .audit-row {
   display: flex;
@@ -1961,7 +2104,7 @@
 /* =================================================================
    Announcements
    ================================================================= */
-.announcements-page { max-width: 980px; margin: 0 auto; }
+.announcements-page { max-width: var(--page-narrow); }
 
 .page-banner {
   padding: 10px 14px;
@@ -2546,46 +2689,25 @@
   word-break: break-all;
 }
 
-/* ── Users table: sorting + bulk selection ───────────────────────── */
-.sort-th { padding: 0; }
-.sort-th-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  background: none;
-  border: 0;
-  padding: 9px 12px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  cursor: pointer;
-  text-align: left;
-}
-.sort-th-btn:hover { color: var(--text); }
-.sort-th-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
-.sort-th.is-active .sort-th-btn { color: var(--text); }
-/* The inactive arrow stays visible-but-quiet: it advertises that the
-   column is sortable at all, which a hover-only affordance does not. */
-.sort-th-arrow { font-size: 8px; opacity: 0.45; }
-.sort-th.is-active .sort-th-arrow { opacity: 1; color: var(--brand-hover); }
-
+/* ── Users table: bulk selection ─────────────────────────────────────
+   The sortable-header styles that used to live here (.sort-th / .sort-th-btn
+   / .sort-th-arrow) are gone: the header now emits the same .sortable /
+   .th-inner / .th-sort markup as DataTable, so both tables get their sort
+   affordance from one place in foundation.css instead of two that had
+   drifted into different type sizes and different arrow glyphs. */
 .users-check-col { width: 34px; text-align: center; }
 .users-check-col input { cursor: pointer; }
-.users-table tr.is-checked { background: var(--brand-soft); }
+.admin-table tr.is-checked { background: var(--brand-soft); }
 
 .bulk-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 2px 0 0 var(--brand);
+  padding: 10px var(--sp-4);
+  margin-bottom: var(--sp-3);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--radius-md);
   font-size: 12.5px;
 }
 .bulk-bar > strong { font-size: 15px; }
@@ -2594,7 +2716,7 @@
 /* =================================================================
    Giveaways (admin)
    ================================================================= */
-.giveaways-page { max-width: 1000px; margin: 0 auto; }
+.giveaways-page { max-width: var(--page-narrow); }
 .gv-list { display: flex; flex-direction: column; gap: 12px; }
 .gv-card {
   display: flex;
@@ -2819,7 +2941,7 @@
 /* Full-width: the live browser preview is the point of this page, and a
    760px column made it uselessly small. Capped only so it doesn't sprawl on
    ultrawides. */
-.broadcast-page { max-width: 1600px; }
+.broadcast-page { /* width from .page */ }
 /* The form cards read badly when stretched to 1600px, so they keep a sane
    measure while the live-browser card gets the whole width. */
 .broadcast-page .broadcast-card:not(.broadcast-card-wide) { max-width: 900px; }
@@ -3207,6 +3329,35 @@
    container's gap — that is how one row ends up further from its neighbour
    than the others. */
 .grid > .card, .kpi-strip > .kpi, .kpi-grid > .kpi { margin-bottom: 0; }
+
+/* ── PAGE WIDTH ─────────────────────────────────────────────────────
+   One rule for every page, because there were nine.
+
+   .analytics-cadence, .chat-mod-page, .audit-page and .user-detail-page each
+   capped themselves at 1440px and centred; .broadcast-page at 1600;
+   .map-editor-page at 1200; .announcements-page at 980; .giveaways-page at
+   1000; Live ops at nothing. So on a wide monitor, moving between two data
+   pages moved every card sideways — which is exactly the "why isn't this the
+   same width" you notice without being able to name it.
+
+   The default is now FULL WIDTH. The shell already takes its share, the
+   gutters are shared with the topbar, and this dashboard's job is dense
+   tables and charts that benefit from every pixel.
+
+   Two opt-in constraints remain, because a couple of pages genuinely read
+   worse wide — a single-column form stretched to 2,000px is a worse form.
+   They are named rather than numeric so the reason travels with the value. */
+:root {
+  /* Form-shaped pages: one column of inputs, where line length matters. */
+  --page-narrow: 1000px;
+  /* Pages built around one fixed-aspect canvas (the map editor). */
+  --page-wide: 1200px;
+}
+.page { width: 100%; }
+/* Only the constrained pages centre. */
+.announcements-page,
+.giveaways-page,
+.map-editor-page { margin-inline: auto; }
 
 /* ── Section headings ───────────────────────────────────────────────
    A named band of a page, with a rule under it.

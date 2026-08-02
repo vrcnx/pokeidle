@@ -118,7 +118,15 @@ app.get("/users", async (c) => {
     : {};
   const where = { ...searchWhere, ...filterWhere };
 
-  const [total, users] = await Promise.all([
+  // Counts for the OTHER filters, under the same search.
+  //
+  // ── WHY ─────────────────────────────────────────────────────────
+  // The filter tabs used to be unlabelled, so "are there any banned accounts
+  // matching this search?" could only be answered by clicking Banned and
+  // seeing an empty table. Two extra counts turn that into something the
+  // operator reads without navigating — and they respect `q`, so the numbers
+  // describe the search actually on screen rather than the whole table.
+  const [total, users, bannedCount, adminCount] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
@@ -140,9 +148,19 @@ app.get("/users", async (c) => {
         lastSeenAt: true,
       },
     }),
+    prisma.user.count({ where: { ...searchWhere, bannedUntil: { gt: new Date() } } }),
+    prisma.user.count({ where: { ...searchWhere, isAdmin: true } }),
   ]);
 
-  return c.json({ total, page, pageSize, users });
+  // `all` is the unfiltered count under the same search, which is NOT `total`
+  // whenever a filter is active — the tab has to show how many it would find,
+  // not how many the current view holds.
+  const allCount = filter ? await prisma.user.count({ where: searchWhere }) : total;
+
+  return c.json({
+    total, page, pageSize, users,
+    counts: { all: allCount, banned: bannedCount, admins: adminCount },
+  });
 });
 
 // Detail view — includes save data for inspection. Logged to the audit

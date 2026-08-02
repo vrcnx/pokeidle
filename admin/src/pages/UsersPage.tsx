@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { confirm, notify } from "../components/Confirm";
 import { api, type AdminUser, type UserSession, type UserMessage, type UserTrade, type UserSortKey, type UserFilter, type SaveSnapshotRow, type StreamKeyStatus, type StreamConfig, type StreamCommand } from "../api";
 import { Combobox } from "../components/Combobox";
+import { PageActions, PageNote } from "../components/PageChrome";
+import { SectionHead } from "../components/Section";
 import {
   POKEMON_LIST,
   ITEM_LIST,
@@ -20,6 +22,15 @@ import {
 //   - Detail view: full-page tabbed management panel for one user
 // Clicking a row navigates to detail; the "Back to users" button on
 // the detail view returns to the list, preserving search + page state.
+
+interface UsersResult {
+  total: number;
+  users: AdminUser[];
+  counts: { all: number; banned: number; admins: number };
+}
+
+const PAGE_SIZES = [25, 50, 100];
+const PAGE_SIZE_KEY = "pokeidle.users.pageSize";
 export function UsersPage({
   focusUserId,
   initialQuery,
@@ -32,7 +43,7 @@ export function UsersPage({
 } = {}) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [page, setPage] = useState(0);
-  const [data, setData] = useState<{ total: number; users: AdminUser[] } | null>(null);
+  const [data, setData] = useState<UsersResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(focusUserId ?? null);
@@ -44,7 +55,13 @@ export function UsersPage({
   // across pages before acting once.
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [bulkErr, setBulkErr] = useState<string | null>(null);
-  const PAGE_SIZE = 25;
+  // Page size is a real preference on this page: 25 suits scanning a search,
+  // 100 suits sweeping a filter for bulk action. Persisted, because whoever
+  // wants 100 wants it every time.
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const n = parseInt(localStorage.getItem(PAGE_SIZE_KEY) ?? "", 10);
+    return PAGE_SIZES.includes(n) ? n : 25;
+  });
 
   const toggleSort = (key: UserSortKey) => {
     if (sort === key) {
@@ -80,10 +97,10 @@ export function UsersPage({
     const seq = ++reqSeq.current;
     setBusy(true);
     setErr(null);
-    api.listUsers(q, page, PAGE_SIZE, { sort, dir, filter })
+    api.listUsers(q, page, pageSize, { sort, dir, filter })
       .then((d) => {
         if (seq !== reqSeq.current) return;   // superseded — drop it
-        setData({ total: d.total, users: d.users });
+        setData({ total: d.total, users: d.users, counts: d.counts });
       })
       .catch((e) => {
         if (seq !== reqSeq.current) return;
@@ -102,7 +119,11 @@ export function UsersPage({
     const t = window.setTimeout(reload, q ? 250 : 0);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, page, sort, dir, filter]);
+  }, [q, page, sort, dir, filter, pageSize]);
+
+  useEffect(() => {
+    try { localStorage.setItem(PAGE_SIZE_KEY, String(pageSize)); } catch { /* private mode */ }
+  }, [pageSize]);
 
   const pageIds = (data?.users ?? []).map((u) => u.id);
   const pageAllChecked = pageIds.length > 0 && pageIds.every((id) => checked.has(id));
@@ -119,23 +140,46 @@ export function UsersPage({
     );
   }
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
+  const from = data && data.total > 0 ? page * pageSize + 1 : 0;
+  const to = data ? Math.min(data.total, (page + 1) * pageSize) : 0;
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Users <span className="dim">({data?.total ?? "…"})</span></h1>
-        <p className="dim">Search by username, email or display name. Click a row to open the full management page.</p>
-      </header>
+    <div className="page users-page">
+      <PageNote>
+        {data ? `${data.total.toLocaleString()} matching` : "Loading…"}
+        {q && ` “${q}”`}
+      </PageNote>
+      <PageActions>
+        <button className="btn-secondary btn-small" onClick={reload} disabled={busy}>
+          {busy ? "Refreshing…" : "Refresh"}
+        </button>
+      </PageActions>
 
+      <SectionHead
+        title="Directory"
+        blurb="Search by username, email or display name. Click a row to open the full management page."
+      />
+
+      {/* The toolbar is the page's primary control surface, so it stays on
+          the page rather than moving to the topbar: the search box needs the
+          width, and the filter counts are data, not chrome. */}
       <div className="users-toolbar">
-        <input
-          className="search-input"
-          placeholder="Search…"
-          value={q}
-          onChange={(e) => { setQ(e.target.value); setPage(0); }}
-        />
-        <div className="seg-tabs" role="tablist" aria-label="Filter users">
+        <label className="users-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            className="search-input"
+            placeholder="Search username, email or display name…"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(0); }}
+          />
+          {q && (
+            <button className="users-search__clear" onClick={() => { setQ(""); setPage(0); }} aria-label="Clear search">×</button>
+          )}
+        </label>
+        <div className="seg-toggle" role="tablist" aria-label="Filter users">
           {(["all", "banned", "admins"] as UserFilter[]).map((f) => (
             <button
               key={f}
@@ -145,10 +189,13 @@ export function UsersPage({
               onClick={() => { setFilter(f); setPage(0); }}
             >
               {f === "all" ? "All" : f === "banned" ? "Banned" : "Admins"}
+              {/* The count is why the tab is worth clicking. Without it,
+                  "are there any banned accounts in this search?" needed a
+                  click and a look at an empty table. */}
+              {data && <span className="seg-tab__n">{data.counts[f].toLocaleString()}</span>}
             </button>
           ))}
         </div>
-        <button className="btn-primary" onClick={reload} disabled={busy}>Refresh</button>
       </div>
 
       {err && <div className="page-err">Error: {err}</div>}
@@ -185,114 +232,189 @@ export function UsersPage({
         />
       )}
 
-      <table className="users-table">
-        <thead>
-          <tr>
-            <th className="users-check-col">
-              <input
-                type="checkbox"
-                aria-label="Select all on this page"
-                checked={pageAllChecked}
-                ref={(el) => { if (el) el.indeterminate = pageSomeChecked && !pageAllChecked; }}
-                onChange={(e) => {
-                  const ids = (data?.users ?? []).map((u) => u.id);
-                  setChecked((prev) => {
-                    const next = new Set(prev);
-                    if (e.target.checked) ids.forEach((id) => next.add(id));
-                    else ids.forEach((id) => next.delete(id));
-                    return next;
-                  });
-                }}
-              />
-            </th>
-            <SortTh label="Username"  col="username"           sort={sort} dir={dir} onSort={toggleSort} />
-            <th>Email</th>
-            <SortTh label="Lv"        col="accountLevel"       sort={sort} dir={dir} onSort={toggleSort} />
-            <SortTh label="Dex"       col="pokedexCaughtCount" sort={sort} dir={dir} onSort={toggleSort} />
-            <th>Status</th>
-            <SortTh label="Created"   col="createdAt"          sort={sort} dir={dir} onSort={toggleSort} />
-            <SortTh label="Last seen" col="lastSeenAt"         sort={sort} dir={dir} onSort={toggleSort} />
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {(data?.users ?? []).map((u) => (
-            <tr
-              key={u.id}
-              onClick={() => setSelected(u.id)}
-              style={{ cursor: "pointer" }}
-              className={checked.has(u.id) ? "is-checked" : ""}
-            >
-              <td className="users-check-col" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${u.username}`}
-                  checked={checked.has(u.id)}
-                  onChange={(e) => {
-                    setChecked((prev) => {
-                      const next = new Set(prev);
-                      if (e.target.checked) next.add(u.id); else next.delete(u.id);
-                      return next;
-                    });
-                  }}
-                />
-              </td>
-              <td>
-                <strong>{u.name ?? u.username}</strong>
-                <div className="dim small">@{u.username}</div>
-              </td>
-              <td className="mono">{u.email}</td>
-              <td>{u.accountLevel}</td>
-              <td>{u.pokedexCaughtCount}/151</td>
-              <td>
-                {u.isAdmin && <span className="tag admin">ADMIN</span>}
-                {u.bannedUntil && new Date(u.bannedUntil).getTime() > Date.now() && <span className="tag banned">BANNED</span>}
-                {!u.isAdmin && !u.bannedUntil && <span className="dim small">—</span>}
-              </td>
-              <td className="dim small">{new Date(u.createdAt).toLocaleDateString()}</td>
-              <td className="dim small">{new Date(u.lastSeenAt).toLocaleDateString()}</td>
-              <td><button className="btn-ghost btn-small" onClick={(e) => { e.stopPropagation(); setSelected(u.id); }}>Open</button></td>
-            </tr>
-          ))}
-          {data && data.users.length === 0 && (
-            <tr><td colSpan={9} className="dim center">No users match.</td></tr>
-          )}
-        </tbody>
-      </table>
+      <div className="card card-table">
+        <div className="table-wrap">
+          <table className="admin-table users-table">
+            <thead>
+              <tr>
+                <th className="users-check-col">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all on this page"
+                    checked={pageAllChecked}
+                    ref={(el) => { if (el) el.indeterminate = pageSomeChecked && !pageAllChecked; }}
+                    onChange={(e) => {
+                      const ids = (data?.users ?? []).map((u) => u.id);
+                      setChecked((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) ids.forEach((id) => next.add(id));
+                        else ids.forEach((id) => next.delete(id));
+                        return next;
+                      });
+                    }}
+                  />
+                </th>
+                <SortTh label="Trainer"   col="username"           sort={sort} dir={dir} onSort={toggleSort} />
+                <th>Email</th>
+                <SortTh label="Lv"        col="accountLevel"       sort={sort} dir={dir} onSort={toggleSort} align="right" />
+                <SortTh label="Dex"       col="pokedexCaughtCount" sort={sort} dir={dir} onSort={toggleSort} align="right" />
+                <th>Status</th>
+                <SortTh label="Created"   col="createdAt"          sort={sort} dir={dir} onSort={toggleSort} />
+                <SortTh label="Last seen" col="lastSeenAt"         sort={sort} dir={dir} onSort={toggleSort} />
+                <th className="users-open-col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Skeleton rows on the FIRST load only. On a reload the table
+                  keeps its rows and dims instead — swapping 25 rows for 25
+                  grey bars on every keystroke is more disorienting than a
+                  brief stale view, and the search is debounced anyway. */}
+              {data === null && Array.from({ length: 8 }, (_, i) => (
+                <tr key={`sk${i}`} className="table-skeleton-row">
+                  {Array.from({ length: 9 }, (_, j) => <td key={j}><span className="table-skeleton" /></td>)}
+                </tr>
+              ))}
 
-      <div className="pager">
-        <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ Prev</button>
-        <span className="dim">Page {page + 1} of {totalPages}</span>
-        <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next ›</button>
+              {data?.users.map((u) => {
+                const isBanned = !!u.bannedUntil && new Date(u.bannedUntil).getTime() > Date.now();
+                return (
+                  <tr
+                    key={u.id}
+                    onClick={() => setSelected(u.id)}
+                    className={`is-clickable${checked.has(u.id) ? " is-checked" : ""}`}
+                  >
+                    <td className="users-check-col" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${u.username}`}
+                        checked={checked.has(u.id)}
+                        onChange={(e) => {
+                          setChecked((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(u.id); else next.delete(u.id);
+                            return next;
+                          });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <div className="users-name">
+                        <span className="users-avatar" aria-hidden>{(u.name ?? u.username).slice(0, 1).toUpperCase()}</span>
+                        <span className="users-name__text">
+                          <strong>{u.name ?? u.username}</strong>
+                          <span className="dim small">@{u.username}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td className="mono users-email">{u.email}</td>
+                    <td className="num">{u.accountLevel.toLocaleString()}</td>
+                    <td className="num">
+                      {u.pokedexCaughtCount}<span className="dim">/151</span>
+                    </td>
+                    <td>
+                      {u.isAdmin && <span className="tag tag-brand">ADMIN</span>}
+                      {isBanned && <span className="tag tag-bad">BANNED</span>}
+                      {!u.isAdmin && !isBanned && <span className="dim small">—</span>}
+                    </td>
+                    <td className="dim small" title={new Date(u.createdAt).toLocaleString()}>
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="dim small" title={new Date(u.lastSeenAt).toLocaleString()}>
+                      {relativeDay(u.lastSeenAt)}
+                    </td>
+                    <td className="users-open-col" onClick={(e) => e.stopPropagation()}>
+                      <button className="btn-ghost btn-tiny" onClick={() => setSelected(u.id)}>Open</button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {data && data.users.length === 0 && (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="table-empty">
+                      {q || filter !== "all"
+                        ? <>No accounts match{q && <> “{q}”</>}{filter !== "all" && <> in {filter}</>}.</>
+                        : "No accounts yet."}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pager lives inside the table card. It belongs to the table, and as
+            a detached row below it there was nothing tying the two together. */}
+        <div className="table-foot">
+          <span className="dim small">
+            {data
+              ? data.total === 0 ? "No results" : <>Showing <strong className="tabular">{from.toLocaleString()}–{to.toLocaleString()}</strong> of <strong className="tabular">{data.total.toLocaleString()}</strong></>
+              : "…"}
+          </span>
+          <label className="table-foot__size dim small">
+            Rows
+            <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(0); }}>
+              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <div className="table-foot__nav">
+            <button className="btn-ghost btn-tiny" disabled={page === 0} onClick={() => setPage(0)} title="First page">«</button>
+            <button className="btn-ghost btn-tiny" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Prev</button>
+            <span className="dim small tabular">{page + 1} / {totalPages}</span>
+            <button className="btn-ghost btn-tiny" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <button className="btn-ghost btn-tiny" disabled={page + 1 >= totalPages} onClick={() => setPage(totalPages - 1)} title="Last page">»</button>
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+/** "3d ago" for anything recent, a date once that stops being useful. The
+ *  raw date is on the title attribute either way — the question an operator
+ *  asks of last-seen is "how long", and computing that from a date in their
+ *  head is work the page can do for them. */
+function relativeDay(iso: string): string {
+  const days = Math.floor((Date.now() - +new Date(iso)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 // Sortable column header. Sorting is server-side (an allow-listed
 // orderBy), so this only owns the affordance + which way the arrow
 // points. Rendered as a real button so it is keyboard-reachable.
 function SortTh({
-  label, col, sort, dir, onSort,
+  label, col, sort, dir, onSort, align,
 }: {
   label: string;
   col: UserSortKey;
   sort: UserSortKey;
   dir: "asc" | "desc";
   onSort: (c: UserSortKey) => void;
+  align?: "right";
 }) {
   const active = sort === col;
   return (
     <th
-      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
-      className={active ? "sort-th is-active" : "sort-th"}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}
+      className={`sortable${active ? " sorted" : ""}${align === "right" ? " num" : ""}`}
+      onClick={() => onSort(col)}
     >
-      <button type="button" className="sort-th-btn" onClick={() => onSort(col)}>
+      {/* Matches DataTable's header exactly — both chevrons at rest, one
+          filled when active — so a sortable column looks the same wherever
+          it appears. The <th> owns the click so the whole cell is the
+          target, not just the label. */}
+      <span className="th-inner">
         {label}
-        <span className="sort-th-arrow" aria-hidden>
-          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
+        <span className={`th-sort${active ? ` th-sort--${dir}` : ""}`} aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round">
+            <path d="M7 10l5-5 5 5" /><path d="M7 14l5 5 5-5" />
+          </svg>
         </span>
-      </button>
+      </span>
     </th>
   );
 }
@@ -452,13 +574,13 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
 
   if (err) return (
     <div className="page">
-      <DetailHeader onBack={onBack} />
+      <PageActions><BackButton onBack={onBack} /></PageActions>
       <div className="page-err">{err}</div>
     </div>
   );
   if (!data) return (
     <div className="page">
-      <DetailHeader onBack={onBack} />
+      <PageActions><BackButton onBack={onBack} /></PageActions>
       <p className="dim">Loading…</p>
     </div>
   );
@@ -491,18 +613,45 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
 
   return (
     <div className="page user-detail-page">
-      <DetailHeader onBack={onBack} />
-      <header className="user-detail-head">
-        <div>
-          <h1>{data.name ?? data.username}</h1>
-          <div className="dim">@{data.username} · {data.email}</div>
+      <PageNote>{data.name ?? data.username}</PageNote>
+      <PageActions><BackButton onBack={onBack} /></PageActions>
+
+      {/* Entity header. The identity, the flags that change how every action
+          below should be read, and the numbers an operator checks first — in
+          one band, rather than a name and then a nine-cell stat grid three
+          screens further down. */}
+      <header className="entity-head">
+        <span className="entity-avatar" aria-hidden>
+          {(data.name ?? data.username).slice(0, 1).toUpperCase()}
+        </span>
+        <div className="entity-id">
+          <h1>
+            {data.name ?? data.username}
+            {data.isAdmin && <span className="tag tag-brand">ADMIN</span>}
+            {banned && <span className="tag tag-bad">BANNED</span>}
+          </h1>
+          <div className="entity-sub dim">
+            <span className="mono">@{data.username}</span>
+            <span className="mono">{data.email}</span>
+            {!data.emailVerified && <span className="tag tag-warn">UNVERIFIED</span>}
+          </div>
         </div>
-        <div className="user-detail-status">
-          {data.isAdmin && <span className="tag admin">ADMIN</span>}
-          {banned && <span className="tag banned">BANNED</span>}
-          <span className="dim small">v{data.saveVersion}</span>
-        </div>
+        <dl className="entity-facts">
+          <div><dt>Level</dt><dd className="tabular">{data.accountLevel.toLocaleString()}</dd></div>
+          <div><dt>Pokédex</dt><dd className="tabular">{data.pokedexCaughtCount}<span className="dim">/151</span></dd></div>
+          <div><dt>Σ levels</dt><dd className="tabular">{(data.totalCaughtLevels ?? 0).toLocaleString()}</dd></div>
+          <div><dt>Joined</dt><dd title={new Date(data.createdAt).toLocaleString()}>{new Date(data.createdAt).toLocaleDateString()}</dd></div>
+          <div><dt>Last seen</dt><dd title={new Date(data.lastSeenAt).toLocaleString()}>{relativeDay(data.lastSeenAt)}</dd></div>
+          <div><dt>Save</dt><dd className="tabular">v{data.saveVersion}</dd></div>
+        </dl>
       </header>
+
+      {banned && (
+        <div className="ban-banner">
+          <strong>Banned until {new Date(data.bannedUntil).toLocaleString()}</strong>
+          {data.banReason && <div className="dim">{data.banReason}</div>}
+        </div>
+      )}
 
       <nav className="detail-tabs detail-tabs-page" role="tablist">
         {(["profile", "pokemon", "items", "progress", "messages", "trades", "sessions", "raw"] as DetailTab[]).map((t) => (
@@ -602,10 +751,12 @@ function UserDetailFullPage({ id, onBack, onChange }: { id: string; onBack: () =
   );
 }
 
-// Tiny back-link header used at the top of the user detail page.
-function DetailHeader({ onBack }: { onBack: () => void }) {
+/** Back to the list. Lives in the topbar via <PageActions>, so it is in the
+ *  same place on this page as every other page's controls, and it does not
+ *  scroll away when the operator is halfway down a save editor. */
+function BackButton({ onBack }: { onBack: () => void }) {
   return (
-    <button className="detail-back" onClick={onBack}>← Back to users</button>
+    <button className="btn-secondary btn-small" onClick={onBack}>← All users</button>
   );
 }
 
@@ -734,24 +885,15 @@ function ProfileTab({ data, banned, busy, setBusy, reload, onChange, onClose }: 
           >×</button>
         </div>
       )}
+      {/* Level / dex / joined / last seen / save version now live in the
+          entity header above, where they are visible from every tab. What
+          stays here is what that band has no room for. */}
       <div className="detail-stats">
-        <div><span>Account Lv</span><strong>{data.accountLevel}</strong></div>
-        <div><span>Pokédex</span><strong>{data.pokedexCaughtCount}/151</strong></div>
-        <div><span>Caught levels</span><strong>{data.totalCaughtLevels}</strong></div>
-        <div><span>Save version</span><strong>{data.saveVersion}</strong></div>
-        <div><span>Created</span><strong>{new Date(data.createdAt).toLocaleString()}</strong></div>
-        <div><span>Last seen</span><strong>{new Date(data.lastSeenAt).toLocaleString()}</strong></div>
-        <div><span>Email verified</span><strong>{data.emailVerified ? "Yes" : "No"}</strong></div>
         <div><span>Friends</span><strong>{(data._count?.friendsRequested ?? 0) + (data._count?.friendsReceived ?? 0)}</strong></div>
         <div><span>Messages sent</span><strong>{data._count?.messages ?? 0}</strong></div>
+        <div><span>Email verified</span><strong>{data.emailVerified ? "Yes" : "No"}</strong></div>
+        <div><span>Account created</span><strong>{new Date(data.createdAt).toLocaleString()}</strong></div>
       </div>
-
-      {banned && (
-        <div className="ban-banner">
-          <strong>Banned until {new Date(data.bannedUntil).toLocaleString()}</strong>
-          {data.banReason && <div className="dim">{data.banReason}</div>}
-        </div>
-      )}
 
       <section className="profile-section">
         <h3>Account</h3>
@@ -841,6 +983,10 @@ function SaveHistorySection({ userId, username, onRestored }: {
         : rows.length === 0
           ? <p className="dim small">No checkpoints yet — they'll accrue as the player saves.</p>
           : (
+            // Eight columns do not fit a phone, and .admin-main clips
+            // overflow-x — so unwrapped, the Restore button was not just off
+            // screen, it was unreachable.
+            <div className="table-wrap">
             <table className="snapshot-table">
               <thead>
                 <tr><th>When</th><th>Ver</th><th>Lv</th><th>Badges</th><th>Dex</th><th>Money</th><th>Size</th><th></th></tr>
@@ -867,6 +1013,7 @@ function SaveHistorySection({ userId, username, onRestored }: {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
     </section>
   );
