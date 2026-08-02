@@ -1,5 +1,17 @@
 /* =====================================================================
-   The player card
+   The trainer corner
+   =====================================================================
+   NAMESPACED ON PURPOSE. This shipped as `.player-card`, which app.css
+   has used since long before it for the battle scene's own HP card —
+   `position: absolute; bottom: 18%; right: 4%`. So the moment this
+   component mounted, two unrelated elements shared a class and my rules
+   landed on the battle HUD: a full-width panel of shortcut buttons
+   absolutely positioned across the bottom of the game.
+
+   `player-card` was a generic name I never checked was free, in a
+   19,000-line stylesheet where load-order and naming collisions have
+   bitten this work repeatedly. `trainer-corner` was grepped against
+   app.css, every scoped stylesheet and every .tsx before use.
    =====================================================================
    What the bottom of the centre column became when the Map/Mart/Bag/PC/
    Dex tab strip moved into the hub.
@@ -13,7 +25,7 @@
    part of the screen does: your lead Pokémon, your badges, and how much
    of the dex is actually filled.
    ===================================================================== */
-.player-card {
+.trainer-corner {
   /* Full width of the rail it sits at the top of. It was floating with
      space around it because it inherited nothing about the column's
      width — a card about the player, small and adrift in the corner
@@ -33,7 +45,7 @@
    A single "Menu" button in a 300px corner is a small target with a lot
    of nothing around it. Making the card the target means the hit area is
    the corner rather than a pill inside it. */
-.player-card-main {
+.trainer-corner-main {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -47,10 +59,10 @@
   cursor: pointer;
   transition: background 120ms ease;
 }
-.player-card-main:hover { background: var(--panel-2); }
-.player-card-main:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: -2px; }
+.trainer-corner-main:hover { background: var(--panel-2); }
+.trainer-corner-main:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: -2px; }
 
-.player-card-lead {
+.trainer-corner-lead {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -61,10 +73,10 @@
   background: rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
-.player-card-lead-empty { font-size: 20px; color: var(--text-dim); }
+.trainer-corner-lead-empty { font-size: 20px; color: var(--text-dim); }
 
-.player-card-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.player-card-name {
+.trainer-corner-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.trainer-corner-name {
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 700;
@@ -73,8 +85,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.player-card-meta,
-.player-card-progress {
+.trainer-corner-meta,
+.trainer-corner-progress {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -83,15 +95,15 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.player-card-meta strong,
-.player-card-progress strong {
+.trainer-corner-meta strong,
+.trainer-corner-progress strong {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.player-card-money { color: var(--gold); font-variant-numeric: tabular-nums; }
+.trainer-corner-money { color: var(--gold); font-variant-numeric: tabular-nums; }
 
-.player-card-open { flex: 0 0 auto; font-size: 15px; color: var(--text-dim); line-height: 1; }
-.player-card-main:hover .player-card-open { color: var(--text-muted); }
+.trainer-corner-open { flex: 0 0 auto; font-size: 15px; color: var(--text-dim); line-height: 1; }
+.trainer-corner-main:hover .trainer-corner-open { color: var(--text-muted); }
 
 /* ── The five shortcuts ────────────────────────────────────────────
    The strip's real virtue was that Map and Bag were ONE click away, and
@@ -104,13 +116,13 @@
 /* The five spread across the full width rather than huddling. They are
    the row that replaced a five-tab strip, and the strip filled its
    container — losing that would make them look like leftovers. */
-.player-card-links {
+.trainer-corner-links {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 3px;
   padding: 0 8px 8px;
 }
-.player-card-link {
+.trainer-corner-link {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -126,18 +138,18 @@
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.player-card-link:hover:not(.is-active) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
-.player-card-link:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+.trainer-corner-link:hover:not(.is-active) { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.trainer-corner-link:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
 /* Selected is the same solid fill as every other control in the game, so
    the corner tells you which hub section is open without inventing a
    sixth way of saying "you are here". */
-.player-card-link.is-active {
+.trainer-corner-link.is-active {
   background: var(--ctl-on-bg);
   border-color: var(--ctl-on-line);
   color: var(--ctl-on-fg);
 }
-.player-card-link-icon { font-size: 13px; line-height: 1; }
-.player-card-link-label {
+.trainer-corner-link-icon { font-size: 13px; line-height: 1; }
+.trainer-corner-link-label {
   font-family: var(--font-display);
   font-size: 8.5px;
   font-weight: 800;
@@ -146,11 +158,11 @@
 }
 
 @media (max-width: 900px) {
-  .player-card-link { min-height: 44px; }
-  .player-card-main { padding: 12px; }
+  .trainer-corner-link { min-height: 44px; }
+  .trainer-corner-main { padding: 12px; }
 }
 /* Very narrow columns: the labels are the first thing to go, not the
    targets. Five icons at 44px still beats four labels and a scrollbar. */
 @media (max-width: 340px) {
-  .player-card-link-label { display: none; }
+  .trainer-corner-link-label { display: none; }
 }

@@ -6,9 +6,9 @@ import { PokemonSprite } from "./Sprite";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount } from "../utils/unlocks";
 import { caughtObtainableCount, obtainableCount } from "../utils/obtainable";
-import "./playerCard.css";
+import "./trainerCorner.css";
 
-// The bottom of the centre column.
+// The top of the right rail.
 //
 // ── WHAT WAS HERE ───────────────────────────────────────────────────
 // A five-tab strip — Map, Mart, Bag, PC, Dex — pinned under the battle
@@ -53,14 +53,14 @@ export function PlayerCard() {
   ];
 
   return (
-    <section className="player-card" aria-label={t("Trainer")}>
+    <section className="trainer-corner" aria-label={t("Trainer")}>
       <button
         type="button"
-        className="player-card-main"
+        className="trainer-corner-main"
         onClick={() => openHub()}
         title={t("Open the menu")}
       >
-        <span className="player-card-lead">
+        <span className="trainer-corner-lead">
           {lead
             ? (
               <PokemonSprite
@@ -72,37 +72,37 @@ export function PlayerCard() {
                 style={{ imageRendering: "pixelated" }}
               />
             )
-            : <span className="player-card-lead-empty" aria-hidden>?</span>}
+            : <span className="trainer-corner-lead-empty" aria-hidden>?</span>}
         </span>
 
-        <span className="player-card-text">
-          <span className="player-card-name">{name}</span>
-          <span className="player-card-meta">
+        <span className="trainer-corner-text">
+          <span className="trainer-corner-name">{name}</span>
+          <span className="trainer-corner-meta">
             <span>{t("Lv")} <strong>{me?.accountLevel ?? 1}</strong></span>
-            <span className="player-card-money">${state.money.toLocaleString()}</span>
+            <span className="trainer-corner-money">${state.money.toLocaleString()}</span>
           </span>
           {/* Two numbers that are otherwise three clicks away, and the two a
               player checks most often to know how they are doing. */}
-          <span className="player-card-progress">
+          <span className="trainer-corner-progress">
             <span>{t("Badges")} <strong>{badges}</strong>/{region.gymLeaders.length}</span>
             <span>{t("Dex")} <strong>{caught}</strong>/{total}</span>
           </span>
         </span>
 
-        <span className="player-card-open" aria-hidden>›</span>
+        <span className="trainer-corner-open" aria-hidden>›</span>
       </button>
 
-      <nav className="player-card-links" aria-label={t("Go")}>
+      <nav className="trainer-corner-links" aria-label={t("Go")}>
         {shortcuts.map((sc) => (
           <button
             key={sc.id}
             type="button"
-            className={`player-card-link${openSection === sc.id ? " is-active" : ""}`}
+            className={`trainer-corner-link${openSection === sc.id ? " is-active" : ""}`}
             onClick={() => openHub(sc.id)}
             title={sc.label}
           >
-            <span className="player-card-link-icon" aria-hidden>{sc.icon}</span>
-            <span className="player-card-link-label">{sc.label}</span>
+            <span className="trainer-corner-link-icon" aria-hidden>{sc.icon}</span>
+            <span className="trainer-corner-link-label">{sc.label}</span>
           </button>
         ))}
       </nav>
