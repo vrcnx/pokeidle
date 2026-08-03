@@ -92,6 +92,31 @@ export function RouteCardList() {
     [activeRegion]
   );
 
+  // ── The tree ──────────────────────────────────────────────────────
+  // Cities, with the places you reach from them underneath.
+  //
+  // A flat list in unlock order is the order you SEE these locations, not
+  // the shape they have: forty rows of "Route 11, Route 12, Diglett's Cave,
+  // Route 13" with nothing saying which town any of them hangs off. The
+  // information was in the ordering and only in the ordering, so the moment
+  // you were looking for somewhere rather than reading top to bottom, it
+  // told you nothing.
+  //
+  // The rule is the nearest PRECEDING town in unlock order. That is not a
+  // guess about geography — it is what the unlock chain already means: you
+  // reach a town, and the places past it open up. Anything before the first
+  // town of a region (Kanto opens on Route 1) becomes a leading group with
+  // no head, rather than being forced under a town it does not belong to.
+  const groups = useMemo(() => {
+    const out: { head: Route | null; kids: Route[] }[] = [];
+    for (const r of routesInRegion) {
+      if (r.type === "town") out.push({ head: r, kids: [] });
+      else if (out.length === 0) out.push({ head: null, kids: [r] });
+      else out[out.length - 1].kids.push(r);
+    }
+    return out;
+  }, [routesInRegion]);
+
   function travel(id: string) {
     if (!state.unlockedLocations.includes(id)) return;
     dispatch({ type: "TRAVEL", payload: { locationId: id } });
@@ -148,8 +173,20 @@ export function RouteCardList() {
         <RaidTierList />
       ) : (
         <div className="route-card-grid">
-          {routesInRegion.map((route) => (
-            <RouteCard key={route.id} route={route} onTravel={travel} />
+          {groups.map((g, i) => (
+            <div className="route-group" key={g.head?.id ?? `lead-${i}`}>
+              {g.head && <RouteCard route={g.head} onTravel={travel} />}
+              {g.kids.length > 0 && (
+                // Indented under the town, with a rail down the side. The
+                // cards themselves are unchanged — this nests them, it does
+                // not restyle them.
+                <div className={`route-group-kids${g.head ? "" : " is-lead"}`}>
+                  {g.kids.map((route) => (
+                    <RouteCard key={route.id} route={route} onTravel={travel} />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

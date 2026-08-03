@@ -20252,3 +20252,33 @@ strong, b { font-variant-numeric: tabular-nums; }
 .route-card.locked { border-left-color: var(--border); }
 /* Where you are still wins: a full gold border beats the type edge. */
 .route-card.current { border-left-color: var(--gold); }
+
+/* ── The map as a tree ─────────────────────────────────────────────
+   A city, then the places you reach from it, indented under it with a rail
+   down the side.
+
+   A flat list in unlock order was the order you SEE these locations, not
+   the shape they have: forty rows with nothing saying which town any of
+   them hangs off. The information was in the ordering and only in the
+   ordering, so it told you nothing the moment you were looking for
+   somewhere rather than reading top to bottom.
+
+   Layout only. Every card inside is the same .route-card with the same
+   internal grid — this nests them, it does not restyle them, which is the
+   mistake the reverted redesign made. */
+.route-group { display: flex; flex-direction: column; gap: 6px; }
+.route-group + .route-group { margin-top: 10px; }
+.route-group-kids {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 14px;
+  padding-left: 12px;
+  /* The rail. It is what makes this read as "belongs to" rather than as
+     "happens to be indented". */
+  border-left: 2px solid var(--border);
+}
+/* Locations that open before the region's first town — Kanto starts on
+   Route 1 — have no parent to hang off, so they get the indent without the
+   rail rather than being forced under a town they do not belong to. */
+.route-group-kids.is-lead { margin-left: 0; padding-left: 0; border-left: 0; }
