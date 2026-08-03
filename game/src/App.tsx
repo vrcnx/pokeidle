@@ -4,7 +4,6 @@ import { useIsPvpBattle } from "./state/pvp";
 import { useEventDriver } from "./hooks/useEventDriver";
 import { useAutoProceed } from "./hooks/useAutoProceed";
 import { useCatchAnimation } from "./hooks/useCatchAnimation";
-import { useShinyAnnounce } from "./hooks/useShinyAnnounce";
 import { useRaidReturn } from "./hooks/useRaidReturn";
 import { useAutoEvolve } from "./hooks/useAutoEvolve";
 import { useStreamStartRoute } from "./hooks/useStreamStartRoute";
@@ -40,7 +39,6 @@ export function App() {
   // Announces a shiny catch in global chat. Mounted here beside the other
   // consumers rather than inside a chat component: it must fire whether or
   // not the chat panel is on screen, and on mobile it usually is not.
-  useShinyAnnounce();
   // Sends you home when a raid ends — see the hook for why it watches the
   // flag rather than living in the reducer.
   useRaidReturn();

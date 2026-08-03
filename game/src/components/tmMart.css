@@ -10,11 +10,18 @@
  * shelf, so the shelving furniture would be scaffolding around an empty room.
  */
 
+/* Same scrolling contract as the auction pane: `hub-pane--fill` is
+   `overflow: hidden` and expects its child to scroll. Six cards fit today,
+   but the expanded "Not today" list does not. */
 .tmmart-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 0;
+  padding: 14px 18px 20px;
+  scrollbar-gutter: stable;
 }
 
 /* ── The clock ─────────────────────────────────────────────────────

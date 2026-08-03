@@ -9,6 +9,9 @@ import {
   type RaidTier, type RaidTierId,
 } from "../data/raidLegendaries";
 import { PokemonSprite } from "./Sprite";
+import { raidMachines, RAID_MACHINE_DROP_CHANCE } from "../data/machineSources";
+import { itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteSlug } from "../utils/items";
 import "./raidTiers.css";
 import { rememberRaidReturn } from "../hooks/useRaidReturn";
 import { pokemonTable } from "../data/pokemon";
@@ -367,6 +370,48 @@ function RouteCard({ route, onTravel, regionLabel }: {
 //
 // The tiers are here now, and Start does the travelling. The trip was never
 // a decision; it was a step between you and the decision.
+/** The non-Pokemon half of a raid's payout, named. */
+function RaidSpoils() {
+  const { state } = useGame();
+  const t = useT();
+  const missing = raidMachines.filter((m) => (state.inventory[m.id] ?? 0) <= 0);
+  const machinePct = Math.round(RAID_MACHINE_DROP_CHANCE * 100);
+
+  return (
+    <div className="raid-spoils">
+      <h4 className="raid-spoils-head">{t("Catching the legendary can also drop")}</h4>
+      <ul className="raid-spoils-list">
+        <li>
+          <img
+            src={itemSpriteUrl("goldbottlecap", itemSpriteSlug("goldbottlecap"))}
+            alt="" width={22} height={22} style={{ imageRendering: "pixelated" }}
+          />
+          <span>
+            <strong>{t("Bottle Caps")}</strong>
+            <em>{t("The only source of perfect IVs. Gold 3%, Silver 12%.")}</em>
+          </span>
+        </li>
+        <li>
+          <img
+            src={itemSpriteUrl("hm03", itemSpriteSlug("hm03"))}
+            alt="" width={22} height={22} style={{ imageRendering: "pixelated" }}
+          />
+          <span>
+            <strong>{t("Machines nothing else sells")}</strong>
+            <em>
+              {machinePct}% — {raidMachines.length} {t("of them: every HM, plus Hyper Beam, Giga Impact, Solar Beam, Overheat and Explosion.")}
+              {" "}
+              {missing.length === 0
+                ? t("You have them all.")
+                : `${missing.length} ${t("still to find.")}`}
+            </em>
+          </span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 function RaidTierList() {
   const { state, dispatch } = useGame();
   const t = useT();
@@ -442,6 +487,18 @@ function RaidTierList() {
       {/* The rule, said once, where it applies. It was implicit in six
           disabled buttons — a player could see that they could not raid and
           had nothing telling them when that changes, or why. */}
+      {/* ── WHAT A RAID IS FOR ────────────────────────────────────────
+          The page listed six tiers and their Pokemon and said nothing about
+          the rest of the payout, so the machines that ONLY come from raids —
+          every HM, and the five heaviest TMs, none of which any shop sells —
+          were invisible to anyone who had not read the patch notes.
+
+          The numbers come from the drop code (data/machineSources.ts and the
+          reducer's roll), not from prose, so they cannot drift away from what
+          actually happens. The missing count is personal: "11 still to find"
+          is a reason to raid, "11 exist" is a fact about the game. */}
+      <RaidSpoils />
+
       {(state.inRaid || anyCd) && (
         <p className="raid-rule">
           {state.inRaid

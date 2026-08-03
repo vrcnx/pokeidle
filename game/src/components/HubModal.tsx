@@ -4,7 +4,7 @@ import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin, IconDisc,
 } from "./Icon";
-import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../utils/animate";
+import { useModalEnter, animateModalExit, animateSectionEnter, animateSectionStagger } from "../utils/animate";
 // Imported, not written as "/hub/map.jpg". Vite emits these with a
 // content hash in the filename, so replacing a picture replaces its URL and
 // every browser fetches the new one. Served straight out of public/ they
@@ -278,11 +278,37 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
   const landingRef = useRef<HubSection>("pvp");
   landingRef.current = pickLanding(badges, disabled);
 
-  useEffect(() => {
-    _open = (s) => setActive(s ?? landingRef.current);
-    _close = () => setActive(null);
-    return () => { _open = null; _close = null; };
+  // ── ONE ANIMATED CLOSE, THREE DOORS ────────────────────────────────
+  // Escape, the × and a click on the backdrop all leave the same way. The
+  // dialog is found in the DOM rather than through a ref because the ref
+  // lives inside HubFrame while `active` lives here — and there is exactly
+  // one hub on screen, so the query cannot be ambiguous.
+  //
+  // `closingRef` makes a second trigger a no-op instead of starting a second
+  // animation: pressing Escape while the backdrop click is still playing
+  // would otherwise re-animate a dialog that is already on its way out.
+  const closingRef = useRef(false);
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    const el = document.querySelector<HTMLElement>(".modal-overlay.hub-overlay > .hub-modal");
+    if (!el) { setActive(null); return; }
+    closingRef.current = true;
+    void animateModalExit(el).then(() => {
+      closingRef.current = false;
+      setActive(null);
+    });
   }, []);
+
+  useEffect(() => {
+    _open = (s) => {
+      // Re-opening mid-exit has to cancel the exit, or the pending resolve
+      // closes the hub the player just asked for.
+      closingRef.current = false;
+      setActive(s ?? landingRef.current);
+    };
+    _close = () => requestClose();
+    return () => { _open = null; _close = null; };
+  }, [requestClose]);
 
   // Mirror the open section outward for the dock. In an effect, not during
   // render: publishing synchronously would set state in the dock's
@@ -291,10 +317,10 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
 
   useEffect(() => {
     if (!active) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setActive(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active]);
+  }, [active, requestClose]);
 
   // A section can be disabled WHILE the player is standing in it — starting a
   // PvP battle from the Battle pane is the obvious case. Move them somewhere
@@ -319,7 +345,7 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
     <HubFrame
       active={active}
       onSelect={setActive}
-      onClose={() => setActive(null)}
+      onClose={requestClose}
       sections={sections}
       disabled={disabled}
       badges={badges}

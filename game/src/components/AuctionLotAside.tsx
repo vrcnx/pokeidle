@@ -55,7 +55,6 @@ export function AuctionLotAside() {
   if (!lot) {
     return (
       <div className="ah-aside is-empty">
-        <SellCta />
         <div className="ah-aside-hint">
           <span className="ah-aside-hint-mark" aria-hidden="true">◈</span>
           <p className="ah-aside-hint-head">{t("Pick a lot")}</p>
@@ -63,13 +62,14 @@ export function AuctionLotAside() {
             {t("Everything about it — stats, bid history, and the one place you bid — opens here.")}
           </p>
         </div>
+        <SellCta />
       </div>
     );
   }
   return (
     <div className="ah-aside-stack">
-      <SellCta />
       <LotDetail key={lot.id} lot={lot} />
+      <SellCta />
     </div>
   );
 }
@@ -86,13 +86,11 @@ export function AuctionLotAside() {
 function SellCta() {
   const t = useT();
   return (
-    <button
-      type="button"
-      className="ah-btn is-primary ah-sell-cta"
-      onClick={() => setAuctionMode("sell")}
-    >
-      {t("Sell something")}
-    </button>
+    <div className="ah-sell-cta">
+      <button type="button" onClick={() => setAuctionMode("sell")}>
+        {t("Sell something")}
+      </button>
+    </div>
   );
 }
 
@@ -379,7 +377,10 @@ function MonFacts({ mon }: { mon: Pokemon }) {
             ["HP", iv.hp], ["Atk", iv.attack], ["Def", iv.defense],
             ["SpA", iv.spAttack], ["SpD", iv.spDefense], ["Spe", iv.speed],
           ] as const).map(([label, v]) => (
-            <li key={label} className={v >= 31 ? "is-max" : ""}>
+            // Colour carries the value. Six identical grey rails told you
+            // nothing about which stats were the good ones, which is the
+            // only reason to show six of them.
+            <li key={label} className={ivClass(v)}>
               <span className="ah-iv-label">{label}</span>
               <span className="ah-iv-bar"><span style={{ width: `${(v / 31) * 100}%` }} /></span>
               <span className="ah-iv-n">{v}</span>
@@ -389,6 +390,14 @@ function MonFacts({ mon }: { mon: Pokemon }) {
       )}
     </div>
   );
+}
+
+/** Grade an IV so the bar's colour means something at a glance. */
+function ivClass(v: number): string {
+  if (v >= 31) return "is-max";
+  if (v >= 26) return "ah-is-great";
+  if (v >= 16) return "is-good";
+  return "";
 }
 
 /** What the machine teaches, and whether it is any use to this buyer. */

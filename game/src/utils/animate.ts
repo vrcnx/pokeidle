@@ -118,6 +118,41 @@ export function useModalEnter(staggerSelector?: string, enabled: boolean = true)
   return ref;
 }
 
+/**
+ * Exit for a centered modal dialog — the mirror of animateModalEnter.
+ *
+ * ── THE ANIMATION MUST NEVER GATE THE CLOSE ───────────────────────────
+ * Resolves on a TIMER rather than on the animation's own completion. An
+ * animation that never finishes is not hypothetical: a backgrounded tab
+ * stops firing frames, and any environment without compositing never starts
+ * them. Waiting on `finished` there would leave the dialog on screen with a
+ * dead close button, which is a far worse bug than a missing flourish.
+ *
+ * Reduced motion resolves immediately, so the dialog simply disappears.
+ */
+export function animateModalExit(dialog: HTMLElement): Promise<void> {
+  if (prefersReducedMotion()) return Promise.resolve();
+
+  const parent = dialog.parentElement;
+  const overlay = parent?.classList.contains("modal-overlay") ? parent : null;
+  const DURATION = 160;
+
+  // Shorter and flatter than the entrance on purpose. An entrance is an
+  // arrival worth a spring; an exit is a dismissal, and a slow one reads as
+  // the app being sluggish rather than as polish.
+  animate(dialog, {
+    opacity: [1, 0],
+    scale: [1, 0.97],
+    translateY: [0, 6],
+    duration: DURATION,
+    ease: EASE_OUT,
+  });
+  if (overlay) {
+    animate(overlay, { opacity: [1, 0], duration: DURATION, ease: EASE_OUT });
+  }
+  return new Promise((resolve) => setTimeout(resolve, DURATION));
+}
+
 // React hook: drive a count-up on the contents of an element when its
 // numeric `value` prop changes. Starts at 0 on first mount so opening
 // a modal feels like the numbers are tallying up; subsequent updates

@@ -13,9 +13,11 @@ export const SYSTEM_CARD_META: Record<string, { icon: string; label: string }> =
   gift: { icon: "🎀", label: "Gift" },
   announcement: { icon: "📢", label: "Announcement" },
   pollOpen: { icon: "🗳️", label: "Poll" },
-  // A system card, not a chat bubble, even though a player's action caused
-  // it: the sentence is written by the server, the account did not type it,
-  // and rendering it as a message from them would let a shiny catch look
-  // like something the player said.
+  // KEPT AFTER THE FEATURE WAS REMOVED. Nothing produces `kind: "shiny"`
+  // any more — the announcement flooded global chat and was taken out — but
+  // months of rows carrying that kind are still in the database. Without
+  // this entry they would fall through to the ordinary chat-bubble path and
+  // render as something the player typed, which is precisely what the
+  // system-card treatment existed to prevent.
   shiny: { icon: "✨", label: "Shiny" },
 };

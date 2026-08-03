@@ -12,11 +12,21 @@
  * distance and left the thing being sold as the smallest element on screen.
  */
 
+/* ── THE PANE SCROLLS ──────────────────────────────────────────────
+   `hub-pane--fill` is `overflow: hidden` and hands its child the height,
+   expecting the child to manage its own scrolling — see .mart-tab, which
+   does exactly this. Without `flex: 1` and `overflow-y: auto` the grid just
+   overflowed a clipped box: everything below the fold was unreachable, and
+   with 23 lots that was most of them. */
 .ah-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 0;
+  padding: 14px 18px 20px;
+  scrollbar-gutter: stable;
 }
 
 .ah-search {
@@ -45,14 +55,34 @@
   font-size: 11.5px;
 }
 
-/* Full width at the top of the third column, so it reads as the column's
-   primary action rather than a stray control. */
-.ah-sell-cta { width: 100%; margin-bottom: 4px; }
+/* At the BOTTOM of the column, and quiet. It sat above the product, which
+   put a call to action between the reader and the thing they opened — and a
+   solid primary button there competed with the Bid button six inches below
+   it. Selling is a different errand; it waits its turn. */
+.ah-sell-cta {
+  width: 100%;
+  margin-top: auto;
+  padding-top: 10px;
+}
+.ah-sell-cta > button {
+  width: 100%;
+  height: var(--ctl-h, 32px);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ah-sell-cta > button:hover { color: var(--text); border-color: var(--gold); }
 .ah-aside-stack {
   display: flex;
   flex-direction: column;
   gap: 0;
   min-height: 0;
+  height: 100%;
   overflow-y: auto;
 }
 .ah-aside-stack > .ah-aside { overflow: visible; }
@@ -233,9 +263,8 @@
 .ah-aside {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-height: 0;
-  overflow-y: auto;
 }
 .ah-aside.is-empty { justify-content: center; }
 .ah-aside-hint {
@@ -250,52 +279,70 @@
 .ah-aside-hint-head { margin: 0; font-weight: 700; font-size: 13px; }
 .ah-aside-hint-sub { margin: 0; max-width: 26ch; color: var(--text-dim); font-size: 11.5px; line-height: 1.5; }
 
+/* ── The lot, as a product shot ────────────────────────────────────
+   The sprite floated on the panel background with nothing holding it, so
+   the most important thing in the column read as the least deliberate. A
+   framed plate with a soft glow underneath gives it a stage. */
 .ah-hero {
+  position: relative;
   display: grid;
   place-items: center;
-  padding: 8px 0 2px;
+  padding: 14px 0 10px;
+  border-radius: 10px;
+  background:
+    radial-gradient(60% 70% at 50% 62%, color-mix(in srgb, var(--gold) 14%, transparent), transparent 70%),
+    color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--border-strong);
 }
 .ah-hero-name {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  margin: 0;
-  font-size: 16px;
+  margin: 6px 0 0;
+  font-size: 17px;
+  line-height: 1.15;
   text-align: center;
 }
 .ah-hero-sub {
   margin: 0;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-dim);
 }
 
 .ah-facts { display: flex; flex-direction: column; gap: 6px; }
+/* Two columns of three. Six full-width grey rails down the panel was a lot
+   of vertical space spent on very little — and the bars all looked the same
+   whether a stat was 7 or 29, which is the one thing the reader is here to
+   compare. Colour now carries the value and the rails are half as long. */
 .ah-ivs {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 2px;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
 }
 .ah-ivs li {
   display: grid;
-  grid-template-columns: 30px 1fr 22px;
+  grid-template-columns: 26px 1fr 18px;
   align-items: center;
-  gap: 6px;
-  font-size: 10.5px;
+  gap: 5px;
+  font-size: 10px;
 }
-.ah-iv-label { color: var(--text-dim); }
+.ah-iv-label { color: var(--text-dim); letter-spacing: 0.02em; }
 .ah-iv-bar {
-  height: 4px;
-  border-radius: 2px;
+  height: 5px;
+  border-radius: 3px;
   background: color-mix(in srgb, var(--text) 10%, transparent);
   overflow: hidden;
 }
-.ah-iv-bar > span { display: block; height: 100%; background: var(--text-dim); }
+.ah-iv-bar > span { display: block; height: 100%; background: #6b7280; border-radius: 3px; }
+.ah-ivs li.is-good .ah-iv-bar > span { background: #3b82f6; }
+.ah-ivs li.ah-is-great .ah-iv-bar > span { background: #22c55e; }
 .ah-ivs li.is-max .ah-iv-bar > span { background: var(--gold); }
-.ah-iv-n { text-align: right; font-variant-numeric: tabular-nums; }
+.ah-iv-n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
 
 .ah-machine-effect { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
 .ah-machine-fit {
@@ -315,8 +362,9 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
-  padding: 10px;
+  padding: 11px 12px;
   border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--gold);
   border-radius: 8px;
   background: var(--ctl-bg);
 }
