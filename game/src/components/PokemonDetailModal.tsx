@@ -24,6 +24,7 @@ import { duplicateIdSet, releaseBlockedReason, releaseConfirmMessage } from "../
 import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
+import { useDragAndDrop } from "../hooks/useDrag";
 import { useT } from "../i18n/useT";
 import { IconEdit } from "./Icon";
 import { genderSymbol } from "../data/gender";
@@ -433,6 +434,10 @@ export function PokemonDetailModal({ inline = false }: { inline?: boolean } = {}
         expIntoLevel={expIntoLevel}
         expSpan={expSpan}
         expPct={expPct}
+        // Reordering the four moves in place — see DetailMoveRow.
+        onReorderMoves={(moveIds: string[]) =>
+          dispatch({ type: "SET_MOVES", payload: { pokemonId: p.id, moveIds } })
+        }
         onSwitch={() => {
           dispatch({
             type: "SWITCH_PLAYER_POKEMON",
@@ -533,6 +538,7 @@ function PokemonDetailDialog({
   expSpan,
   expPct,
   onSwitch,
+  onReorderMoves,
   onPartyToBox,
   onBoxToParty,
   onSwapWithParty,
@@ -834,23 +840,45 @@ function PokemonDetailDialog({
             {selected.type === "party" && !inBattle && (
               <button
                 className="g-btn-ghost g-btn-small"
-                onClick={() => {
-                  closePokemonDetail();
-                  openManageMoves({ type: "party", index: selected.index });
-                }}
+                // Does NOT close this sheet any more. It used to, so adding a
+                // move dropped you back to the game and you had to find the
+                // Pokemon again to see the result. The manager stacks above
+                // instead, and closing it returns you here.
+                onClick={() => openManageMoves({ type: "party", index: selected.index })}
                 title={t("Open the move manager for this Pokémon")}
               >
                 {t("Manage moves")}
               </button>
             )}
           </div>
+          {/* Reorderable in place. This list was read-only, so changing the
+              order of the four moves you are already looking at meant closing
+              this sheet, opening the move manager, dragging there, and coming
+              back. Adding a move still opens the manager — that needs the
+              whole learnable pool, which does not belong in a summary — but
+              ORDER is a property of these four, and it belongs here.
+
+              Party only: a boxed Pokemon has no active move order to change,
+              and neither has one mid-battle. */}
           <ul className="detail-moves">
-            {p.moves.map((m: any) => {
+            {p.moves.map((m: any, i: number) => {
               const def = movesTable[m.id];
               const color = def ? TYPE_COLOR[def.type] : "#666";
               const icon = def ? CATEGORY_ICON[def.category] ?? "✴" : "✴";
               return (
-                <li key={m.id} style={{ background: color }}>
+                <DetailMoveRow
+                  key={m.id}
+                  moveId={m.id}
+                  index={i}
+                  draggable={selected.type === "party" && !inBattle}
+                  tint={color}
+                  onSwap={(from, to) => {
+                    if (from === to) return;
+                    const ids = p.moves.map((x: any) => x.id);
+                    [ids[from], ids[to]] = [ids[to], ids[from]];
+                    onReorderMoves(ids);
+                  }}
+                >
                   <strong>
                     <span style={{ marginRight: 4, opacity: 0.85 }}>{icon}</span>
                     {def?.name ?? m.id}
@@ -858,7 +886,7 @@ function PokemonDetailDialog({
                   <small>
                     Pwr {def?.power || "—"} · Acc {def?.accuracy}% · {def?.type ?? "—"}
                   </small>
-                </li>
+                </DetailMoveRow>
               );
             })}
           </ul>
@@ -1287,5 +1315,44 @@ function EvRadar({
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * One move in the detail sheet, draggable onto another to swap them.
+ *
+ * Addressed by INDEX here rather than by id, deliberately and unlike the
+ * move manager: this list is exactly four rows rendered from the Pokemon's
+ * own `moves` array, it is not filtered or windowed, and both ends of the
+ * swap are resolved in the same render. The manager needs ids because its
+ * pool is filtered and its draft mutates under the drag.
+ */
+function DetailMoveRow({
+  moveId, index, tint, draggable, onSwap, children,
+}: {
+  moveId: string;
+  index: number;
+  tint: string;
+  draggable: boolean;
+  onSwap: (from: number, to: number) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useDragAndDrop<HTMLLIElement>({
+    enabled: draggable,
+    source: { payload: () => ({ kind: "detailMove", data: { index, moveId } }) },
+    target: {
+      accept: (p) => p.kind === "detailMove",
+      onDrop: (p) => onSwap((p.data as { index: number }).index, index),
+    },
+  });
+  return (
+    <li
+      ref={ref}
+      style={{ background: tint }}
+      className={draggable ? "is-draggable" : undefined}
+      title={draggable ? "Drag to reorder" : undefined}
+    >
+      {children}
+    </li>
   );
 }

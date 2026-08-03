@@ -12362,7 +12362,26 @@ input:focus, textarea:focus, select:focus {
    instead of the modal itself changing size. */
 .settings-modal-v2 { height: min(640px, 90vh); }
 .trainer-card-modal-v2 { width: min(720px, 96vw); }
-.pokemon-detail-v2 { width: min(740px, 96vw); }
+/* THE SAME WIDTH AS THE HUB.
+   740 was chosen when this sheet was a small dialog over the game. It is now
+   the surface the PC opens INTO, and two dialogs of different widths for the
+   same Pokemon is the kind of seam a player notices without being able to
+   say why. min(1468px, 95vw) is the hub's own rule, verbatim. */
+.pokemon-detail-v2 { width: min(1468px, 95vw); }
+/* And the room has to be used, or widening it just makes longer lines.
+   Stats, EV training and Moves side by side at desk widths; the sheet's
+   own two-up grid still applies below that. */
+@media (min-width: 1100px) {
+  .pokemon-detail-v2 .g-modal-body > .g-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+  /* Moves was full-width because it was the last card in a two-column
+     layout. With three columns it is simply the third. */
+  .pokemon-detail-v2 .g-modal-body > .g-grid > .g-card-full:last-child {
+    grid-column: auto;
+  }
+}
 .dex-species-modal-v2 { width: min(720px, 96vw); }
 .manage-moves-modal-v2 { width: min(640px, 96vw); }
 /* 1080, not 700. Three cards now compete for this dialog — Mode, the extra
@@ -20442,3 +20461,9 @@ strong, b { font-variant-numeric: tabular-nums; }
 .hub-head-slot .route-head-meta .route-region-tabs { flex: 0 0 auto; }
 .hub-head-slot .route-head-meta .route-here { flex: 0 0 auto; }
 .hub-head-slot .route-search { flex: 1 1 120px; min-width: 90px; }
+
+/* A move you can pick up. Only party moves out of battle are draggable, so
+   the affordance appears exactly where the action does. */
+.detail-moves li.is-draggable { cursor: grab; }
+.detail-moves li.is-draggable:active { cursor: grabbing; }
+.detail-moves li.drop-target-active { outline: 2px solid var(--gold); outline-offset: 1px; }
