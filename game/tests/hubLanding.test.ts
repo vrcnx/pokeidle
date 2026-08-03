@@ -56,7 +56,13 @@ describe("pickLanding", () => {
     it("still finds somewhere when everything but Settings is out", () => {
       const at = pickLanding(
         { rewards: 1, social: 1 },
-        { map: "x", mart: "x", bag: "x", pc: "x", dex: "x", pvp: "x", rewards: "x", social: "x" },
+        // Every rail section except Settings. This list has to name them all,
+        // so adding a section to the hub fails here until it is added here
+        // too — which is the test doing its job, not breaking.
+        {
+          map: "x", mart: "x", bag: "x", pc: "x", dex: "x",
+          pvp: "x", rewards: "x", auctions: "x", social: "x",
+        },
       );
       expect(at).toBe("settings");
     });

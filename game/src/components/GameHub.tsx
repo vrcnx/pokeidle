@@ -6,6 +6,7 @@ import { SettingsPane } from "./GlobalDock";
 import { TrainerSelfPane } from "./TrainerCardModal";
 import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
 import { PcPartyAside } from "./PcPartyAside";
+import { AuctionBoard } from "./AuctionBoard";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
@@ -27,6 +28,12 @@ import { useT } from "../i18n/useT";
 // the leaderboard, and Rewards refetches promos. Building all four to render
 // one would put three subsystems on the wire so somebody could change the
 // music volume.
+/** The auction house as a hub section rather than a tab inside the chat
+ *  panel. Same component; it was only ever mounted in the wrong place. */
+function AuctionBoardPane() {
+  return <AuctionBoard />;
+}
+
 /** The detail sheet, drawn inside the PC rather than on top of the game. */
 function PcDetailLayer() {
   return <PokemonDetailModal inline />;
@@ -71,6 +78,10 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   },
   settings: {
     Body: SettingsPane,
+  },
+  auctions: {
+    Body: AuctionBoardPane,
+    fill: true,
   },
   // No rail row — the identity block at the top of the rail IS this
   // section's door. See `rail: false` in HubModal's SECTIONS.

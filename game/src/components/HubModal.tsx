@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { createPortal } from "react-dom";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
-  IconSwords, IconTicket, IconChat, IconSettings, IconMedal,
+  IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin,
 } from "./Icon";
 import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../utils/animate";
 // Imported, not written as "/hub/map.jpg". Vite emits these with a
@@ -17,6 +17,7 @@ import artBag from "../assets/hub/bag.jpg";
 import artDex from "../assets/hub/dex.jpg";
 import artPvp from "../assets/hub/pvp.jpg";
 import artRewards from "../assets/hub/rewards.jpg";
+import artAuctions from "../assets/hub/auctions.jpg";
 import artSocial from "../assets/hub/social.jpg";
 import artSettings from "../assets/hub/settings.jpg";
 import artTrainer from "../assets/hub/trainer.jpg";
@@ -59,7 +60,7 @@ import "./hub.css";
 
 export type HubSection =
   | "map" | "mart" | "bag" | "pc" | "dex"
-  | "pvp" | "rewards" | "social" | "settings"
+  | "pvp" | "rewards" | "auctions" | "social" | "settings"
   // Reachable only by pressing the identity block at the top of the rail —
   // see `rail: false` below.
   | "trainer";
@@ -142,6 +143,9 @@ const SECTIONS: SectionDef[] = [
   { id: "dex",      Icon: IconBook,      label: "Pokédex",  group: "world",   art: artDex },
   { id: "pvp",      Icon: IconSwords,    label: "Battle",   group: "play",    art: artPvp },
   { id: "rewards",  Icon: IconTicket,    label: "Rewards",  group: "play",    art: artRewards },
+  // The auction house was a TAB inside the left rail's chat panel — a market
+  // living inside a chat widget, findable only by knowing it was there.
+  { id: "auctions", Icon: IconCoin,      label: "Auctions", group: "play",    art: artAuctions },
   { id: "social",   Icon: IconChat,      label: "Social",   group: "account", art: artSocial },
   { id: "settings", Icon: IconSettings,  label: "Settings", group: "account", art: artSettings },
   { id: "trainer",  Icon: IconMedal,     label: "Trainer Card", group: "account", rail: false, art: artTrainer },

@@ -20493,3 +20493,68 @@ strong, b { font-variant-numeric: tabular-nums; }
 .detail-moves li.is-draggable { cursor: grab; }
 .detail-moves li.is-draggable:active { cursor: grabbing; }
 .detail-moves li.drop-target-active { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* ── What you are bidding on ───────────────────────────────────────
+   The listing has carried the whole Pokemon since the day it was written
+   — it is stored as a snapshot at listing time — and the card showed a
+   name and a level. So the facts that decide what a competitive Pokemon
+   is worth were the ones a bidder could not see, and the only way to find
+   out was to win it. */
+.auction-card-monmeta { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.auction-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.auction-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* The IV figure carries the hover with the per-stat breakdown — a buyer
+   comparing two 90% Pokemon needs to know WHICH stats are the good ones,
+   and that is a tooltip's worth of detail rather than a card's. */
+.auction-tag.is-iv { cursor: help; font-variant-numeric: tabular-nums; }
+.auction-tag.is-iv.is-great { background: rgba(134, 239, 172, 0.16); color: #86efac; }
+
+/* ── The suggested opening bid ─────────────────────────────────────
+   It does NOT prefill the field, and that is the point. A prefilled value
+   is what put 24 of 240 listings on the same number, one of them a Lv100
+   perfect-IV Unown that sold for $100. A suggestion that types itself in
+   is the same bug with a better number: the seller still never decides.
+   It offers; they press it or ignore it. */
+.auc2-suggest {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 2px;
+  padding: 9px 11px;
+  border-radius: var(--card-radius, 8px);
+  background: rgba(251, 191, 36, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.28);
+}
+.auc2-suggest strong {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  cursor: help;
+}
+.auc2-suggest-use {
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--gold);
+  color: #0a0a0b;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.auc2-suggest-use:hover { filter: brightness(1.1); }
+/* The working, in full. A suggested price a player cannot interrogate is
+   one they will assume is rigged the first time it disagrees with them. */
+.auc2-suggest-why { flex: 1 1 100%; line-height: 1.45; }

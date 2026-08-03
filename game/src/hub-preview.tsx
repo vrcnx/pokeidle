@@ -457,6 +457,7 @@ function Harness() {
     // passes no identitySection, so the block stays inert here and the
     // section is unreachable — it is listed only to satisfy the record.
     trainer: { Body: () => <Filler label="Badges" rows={14} /> },
+    auctions: { Body: () => <Filler label="Lots" rows={12} /> },
   };
 
   return (

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api, type PublicAuction, type AuctionBid } from "../net/api";
 import { useGame } from "../state/GameContext";
 import { PokemonSprite } from "./Sprite";
+import { genderSymbol } from "../data/gender";
+import { valuePokemon, suggestedStartingBid, explain } from "../utils/pokemonValue";
+import { abilityInfo } from "../data/abilities";
 import {
   watchAuction, unwatchAuction, onAuctionBid, onAuctionOutbid, onAuctionProxyDropped,
 } from "../state/auctions";
@@ -501,9 +504,36 @@ export function AuctionCard({ auction, onBid, readOnly, proxyPaused }: {
             loading="lazy"
           />
         )}
-        <div>
-          <strong>{mon?.isShiny ? "✨ " : ""}{mon?.nickname ?? mon?.name ?? "?"}</strong>
+        <div className="auction-card-monmeta">
+          <strong>
+            {mon?.isShiny ? "✨ " : ""}{mon?.nickname ?? mon?.name ?? "?"}
+            {mon && genderSymbol(mon.gender) && (
+              <span className={`mon-gender is-${mon.gender === "M" ? "male" : "female"}`}>
+                {genderSymbol(mon.gender)}
+              </span>
+            )}
+          </strong>
           <div className="dim small">Lv{mon?.level ?? "?"} · {auction.sellerUsername ?? "?"}</div>
+          {/* WHAT YOU ARE ACTUALLY BUYING.
+              The listing carried all of this from the day it was written —
+              the whole Pokemon is stored as a snapshot at listing time — and
+              showed a name and a level. So the one thing that decides what a
+              competitive Pokemon is worth was the one thing a bidder could
+              not see, and the only way to find out was to win it. */}
+          {mon && (
+            <div className="auction-card-tags">
+              {mon.nature && <span className="auction-tag">{mon.nature}</span>}
+              {mon.ability && <span className="auction-tag">{prettyAbility(mon.ability)}</span>}
+              {mon.ivs && (
+                <span
+                  className={`auction-tag is-iv${ivPct(mon) >= 90 ? " is-great" : ""}`}
+                  title={ivBreakdown(mon)}
+                >
+                  {t("IV")} {Math.round(ivPct(mon))}%
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="auction-card-bid-info">
@@ -797,6 +827,35 @@ export function ListPokemonForm({
           onChange={(e) => setStartingBidText(e.target.value)}
         />
       </label>
+      {/* A SUGGESTION, and it does NOT prefill the field.
+          That is the whole design constraint here. The comment above records
+          why there is no default at all: a prefilled value put 24 of 240
+          listings on the same number, 13 of which expired unsold and one of
+          which was a Lv100 Unown with a perfect IV total that sold for $100.
+          A suggestion that types itself in is the same bug with a better
+          number — the seller still never makes a decision.
+          So it offers, and the seller presses it or ignores it. The field
+          stays empty until somebody names a price.
+
+          It shows its working, because a suggested price a player cannot
+          interrogate is one they will assume is rigged the first time it
+          disagrees with them. */}
+      <div className="auc2-suggest">
+        <span className="dim small">{t("Suggested")}</span>
+        <strong title={explain(valuePokemon(picked)).join(", ")}>
+          {formatMoney(suggestedStartingBid(picked))}
+        </strong>
+        <button
+          type="button"
+          className="auc2-suggest-use"
+          onClick={() => setStartingBidText(String(suggestedStartingBid(picked)))}
+        >
+          {t("Use")}
+        </button>
+        <span className="dim small auc2-suggest-why">
+          {t("worth about")} {formatMoney(valuePokemon(picked).value)} — {explain(valuePokemon(picked)).join(", ")}
+        </span>
+      </div>
       {/* The floor in words. `min={}` alone is invisible — this form's submit
           is a button handler, not a native form submission. */}
       <div className={`auc2-floor ${startingBidTooLow ? "auc2-floor-bad" : ""}`}>
@@ -833,4 +892,31 @@ export function ListPokemonForm({
       </div>
     </div>
   );
+}
+
+/** IV total as a percentage of perfect. */
+function ivPct(p: Pokemon): number {
+  const iv = p.ivs;
+  if (!iv) return 0;
+  const t = iv.hp + iv.attack + iv.defense + iv.spAttack + iv.spDefense + iv.speed;
+  return (t / (31 * 6)) * 100;
+}
+
+/** Per-stat IVs, for the hover. The percentage is the headline; a buyer
+ *  comparing two 90% Pokemon needs to know WHICH stats are the good ones,
+ *  and that is a tooltip's worth of detail rather than a card's. */
+function ivBreakdown(p: Pokemon): string {
+  const iv = p.ivs;
+  if (!iv) return "";
+  return [
+    `HP ${iv.hp}`, `Atk ${iv.attack}`, `Def ${iv.defense}`,
+    `SpA ${iv.spAttack}`, `SpD ${iv.spDefense}`, `Spe ${iv.speed}`,
+  ].join("  ·  ") + `\n${iv.hp + iv.attack + iv.defense + iv.spAttack + iv.spDefense + iv.speed} / 186`;
+}
+
+/** "shellarmor" -> "Shell Armor". Ability ids are keys, not labels. */
+function prettyAbility(id: string): string {
+  const known = abilityInfo[id]?.name;
+  if (known) return known;
+  return id.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 }
