@@ -14480,21 +14480,18 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
    (name | mons | progress | action) so the list reads as one ordered
    sequence instead of a jagged multi-column grid where row heights
    never line up between neighbours. */
-/* MULTI-COLUMN. One card per line put a name on the left and a Go button on
-   the far right of ~900px of dead space in the hub, and made a 40-location
-   region a very long scroll of very short rows.
-   `auto-fill` with a 300px floor, so it is three columns in the hub, two in
-   a narrower pane and one on a phone — the same list, folded to fit. The
-   cards themselves are untouched: each is its own grid (name | count |
-   action) and that template still holds inside a column. */
+/* ONE CARD PER LINE. A multi-column version was tried and reverted: folding
+   the list into three columns broke the thing a route list is FOR — routes
+   run in order, and reading them in order means going down a column, back
+   up, and down again. A long scroll of a region you travel through in
+   sequence is the honest shape for it. */
 .route-card-grid {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  align-content: start;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 2px;
 }
 /* flex-wrap (not nowrap) is what makes this hold up at any width —
