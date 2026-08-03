@@ -1,5 +1,9 @@
 import type { ShopDef } from "../../../types";
 
+// TMs follow the same rule Kanto's marts do: each town stocks the machine
+// that matches what it is known for, and only the status/setup machines are
+// sold at all. Goldenrod mirrors Celadon's setup staples so a player who came
+// up through Johto is never sent back across the map for Swords Dance.
 export const shops: Record<string, ShopDef> = {
   cherrygroveCity: {
     name: "Cherrygrove Mart",
@@ -12,6 +16,7 @@ export const shops: Record<string, ShopDef> = {
     items: [
       { itemId: "pokeball" },
       { itemId: "greatball", unlockWildBattlesWon: 50 },
+      { itemId: "tm73" },
     ],
   },
   azaleaTown: {
@@ -22,6 +27,7 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "ultraball", unlockWildBattlesWon: 150 },
       { itemId: "repel" },
       { itemId: "honey" },
+      { itemId: "tm18" },
     ],
   },
   goldenrodCity: {
@@ -76,6 +82,10 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "dragonfang" },
       { itemId: "blackglasses" },
       { itemId: "silkscarf" },
+      // The setup staples, same as Celadon.
+      { itemId: "tm75" },
+      { itemId: "tm83" },
+      { itemId: "tm04" },
     ],
   },
   ecruteakCity: {
@@ -88,6 +98,8 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "superrepel" },
       { itemId: "honey" },
       { itemId: "spelltag" },
+      // Burned Tower, ghost country.
+      { itemId: "tm61" },
     ],
   },
   olivineCity: {
@@ -101,6 +113,8 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "maxrepel" },
       { itemId: "honey" },
       { itemId: "hardstone" },
+      // Port town on the sand.
+      { itemId: "tm37" },
     ],
   },
   cianwoodCity: {
@@ -113,6 +127,8 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "superrepel" },
       { itemId: "honey" },
       { itemId: "blackbelt" },
+      // Fighting dojo town.
+      { itemId: "tm08" },
     ],
   },
   mahoganyTown: {
@@ -126,6 +142,8 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "maxrepel" },
       { itemId: "honey" },
       { itemId: "nevermeltice" },
+      // Gateway to the Ice gym and the Lake of Rage.
+      { itemId: "tm07" },
     ],
   },
 };

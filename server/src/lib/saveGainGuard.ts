@@ -391,7 +391,15 @@ const RESTRICTED_ITEMS: ReadonlySet<string> = new Set([
   "bigpearl",
   "stardust",
   "starpiece",
-  "hm01", "hm02", "hm03", "hm04", "hm05",
+  // HMs. hm06 (Dive) joined the set when machines became real items — the
+  // catalog used to carry five display-only HMs on Gen 1 numbering (…05 was
+  // Flash); it now carries the six Gen 5 ones, and none of them are sold.
+  //
+  // Note that the ceilings below can never bind on a machine anyway: the
+  // client caps every TM and HM at ONE, because they are reusable and a
+  // second copy does nothing. Any machine key above 1 is already anomalous
+  // by construction, which is a stronger statement than either ceiling.
+  "hm01", "hm02", "hm03", "hm04", "hm05", "hm06",
   "bicycle",
   "oldrod",
   "goodrod",

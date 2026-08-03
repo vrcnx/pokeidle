@@ -298,3 +298,57 @@
   color: var(--gold);
 }
 .use-item-statrow:disabled .use-item-statrow-go { color: #86efac; }
+
+/* ── Teach a machine ────────────────────────────────────────────────
+   The move's numbers, above the list of who could hold it. A player weighing
+   whether to spend one of four slots needs power and accuracy in front of
+   them, and the Bag card that opened this dialog has room for a name and
+   nothing else. */
+.teach-move-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+}
+.teach-move-type {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+}
+.teach-move-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.teach-move-stat em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Right-aligned verb on each row: "Teach" when there's a free slot,
+   "Replace…" when there isn't. The two outcomes are genuinely different, so
+   the button says which one you are about to get. */
+.teach-mon-go {
+  margin-left: auto;
+  padding-left: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.use-item-mon:disabled .teach-mon-go { color: var(--text-dim); }

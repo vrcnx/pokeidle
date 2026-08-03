@@ -433,6 +433,61 @@ export function statLabel(stat: string): string {
 // Execute a single turn. Mutates `player` and `enemy` HP/state, returns the
 // list of events to log/animate. `smartEnemy` makes the enemy pick its best move
 // (used in trainer/boss fights); wild encounters use random selection.
+/**
+ * Move stat stages, and say so.
+ *
+ * Shared by the two places a stat change can come from, which used to be
+ * one: a STATUS move whose whole job is the buff (Swords Dance), and a
+ * DAMAGING move carrying it as a secondary (Psychic's 10% Sp. Def drop,
+ * Overheat's guaranteed Sp. Atk crash). The damaging half had no handler at
+ * all — the effect switch after damage knew about recoil, recharge, status
+ * and confusion, but not this — so a stat change on an attacking move was
+ * silently dropped. That is why the whole `damage-lower` / `damage-raise`
+ * half of the TM list could not be shipped before this existed.
+ *
+ * `chance` is the secondary probability; absent means the change is the
+ * point of the move and always lands.
+ */
+function applyStatChange(
+  eff: { target: "self" | "opponent"; changes: Partial<StatStages>; chance?: number },
+  attacker: BattleSide,
+  defender: BattleSide,
+  player: BattleSide,
+  events: BattleEvent[],
+): void {
+  if (eff.chance !== undefined && Math.random() >= eff.chance) return;
+  const tgt: BattleSide = eff.target === "self" ? attacker : defender;
+  // A fainted target's stages are about to be discarded on switch-out, and
+  // "the fainted Pokémon's Defense fell!" reads as a bug.
+  if (tgt.currentHp <= 0) return;
+  const tgtSide = tgt === player ? "player" : "enemy";
+  tgt.statStages ||= {};
+  for (const [statKey, deltaRaw] of Object.entries(eff.changes)) {
+    const stat = statKey as keyof StatStages;
+    const delta = deltaRaw as number;
+    const cur = tgt.statStages![stat] ?? 0;
+    const next = clampStage(cur + delta);
+    // Already pinned at ±6: report the wall instead of a change that didn't
+    // happen. Otherwise a maxed-out Calm Mind keeps claiming a raise.
+    if (next === cur) {
+      events.push({
+        type: "statChange",
+        message: `${tgt.name}'s ${statLabel(stat)} won't go ${delta > 0 ? "higher" : "lower"}!`,
+        payload: { target: tgtSide },
+      });
+      continue;
+    }
+    tgt.statStages![stat] = next;
+    const verb = delta > 0 ? "rose" : "fell";
+    const adverb = Math.abs(delta) >= 2 ? "sharply " : "";
+    events.push({
+      type: "statChange",
+      message: `${tgt.name}'s ${statLabel(stat)} ${adverb}${verb}!`,
+      payload: { target: tgtSide },
+    });
+  }
+}
+
 export function executeTurn(
   player: BattleSide,
   enemy: BattleSide,
@@ -741,23 +796,7 @@ export function executeTurn(
         continue;
       }
       if (eff?.type === "statChange") {
-        const tgt: BattleSide = eff.target === "self" ? step.attacker : step.defender;
-        const tgtSide = tgt === player ? "player" : "enemy";
-        tgt.statStages ||= {};
-        for (const [statKey, deltaRaw] of Object.entries(eff.changes)) {
-          const stat = statKey as keyof StatStages;
-          const delta = deltaRaw as number;
-          const cur = tgt.statStages![stat] ?? 0;
-          const next = clampStage(cur + delta);
-          tgt.statStages![stat] = next;
-          const verb = delta > 0 ? "rose" : "fell";
-          const adverb = Math.abs(delta) >= 2 ? "sharply " : "";
-          events.push({
-            type: "statChange",
-            message: `${tgt.name}'s ${statLabel(stat)} ${adverb}${verb}!`,
-            payload: { target: tgtSide },
-          });
-        }
+        applyStatChange(eff, step.attacker, step.defender, player, events);
       } else if (eff?.type === "inflictStatus") {
         if (Math.random() < (eff.chance ?? 1)) {
           const tgt: BattleSide = eff.target === "self" ? step.attacker : step.defender;
@@ -1075,6 +1114,13 @@ export function executeTurn(
           }
           break;
         }
+        // A stat change riding on an attacking move — Psychic dropping Sp.
+        // Def, Overheat crashing the user's own Sp. Atk, Charge Beam raising
+        // it. Sheer Force-style suppression isn't modeled, so this fires
+        // whenever the move connected.
+        case "statChange":
+          applyStatChange(eff, step.attacker, step.defender, player, events);
+          break;
         case "recharge":
           step.attacker.mustRecharge = true;
           break;

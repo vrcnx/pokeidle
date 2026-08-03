@@ -13,7 +13,8 @@ import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { openPokemonDetail } from "./PokemonDetailModal";
 import { HubViews } from "./HubModal";
-import { openBottleCap } from "./UseItemModal";
+import { openBottleCap, openTeachMachine } from "./UseItemModal";
+import { isMachineId } from "../utils/machines";
 import { createPortal } from "react-dom";
 import { DexSpeciesModal } from "./DexSpeciesModal";
 import { getItemInfo, itemSpriteSlug } from "../utils/items";
@@ -291,6 +292,7 @@ function MartCard({
   const info = getItemInfo(entry.itemId);
   const need = entry.unlockWildBattlesWon;
   const locked = need !== undefined && wildBattlesWon < need;
+  const isMachine = isMachineId(entry.itemId);
   const maxAffordable = Math.max(0, Math.floor(money / Math.max(1, price)));
 
   // Per-card, and it starts at 1. The first version of this card had no
@@ -338,6 +340,29 @@ function MartCard({
           {t("Unlocks at")} <strong>{need}</strong> {t("wild battles")}
           <span className="dim"> ({wildBattlesWon}/{need})</span>
         </p>
+      ) : isMachine ? (
+        // A machine is REUSABLE, so you want exactly one and the reducer
+        // grants exactly one. Showing the stepper here would let you set 5,
+        // read a total five times the real price, and be charged for one —
+        // the card would be lying about the transaction it is offering.
+        // Owning it removes the offer entirely rather than selling a
+        // duplicate that does nothing.
+        <button
+          type="button"
+          className="mart-buy-btn-v2"
+          disabled={owned > 0 || money < price}
+          onClick={() => onBuy(entry.itemId, 1, info.name)}
+          title={
+            owned > 0
+              ? t("You already have this one — it never wears out")
+              : money < price
+                ? t("You can't afford this")
+                : t("Teaches this move to any compatible Pokemon, as often as you like")
+          }
+        >
+          {owned > 0 ? t("Owned") : t("Buy")}
+          {owned === 0 && <span className="mart-buy-total">${price.toLocaleString()}</span>}
+        </button>
       ) : (
         <>
           {/* Set the amount, THEN buy it. Typeable, because "27 Ultra Balls"
@@ -734,7 +759,8 @@ function BagCard({
   // detail sheet, where a Hyper Training card appears once you own one. The
   // Bag never said so, and the Bag is where you go holding the item.
   const isCap = itemId === "goldbottlecap" || itemId === "silverbottlecap";
-  const useHere = itemId === "expShare" || isCap;
+  const isMachine = isMachineId(itemId);
+  const useHere = itemId === "expShare" || isCap || isMachine;
   const useHint = useHere
     ? null
     : usedFromWildPanel
@@ -795,7 +821,12 @@ function BagCard({
             row read as staggered even though the cards were the same
             height. It is a note above the action now, and a card with no
             action at all gets an inert plate the same size in its place. */}
-        {!canSell && useHere && <p className="mart-card-note">{t("Can't be sold")}</p>}
+        {!canSell && useHere && (
+          // A machine isn't consumed, so "Can't be sold" is the least useful
+          // true thing we could say about it. The thing worth knowing is that
+          // teaching it costs nothing.
+          <p className="mart-card-note">{isMachine ? t("Never used up") : t("Can't be sold")}</p>
+        )}
 
         {canSell && (
           <div className="mart-qty">
@@ -847,6 +878,10 @@ function BagCard({
             type="button"
             className="mart-buy-btn-v2 bag-use-v2"
             onClick={() => {
+              if (isMachine) {
+                openTeachMachine(itemId);
+                return;
+              }
               if (isCap) {
                 openBottleCap(itemId as "goldbottlecap" | "silverbottlecap");
                 return;
@@ -854,11 +889,13 @@ function BagCard({
               dispatch({ type: "USE_EXP_SHARE" });
               pushToast({ kind: "success", icon: "✓", text: "Exp. Share activated" });
             }}
-            title={isCap
-              ? t("Choose which Pokemon to Hyper Train")
-              : t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
+            title={isMachine
+              ? t("Choose which Pokemon learns this move")
+              : isCap
+                ? t("Choose which Pokemon to Hyper Train")
+                : t("Shares 25% EXP with every non-fainted party member for 300 battles.")}
           >
-            {isCap ? t("Use on...") : t("Use")}
+            {isMachine ? t("Teach...") : isCap ? t("Use on...") : t("Use")}
           </button>
         )}
 

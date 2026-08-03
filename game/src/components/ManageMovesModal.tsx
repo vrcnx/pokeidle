@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Pokemon, PokemonType } from "../types";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
-import { learnableMovesUpToLevel, type LearnedMove } from "../utils/moves";
+import { availableMovesFor, type AvailableMove } from "../utils/moves";
+import { machinesForSpecies } from "../utils/machines";
 import { useDragAndDrop } from "../hooks/useDrag";
 import { useModalEnter } from "../utils/animate";
 import { pokemonTable } from "../data/pokemon";
@@ -53,10 +54,23 @@ export function ManageMovesModal() {
     setDraft(pokemon ? pokemon.moves.map((m) => m.id) : []);
   }, [target, pokemon?.id]);
 
-  const learnable = useMemo<LearnedMove[]>(() => {
+  // Level-up moves AND the moves of every machine the player owns that this
+  // species can learn. Recomputed when the inventory changes, so finding a TM
+  // mid-session makes its move appear here without a reload.
+  const learnable = useMemo<AvailableMove[]>(() => {
     if (!pokemon) return [];
-    return learnableMovesUpToLevel(pokemon.speciesKey, pokemon.level);
-  }, [pokemon?.speciesKey, pokemon?.level]);
+    return availableMovesFor(pokemon.speciesKey, pokemon.level, state.inventory);
+  }, [pokemon?.speciesKey, pokemon?.level, state.inventory]);
+
+  // The other half of the compatibility picture: what this species can learn
+  // that the player hasn't found yet. Computed here rather than in the
+  // presentational half so the dialog stays a pure function of its props.
+  const missingMachines = useMemo(() => {
+    if (!pokemon) return [];
+    return machinesForSpecies(pokemon.speciesKey)
+      .filter((m) => (state.inventory[m.id] ?? 0) <= 0)
+      .map((m) => ({ id: m.id, label: m.label, moveName: m.moveName }));
+  }, [pokemon?.speciesKey, state.inventory]);
 
   if (!target || !pokemon) return null;
 
@@ -191,17 +205,21 @@ export function ManageMovesModal() {
         reset={reset}
         optimize={optimize}
         hasChanges={hasChanges}
+        missingMachines={missingMachines}
       />
     </div>
   );
 }
 
+type PoolFilter = "all" | "level" | "machine";
+
 function ManageMovesDialog({
   pokemon, draft, learnable, toggleMove, reorderInDraft, dropOnSlot, confirm, reset, optimize, hasChanges,
+  missingMachines,
 }: {
   pokemon: Pokemon;
   draft: string[];
-  learnable: LearnedMove[];
+  learnable: AvailableMove[];
   toggleMove: (id: string) => void;
   reorderInDraft: (slot: number, dir: -1 | 1) => void;
   dropOnSlot: (slot: number, payload: { from: "slot" | "pool"; moveId: string }) => void;
@@ -209,17 +227,30 @@ function ManageMovesDialog({
   reset: () => void;
   optimize: () => void;
   hasChanges: boolean;
+  /** Machines this species can learn that the player hasn't found yet. */
+  missingMachines: { id: string; label: string; moveName: string }[];
 }) {
   const dialogRef = useModalEnter();
   const t = useT();
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<PoolFilter>("all");
+
+  const machineCount = learnable.filter((m) => m.source === "machine").length;
+  const levelCount = learnable.length - machineCount;
+
   // Name search only. Filtering by type or power sounds useful and is not:
   // the question at this dialog is "where is the move I already have in
   // mind", and that is a name.
+  //
+  // The SOURCE filter is different, and earns its place: with machines in the
+  // pool the list roughly doubles, and "show me only what my TMs give me" is
+  // the question a player has right after finding one.
   const needle = q.trim().toLowerCase();
-  const shown = needle
-    ? learnable.filter((lm) => (movesTable[lm.moveId]?.name ?? lm.moveId).toLowerCase().includes(needle))
-    : learnable;
+  const shown = learnable.filter((lm) => {
+    if (filter !== "all" && lm.source !== filter) return false;
+    if (!needle) return true;
+    return (movesTable[lm.moveId]?.name ?? lm.moveId).toLowerCase().includes(needle);
+  });
   return (
     <div ref={dialogRef} className="g-modal manage-moves-modal-v2" onClick={(e) => e.stopPropagation()}>
       <header className="g-modal-head">
@@ -250,36 +281,87 @@ function ManageMovesDialog({
             onChange={(e) => setQ(e.target.value)}
             aria-label={t("Search available moves")}
           />
+          {/* Source filter. Only worth showing when there is a second source
+              to filter TO — a player with no compatible TM sees the dialog
+              they always saw. */}
+          {machineCount > 0 && (
+            <div className="manage-source-filter" role="group" aria-label={t("Filter by how the move is learned")}>
+              {([
+                ["all", t("All"), learnable.length],
+                ["level", t("Level-up"), levelCount],
+                ["machine", t("TM/HM"), machineCount],
+              ] as const).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  className={`manage-source-tab${filter === key ? " is-active" : ""}`}
+                  aria-pressed={filter === key}
+                  onClick={() => setFilter(key as PoolFilter)}
+                >
+                  {label} <span className="dim">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <ul className="manage-available">
             {learnable.length === 0 && (
               <li className="g-help">{t("No moves learned yet.")}</li>
             )}
             {learnable.length > 0 && shown.length === 0 && (
-              <li className="g-help">{t("No move by that name.")}</li>
+              <li className="g-help">{t("Nothing matches.")}</li>
             )}
             {shown.map((lm) => {
               const def = movesTable[lm.moveId];
               if (!def) return null;
               const equipped = draft.includes(lm.moveId);
+              const fromMachine = lm.source === "machine";
               return (
                 <AvailableMove
                   key={lm.moveId}
                   moveId={lm.moveId}
-                  className={equipped ? "equipped" : ""}
+                  className={`${equipped ? "equipped" : ""}${fromMachine ? " from-machine" : ""}`}
                   style={{ background: TYPE_COLOR[def.type] + (equipped ? "ff" : "55") }}
                   onClick={() => toggleMove(lm.moveId)}
-                  title={equipped ? undefined : "Click to add, or drag onto a slot to place it"}
+                  title={
+                    equipped
+                      ? undefined
+                      : fromMachine
+                        ? `Taught by ${lm.machineLabel}. Click to add, or drag onto a slot.`
+                        : "Click to add, or drag onto a slot to place it"
+                  }
                 >
                   <span className="ma-cat">{CATEGORY_ICON[def.category]}</span>
                   <span className="ma-name">{def.name}</span>
                   <span className="ma-stats">
-                    {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}{t("% · Lv.")}{lm.learnLevel}
+                    {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}
+                    {/* Where it came from, in the space that used to always
+                        say "Lv." — a machine move has no learn level, and
+                        printing "Lv.undefined" is what it did before. */}
+                    {fromMachine ? `% · ${lm.machineLabel}` : `% · Lv.${lm.learnLevel}`}
                   </span>
                   <span className="ma-action">{equipped ? "✓" : "+"}</span>
                 </AvailableMove>
               );
             })}
           </ul>
+          {/* What this Pokémon COULD learn if you found the machine. Without
+              it, a species' TM pool is invisible until you happen to own the
+              right disc — which is exactly the information that makes a route
+              drop worth going after. */}
+          {missingMachines.length > 0 && (
+            <details className="manage-missing">
+              <summary>
+                {t("Needs a machine you don't have")}{" "}
+                <span className="dim">{missingMachines.length}</span>
+              </summary>
+              <ul>
+                {missingMachines.map((m) => (
+                  <li key={m.id}>
+                    <strong>{m.label}</strong> {m.moveName}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
 
         <section className="g-card manage-current-card">

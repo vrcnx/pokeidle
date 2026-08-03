@@ -69,7 +69,11 @@ export interface WeatherState {
 }
 
 export type MoveEffect =
-  | { type: "statChange"; target: "self" | "opponent"; changes: Partial<StatStages> }
+  // `chance` is the SECONDARY-effect probability (0-1) for a stat change
+  // riding on a damaging move — Psychic's 10% Sp. Def drop, Charge Beam's
+  // 70% Sp. Atk raise. Absent means "always", which is what every status
+  // move that exists to change stats (Swords Dance, Calm Mind) wants.
+  | { type: "statChange"; target: "self" | "opponent"; changes: Partial<StatStages>; chance?: number }
   // `ofMaxHp` switches the recoil base from "damage dealt" (Double-Edge,
   // Take Down) to "the user's own max HP" (Struggle).
   | { type: "recoil"; fraction: number; ofMaxHp?: boolean }

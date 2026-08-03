@@ -7,6 +7,10 @@ import { PokemonSprite } from "./Sprite";
 import { useModalEnter } from "../utils/animate";
 import { pushToast } from "./Toast";
 import { useT } from "../i18n/useT";
+import { machines, canTeachMachine, describeMachine } from "../utils/machines";
+import { moves as movesTable } from "../data/moves";
+import { openManageMoves } from "./ManageMovesModal";
+import { displayName } from "../utils/pokemon";
 import type { Pokemon } from "../types";
 import "./useItem.css";
 
@@ -31,7 +35,8 @@ import "./useItem.css";
 
 type Request =
   | { kind: "held"; pokemonId: string }
-  | { kind: "cap"; itemId: "goldbottlecap" | "silverbottlecap" };
+  | { kind: "cap"; itemId: "goldbottlecap" | "silverbottlecap" }
+  | { kind: "machine"; machineId: string };
 
 let _req: Request | null = null;
 const _listeners = new Set<(r: Request | null) => void>();
@@ -48,6 +53,10 @@ export function openHeldItemPicker(pokemonId: string) {
 export function openBottleCap(itemId: "goldbottlecap" | "silverbottlecap") {
   publish({ kind: "cap", itemId });
 }
+/** Choose which Pokémon to teach a TM or HM to. */
+export function openTeachMachine(machineId: string) {
+  publish({ kind: "machine", machineId });
+}
 export function closeUseItem() { publish(null); }
 
 export function UseItemMount() {
@@ -58,9 +67,9 @@ export function UseItemMount() {
     return () => { _listeners.delete(setReq); };
   }, []);
   if (!req) return null;
-  return req.kind === "held"
-    ? <HeldItemDialog pokemonId={req.pokemonId} />
-    : <BottleCapDialog itemId={req.itemId} />;
+  if (req.kind === "held") return <HeldItemDialog pokemonId={req.pokemonId} />;
+  if (req.kind === "machine") return <TeachMachineDialog machineId={req.machineId} />;
+  return <BottleCapDialog itemId={req.itemId} />;
 }
 
 // ── Shell ───────────────────────────────────────────────────────────
@@ -409,5 +418,121 @@ function StatStep({
         })}
       </ul>
     </div>
+  );
+}
+
+// ── TEACH A MACHINE ─────────────────────────────────────────────────
+//
+// The Bag is where you are standing when you have a TM and a question, so
+// this is where the question gets answered: who can learn this, and what
+// happens if I say yes.
+//
+// Two outcomes, and the difference is the whole design. A Pokémon with a free
+// slot is taught here, in one click — there is nothing to decide, and sending
+// it through a move manager to drag one item into an empty box would be
+// ceremony for its own sake. A Pokémon with four moves has a real decision to
+// make, so it hands off to Manage Moves, which already does exactly that job
+// with drag, search and a preview. Building a second, worse version of that
+// screen inside this dialog was the obvious wrong turn.
+//
+// Party only, like the stone and Link Cable pickers before it. Manage Moves
+// addresses its target by party index, so a box Pokémon has nowhere to hand
+// off to — and the dialog says so rather than leaving you to wonder.
+function TeachMachineDialog({ machineId }: { machineId: string }) {
+  const { state, dispatch } = useGame();
+  const t = useT();
+  const m = machines[machineId];
+  const def = m ? movesTable[m.moveId] : undefined;
+  if (!m || !def) return null;
+
+  function teach(mon: Pokemon) {
+    // Free slot: straight in, at the end, leaving the existing order alone.
+    dispatch({
+      type: "SET_MOVES",
+      payload: { pokemonId: mon.id, moveIds: [...mon.moves.map((mv) => mv.id), m.moveId] },
+    });
+    pushToast({ kind: "success", icon: "💿", text: `${displayName(mon)} learned ${m.moveName}!` });
+    closeUseItem();
+  }
+
+  function handOff(index: number) {
+    closeUseItem();
+    openManageMoves({ type: "party", index });
+  }
+
+  const anyEligible = state.party.some((p) => canTeachMachine(p, machineId, state.inventory).ok);
+
+  return (
+    <Shell title={`${m.label} ${m.moveName}`} sub={describeMachine(machineId)}>
+      {/* The move itself, before the list of who could hold it. A player
+          deciding whether to spend a slot on this needs the numbers, and the
+          Bag card only had room for a name. */}
+      <div className="teach-move-card">
+        <span className={`teach-move-type type-${def.type.toLowerCase()}`}>{def.type}</span>
+        <span className="teach-move-stat">
+          <em>{def.power || "—"}</em>{t("power")}
+        </span>
+        <span className="teach-move-stat">
+          <em>{def.accuracy}%</em>{t("accuracy")}
+        </span>
+        <span className="teach-move-stat">
+          <em>{def.pp}</em>{t("PP")}
+        </span>
+        <span className="teach-move-stat">
+          <em>{def.category}</em>{t("class")}
+        </span>
+      </div>
+
+      <ul className="use-item-mons">
+        {state.party.map((p, index) => {
+          const check = canTeachMachine(p, machineId, state.inventory);
+          const full = p.moves.length >= 4;
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                className="use-item-mon"
+                disabled={!check.ok}
+                title={check.ok ? undefined : check.reason}
+                onClick={() => (full ? handOff(index) : teach(p))}
+              >
+                <PokemonSprite
+                  speciesKey={p.speciesKey}
+                  isShiny={!!p.isShiny}
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <span className="use-item-mon-text">
+                  <strong>{displayName(p)}</strong>
+                  <span className="use-item-mon-meta">
+                    {/* Why not, when not — the reason travels with the row
+                        instead of hiding in a hover the way "no effect" used
+                        to on the stone picker. */}
+                    {check.ok
+                      ? full
+                        ? t("Knows 4 moves — pick one to replace")
+                        : t("Has a free slot")
+                      : check.reason}
+                  </span>
+                </span>
+                <span className="teach-mon-go">
+                  {check.ok ? (full ? t("Replace…") : t("Teach")) : "—"}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {!anyEligible && (
+        <p className="use-item-empty">
+          {state.box.some((p) => p && canTeachMachine(p, machineId, state.inventory).ok)
+            ? t("A Pokémon in your PC can learn this — move it to your party first.")
+            : t("None of your party can learn this move.")}
+        </p>
+      )}
+    </Shell>
   );
 }

@@ -1,0 +1,406 @@
+[
+  {
+    "id": "tm01",
+    "move": "hone-claws"
+  },
+  {
+    "id": "tm02",
+    "move": "dragon-claw"
+  },
+  {
+    "id": "tm03",
+    "move": "psyshock"
+  },
+  {
+    "id": "tm04",
+    "move": "calm-mind"
+  },
+  {
+    "id": "tm05",
+    "move": "roar"
+  },
+  {
+    "id": "tm06",
+    "move": "toxic"
+  },
+  {
+    "id": "tm07",
+    "move": "hail"
+  },
+  {
+    "id": "tm08",
+    "move": "bulk-up"
+  },
+  {
+    "id": "tm09",
+    "move": "venoshock"
+  },
+  {
+    "id": "tm10",
+    "move": "hidden-power"
+  },
+  {
+    "id": "tm11",
+    "move": "sunny-day"
+  },
+  {
+    "id": "tm12",
+    "move": "taunt"
+  },
+  {
+    "id": "tm13",
+    "move": "ice-beam"
+  },
+  {
+    "id": "tm14",
+    "move": "blizzard"
+  },
+  {
+    "id": "tm15",
+    "move": "hyper-beam"
+  },
+  {
+    "id": "tm16",
+    "move": "light-screen"
+  },
+  {
+    "id": "tm17",
+    "move": "protect"
+  },
+  {
+    "id": "tm18",
+    "move": "rain-dance"
+  },
+  {
+    "id": "tm19",
+    "move": "telekinesis"
+  },
+  {
+    "id": "tm20",
+    "move": "safeguard"
+  },
+  {
+    "id": "tm21",
+    "move": "frustration"
+  },
+  {
+    "id": "tm22",
+    "move": "solar-beam"
+  },
+  {
+    "id": "tm23",
+    "move": "smack-down"
+  },
+  {
+    "id": "tm24",
+    "move": "thunderbolt"
+  },
+  {
+    "id": "tm25",
+    "move": "thunder"
+  },
+  {
+    "id": "tm26",
+    "move": "earthquake"
+  },
+  {
+    "id": "tm27",
+    "move": "return"
+  },
+  {
+    "id": "tm28",
+    "move": "dig"
+  },
+  {
+    "id": "tm29",
+    "move": "psychic"
+  },
+  {
+    "id": "tm30",
+    "move": "shadow-ball"
+  },
+  {
+    "id": "tm31",
+    "move": "brick-break"
+  },
+  {
+    "id": "tm32",
+    "move": "double-team"
+  },
+  {
+    "id": "tm33",
+    "move": "reflect"
+  },
+  {
+    "id": "tm34",
+    "move": "sludge-wave"
+  },
+  {
+    "id": "tm35",
+    "move": "flamethrower"
+  },
+  {
+    "id": "tm36",
+    "move": "sludge-bomb"
+  },
+  {
+    "id": "tm37",
+    "move": "sandstorm"
+  },
+  {
+    "id": "tm38",
+    "move": "fire-blast"
+  },
+  {
+    "id": "tm39",
+    "move": "rock-tomb"
+  },
+  {
+    "id": "tm40",
+    "move": "aerial-ace"
+  },
+  {
+    "id": "tm41",
+    "move": "torment"
+  },
+  {
+    "id": "tm42",
+    "move": "facade"
+  },
+  {
+    "id": "tm43",
+    "move": "flame-charge"
+  },
+  {
+    "id": "tm44",
+    "move": "rest"
+  },
+  {
+    "id": "tm45",
+    "move": "attract"
+  },
+  {
+    "id": "tm46",
+    "move": "thief"
+  },
+  {
+    "id": "tm47",
+    "move": "low-sweep"
+  },
+  {
+    "id": "tm48",
+    "move": "round"
+  },
+  {
+    "id": "tm49",
+    "move": "echoed-voice"
+  },
+  {
+    "id": "tm50",
+    "move": "overheat"
+  },
+  {
+    "id": "tm51",
+    "move": "ally-switch"
+  },
+  {
+    "id": "tm52",
+    "move": "focus-blast"
+  },
+  {
+    "id": "tm53",
+    "move": "energy-ball"
+  },
+  {
+    "id": "tm54",
+    "move": "false-swipe"
+  },
+  {
+    "id": "tm55",
+    "move": "scald"
+  },
+  {
+    "id": "tm56",
+    "move": "fling"
+  },
+  {
+    "id": "tm57",
+    "move": "charge-beam"
+  },
+  {
+    "id": "tm58",
+    "move": "sky-drop"
+  },
+  {
+    "id": "tm59",
+    "move": "incinerate"
+  },
+  {
+    "id": "tm60",
+    "move": "quash"
+  },
+  {
+    "id": "tm61",
+    "move": "will-o-wisp"
+  },
+  {
+    "id": "tm62",
+    "move": "acrobatics"
+  },
+  {
+    "id": "tm63",
+    "move": "embargo"
+  },
+  {
+    "id": "tm64",
+    "move": "explosion"
+  },
+  {
+    "id": "tm65",
+    "move": "shadow-claw"
+  },
+  {
+    "id": "tm66",
+    "move": "payback"
+  },
+  {
+    "id": "tm67",
+    "move": "retaliate"
+  },
+  {
+    "id": "tm68",
+    "move": "giga-impact"
+  },
+  {
+    "id": "tm69",
+    "move": "rock-polish"
+  },
+  {
+    "id": "tm70",
+    "move": "flash"
+  },
+  {
+    "id": "tm71",
+    "move": "stone-edge"
+  },
+  {
+    "id": "tm72",
+    "move": "volt-switch"
+  },
+  {
+    "id": "tm73",
+    "move": "thunder-wave"
+  },
+  {
+    "id": "tm74",
+    "move": "gyro-ball"
+  },
+  {
+    "id": "tm75",
+    "move": "swords-dance"
+  },
+  {
+    "id": "tm76",
+    "move": "struggle-bug"
+  },
+  {
+    "id": "tm77",
+    "move": "psych-up"
+  },
+  {
+    "id": "tm78",
+    "move": "bulldoze"
+  },
+  {
+    "id": "tm79",
+    "move": "frost-breath"
+  },
+  {
+    "id": "tm80",
+    "move": "rock-slide"
+  },
+  {
+    "id": "tm81",
+    "move": "x-scissor"
+  },
+  {
+    "id": "tm82",
+    "move": "dragon-tail"
+  },
+  {
+    "id": "tm83",
+    "move": "work-up"
+  },
+  {
+    "id": "tm84",
+    "move": "poison-jab"
+  },
+  {
+    "id": "tm85",
+    "move": "dream-eater"
+  },
+  {
+    "id": "tm86",
+    "move": "grass-knot"
+  },
+  {
+    "id": "tm87",
+    "move": "swagger"
+  },
+  {
+    "id": "tm88",
+    "move": "pluck"
+  },
+  {
+    "id": "tm89",
+    "move": "u-turn"
+  },
+  {
+    "id": "tm90",
+    "move": "substitute"
+  },
+  {
+    "id": "tm91",
+    "move": "flash-cannon"
+  },
+  {
+    "id": "tm92",
+    "move": "trick-room"
+  },
+  {
+    "id": "tm93",
+    "move": "wild-charge"
+  },
+  {
+    "id": "tm94",
+    "move": "rock-smash"
+  },
+  {
+    "id": "tm95",
+    "move": "snarl"
+  },
+  {
+    "id": "hm01",
+    "move": "cut"
+  },
+  {
+    "id": "hm02",
+    "move": "fly"
+  },
+  {
+    "id": "hm03",
+    "move": "surf"
+  },
+  {
+    "id": "hm04",
+    "move": "strength"
+  },
+  {
+    "id": "hm05",
+    "move": "waterfall"
+  },
+  {
+    "id": "hm06",
+    "move": "dive"
+  }
+]

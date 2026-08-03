@@ -1,3 +1,6 @@
+import { machineList } from "./tms";
+import { describeMachine } from "../utils/machines";
+
 // Unified item catalog. Aggregates the existing pokeballs/consumables/stones
 // data with all the missing Gen 1 items so the Bag and Mart can show a
 // proper inventory. Items flagged `implemented: false` show in the catalog
@@ -151,13 +154,6 @@ const items: CatalogItem[] = [
   { id: "maxrepel",   name: "Max Repel",   description: "Halves a wild Pokémon's encounter weight on the current route for 2,000 battles.", category: "utility", buyPrice: 700, sellPrice: 350, spriteOverride: "max-repel", implemented: true },
   { id: "honey",      name: "Honey",       description: "Doubles a wild Pokémon's encounter weight on the current route for 500 battles.", category: "utility", buyPrice: 100, sellPrice: 50, implemented: true },
 
-  // ── HMs (display-only) ───────────────────────────────────────────────────
-  { id: "hm01",  name: "HM01 Cut",        description: "Slashes through obstacles. (Catalog only)", category: "hm", buyPrice: null, sellPrice: 0 },
-  { id: "hm02",  name: "HM02 Fly",        description: "Returns the user to the last Poké Center visited. (Catalog only)", category: "hm", buyPrice: null, sellPrice: 0 },
-  { id: "hm03",  name: "HM03 Surf",       description: "Travel across water. (Catalog only)", category: "hm", buyPrice: null, sellPrice: 0 },
-  { id: "hm04",  name: "HM04 Strength",   description: "Move heavy boulders. (Catalog only)", category: "hm", buyPrice: null, sellPrice: 0 },
-  { id: "hm05",  name: "HM05 Flash",      description: "Lights up dark caves. (Catalog only)", category: "hm", buyPrice: null, sellPrice: 0 },
-
   // ── Key items (display-only) ─────────────────────────────────────────────
   { id: "bicycle",     name: "Bicycle",     description: "A folding bicycle. (Catalog only)", category: "key", buyPrice: null, sellPrice: 0 },
   { id: "oldrod",      name: "Old Rod",     description: "An old, worn fishing rod. (Catalog only)", category: "key", buyPrice: null, sellPrice: 0, spriteOverride: "old-rod" },
@@ -167,17 +163,30 @@ const items: CatalogItem[] = [
   { id: "pokeflute",   name: "Poké Flute",  description: "Wakes Pokémon from sleep. (Catalog only)", category: "key", buyPrice: null, sellPrice: 0, spriteOverride: "poke-flute" },
 ];
 
-// TMs (50). Stored separately so they don't bloat the main list visually.
-for (let i = 1; i <= 50; i++) {
-  const id = `tm${String(i).padStart(2, "0")}`;
+// ── Machines (TM/HM) ───────────────────────────────────────────────────────
+// Built from data/tms.ts rather than typed out, so the catalog and the thing
+// that actually teaches the move can never disagree about which TM is which.
+//
+// This replaces fifty placeholder entries reading "(Catalog only)" — TM01
+// through TM50 with no move attached, no way to obtain one and no effect if
+// you did. The numbering is canonical Gen 5 and therefore has gaps, because
+// the machines whose moves this engine can't run were left out (see
+// scripts/gen-tms.mjs for the reason on each). The gaps are invisible in
+// play: the Bag lists what you own, and you can only own these.
+//
+// The disc sprite is coloured by the move's type, which is the fastest way to
+// read a Bag full of them — you spot the Electric one before reading a word.
+for (const m of machineList) {
   items.push({
-    id,
-    name: `TM${String(i).padStart(2, "0")}`,
-    description: "A Technical Machine that teaches a move to a compatible Pokémon. (Catalog only)",
-    category: "tm",
-    buyPrice: null,
+    id: m.id,
+    name: `${m.label} ${m.moveName}`,
+    description: describeMachine(m.id),
+    category: m.kind,
+    buyPrice: m.price,
+    // Reusable and one-per-player, so there is no such thing as a spare to
+    // sell. Selling one would also be a trap: it is the only copy you have.
     sellPrice: 0,
-    spriteOverride: `tm-normal`,
+    spriteOverride: `${m.kind}-${m.moveType.toLowerCase()}`,
   });
 }
 

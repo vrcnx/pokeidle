@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.5";
+export const CURRENT_VERSION = "0.9.6";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,39 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.6",
+      subtitle: "TMs — 59 machines, and a moveset that's finally a decision",
+      date: "2026-08-02",
+      sections: [
+        {
+          heading: "💿 TMs and HMs are in",
+          items: [
+            "53 TMs and 6 HMs, taken from the Gen 5 machine list. Each teaches a specific move, and each species can only learn the machines it learns in the real games — Magikarp gets nothing, Mew gets almost everything, and your Snorlax can hold Thunderbolt while your Charizard can't",
+            "They are REUSABLE. Teaching never uses one up, so the hard part is finding the machine, not rationing it. You only ever need one of each, and the Mart won't sell you a second",
+            "Every machine you own appears in Manage Moves alongside the level-up pool, tagged with the TM that taught it. There's a level-up / TM filter once you own enough to need one",
+            "Each Pokémon's move screen also lists what it COULD learn from a machine you haven't found yet — so a TM is worth going after before you own it",
+            "Teach straight from the Bag: pick the TM, pick the Pokémon. A free slot learns it in one click; a full moveset hands you the move manager to choose what goes",
+          ],
+        },
+        {
+          heading: "🗺️ Where they come from",
+          items: [
+            "MARTS sell the setup toolkit — Swords Dance, Calm Mind, Toxic, Thunder Wave, Will-O-Wisp, the weather moves — and each town stocks what it is known for. Thunder Wave in Vermilion, Toxic in Fuchsia, Will-O-Wisp under the ghost tower in Lavender. The department stores carry the staples",
+            "ROUTES hide the attacking TMs. Every route drops exactly one machine and nothing else drops it — 36 across Kanto and Johto, weaker moves early, Ice Beam and Earthquake deep in. Clear wild battles there and it will turn up",
+            "RAIDS pay out what nothing sells: all six HMs plus the heaviest TMs — Hyper Beam, Giga Impact, Solar Beam, Overheat, Explosion",
+          ],
+        },
+        {
+          heading: "⚙️ Under the hood",
+          items: [
+            "Attacking moves can change stats now. The engine handled stat changes only on status moves — one attached to an attack was read and thrown away — so Psychic never dropped Sp. Def, Shadow Ball never dropped it either, and Overheat never crashed its user's Sp. Atk. All of them do now, and it is why Charge Beam, Bulldoze and Flash Cannon could ship at all",
+            "Movesets are checked when you save them. Rearranging what a Pokémon already knows is untouched, but a move now has to come from somewhere: its level-up list, or a machine you actually hold",
+            "42 of the 101 Gen 5 machines were deliberately left out. Protect, Substitute, Light Screen, Reflect, Rest, U-turn and the rest need battle mechanics this game does not have, and a TM that does nothing is worse than one that is not there",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.5",
       subtitle: "PvP is a real battle now, and a pile of things that quietly did nothing",

@@ -24,7 +24,15 @@ import {
   evYieldFor, applyEvYield, describeEvGain, evTotal, MAX_EV_TOTAL,
 } from "../data/evYields";
 import { normalizeNickname } from "../utils/nickname";
-import { levelUpsForExp } from "../utils/moves";
+import { levelUpsForExp, learnableMovesUpToLevel } from "../utils/moves";
+import { ownedMachinesForSpecies, isMachineId, machines } from "../utils/machines";
+import {
+  routeMachineDrop,
+  raidMachines,
+  ROUTE_MACHINE_DROP_CHANCE,
+  RAID_MACHINE_DROP_CHANCE,
+} from "../data/machineSources";
+import { displayName } from "../utils/pokemon";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
 import { rollCatch } from "../utils/catching";
@@ -456,6 +464,44 @@ function applyCatchExp(next: GameState, enemy: Pokemon): GameState {
   return pushLog(afterExp, ...logs, `${afterExp.playerPokemon?.name ?? "Your Pokémon"} gained ${exp} EXP!`);
 }
 
+/**
+ * The machine a route hides, if this was the battle that turned it up.
+ *
+ * Rolls only when the player doesn't already own it, so the chance is a
+ * chance of FINDING it rather than a chance of a wasted roll: a machine is
+ * reusable and one-per-player, and a player who has TM24 gains nothing from
+ * a second. That also means the expected number of battles to the find is
+ * exactly 1/chance, with no silent tax for owning things.
+ */
+function maybeRouteMachineDrop(next: GameState): GameState {
+  const machineId = routeMachineDrop[next.currentLocation];
+  if (!machineId) return next;
+  if ((next.inventory[machineId] ?? 0) > 0) return next;
+  if (Math.random() >= ROUTE_MACHINE_DROP_CHANCE) return next;
+  const m = machines[machineId];
+  return pushLog(
+    { ...next, inventory: { ...next.inventory, [machineId]: 1 } },
+    `💿 Found ${m.label} ${m.moveName} on ${routes[next.currentLocation]?.name ?? "this route"}!`,
+  );
+}
+
+/**
+ * Raids pay out the machines nothing else sells — the six HMs and the five
+ * heaviest TMs. Picks from what the player is MISSING, so a raider who has
+ * eleven of eleven stops rolling instead of being told "no drop" forever.
+ */
+function maybeRaidMachineDrop(next: GameState, wasInRaid: boolean): GameState {
+  if (!wasInRaid) return next;
+  const missing = raidMachines.filter((m) => (next.inventory[m.id] ?? 0) <= 0);
+  if (missing.length === 0) return next;
+  if (Math.random() >= RAID_MACHINE_DROP_CHANCE) return next;
+  const m = missing[Math.floor(Math.random() * missing.length)];
+  return pushLog(
+    { ...next, inventory: { ...next.inventory, [m.id]: 1 } },
+    `💿 The raid yielded ${m.label} ${m.moveName}!`,
+  );
+}
+
 function maybeRaidBottleCapDrop(next: GameState, wasInRaid: boolean): GameState {
   if (!wasInRaid) return next;
   const r = Math.random();
@@ -567,6 +613,11 @@ function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean)
   };
   next = pushLog(next, `Gotcha! ${caught.name} was caught!`);
   next = maybeRaidBottleCapDrop(next, wasInRaid);
+  next = maybeRaidMachineDrop(next, wasInRaid);
+  // A catch clears the encounter the same way a knockout does, so it earns
+  // the route's drop roll too. Catching used to cost you progress in exactly
+  // this way once before (see applyCatchExp) — not repeating that.
+  if (!wasInRaid) next = maybeRouteMachineDrop(next);
   next = applyCatchExp(next, enemy);
   next = {
     ...next,
@@ -810,19 +861,64 @@ export function reducer(state: GameState, action: Action): GameState {
       return pushLog(state, action.payload.text);
 
     case "SET_MOVES": {
+      // ── The moveset is now CHECKED, because it now means something ───────
+      // This used to write whatever ids it was handed. That was harmless
+      // while every source of moves was the level-up table the dialog itself
+      // read from — the UI was the only gate and nothing else needed one.
+      //
+      // TMs change that: "can this Pokémon have Thunderbolt" becomes a
+      // question about what the player OWNS and what the species can learn,
+      // and a rule enforced only by the screen that offers it is not a rule.
+      //
+      // Three things are legal, and the third is why this can't just be a
+      // learnable-set check: moves it already knows are always kept. A
+      // Pokémon traded or won at auction arrives with its own moveset, and a
+      // strict check would quietly delete moves the receiving player never
+      // chose. Keeping them costs nothing — they were legal for whoever
+      // taught them — and dropping them would be the kind of silent data loss
+      // that is very hard to notice and impossible to undo.
+      const { pokemonId, moveIds } = action.payload;
+      const owner =
+        state.party.find((p) => p.id === pokemonId) ??
+        state.box.find((p) => p.id === pokemonId) ??
+        (state.playerPokemon?.id === pokemonId ? state.playerPokemon : undefined);
+      if (!owner) return state;
+
+      const legal = new Set<string>(owner.moves.map((m) => m.id));
+      for (const lm of learnableMovesUpToLevel(owner.speciesKey, owner.level)) {
+        legal.add(lm.moveId);
+      }
+      for (const m of ownedMachinesForSpecies(owner.speciesKey, state.inventory)) {
+        legal.add(m.moveId);
+      }
+
+      const accepted: string[] = [];
+      const refused: string[] = [];
+      for (const id of moveIds) {
+        if (accepted.includes(id)) continue; // no duplicate slots
+        (legal.has(id) ? accepted : refused).push(id);
+      }
+      if (accepted.length === 0) return state; // never leave it moveless
+
+      const next = accepted.slice(0, 4).map(toMove);
       const updateMoves = (p: Pokemon) =>
-        p.id === action.payload.pokemonId
-          ? { ...p, moves: action.payload.moveIds.map(toMove) }
-          : p;
-      return syncPlayerToParty({
+        p.id === pokemonId ? { ...p, moves: next } : p;
+      const updated = syncPlayerToParty({
         ...state,
         playerPokemon:
-          state.playerPokemon && state.playerPokemon.id === action.payload.pokemonId
-            ? { ...state.playerPokemon, moves: action.payload.moveIds.map(toMove) }
+          state.playerPokemon && state.playerPokemon.id === pokemonId
+            ? { ...state.playerPokemon, moves: next }
             : state.playerPokemon,
         party: state.party.map(updateMoves),
         box: state.box.map(updateMoves),
       });
+      if (refused.length === 0) return updated;
+      return pushLog(
+        updated,
+        `${displayName(owner)} can't learn ${refused
+          .map((id) => movesTable[id]?.name ?? id)
+          .join(", ")} — you need the right TM.`,
+      );
     }
 
     case "CATCH_POKEMON": {
@@ -1261,6 +1357,23 @@ export function reducer(state: GameState, action: Action): GameState {
         consumable?.buyPrice ??
         (stone ? 2100 : null);
       if (price === null || price === undefined) return pushLog(state, "This item isn't for sale.");
+      // A machine is reusable, so a second copy does nothing at all. Refuse
+      // the sale rather than take the money — and force quantity to 1, so a
+      // stepper left at 5 can't charge for four discs that will never matter.
+      if (isMachineId(itemId)) {
+        if ((state.inventory[itemId] ?? 0) > 0) {
+          return pushLog(state, `You already have ${machines[itemId]?.label ?? itemId}. It never wears out.`);
+        }
+        if (state.money < price) return pushLog(state, "Not enough money!");
+        return pushLog(
+          {
+            ...state,
+            money: state.money - price,
+            inventory: { ...state.inventory, [itemId]: 1 },
+          },
+          `Bought ${itemsCatalog[itemId]?.name ?? itemId}.`,
+        );
+      }
       const total = price * quantity;
       if (state.money < total) return pushLog(state, "Not enough money!");
       // Special case: Exp. Share is a buff, not a stockpile-able held item.
@@ -2830,6 +2943,7 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
       },
       activeEffects: decrementEffects(next.activeEffects, next.currentLocation),
     };
+    next = maybeRouteMachineDrop(next);
     return appendUnlocks(next);
   }
 

@@ -20609,6 +20609,76 @@ strong, b { font-variant-numeric: tabular-nums; }
 }
 .manage-search::placeholder { color: var(--text-dim); }
 .manage-search:focus { border-color: var(--ctl-focus); outline: none; }
+
+/* ── Where a move came from ────────────────────────────────────────
+   With TMs in the pool the available list roughly doubles, so it needs a
+   way to say "only the ones my machines give me". Segmented control rather
+   than a dropdown: three options, all worth seeing at once, and the counts
+   are half the answer on their own. */
+.manage-source-filter {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.manage-source-tab {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg, var(--text));
+  font-family: var(--font-body);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.manage-source-tab:hover { border-color: var(--ctl-focus); }
+.manage-source-tab.is-active {
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  border-color: var(--ctl-on-bg);
+}
+/* The dim count has to stay legible once the tab inverts. */
+.manage-source-tab.is-active .dim { color: inherit; opacity: 0.75; }
+
+/* A machine move gets a dashed edge — it is in the pool on loan, and stops
+   being available the moment the machine leaves the Bag. */
+.manage-available li.from-machine {
+  border-style: dashed;
+  border-color: var(--gold);
+}
+
+/* ── What you're missing ───────────────────────────────────────────
+   Collapsed by default. It is reference material, not a control: the answer
+   to "is this TM worth going after" rather than something you act on here. */
+.manage-missing {
+  margin-top: 8px;
+  font-size: 11px;
+}
+.manage-missing > summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+.manage-missing > summary:hover { color: var(--text); }
+.manage-missing ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 20vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+}
+.manage-missing li {
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+.manage-missing li strong { color: var(--text); font-weight: 600; }
 /* It opens FROM the detail sheet, so it has to sit above it (120). */
 .modal-overlay.manage-moves-overlay { z-index: 150; }
 

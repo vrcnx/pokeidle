@@ -47,6 +47,38 @@ name and level from the line below it.
 a suggested opening price that deliberately does NOT prefill the field, and
 its own page in the hub instead of a tab inside the chat panel.
 
+**TMs and HMs.** Asked for by a player making a competitive-scene argument:
+EVs, IVs and Natures are all optimisable, and move selection — "just as
+important" — was not. 53 TMs and 6 HMs, from the Gen 5 machine list.
+
+Three findings shaped it:
+
+*The roster ends at Genesect (#649)*, which is exactly the Gen 5 national
+dex — so `black-2-white-2` is the one version group where every species the
+game has exists AND has complete machine data. Nothing guessed.
+
+*42 of the 101 machines were left out*, each with the reason recorded in
+`game/scripts/gen-tms.mjs`. The battle engine has a fixed vocabulary of
+effects and no screens, hazards, Protect, Substitute, mid-turn switching,
+healing, or power that varies with happiness / weight / held items. Shipping
+Light Screen as a TM would have sold a no-op — and there is proof it would
+have gone unnoticed: `lightScreen`, `reflect` and `rest` are in the LEVEL-UP
+pool today with no effect attached and do nothing in battle. That is a
+separate bug, still open.
+
+*Damaging moves could not change stats at all.* `executeTurn` handled
+`statChange` only in the branch for status moves; the effect switch that runs
+after damage had no case for it, so the effect was read and dropped. No move
+in the table had that shape, so nothing exercised it — which is why it was
+invisible rather than harmless. It blocked the entire `damage-lower` /
+`damage-raise` half of the TM list. Psychic, Shadow Ball, Overheat and eleven
+others work because it exists now.
+
+Machines are REUSABLE and capped at one per player: the scarcity is finding
+one, not rationing charges. Marts sell the setup toolkit (each town stocking
+what it is known for), every route hides exactly one attacking TM and nothing
+else drops it, and raids pay out the HMs and the heaviest TMs.
+
 ## Not a backlog item, but outstanding
 
 **Prod migrations: already applied — this entry was wrong.**
@@ -75,3 +107,21 @@ The safe pair against a live database:
 **The silver bottle cap's two-step dialog shipped unverified.** The code
 builds and typechecks; the step itself was never seen rendering. Worth a
 look the next time anyone is in the Bag.
+
+**The TM dialogs shipped unverified too, for the same reason.** The local
+dev server sits behind a sign-in and there is no test account, so the Teach
+picker, the Manage Moves source filter and the Mart's single-buy TM card
+have never been seen on screen. Everything under them is tested — 46 cases
+over the catalog, compatibility, item text, the `SET_MOVES` rule and the
+shop wiring — but that is the data, not the pixels. Worth a look at:
+
+  · Bag → TMs → Teach on a Pokémon with a free slot vs one with four moves
+  · Manage Moves → the All / Level-up / TM/HM filter, and the collapsed
+    "needs a machine you don't have" list
+  · Mart → Pewter or Vermilion, which now stock a TM each
+
+**Three level-up moves do nothing.** `lightScreen`, `reflect` and `rest`
+are in the level-up pool with no `effect` attached, so they cost a turn and
+have no result. Found while deciding which machines were shippable. They
+need real mechanics (side conditions, in-battle healing) rather than a data
+fix, which is why they are noted rather than patched.
