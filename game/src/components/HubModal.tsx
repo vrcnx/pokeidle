@@ -4,7 +4,7 @@ import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin, IconDisc,
 } from "./Icon";
-import { useModalEnter, animateModalExit, animateSectionEnter, animateSectionStagger } from "../utils/animate";
+import { useModalEnter, animateModalExit, animateSectionEnter, animateSectionStagger, type ModalExit } from "../utils/animate";
 // Imported, not written as "/hub/map.jpg". Vite emits these with a
 // content hash in the filename, so replacing a picture replaces its URL and
 // every browser fetches the new one. Served straight out of public/ they
@@ -287,23 +287,30 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
   // `closingRef` makes a second trigger a no-op instead of starting a second
   // animation: pressing Escape while the backdrop click is still playing
   // would otherwise re-animate a dialog that is already on its way out.
-  const closingRef = useRef(false);
+  const exitRef = useRef<ModalExit | null>(null);
   const requestClose = useCallback(() => {
-    if (closingRef.current) return;
+    if (exitRef.current) return;
     const el = document.querySelector<HTMLElement>(".modal-overlay.hub-overlay > .hub-modal");
     if (!el) { setActive(null); return; }
-    closingRef.current = true;
-    void animateModalExit(el).then(() => {
-      closingRef.current = false;
+    const exit = animateModalExit(el);
+    exitRef.current = exit;
+    void exit.done.then(() => {
+      // A cancel replaced or cleared this; only the exit that is still the
+      // current one is allowed to finish the job.
+      if (exitRef.current !== exit) return;
+      exitRef.current = null;
       setActive(null);
     });
   }, []);
 
   useEffect(() => {
     _open = (s) => {
-      // Re-opening mid-exit has to cancel the exit, or the pending resolve
-      // closes the hub the player just asked for.
-      closingRef.current = false;
+      // Re-opening mid-exit CANCELS it, restoring the styles the animation
+      // was part-way through applying. Clearing a flag would not be enough:
+      // the dialog never unmounts during the exit, so nothing else would put
+      // the opacity and transform back and the hub would reopen invisible.
+      exitRef.current?.cancel();
+      exitRef.current = null;
       setActive(s ?? landingRef.current);
     };
     _close = () => requestClose();

@@ -130,27 +130,60 @@ export function useModalEnter(staggerSelector?: string, enabled: boolean = true)
  *
  * Reduced motion resolves immediately, so the dialog simply disappears.
  */
-export function animateModalExit(dialog: HTMLElement): Promise<void> {
-  if (prefersReducedMotion()) return Promise.resolve();
-
+export function animateModalExit(dialog: HTMLElement): ModalExit {
   const parent = dialog.parentElement;
   const overlay = parent?.classList.contains("modal-overlay") ? parent : null;
-  const DURATION = 160;
 
+  if (prefersReducedMotion()) {
+    return { done: Promise.resolve(), cancel: () => {} };
+  }
+
+  const DURATION = 160;
   // Shorter and flatter than the entrance on purpose. An entrance is an
   // arrival worth a spring; an exit is a dismissal, and a slow one reads as
   // the app being sluggish rather than as polish.
-  animate(dialog, {
+  const a = animate(dialog, {
     opacity: [1, 0],
     scale: [1, 0.97],
     translateY: [0, 6],
     duration: DURATION,
     ease: EASE_OUT,
   });
-  if (overlay) {
-    animate(overlay, { opacity: [1, 0], duration: DURATION, ease: EASE_OUT });
-  }
-  return new Promise((resolve) => setTimeout(resolve, DURATION));
+  const b = overlay
+    ? animate(overlay, { opacity: [1, 0], duration: DURATION, ease: EASE_OUT })
+    : null;
+
+  let timer = 0;
+  const done = new Promise<void>((resolve) => { timer = window.setTimeout(resolve, DURATION); });
+
+  return {
+    done,
+    // ── CANCELLING HAS TO PUT THE STYLES BACK ────────────────────────
+    // Re-opening mid-exit does NOT remount the dialog — the hub only
+    // unmounts once the exit resolves — so nothing re-runs the entrance to
+    // undo these. Cancelling the animation alone would leave the element
+    // frozen at whatever opacity it had reached: the player asks for the hub
+    // again and gets a half-faded, slightly shrunken panel, or an invisible
+    // one. The inline styles the animation set have to be removed.
+    cancel: () => {
+      window.clearTimeout(timer);
+      a.cancel();
+      b?.cancel();
+      utils.remove(dialog);
+      dialog.style.opacity = "";
+      dialog.style.transform = "";
+      if (overlay) {
+        utils.remove(overlay);
+        overlay.style.opacity = "";
+      }
+    },
+  };
+}
+
+/** A running modal exit: awaitable, and reversible if the dialog reopens. */
+export interface ModalExit {
+  done: Promise<void>;
+  cancel: () => void;
 }
 
 // React hook: drive a count-up on the contents of an element when its
