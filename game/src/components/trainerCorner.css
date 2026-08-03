@@ -210,3 +210,8 @@
   line-height: 1;
   pointer-events: none;
 }
+
+/* Locked mid-battle. Dimmed rather than hidden: the corner keeps its shape,
+   so the row does not reflow the moment a match starts. */
+.trainer-corner-link:disabled { opacity: 0.32; cursor: not-allowed; }
+.trainer-corner-link:disabled:hover { background: none; color: var(--ctl-fg); }

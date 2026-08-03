@@ -1,6 +1,7 @@
 import { useGame } from "../state/GameContext";
 import { useAuth } from "../auth/AuthContext";
 import { useT } from "../i18n/useT";
+import { useIsPvpBattle } from "../state/pvp";
 import { openHub, useHubSection, useHubBadges, type HubSection } from "./HubModal";
 import { PokemonSprite } from "./Sprite";
 import {
@@ -41,6 +42,13 @@ export function PlayerCard() {
   // without knowing where — which is exactly what happened with the friend
   // request that lit up the rail and nothing out here.
   const waiting = useHubBadges();
+  // Locked during a PvP battle, for the same reason the hub locks those
+  // sections: they edit the save that a live match is already holding a copy
+  // of. The hub bounces you back out if you reach one anyway, but a shortcut
+  // that looks live and then refuses is a worse answer than one that says so.
+  // Battle stays reachable — it is where the match is.
+  const inPvp = useIsPvpBattle();
+  const lockedDuringBattle = new Set<HubSection>(["map", "mart", "bag", "pc", "dex"]);
 
   const lead = state.party[0];
   const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
@@ -134,8 +142,11 @@ export function PlayerCard() {
               key={sc.id}
               type="button"
               className={`trainer-corner-link${openSection === sc.id ? " is-active" : ""}`}
+              disabled={inPvp && lockedDuringBattle.has(sc.id)}
               onClick={() => openHub(sc.id)}
-              title={sc.label}
+              title={inPvp && lockedDuringBattle.has(sc.id)
+                ? t("Not while you're in a battle")
+                : sc.label}
             >
               <span className="trainer-corner-link-icon" aria-hidden><sc.Icon size={15} /></span>
               <span className="trainer-corner-link-label">{sc.label}</span>

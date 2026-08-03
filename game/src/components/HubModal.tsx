@@ -289,10 +289,20 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
   // A section can be disabled WHILE the player is standing in it — starting a
   // PvP battle from the Battle pane is the obvious case. Move them somewhere
   // usable rather than leaving them on a dead pane.
+  // The dep is a KEY built from every disabled id, not a hand-written list of
+  // four of them. The list was written when only Battle could be disabled;
+  // the moment a PvP battle started locking Map/Mart/Bag/PC/Dex, a player
+  // standing in one of those stayed there — fully usable — because none of
+  // the four names in the deps had changed. Anything that can be disabled has
+  // to be watched, and the only way to guarantee that is to not enumerate.
+  //
+  // A string rather than `disabled` itself: the caller rebuilds that object
+  // every render, so the effect would re-run on every render forever.
+  const disabledKey = disabled ? Object.keys(disabled).sort().join(",") : "";
   useEffect(() => {
     if (active && disabled?.[active]) setActive(pickLanding(badges, disabled));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, disabled?.pvp, disabled?.rewards, disabled?.social, disabled?.settings]);
+  }, [active, disabledKey]);
 
   if (!active) return null;
   return (
