@@ -628,6 +628,7 @@ export type Action =
   | { type: "COMPLETE_HEALING" }
   | { type: "REORDER_BOX"; payload: { from: number; to: number } }
   | { type: "SORT_BOX"; payload: { mode: string } }
+  | { type: "CANCEL_EFFECT"; payload: { itemId: string; speciesKey?: string; routeKey?: string } }
   // `pokemonId` is optional and advisory-overriding: when present the reducer
   // re-anchors `index` by id and DROPS the action if that id is gone. Every
   // caller that snapshots an index before the user confirms should pass it —

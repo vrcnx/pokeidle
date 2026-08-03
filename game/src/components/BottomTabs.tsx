@@ -574,6 +574,9 @@ export function BagTab() {
               // `pokedexSeen`, not `pokedexCaught`: seeing one is what earns
               // the name, and that is the rule the other three surfaces use.
               const targetSeen = !eff.speciesKey || state.pokedexSeen.includes(eff.speciesKey);
+              // Set on a route you are not standing on. It does nothing here
+              // and is no longer charged here either — see decrementEffects.
+              const idleHere = !!eff.routeKey && eff.routeKey !== state.currentLocation;
               const target = eff.speciesKey
                 ? `${targetSeen ? (pokemonTable[eff.speciesKey]?.name ?? eff.speciesKey) : "???"}${
                     eff.routeKey ? ` - ${routes[eff.routeKey]?.name ?? eff.routeKey}` : ""
@@ -603,8 +606,13 @@ export function BagTab() {
                     {/* Running or held. The old card said "paused" in grey
                         text at the end of a sentence; this is the state, so
                         it reads as one. */}
-                    <span className="bag-effect-state">
-                      {eff.paused ? t("Paused") : t("Active")}
+                    {/* Three states, not two. An effect set on another route
+                        is neither running nor paused — it is simply not where
+                        it applies, and it no longer burns battles there
+                        either. Saying "Active" would have been a lie the
+                        moment the tick stopped. */}
+                    <span className={`bag-effect-state${idleHere ? " is-idle" : ""}`}>
+                      {eff.paused ? t("Paused") : idleHere ? t("Elsewhere") : t("Active")}
                     </span>
                   </div>
                   <div className="bag-effect-foot">
@@ -613,6 +621,30 @@ export function BagTab() {
                       <strong>{eff.battlesRemaining.toLocaleString()}</strong>
                       {t("battles left")}
                     </span>
+                    <span className="bag-effect-acts">
+                    {/* Cancel. Pause was the only control, and pausing a
+                        mis-click keeps it: the item stays spent and the slot
+                        stays occupied with nothing to show for it. */}
+                    <button
+                      type="button"
+                      className="bag-effect-btn is-danger"
+                      onClick={() => {
+                        if (!window.confirm(
+                          `Cancel ${info.name}? The item is not refunded.`
+                        )) return;
+                        dispatch({
+                          type: "CANCEL_EFFECT",
+                          payload: {
+                            itemId: eff.itemId,
+                            speciesKey: eff.speciesKey,
+                            routeKey: eff.routeKey ?? "",
+                          },
+                        });
+                      }}
+                      title={t("Remove this effect — the item is not refunded")}
+                    >
+                      {t("Cancel")}
+                    </button>
                     <button
                       type="button"
                       className="bag-effect-btn"
@@ -634,6 +666,7 @@ export function BagTab() {
                     >
                       {eff.paused ? t("Resume") : t("Pause")}
                     </button>
+                    </span>
                   </div>
                 </li>
               );

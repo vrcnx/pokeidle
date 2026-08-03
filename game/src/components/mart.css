@@ -433,3 +433,21 @@
 /* Using is not selling. Neutral rather than the sell green, because it
    costs nothing and returns nothing. */
 .bag-use-v2 { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }
+
+/* Two controls, so they need a row of their own. */
+.bag-effect-acts { display: inline-flex; gap: 6px; flex: 0 0 auto; }
+/* Cancel is destructive and unrefunded, so it does not look like Pause. Red
+   on hover only — a permanently red button in a list of effects reads as an
+   error state rather than as an action. */
+.bag-effect-btn.is-danger { color: var(--text-dim); }
+.bag-effect-btn.is-danger:hover {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+/* Set on another route: not running, not paused, just not here. */
+.bag-effect.is-paused .bag-effect-state,
+.bag-effect-state.is-idle { }
+.bag-effect-state.is-idle {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-dim);
+}

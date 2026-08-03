@@ -311,7 +311,7 @@ function appendNewMoves(existing: Pokemon["moves"], newIds: string[]): Pokemon["
   return moves;
 }
 
-function decrementEffects(effects: ActiveEffect[]): ActiveEffect[] {
+function decrementEffects(effects: ActiveEffect[], here?: string): ActiveEffect[] {
   // Return the SAME array when there is nothing to change. `.map().filter()`
   // always allocates, so this used to hand back a brand-new (often empty)
   // array on every single battle — for every player, whether or not they
@@ -330,10 +330,23 @@ function decrementEffects(effects: ActiveEffect[]): ActiveEffect[] {
   // stop FUTURE battles consuming the counter, not to retroactively refund one
   // that has already delivered — which is how pausing after the last KO of a
   // trainer battle bought an unlimited Exp Share (br_e84825db52e3431dc9).
+  //
+  // AN EFFECT ONLY BURNS WHERE IT APPLIES.
+  // Repel and Honey are per-species AND per-route: a Honey set on Rattata at
+  // Route 3 does nothing at all on Route 12. It was still charged a battle
+  // there, so a player who wandered off burned 500 battles of an effect that
+  // never once fired — and the only defence was remembering to pause it by
+  // hand before travelling.
+  //
+  // `routeKey === ""` means "everywhere" (Exp Share), and those still tick
+  // wherever you are, because they work wherever you are. The rule is not
+  // "pause off-route", it is "charge an effect only where it can act".
+  const idle = (e: ActiveEffect) =>
+    !!e.routeKey && !!here && e.routeKey !== here;
   if (effects.length === 0) return effects;
-  if (effects.every((e) => e.paused && !e.billedThisBattle)) return effects;
+  if (effects.every((e) => (e.paused || idle(e)) && !e.billedThisBattle)) return effects;
   return effects
-    .map((e) => (e.paused && !e.billedThisBattle ? e : tickEffect(e)))
+    .map((e) => ((e.paused || idle(e)) && !e.billedThisBattle ? e : tickEffect(e)))
     .filter((e) => e.battlesRemaining > 0);
 }
 
@@ -495,7 +508,7 @@ function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | 
       raidLegendary: { speciesKey: nextSpeciesKey, level: newLevel, tier: tierId },
       raidLevel: state.raidLevel + 1,
       nextPokemonId: state.nextPokemonId + 1,
-      activeEffects: decrementEffects(state.activeEffects),
+      activeEffects: decrementEffects(state.activeEffects, state.currentLocation),
       activePlayerPokemonIndex: leadIdx,
       playerPokemon: lead,
       // Reset volatile so the new lead doesn't inherit the previous mon's
@@ -572,7 +585,7 @@ function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean)
     ...next,
     phase: "idle",
     enemyPokemon: null,
-    activeEffects: decrementEffects(next.activeEffects),
+    activeEffects: decrementEffects(next.activeEffects, next.currentLocation),
   };
 }
 
@@ -2037,6 +2050,24 @@ export function reducer(state: GameState, action: Action): GameState {
     case "SET_ALWAYS_CATCH_SHINIES":
       return { ...state, alwaysCatchShinies: action.payload.value };
 
+    // Drop an effect outright.
+    //
+    // Player report: "I click the wrong thing and have to wait 500 matches to
+    // switch." Pause was the only control, and pausing a mistake keeps it —
+    // the slot stays occupied and the item stays spent with nothing to show.
+    // No refund: the item was consumed on use and this is a way out of a
+    // mis-click, not an undo.
+    case "CANCEL_EFFECT": {
+      const { itemId, speciesKey, routeKey } = action.payload;
+      const activeEffects = state.activeEffects.filter(
+        (e) => !(e.itemId === itemId
+          && (e.speciesKey ?? "") === (speciesKey ?? "")
+          && (e.routeKey ?? "") === (routeKey ?? "")),
+      );
+      if (activeEffects.length === state.activeEffects.length) return state;
+      return { ...state, activeEffects };
+    }
+
     case "TOGGLE_EFFECT_PAUSED": {
       const { itemId, speciesKey, routeKey } = action.payload;
       // speciesKey/routeKey are optional so the id-only callers (Exp. Share,
@@ -2797,7 +2828,7 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
         ...next.battlesWonByLocation,
         [next.currentLocation]: (next.battlesWonByLocation[next.currentLocation] ?? 0) + 1,
       },
-      activeEffects: decrementEffects(next.activeEffects),
+      activeEffects: decrementEffects(next.activeEffects, next.currentLocation),
     };
     return appendUnlocks(next);
   }
@@ -2909,7 +2940,7 @@ function endTrainerBattle(state: GameState, won: boolean, moneyDelta: number): G
         [state.currentLocation]: (state.battlesWonByLocation[state.currentLocation] ?? 0) + 1,
       }
     : state.battlesWonByLocation;
-  const activeEffects = won ? decrementEffects(state.activeEffects) : state.activeEffects;
+  const activeEffects = won ? decrementEffects(state.activeEffects, state.currentLocation) : state.activeEffects;
   const trainerId = state.trainerBattle?.trainerId;
   const defeatedTrainers =
     won && trainerId && !state.defeatedTrainers.includes(trainerId)
@@ -2943,7 +2974,7 @@ function endBossBattle(state: GameState, won: boolean, moneyDelta: number): Game
         [state.currentLocation]: (state.battlesWonByLocation[state.currentLocation] ?? 0) + 1,
       }
     : state.battlesWonByLocation;
-  const activeEffects = won ? decrementEffects(state.activeEffects) : state.activeEffects;
+  const activeEffects = won ? decrementEffects(state.activeEffects, state.currentLocation) : state.activeEffects;
   const log = won ? `Got $${moneyDelta} for winning!` : `You were defeated...`;
   let defeatedGyms = state.defeatedGyms;
   let defeatedEliteFour = state.defeatedEliteFour;
