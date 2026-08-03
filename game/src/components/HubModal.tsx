@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { createPortal } from "react-dom";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
-  IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin,
+  IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin, IconDisc,
 } from "./Icon";
 import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../utils/animate";
 // Imported, not written as "/hub/map.jpg". Vite emits these with a
@@ -13,6 +13,7 @@ import { useModalEnter, animateSectionEnter, animateSectionStagger } from "../ut
 // the URL had changed to tell their cache otherwise.
 import artMap from "../assets/hub/map.jpg";
 import artMart from "../assets/hub/mart.jpg";
+import artTmMart from "../assets/hub/tmmart.jpg";
 import artBag from "../assets/hub/bag.jpg";
 import artDex from "../assets/hub/dex.jpg";
 import artPvp from "../assets/hub/pvp.jpg";
@@ -59,7 +60,7 @@ import "./hub.css";
 // does not).
 
 export type HubSection =
-  | "map" | "mart" | "bag" | "pc" | "dex"
+  | "map" | "mart" | "tmmart" | "bag" | "pc" | "dex"
   | "pvp" | "rewards" | "auctions" | "social" | "settings"
   // Reachable only by pressing the identity block at the top of the rail —
   // see `rail: false` below.
@@ -137,6 +138,11 @@ interface SectionDef {
 const SECTIONS: SectionDef[] = [
   { id: "map",      Icon: IconMap,       label: "Map",      group: "world",   art: artMap },
   { id: "mart",     Icon: IconCart,      label: "Mart",     group: "world",   art: artMart },
+  // Its own door rather than a shelf inside the Mart: it obeys a different
+  // rule (six machines, rotating daily) and answers a different question
+  // ("can anything I own learn this?"). Sharing the Mart's shelving would
+  // have hidden the clock, which is the entire mechanic.
+  { id: "tmmart",   Icon: IconDisc,      label: "TM Mart",  group: "world",   art: artTmMart },
   { id: "bag",      Icon: IconBackpack,  label: "Bag",      group: "world",   art: artBag },
   // No art: the PC's third column is the party manager (see GameHub).
   { id: "pc",       Icon: IconMonitor,   label: "PC",       group: "world" },

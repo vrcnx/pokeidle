@@ -215,8 +215,8 @@ function Harness() {
     // pane needs GameContext, and what the harness is checking is that the
     // FRAME holds nine sections across three groups without the rail
     // overflowing.
-    map: filler("Routes"), mart: filler("Mart"), bag: filler("Bag"),
-    pc: filler("Boxes"), dex: filler("Pokedex"),
+    map: filler("Routes"), mart: filler("Mart"), tmmart: filler("TM Mart"),
+    bag: filler("Bag"), pc: filler("Boxes"), dex: filler("Pokedex"),
     pvp: c.builder ? {
       Body: () => (
         <div className="pvp-hub-pane pvp-hub-pane--editing">

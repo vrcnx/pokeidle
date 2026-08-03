@@ -32,6 +32,7 @@ import {
   ROUTE_MACHINE_DROP_CHANCE,
   RAID_MACHINE_DROP_CHANCE,
 } from "../data/machineSources";
+import { tmMartStock, tmMartPrice, daysUntilStocked } from "../data/tmMart";
 import { displayName } from "../utils/pokemon";
 import { moves as movesTable } from "../data/moves";
 import { executeTurn, type BattleSide } from "../utils/battle";
@@ -1345,6 +1346,46 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "BUY_ITEM": {
       const { itemId, quantity } = action.payload;
+
+      // ── Machines have their own counter, so they resolve before the
+      //    catalog is consulted at all ─────────────────────────────────────
+      // `itemsCatalog` deliberately gives every TM and HM `buyPrice: null`
+      // (see the note there), so the generic path below would refuse all of
+      // them with "this item isn't for sale" — true of the catalog, useless
+      // to a player standing in the TM Mart looking at the thing.
+      //
+      // The rotation is enforced HERE rather than by the page that draws it.
+      // A rule that only exists in the component that renders it is not a
+      // rule: it would sell any machine, on any day, to anything that can
+      // dispatch.
+      if (isMachineId(itemId)) {
+        const m = machines[itemId];
+        if ((state.inventory[itemId] ?? 0) > 0) {
+          return pushLog(state, `You already have ${m?.label ?? itemId}. It never wears out.`);
+        }
+        if (!tmMartStock().some((s) => s.id === itemId)) {
+          const wait = daysUntilStocked(itemId);
+          return pushLog(
+            state,
+            wait === null
+              ? `${m?.label ?? itemId} isn't sold anywhere — it has to be found.`
+              : `${m?.label ?? itemId} isn't on the counter today. Back in ${wait} ${wait === 1 ? "day" : "days"}.`,
+          );
+        }
+        // Reusable, so a second copy does nothing: quantity is forced to 1 so
+        // a stepper left at 5 can't charge for four discs that never matter.
+        const machinePrice = tmMartPrice(m);
+        if (state.money < machinePrice) return pushLog(state, "Not enough money!");
+        return pushLog(
+          {
+            ...state,
+            money: state.money - machinePrice,
+            inventory: { ...state.inventory, [itemId]: 1 },
+          },
+          `Bought ${itemsCatalog[itemId]?.name ?? itemId}.`,
+        );
+      }
+
       // Catalog wins; legacy pokeballs/consumables/stones tables are fallbacks
       // for back-compat with items that haven't been migrated yet.
       const cat = itemsCatalog[itemId];
@@ -1357,23 +1398,6 @@ export function reducer(state: GameState, action: Action): GameState {
         consumable?.buyPrice ??
         (stone ? 2100 : null);
       if (price === null || price === undefined) return pushLog(state, "This item isn't for sale.");
-      // A machine is reusable, so a second copy does nothing at all. Refuse
-      // the sale rather than take the money — and force quantity to 1, so a
-      // stepper left at 5 can't charge for four discs that will never matter.
-      if (isMachineId(itemId)) {
-        if ((state.inventory[itemId] ?? 0) > 0) {
-          return pushLog(state, `You already have ${machines[itemId]?.label ?? itemId}. It never wears out.`);
-        }
-        if (state.money < price) return pushLog(state, "Not enough money!");
-        return pushLog(
-          {
-            ...state,
-            money: state.money - price,
-            inventory: { ...state.inventory, [itemId]: 1 },
-          },
-          `Bought ${itemsCatalog[itemId]?.name ?? itemId}.`,
-        );
-      }
       const total = price * quantity;
       if (state.money < total) return pushLog(state, "Not enough money!");
       // Special case: Exp. Share is a buff, not a stockpile-able held item.

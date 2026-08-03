@@ -19,6 +19,7 @@ import {
   isMachineId,
 } from "../src/utils/machines";
 import { machineSource, martMachines, raidMachines, routeMachineDrop, machineDropRoute } from "../src/data/machineSources";
+import { TM_MART_POOL, tmMartStock, tmMartPrice } from "../src/data/tmMart";
 import { moves as movesTable } from "../src/data/moves";
 import { pokemonTable } from "../src/data/pokemon";
 import { itemsCatalog } from "../src/data/itemsCatalog";
@@ -309,24 +310,75 @@ describe("SET_MOVES enforces the rule", () => {
 });
 
 describe("buying a machine", () => {
+  // Read the counter rather than naming a TM. The stock rotates daily, so a
+  // hard-coded id makes the test pass or fail depending on what day it is
+  // run — which is how the first version of this block was written and why
+  // it broke the moment the rotation landed.
+  const onSale = () => tmMartStock()[0];
+
   it("charges once and grants exactly one", () => {
-    const state = makeState({ money: 100_000, inventory: {} });
+    const m = onSale();
+    const state = makeState({ money: 1_000_000, inventory: {} });
     const next = reducer(state, {
       type: "BUY_ITEM",
-      payload: { itemId: "tm75", quantity: 3 },
+      payload: { itemId: m.id, quantity: 3 },
     } as never);
-    expect(next.inventory.tm75).toBe(1);
-    expect(next.money).toBe(100_000 - machines.tm75.price!);
+    expect(next.inventory[m.id]).toBe(1);
+    expect(next.money).toBe(1_000_000 - tmMartPrice(m));
+  });
+
+  it("charges the COUNTER price, not the catalog price", () => {
+    // A route machine costs double at the shop. itemsCatalog carries the base
+    // price — it is what the Bag reads — so a buy path that trusted it would
+    // show $50,000 on the card and take $25,000.
+    const m = tmMartStock().find((x) => machineSource[x.id] === "route");
+    if (!m) return; // no route machine up today; the rule is still asserted below
+    expect(tmMartPrice(m)).toBe((m.price ?? 0) * 2);
+    const state = makeState({ money: 1_000_000, inventory: {} });
+    const next = reducer(state, {
+      type: "BUY_ITEM",
+      payload: { itemId: m.id, quantity: 1 },
+    } as never);
+    expect(next.money).toBe(1_000_000 - tmMartPrice(m));
+  });
+
+  it("refuses a machine that is not on today's counter", () => {
+    // The rotation is a RULE, not a filter on one screen. Without this the
+    // generic buy path would sell any machine on any day at the base price.
+    const today = new Set(tmMartStock().map((m) => m.id));
+    const offCounter = TM_MART_POOL.find((m) => !today.has(m.id))!;
+    const state = makeState({ money: 1_000_000, inventory: {} });
+    const next = reducer(state, {
+      type: "BUY_ITEM",
+      payload: { itemId: offCounter.id, quantity: 1 },
+    } as never);
+    expect(next.inventory[offCounter.id]).toBeUndefined();
+    expect(next.money).toBe(1_000_000);
+    expect(next.battleLog.join(" ")).toMatch(/isn't on the counter/);
+  });
+
+  it("never sells a raid prize or an HM, whatever the day", () => {
+    for (const id of ["tm15", "hm03"]) {
+      const state = makeState({ money: 100_000_000, inventory: {} });
+      const next = reducer(state, {
+        type: "BUY_ITEM",
+        payload: { itemId: id, quantity: 1 },
+      } as never);
+      expect(next.inventory[id], id).toBeUndefined();
+      expect(next.money).toBe(100_000_000);
+      expect(next.battleLog.join(" ")).toContain("has to be found");
+    }
   });
 
   it("refuses a second copy rather than taking the money", () => {
-    const state = makeState({ money: 100_000, inventory: { tm75: 1 } });
+    const m = onSale();
+    const state = makeState({ money: 1_000_000, inventory: { [m.id]: 1 } });
     const next = reducer(state, {
       type: "BUY_ITEM",
-      payload: { itemId: "tm75", quantity: 1 },
+      payload: { itemId: m.id, quantity: 1 },
     } as never);
-    expect(next.inventory.tm75).toBe(1);
-    expect(next.money).toBe(100_000);
+    expect(next.inventory[m.id]).toBe(1);
+    expect(next.money).toBe(1_000_000);
     expect(next.battleLog.join(" ")).toContain("already have");
   });
 });
@@ -340,20 +392,22 @@ describe("where machines come from", () => {
     expect(total).toBe(machineList.length);
   });
 
-  it("stocks every mart machine somewhere", () => {
-    const stocked = new Set<string>();
-    for (const shop of Object.values(mergedShops)) {
-      for (const item of shop.items) if (isMachineId(item.itemId)) stocked.add(item.itemId);
+  it("keeps machines out of the ordinary city marts entirely", () => {
+    // They were briefly stocked town by town, themed to each gym. A permanent
+    // shelf makes every TM a question of money alone and quietly retires the
+    // routes that hide them, so the whole lot moved to the rotating TM Mart.
+    for (const [city, shop] of Object.entries(mergedShops)) {
+      for (const item of shop.items) {
+        expect(isMachineId(item.itemId), `${city} still sells ${item.itemId}`).toBe(false);
+      }
     }
-    for (const m of martMachines) expect(stocked.has(m.id), `${m.label} is unbuyable`).toBe(true);
   });
 
-  it("never stocks a machine that is meant to be found", () => {
-    for (const shop of Object.values(mergedShops)) {
-      for (const item of shop.items) {
-        if (!isMachineId(item.itemId)) continue;
-        expect(machineSource[item.itemId], `${item.itemId} is for sale`).toBe("mart");
-      }
+  it("gives every shop-only machine a place to be bought", () => {
+    // A "mart" machine has no route of its own, so if the TM Mart's pool
+    // didn't cover it there would be no way to get it at all.
+    for (const m of martMachines) {
+      expect(TM_MART_POOL.some((p) => p.id === m.id), `${m.label} is unobtainable`).toBe(true);
     }
   });
 
@@ -461,19 +515,9 @@ describe("the screens have something to render", () => {
     }
   });
 
-  it("puts a buyable price on every machine a mart stocks", () => {
-    for (const [city, shop] of Object.entries(mergedShops)) {
-      for (const item of shop.items) {
-        if (!isMachineId(item.itemId)) continue;
-        const price = itemsCatalog[item.itemId]?.buyPrice;
-        expect(price, `${city} sells ${item.itemId} with no price`).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it("gives every mart-sold machine at least one species that can learn it", () => {
+  it("gives every machine the shop can stock at least one species that can learn it", () => {
     // A TM nothing in the game can use would be a pure money sink.
-    for (const m of martMachines) {
+    for (const m of TM_MART_POOL) {
       const users = Object.values(machineLearnsets).filter((ids) => ids.includes(m.id));
       expect(users.length, `${m.label} ${m.moveName} is unlearnable`).toBeGreaterThan(0);
     }

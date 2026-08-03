@@ -339,3 +339,20 @@ export function IconSwords({ size = 16, strokeWidth = 2, className }: IconProps)
     </svg>
   );
 }
+
+// A machine disc — the TM Mart's rail entry. Deliberately not the shopping
+// cart the ordinary Mart uses: the two are different shops with different
+// rules, and a player scanning the rail should be able to tell at a glance
+// which one sells the discs.
+export function IconDisc({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+    </svg>
+  );
+}

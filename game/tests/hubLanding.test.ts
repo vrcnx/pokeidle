@@ -60,7 +60,7 @@ describe("pickLanding", () => {
         // so adding a section to the hub fails here until it is added here
         // too — which is the test doing its job, not breaking.
         {
-          map: "x", mart: "x", bag: "x", pc: "x", dex: "x",
+          map: "x", mart: "x", tmmart: "x", bag: "x", pc: "x", dex: "x",
           pvp: "x", rewards: "x", auctions: "x", social: "x",
         },
       );

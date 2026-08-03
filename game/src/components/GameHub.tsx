@@ -1,4 +1,5 @@
 import { HubModal, type HubSectionContent, type HubSection } from "./HubModal";
+import { TmMartPane } from "./TmMartPane";
 import { RewardsBody, RewardsHeaderRight } from "./GiveawayModal";
 import { SocialPane } from "./SocialPanel";
 import { PvpHubPane, PvpHeaderRight } from "./PvpHubModal";
@@ -51,6 +52,7 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   // inner one is how the PC ended up with two scrollbars.
   map:  { Body: RouteCardList, fill: true },
   mart: { Body: MartTab, fill: true },
+  tmmart: { Body: TmMartPane, fill: true },
   bag:  { Body: BagTab, fill: true },
   // The one section with a working third column instead of a picture: the
   // box and the party are two halves of one job, and a drag between them
@@ -142,7 +144,7 @@ export function GameHub() {
   // about the match you are in is not.
   const busy = pvp.room ? t("Not while you're in a battle") : null;
   const disabled = busy
-    ? { map: busy, mart: busy, bag: busy, pc: busy, dex: busy }
+    ? { map: busy, mart: busy, tmmart: busy, bag: busy, pc: busy, dex: busy }
     : undefined;
 
   return <HubModal sections={SECTIONS} disabled={disabled} identity={<HubIdentity />} identitySection="trainer" />;

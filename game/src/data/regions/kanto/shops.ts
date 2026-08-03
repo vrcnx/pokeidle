@@ -18,15 +18,14 @@ import type { ShopDef } from "../../../types";
 //   Cinnabar:  pokeballs + Fire/Water stones (volcanic island specialty)
 //   Indigo:    end-game basics — top-tier balls + max repel only
 //
-// ── TMs ────────────────────────────────────────────────────────────────────
-// Each mart stocks the machine that matches what the town is ABOUT — Thunder
-// Wave where the Electric gym is, Will-O-Wisp under the ghost tower. That is
-// not decoration: it means a player who wants Toxic can guess Fuchsia before
-// looking it up, and a town with a mart now has a reason to be revisited.
-// The department store carries the setup staples every build wants.
+// ── NO TMs HERE ────────────────────────────────────────────────────────────
+// Machines were briefly stocked town by town, themed to each gym — Thunder
+// Wave in Vermilion, Toxic in Fuchsia. It read nicely and it was the wrong
+// shape: a permanent shelf makes every TM a question of money alone, and a
+// route that hides one stops mattering the moment your wallet is big enough.
 //
-// Only the status/setup machines are sold anywhere. Every attacking TM is a
-// route drop — see data/machineSources.ts for why the line is drawn there.
+// They all moved to the TM Mart (data/tmMart.ts), which rotates daily, so the
+// question becomes "is it up today" instead. Nothing here sells machines.
 
 export const shops: Record<string, ShopDef> = {
   viridianCity: {
@@ -38,9 +37,6 @@ export const shops: Record<string, ShopDef> = {
     items: [
       { itemId: "pokeball" },
       { itemId: "greatball", unlockWildBattlesWon: 50 },
-      // Rock town, rock machines.
-      { itemId: "tm69" },
-      { itemId: "tm37" },
     ],
   },
   ceruleanCity: {
@@ -51,7 +47,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "ultraball", unlockWildBattlesWon: 150 },
       { itemId: "repel" },
       { itemId: "honey" },
-      { itemId: "tm18" },
     ],
   },
   vermilionCity: {
@@ -63,7 +58,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "repel" },
       { itemId: "superrepel" },
       { itemId: "honey" },
-      { itemId: "tm73" },
     ],
   },
   lavenderTown: {
@@ -76,7 +70,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "superrepel" },
       { itemId: "maxrepel" },
       { itemId: "honey" },
-      { itemId: "tm61" },
     ],
   },
   celadonCity: {
@@ -139,10 +132,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "dragonfang" },
       { itemId: "blackglasses" },
       { itemId: "silkscarf" },
-      // The setup trio — every competitive build starts from one of these.
-      { itemId: "tm75" },
-      { itemId: "tm83" },
-      { itemId: "tm04" },
     ],
   },
   saffronCity: {
@@ -165,8 +154,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "repel" },
       { itemId: "superrepel" },
       { itemId: "maxrepel" },
-      // Poison gym town.
-      { itemId: "tm06" },
     ],
   },
   cinnabarIsland: {
@@ -178,8 +165,6 @@ export const shops: Record<string, ShopDef> = {
       { itemId: "firestone" },
       { itemId: "waterstone" },
       { itemId: "honey" },
-      // Volcano island.
-      { itemId: "tm11" },
     ],
   },
   indigoPlat: {

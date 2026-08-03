@@ -1,0 +1,299 @@
+/* TM Mart.
+ *
+ * Scoped sheet, not app.css — every class here starts `tmmart-` and is
+ * checked against app.css by tests/cssCollisions.test.ts. app.css is 20,000
+ * lines and load order only wins at equal specificity, so a shared name is a
+ * bug that shows up somewhere else entirely.
+ *
+ * The page is six cards and a clock. It borrows the Mart's wallet chip
+ * (`mart-wallet-chip`, allowed re-use) and nothing else: this shop has one
+ * shelf, so the shelving furniture would be scaffolding around an empty room.
+ */
+
+.tmmart-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* ── The clock ─────────────────────────────────────────────────────
+   In the header bar beside the wallet. It is the rule of the shop, so it is
+   read before anything is bought rather than discovered afterwards. */
+.tmmart-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--ctl-bg);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.tmmart-clock strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.tmmart-clock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tmmart-clock-dot { animation: tmmart-pulse 2.4s ease-in-out infinite; }
+}
+@keyframes tmmart-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+.tmmart-collected {
+  display: inline-flex;
+  align-items: center;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--ctl-bg);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ── The counter ───────────────────────────────────────────────────
+   Six cards, shown whole. auto-fill rather than a fixed column count so the
+   same grid works in the hub's two-column and three-column layouts without a
+   second breakpoint per host. */
+.tmmart-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.tmmart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--card-bg, var(--ctl-bg));
+}
+.tmmart-card.is-owned { border-color: var(--gold); }
+
+.tmmart-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tmmart-disc { flex: none; }
+.tmmart-card-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tmmart-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.tmmart-move {
+  font-size: 14px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmmart-type {
+  margin-left: auto;
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+}
+
+.tmmart-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.tmmart-stats span {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.tmmart-stats em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tmmart-effect {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* ── Does it fit anything I own ────────────────────────────────────
+   The one line on the card that decides the purchase, so it is the one line
+   with a background. */
+.tmmart-fit {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.tmmart-fit strong { color: var(--gold); }
+.tmmart-fit.is-none {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-dim);
+}
+
+.tmmart-origin {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+/* Actions sit at the bottom of every card at the same height, so a row of
+   cards ends on one line however much text each carries above it. */
+.tmmart-actions { margin-top: auto; }
+.tmmart-buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--ctl-h, 32px);
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tmmart-buy:hover:not(:disabled) { filter: brightness(1.08); }
+.tmmart-buy:disabled { opacity: 0.45; cursor: not-allowed; }
+.tmmart-buy.is-owned {
+  background: transparent;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.tmmart-price { font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+/* ── Not today ─────────────────────────────────────────────────────
+   Collapsed by default: it answers a question you only have once the counter
+   has disappointed you, and open by default it would bury the six things
+   that are actually for sale. */
+.tmmart-upcoming {
+  border-top: 1px solid var(--border-strong);
+  padding-top: 10px;
+}
+.tmmart-upcoming-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tmmart-upcoming-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tmmart-upcoming-toggle:hover { color: var(--text); }
+.tmmart-caret { font-size: 10px; }
+.tmmart-search {
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+.tmmart-search:focus { border-color: var(--ctl-focus); outline: none; }
+
+.tmmart-upcoming-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 34vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 1px;
+}
+.tmmart-upcoming-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+}
+.tmmart-upcoming-list li:nth-child(odd) { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.tmmart-upcoming-list li.is-owned { opacity: 0.5; }
+.tmmart-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--ctl-on-bg);
+}
+.tmmart-up-label {
+  flex: none;
+  width: 46px;
+  font-weight: 700;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.tmmart-up-move {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmmart-up-when {
+  margin-left: auto;
+  flex: none;
+  padding-left: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .tmmart-grid { grid-template-columns: minmax(0, 1fr); }
+  .tmmart-search { max-width: none; }
+}

@@ -3,11 +3,15 @@
 // The three sources answer three different player questions, which is why
 // there are three and not one:
 //
-//   MART   — "I know what I want." The setup and status toolkit (Swords
-//            Dance, Toxic, Thunder Wave, the weather moves). These are the
-//            competitive backbone, so they must be reliably BUYABLE: a player
-//            building a specific set should never be gated behind a drop
-//            roll. Stocked a few per city so each mart is worth a visit.
+//   MART   — the setup and status toolkit (Swords Dance, Toxic, Thunder
+//            Wave, the weather moves). These have no route of their own, so
+//            the shop is their only source.
+//
+//            Note what "mart" does NOT mean any more: these were briefly
+//            stocked in the city marts, town by town, permanently. That made
+//            every TM a question of money alone. They now appear only on the
+//            TM Mart's daily rotation (data/tmMart.ts) — as does every ROUTE
+//            machine, at double price, so walking stays the better deal.
 //
 //   ROUTE  — "What's out here?" Every attacking TM is tied to exactly one
 //            route and drops nowhere else. This is the reason to walk into

@@ -182,7 +182,17 @@ for (const m of machineList) {
     name: `${m.label} ${m.moveName}`,
     description: describeMachine(m.id),
     category: m.kind,
-    buyPrice: m.price,
+    // NOT for sale through the catalog — deliberately null for every machine,
+    // including the ones with a price on them.
+    //
+    // The TM Mart is the only counter that sells these, it sells six a day on
+    // a rotation, and it charges double for anything a route also drops. A
+    // buyPrice here would be a number that is wrong twice over: wrong because
+    // it says "available" about something that is available one day in eight,
+    // and wrong because it is half the asking price on most of them. The
+    // shop supplies its own price (tmMartPrice) and the reducer re-derives it
+    // there rather than trusting the client.
+    buyPrice: null,
     // Reusable and one-per-player, so there is no such thing as a spare to
     // sell. Selling one would also be a trap: it is the only copy you have.
     sellPrice: 0,
