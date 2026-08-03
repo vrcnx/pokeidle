@@ -142,18 +142,29 @@ The safe pair against a live database:
 builds and typechecks; the step itself was never seen rendering. Worth a
 look the next time anyone is in the Bag.
 
-**The TM dialogs are partly verified now.** The local dev server sits behind
-a sign-in with no test account, but main auto-deploys, so the shipped work
-was checked on the live site instead: TM cards render with per-type disc
-sprites, the right names, and the single-buy card with no quantity stepper.
+**The TM screens are verified on the live site.** The local dev server sits
+behind a sign-in with no test account, but main auto-deploys, so everything
+was checked on production instead. Confirmed by looking:
 
-Still unseen on screen: the Teach picker, the Manage Moves source filter,
-and the TM Mart page itself. Worth a look at:
+  · TM Mart — the six-slot counter, the restock clock, "0/59" collected,
+    per-type disc sprites, "39 of yours can learn it — Mewtwo, Gengar, +36",
+    route machines at double price with "half this price if you walk"
+  · Buying flips the card to "Owned — Teach…" and the counter to 1/59
+  · The Teach picker — the move's numbers, and every party member listed
+    with the reason ("Knows 4 moves — pick one to replace")
+  · Manage Moves — the All / Level-up / TM/HM filter appears only once a
+    machine move is in the pool; the machine move carries a gold dashed
+    border and reads "Pwr — · 90% · TM06" rather than "Lv.undefined"; the
+    collapsed "Needs a machine you don't have 13" lists the rest
 
-  · Bag → TMs → Teach on a Pokémon with a free slot vs one with four moves
-  · Manage Moves → the All / Level-up / TM/HM filter, and the collapsed
-    "needs a machine you don't have" list
-  · TM Mart → the six-slot counter, the restock clock, and "Not today"
+The item text is right where it matters most: the Teach dialog reads "Badly
+poisons the target", not "poisons". That is the runtime describer reading the
+live move table — PokéAPI files Toxic's ailment as plain poison, and a
+description generated from it would have promised the weaker status.
+
+Not exercised: teaching into a FREE slot (every party member had four moves),
+and the auction "List for auction" submit, which was deliberately not clicked
+on a live account.
 
 **Three level-up moves do nothing.** `lightScreen`, `reflect` and `rest`
 are in the level-up pool with no `effect` attached, so they cost a turn and
