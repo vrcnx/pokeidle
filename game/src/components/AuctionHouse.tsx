@@ -329,14 +329,21 @@ export function LotCard({ lot, selected, paused, onSelect }: {
             ) : null}
           </span>
 
+          {/* The label and the clock share a line; the PRICE gets its own.
+              They were all on one row and the two collided the moment a lot
+              passed seven figures — "$4,000,0001h 25m", with no gap at all,
+              because a flex `gap` collapses once the content overflows. A
+              price cannot be truncated and a clock cannot be dropped, so the
+              fix is structural rather than a smaller font: nothing shares a
+              line with a number that has no upper bound. */}
           <span className="ah-card-foot">
-            <span className="ah-price">
+            <span className="ah-card-meta">
               <span className="ah-price-label">{unbid ? t("Starting") : t("Current")}</span>
-              <strong>{formatMoney(price)}</strong>
+              <span className="ah-clock" title={new Date(lot.endsAt).toLocaleString()}>
+                {timeLeft(lot.endsAt)}
+              </span>
             </span>
-            <span className="ah-clock" title={new Date(lot.endsAt).toLocaleString()}>
-              {timeLeft(lot.endsAt)}
-            </span>
+            <strong className="ah-price">{formatMoney(price)}</strong>
           </span>
 
           {/* The clock, drawn. A number alone does not tell you whether "12m"

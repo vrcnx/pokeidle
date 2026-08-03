@@ -159,19 +159,29 @@
 
 .ah-card-foot {
   display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+/* Label and clock on one line, price on the next. Neither of the two small
+   items grows, so they cannot be pushed into each other by a long price. */
+.ah-card-meta {
+  display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 2px;
 }
 /* THE PRICE is the biggest thing on the card after the sprite. On the old
    card it was one of six identically-weighted lines. */
-.ah-price { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
 .ah-price-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
-.ah-price strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.ah-price {
+  display: block;
+  font-size: 16px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
 .ah-clock {
   flex: none;
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -179,6 +189,7 @@
 
 .ah-urgency {
   display: block;
+  margin-top: 3px;
   height: 2px;
   border-radius: 2px;
   background: color-mix(in srgb, var(--text) 12%, transparent);
