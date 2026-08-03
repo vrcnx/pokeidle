@@ -37,7 +37,7 @@ interface UserRow {
   saveData: string; saveVersion: number; username: string; saveAdoptSeq: number;
 }
 
-function makeWorld() {
+function makeWorld(over: { lot?: "pokemon" | "item" } = {}) {
   const users: Record<string, UserRow> = {
     seller: {
       username: "SellerSue", saveVersion: 10, saveAdoptSeq: 3,
@@ -48,18 +48,26 @@ function makeWorld() {
       saveData: JSON.stringify({ money: 1_000, party: [], box: [] }),
     },
   };
-  const auction = {
-    id: "a1", status: "active", endsAt: new Date(Date.now() - 60_000),
-    sellerId: "seller", currentBidderId: "buyer", currentBid: 500,
-    pokemonSnapshot: JSON.stringify(mon),
-  };
+  const auction: Record<string, unknown> = over.lot === "item"
+    ? {
+        id: "a1", status: "active", endsAt: new Date(Date.now() - 60_000),
+        sellerId: "seller", currentBidderId: "buyer", currentBid: 500,
+        lotKind: "item", itemId: "tm26", itemQty: 1,
+        pokemonId: null, pokemonSnapshot: null,
+      }
+    : {
+        id: "a1", status: "active", endsAt: new Date(Date.now() - 60_000),
+        sellerId: "seller", currentBidderId: "buyer", currentBid: 500,
+        lotKind: "pokemon", itemId: null, itemQty: null,
+        pokemonSnapshot: JSON.stringify(mon),
+      };
   const updates: { model: string; where: any; data: any }[] = [];
   /** When set, the named user's CAS misses once (simulating a concurrent autosave). */
   let failCasOnce: string | null = null;
 
   const client: any = {
     auction: {
-      findMany: async () => (auction.status === "active" ? [{ id: auction.id }] : []),
+      findMany: async () => (auction.status === "active" ? [{ id: auction.id as string }] : []),
       findUnique: async () => ({ ...auction }),
       updateMany: async ({ where, data }: any) => {
         updates.push({ model: "auction", where, data });
@@ -171,5 +179,78 @@ describe("auction settlement", () => {
     expect(sellerSave.money).toBe(50); // no proceeds
     expect(sellerSave.box.some((m: any) => m.id === "escrow1")).toBe(true); // escrow returned
     expect(JSON.parse(w.users.buyer.saveData).money).toBe(10); // untouched
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+describe("settling an ITEM lot", () => {
+  // Same transaction, same CAS, same adopt bump — the only thing that differs
+  // is where the lot lands. These pin that the item half did not quietly skip
+  // any of the guarantees the Pokemon half spent several incidents earning.
+  it("delivers the machine to the winner's bag and pays the seller", async () => {
+    const w = makeWorld({ lot: "item" });
+    h.setPrisma(w.client);
+    await settleDueAuctions();
+
+    expect(w.auction.status).toBe("sold");
+    const sellerSave = JSON.parse(w.users.seller.saveData);
+    const buyerSave = JSON.parse(w.users.buyer.saveData);
+    expect(sellerSave.money).toBe(550);
+    expect(buyerSave.money).toBe(500);
+    expect(buyerSave.inventory.tm26).toBe(1);
+    // The seller does NOT get it back — it left their bag at listing time.
+    expect(sellerSave.inventory?.tm26).toBeUndefined();
+  });
+
+  it("carries the same adopt bump and CAS on both sides", async () => {
+    const w = makeWorld({ lot: "item" });
+    h.setPrisma(w.client);
+    await settleDueAuctions();
+    const userWrites = w.updates.filter((u) => u.model === "user");
+    expect(userWrites).toHaveLength(2);
+    for (const write of userWrites) {
+      expect(write.data.saveAdoptSeq).toEqual({ increment: 1 });
+      expect(write.where.saveVersion).toBeDefined();
+    }
+  });
+
+  it("returns the machine to the seller when the winner cannot pay", async () => {
+    const w = makeWorld({ lot: "item" });
+    w.users.buyer.saveData = JSON.stringify({ money: 10, party: [], box: [], inventory: {} });
+    h.setPrisma(w.client);
+    await settleDueAuctions();
+
+    expect(w.auction.status).toBe("cancelled");
+    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1);
+    expect(JSON.parse(w.users.buyer.saveData).money).toBe(10);
+  });
+
+  it("cancels rather than delivering a machine the winner already found", async () => {
+    // ── THE CAP, ENFORCED WHERE IT MATTERS ────────────────────────────
+    // The bid route refuses a bidder who already holds the machine, but a
+    // 48-hour listing gives them plenty of time to turn one up on a route
+    // afterwards. Delivering here would mint a second copy of something the
+    // game caps at one — and they would have paid for it. Cancelling returns
+    // the machine to the seller and moves no money.
+    const w = makeWorld({ lot: "item" });
+    w.users.buyer.saveData = JSON.stringify({ money: 1_000, party: [], box: [], inventory: { tm26: 1 } });
+    h.setPrisma(w.client);
+    await settleDueAuctions();
+
+    expect(w.auction.status).toBe("cancelled");
+    expect(JSON.parse(w.users.buyer.saveData).money).toBe(1_000); // paid nothing
+    expect(JSON.parse(w.users.buyer.saveData).inventory.tm26).toBe(1); // still one
+    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1); // returned
+  });
+
+  it("returns the machine when the listing expires with no bids", async () => {
+    const w = makeWorld({ lot: "item" });
+    w.auction.currentBidderId = null;
+    w.auction.currentBid = 0;
+    h.setPrisma(w.client);
+    await settleDueAuctions();
+
+    expect(w.auction.status).toBe("expired");
+    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1);
   });
 });

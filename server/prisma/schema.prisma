@@ -1191,11 +1191,25 @@ model TradeRecord {
 // evolved away, or the winning bidder's money dropped below their bid),
 // the auction is cancelled rather than partially applied — no fallback
 // to the next-highest bid, keeping settlement a single all-or-nothing step.
+// ── TWO KINDS OF LOT ─────────────────────────────────────────────────────
+// A lot is a Pokemon OR an item stack, and `lotKind` says which. Everything
+// else about an auction — bidding, the proxy, settlement's all-or-nothing
+// transaction, the shill watch — is identical for both, which is why this is
+// two nullable columns on one table rather than a second auction system.
+//
+// The Pokemon columns are nullable in the database and non-null in practice
+// for every Pokemon lot: `lotKind` defaults to "pokemon", so every row
+// written before item lots existed reads correctly with no backfill, and a
+// CHECK constraint (see the migration) enforces that a lot actually carries
+// whichever thing it claims to be selling.
 model Auction {
   id              String    @id @default(cuid())
   sellerId        String
-  pokemonId       String    // stable per-mon id from the seller's save at listing time
-  pokemonSnapshot String    // JSON Pokemon snapshot at listing time — display only, re-validated live at settlement
+  lotKind         String    @default("pokemon") // "pokemon" | "item"
+  pokemonId       String?   // stable per-mon id from the seller's save at listing time
+  pokemonSnapshot String?   // JSON Pokemon snapshot at listing time — display only, re-validated live at settlement
+  itemId          String?   // inventory key, for lotKind "item"
+  itemQty         Int?      // how many were escrowed, for lotKind "item"
   startingBid     Int
   currentBid      Int       @default(0)
   currentBidderId String?
@@ -1213,6 +1227,7 @@ model Auction {
 
   @@index([status, endsAt])
   @@index([sellerId, createdAt])
+  @@index([lotKind, status, endsAt])
 }
 
 model Bid {
@@ -1286,7 +1301,9 @@ model AuctionProxyBid {
 // reader of the schema can learn they exist.
 // tests/pvpLadderSchemaDrift.test.ts asserts every line below is still present
 // in the migration SQL and that this list is still present here, so the two
-// cannot silently diverge.
+// cannot silently diverge. It scans EVERY migration, not just the ladder`s —
+// the list is a registry of the whole database`s invisible constraints, and a
+// CHECK added by a later migration belongs on it too.
 //
 //   CHECK PvpLadderEarn_not_self          ("userId" <> "opponentUserId")
 //   CHECK PvpLadderEarn_nonneg            ("bp" >= 0 AND "milestoneBp" >= 0 AND "moneyAwarded" >= 0)
@@ -1294,6 +1311,7 @@ model AuctionProxyBid {
 //   CHECK PvpWinBonusClaim_nonneg         ("money" >= 0)
 //   CHECK PvpBadgeMilestone_nonneg        ("bp" >= 0)
 //   CHECK PvpBadgeMilestone_crossed       ("ratingBefore" < "threshold")
+//   CHECK Auction_lot_shape_check         (a lot carries the thing it claims to sell)
 //
 // The list above is complete, and PvpLadderBaseline (migration
 // 20260730130000_add_pvp_ladder_baseline) deliberately adds nothing to it: its

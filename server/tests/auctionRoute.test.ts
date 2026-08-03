@@ -219,12 +219,18 @@ class FakeDb {
 
 let db: FakeDb;
 
-function save(money: number) {
-  return JSON.stringify({ money, party: [{ id: "p1", name: "pika" }], box: [] });
+function save(money: number, inventory: Record<string, number> = {}) {
+  return JSON.stringify({ money, party: [{ id: "p1", name: "pika" }], box: [], inventory });
 }
 
-function seedUser(id: string, username: string, money: number) {
-  db.users.push({ id, username, saveData: save(money), saveVersion: 1 });
+function seedUser(id: string, username: string, money: number, inventory: Record<string, number> = {}) {
+  db.users.push({ id, username, saveData: save(money, inventory), saveVersion: 1 });
+}
+
+/** The seller's live inventory, straight out of the fake save. */
+function invOf(userId: string): Record<string, number> {
+  const u = db.users.find((x) => x.id === userId)!;
+  return JSON.parse(u.saveData!).inventory ?? {};
 }
 
 function seedAuction(over: Partial<AuctionRow> = {}): AuctionRow {
@@ -422,6 +428,10 @@ describe("THE MAXIMUM IS SECRET — proven against real response bodies", () => 
       "bidCount", "createdAt", "currentBid", "currentBidderUsername", "distinctBidders",
       "endsAt", "id", "minIncrement", "minNextBid", "pokemon", "sellerUsername",
       "settledAt", "startingBid", "status", "yourMax", "youAreHighBidder", "youAreSeller",
+      // Item lots. `lotKind` says which of `pokemon` / `item` is filled; the
+      // other is null. Both are public by construction — the browse list has
+      // to draw the thing being sold — and neither can carry a maximum.
+      "lotKind", "item",
     ].sort());
   });
 
@@ -793,5 +803,112 @@ describe("the money ceiling — a lot at MAX_BID cannot change hands for free", 
     const res = await bid("a2", MAX_BID);
     expect(res.status).toBe(200);
     expect(db.auctions[0].currentBidderId).toBe("u1");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+describe("item lots — selling a machine", () => {
+  // TMs are reusable and capped at one per player, which is what makes a
+  // market for them exist at all: the second TM26 you turn up is worth
+  // nothing to you and everything to somebody who has none. Every rule below
+  // follows from that cap.
+  beforeEach(() => {
+    db.users.length = 0;
+    seedUser("seller", "seller", 1_000, { tm26: 1 });
+    seedUser("u1", "alice", 100_000_000, {});
+    seedUser("u2", "bob", 100_000_000, { tm26: 1 });
+    h.setUser("seller", "seller");
+  });
+
+  const listMachine = (itemId = "tm26", startingBid = 500_000) =>
+    call("POST", "/", { itemId, startingBid, durationMinutes: 60 });
+
+  it("lists a machine the seller owns, and ESCROWS it out of the bag", async () => {
+    const res = await listMachine();
+    expect(res.status).toBe(201);
+    expect(res.body.auction.lotKind).toBe("item");
+    expect(res.body.auction.item).toEqual({ itemId: "tm26", quantity: 1 });
+    expect(res.body.auction.pokemon).toBeNull();
+    // Gone from the seller's save the moment it is listed — it cannot be
+    // taught from, sold to a shop, or listed twice while it is up.
+    expect(invOf("seller").tm26).toBeUndefined();
+  });
+
+  it("refuses a machine the seller does not have", async () => {
+    const res = await listMachine("tm24");
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/don't have/);
+  });
+
+  it("refuses anything that is not a machine", async () => {
+    const res = await call("POST", "/", { itemId: "masterball", startingBid: 500_000, durationMinutes: 60 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/TMs and HMs/);
+  });
+
+  it("refuses a quantity above one", async () => {
+    const res = await call("POST", "/", { itemId: "tm26", itemQuantity: 2, startingBid: 500_000, durationMinutes: 60 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/one at a time/);
+  });
+
+  it("refuses a body that names both a Pokemon and an item", async () => {
+    const res = await call("POST", "/", { pokemonId: "p1", itemId: "tm26", startingBid: 500_000, durationMinutes: 60 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/not both/);
+  });
+
+  it("refuses a body that names neither", async () => {
+    const res = await call("POST", "/", { startingBid: 500_000, durationMinutes: 60 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Pokemon or an item/);
+  });
+
+  it("refuses a second listing of the same machine", async () => {
+    await listMachine();
+    // The escrow already took it, so this is the belt to that braces — but
+    // the message has to name the real reason, not "you don't have it".
+    db.users.find((u) => u.id === "seller")!.saveData = save(1_000, { tm26: 1 });
+    const again = await listMachine();
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatch(/already have that machine listed/);
+  });
+
+  it("gives the machine back when the seller cancels", async () => {
+    const listed = await listMachine();
+    expect(invOf("seller").tm26).toBeUndefined();
+    const cancelled = await call("POST", `/${listed.body.auction.id}/cancel`);
+    expect(cancelled.status).toBe(200);
+    expect(invOf("seller").tm26).toBe(1);
+  });
+
+  it("refuses a bid from someone who already owns that machine", async () => {
+    const listed = await listMachine();
+    h.setUser("u2", "bob"); // bob already has tm26
+    const res = await bid(listed.body.auction.id, 500_000);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/already have that machine/);
+  });
+
+  it("accepts a bid from someone who does not", async () => {
+    const listed = await listMachine();
+    h.setUser("u1", "alice"); // alice has none
+    const res = await bid(listed.body.auction.id, 500_000);
+    expect(res.status).toBe(200);
+  });
+
+  it("browses alongside Pokemon lots, each labelled", async () => {
+    await listMachine();
+    seedAuction({ id: "mon-lot" });
+    h.setUser("u1", "alice");
+    const res = await call("GET", "/");
+    const kinds = res.body.auctions.map((a: any) => a.lotKind).sort();
+    expect(kinds).toEqual(["item", "pokemon"]);
+    const item = res.body.auctions.find((a: any) => a.lotKind === "item");
+    expect(item.item.itemId).toBe("tm26");
+    expect(item.pokemon).toBeNull();
+    const mon = res.body.auctions.find((a: any) => a.lotKind === "pokemon");
+    expect(mon.item).toBeNull();
+    expect(mon.pokemon).not.toBeNull();
   });
 });

@@ -2423,8 +2423,11 @@ app.get("/auctions", async (c) => {
   });
   const out = rows.filter((r) => {
     if (!q) return true;
+    // An item lot has no snapshot; its searchable text is the item id, which
+    // is also the only thing an admin would type ("tm24").
     return (
-      r.pokemonSnapshot.toLowerCase().includes(q) ||
+      (r.pokemonSnapshot ?? "").toLowerCase().includes(q) ||
+      (r.itemId ?? "").toLowerCase().includes(q) ||
       r.sellerId.toLowerCase().includes(q) ||
       (r.currentBidderId ?? "").toLowerCase().includes(q)
     );

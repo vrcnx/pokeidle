@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser, blockStream } from "../lib/middleware.js";
@@ -66,13 +66,16 @@ function findMonInSave(save: Record<string, unknown>, id: string): Record<string
 // an auction payload by accident — see that migration's header for why the
 // alternative (columns on Auction) was rejected.
 const AUCTION_SELECT = {
-  id: true, sellerId: true, pokemonId: true, pokemonSnapshot: true,
+  id: true, sellerId: true, lotKind: true,
+  pokemonId: true, pokemonSnapshot: true, itemId: true, itemQty: true,
   startingBid: true, currentBid: true, currentBidderId: true,
   status: true, endsAt: true, createdAt: true, settledAt: true,
 } as const;
 
 type AuctionRow = {
-  id: string; sellerId: string; pokemonId: string; pokemonSnapshot: string;
+  id: string; sellerId: string; lotKind: string;
+  pokemonId: string | null; pokemonSnapshot: string | null;
+  itemId: string | null; itemQty: number | null;
   startingBid: number; currentBid: number; currentBidderId: string | null;
   status: string; endsAt: Date; createdAt: Date; settledAt: Date | null;
 };
@@ -118,8 +121,13 @@ async function serializeAuctions(rows: AuctionRow[], viewerId: string) {
   const viewerHasBid = new Set(viewerBidRows.map((b) => b.auctionId));
 
   return rows.map((a) => {
+    // An item lot has no snapshot to parse. Guarding on the FIELD rather
+    // than on lotKind keeps a malformed row (kind says pokemon, snapshot is
+    // null) from throwing here and taking the whole browse page with it.
     let pokemon: unknown = null;
-    try { pokemon = JSON.parse(a.pokemonSnapshot); } catch { /* leave null */ }
+    if (a.pokemonSnapshot) {
+      try { pokemon = JSON.parse(a.pokemonSnapshot); } catch { /* leave null */ }
+    }
     const contest = contests.get(a.id) ?? { bidCount: 0, distinctBidders: 0 };
     const minNextBid = minAcceptableBid(a, {
       bidCount: contest.bidCount,
@@ -137,7 +145,19 @@ async function serializeAuctions(rows: AuctionRow[], viewerId: string) {
        * Pokemon and you only found out it was impossible after a round trip.
        */
       youAreSeller: a.sellerId === viewerId,
+      /**
+       * "pokemon" | "item" — which of the two fields below is filled.
+       *
+       * Normalised rather than passed through. `JSON.stringify` DROPS keys
+       * whose value is undefined, so a row that somehow reached here without
+       * the column would send no `lotKind` at all and the client would have
+       * to guess — which is exactly what the payload audit test caught. The
+       * database default makes that unreachable in production; this makes it
+       * unreachable everywhere.
+       */
+      lotKind: a.lotKind === "item" ? "item" : "pokemon",
       pokemon,
+      item: a.lotKind === "item" && a.itemId ? { itemId: a.itemId, quantity: a.itemQty ?? 1 } : null,
       startingBid: a.startingBid,
       currentBid: a.currentBid,
       currentBidderUsername: a.currentBidderId ? nameOf.get(a.currentBidderId) ?? null : null,
@@ -231,8 +251,133 @@ app.get("/:id", requireUser, async (c) => {
   });
 });
 
+
+/**
+ * A machine's inventory id. TM01-TM95, HM01-HM06.
+ *
+ * A regex rather than an imported allowlist, and that is safe because it is
+ * not the security boundary: the escrow below refuses to list anything the
+ * seller does not actually hold in their save, so an invented id fails on
+ * ownership before this pattern ever matters. The pattern's job is only to
+ * keep the market to the thing it was opened for.
+ */
+const MACHINE_ID = /^(tm|hm)\d\d$/;
+
+/**
+ * List an ITEM lot.
+ *
+ * ── WHY ONLY MACHINES, FOR NOW ───────────────────────────────────────
+ * Machines are the item this market exists for: you turn up a second TM26 on
+ * a route you were farming for something else, it is reusable so the spare
+ * does nothing, and the player who wants it is waiting on a rotation or a
+ * 1.5% drop. That is a real trade with a real price.
+ *
+ * Poke Balls and repels are not — they are bought at a fixed price from a
+ * shop that never runs out, so an auction for them is either a gift or a
+ * scam, and either way it is noise in the browse list. The schema is general
+ * (itemId + itemQty); the policy is narrow, and this is the one line to move
+ * when that changes.
+ *
+ * ── ESCROW ───────────────────────────────────────────────────────────
+ * Identical in shape to the Pokemon path: the item leaves the seller's save
+ * the moment it is listed, in the same transaction that creates the auction,
+ * under a compare-and-swap on the version we read. It cannot be used, sold to
+ * a shop, or double-listed while it is up. Settlement delivers it from the
+ * row; cancel and expiry give it back.
+ */
+async function listItemLot(
+  c: Context,
+  sellerId: string,
+  itemId: string,
+  quantity: number,
+  startingBid: number,
+  durationMinutes: number,
+) {
+  if (!MACHINE_ID.test(itemId)) {
+    return c.json({ error: "Only TMs and HMs can be auctioned." }, 400);
+  }
+  // Machines are reusable and capped at one per player, so a quantity above
+  // one cannot be held and would not mean anything if it could.
+  if (quantity !== 1) {
+    return c.json({ error: "A machine is sold one at a time — it never wears out." }, 400);
+  }
+
+  const existing = await prisma.auction.findFirst({
+    where: { sellerId, itemId, status: "active" },
+    select: { id: true },
+  });
+  if (existing) return c.json({ error: "you already have that machine listed" }, 409);
+
+  const me = await prisma.user.findUnique({
+    where: { id: sellerId },
+    select: { saveData: true, saveVersion: true },
+  });
+  const save = safeParseSave(me?.saveData ?? null);
+  if (!save) return c.json({ error: "no save data" }, 400);
+
+  const inventory = (save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+    ? { ...(save.inventory as Record<string, unknown>) }
+    : null;
+  if (!inventory) return c.json({ error: "no save data" }, 400);
+  const held = Number(inventory[itemId] ?? 0);
+  if (!Number.isFinite(held) || held < quantity) {
+    return c.json({ error: "you don't have that machine" }, 404);
+  }
+
+  const left = held - quantity;
+  if (left <= 0) delete inventory[itemId];
+  else inventory[itemId] = left;
+  const escrowedSave = { ...save, inventory };
+  const derived = computeAccountLevel(escrowedSave);
+
+  let auction;
+  try {
+    auction = await prisma.$transaction(async (tx) => {
+      const claim = await tx.user.updateMany({
+        where: { id: sellerId, saveVersion: me!.saveVersion },
+        data: {
+          saveData: JSON.stringify(escrowedSave),
+          saveVersion: { increment: 1 },
+          saveAdoptSeq: { increment: 1 },
+          saveUpdatedAt: new Date(),
+          accountLevel: derived.accountLevel,
+          totalCaughtLevels: derived.totalCaughtLevels,
+          pokedexCaughtCount: derived.pokedexCaughtCount,
+        },
+      });
+      if (claim.count === 0) throw new Error("save_conflict");
+      return tx.auction.create({
+        data: {
+          sellerId,
+          lotKind: "item",
+          itemId,
+          itemQty: quantity,
+          startingBid,
+          endsAt: new Date(Date.now() + durationMinutes * 60_000),
+        },
+        select: AUCTION_SELECT,
+      });
+    });
+  } catch (e) {
+    if ((e as Error).message === "save_conflict") {
+      return c.json({ error: "your save just changed — reload and try again" }, 409);
+    }
+    throw e;
+  }
+  emitSaveAdopt(sellerId);
+  const [serialized] = await serializeAuctions([auction], sellerId);
+  return c.json({ auction: serialized }, 201);
+}
+
+// ── A LOT IS A POKEMON OR AN ITEM ───────────────────────────────────
+// `pokemonId` stays optional rather than becoming part of a discriminated
+// union so that every client already in the wild — which sends a bare
+// { pokemonId, startingBid, durationMinutes } — keeps working untouched
+// through the deploy. A body with neither is refused below, by name.
 const CreateBody = z.object({
-  pokemonId: z.string().min(1).max(64),
+  pokemonId: z.string().min(1).max(64).optional(),
+  itemId: z.string().min(1).max(64).optional(),
+  itemQuantity: z.number().int().min(1).max(999).optional(),
   // THE FLOOR. Was min(1), which is how eleven Pokemon came to be listed for
   // $1 and twenty-four for the form's untouched $100 default — including a
   // Lv100 unown with a 186 IV total that sold for $100.
@@ -290,11 +435,19 @@ app.post("/", requireUser, blockStream, async (c) => {
       return c.json({ error: duration, minDurationMinutes: MIN_DURATION_MIN, maxDurationMinutes: MAX_DURATION_MIN }, 400);
     }
     return c.json({
-      error: "Pick a Pokemon, a starting bid and a duration — that request was missing one of them.",
+      error: "Pick something to sell, a starting bid and a duration — that request was missing one of them.",
       issues: body.error.issues,
     }, 400);
   }
-  const { pokemonId, startingBid, durationMinutes } = body.data;
+  const { pokemonId, itemId, itemQuantity, startingBid, durationMinutes } = body.data;
+  if (!pokemonId && !itemId) {
+    return c.json({ error: "Pick a Pokemon or an item to sell." }, 400);
+  }
+  if (pokemonId && itemId) {
+    return c.json({ error: "One lot sells one thing — a Pokemon or an item, not both." }, 400);
+  }
+
+  if (itemId) return listItemLot(c, user.id, itemId, itemQuantity ?? 1, startingBid, durationMinutes);
 
   const existing = await prisma.auction.findFirst({
     where: { sellerId: user.id, pokemonId, status: "active" },
@@ -305,6 +458,9 @@ app.post("/", requireUser, blockStream, async (c) => {
   const me = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true, saveVersion: true } });
   const save = safeParseSave(me?.saveData ?? null);
   if (!save) return c.json({ error: "no save data" }, 400);
+  // Narrowing for the compiler; the two guards above already refused a body
+  // with neither id, and an itemId body returned through listItemLot.
+  if (!pokemonId) return c.json({ error: "Pick a Pokemon or an item to sell." }, 400);
   const mon = findMonInSave(save, pokemonId);
   if (!mon) return c.json({ error: "you don't own that Pokemon" }, 404);
   const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
@@ -377,7 +533,8 @@ app.post("/", requireUser, blockStream, async (c) => {
 const BidBody = z.object({ amount: z.number().int().min(1).max(MAX_BID) });
 
 const BID_SELECT = {
-  id: true, sellerId: true, startingBid: true, currentBid: true,
+  id: true, sellerId: true, lotKind: true, itemId: true,
+  startingBid: true, currentBid: true,
   currentBidderId: true, status: true, endsAt: true,
 } as const;
 
@@ -453,6 +610,29 @@ app.post("/:id/bids", requireUser, blockStream, async (c) => {
   if (auction.sellerId === user.id) {
     noteSelfBidBlocked(id, user.id, amount);
     return c.json({ error: "you can't bid on your own auction" }, 400);
+  }
+
+  // ── A MACHINE YOU ALREADY OWN ─────────────────────────────────────
+  // Refused here, before any money is committed, because winning it would be
+  // strictly worse than losing: machines are reusable and capped at one, so
+  // settlement cannot deliver a second copy and would cancel the whole lot —
+  // after the bidding had already pushed the price up and denied it to
+  // someone who could actually use it.
+  //
+  // Not a substitute for the settlement check: a bidder can find their own
+  // copy on a route during a 48-hour listing, and that path is handled there.
+  // This is the one that saves people from an obvious mistake.
+  if (auction.lotKind === "item" && auction.itemId) {
+    const holder = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true } });
+    const holderSave = safeParseSave(holder?.saveData ?? null);
+    const inv = (holderSave?.inventory && typeof holderSave.inventory === "object" && !Array.isArray(holderSave.inventory))
+      ? (holderSave.inventory as Record<string, number>)
+      : {};
+    if (Number(inv[auction.itemId] ?? 0) > 0) {
+      return c.json({
+        error: "You already have that machine — it never wears out, so a second one would do nothing.",
+      }, 400);
+    }
   }
 
   const me = await readMoney(user.id);
@@ -788,13 +968,15 @@ app.post("/:id/cancel", requireUser, blockStream, async (c) => {
   const id = c.req.param("id");
   const auction = await prisma.auction.findFirst({
     where: { id, sellerId: user.id, status: "active", currentBidderId: null },
-    select: { id: true, pokemonSnapshot: true },
+    select: { id: true, lotKind: true, pokemonSnapshot: true, itemId: true, itemQty: true },
   });
   if (!auction) {
     return c.json({ error: "can't cancel — not yours, already ended, or already has a bid" }, 409);
   }
   let mon: Record<string, unknown> | null = null;
-  try { mon = JSON.parse(auction.pokemonSnapshot); } catch { /* no restore possible */ }
+  if (auction.pokemonSnapshot) {
+    try { mon = JSON.parse(auction.pokemonSnapshot); } catch { /* no restore possible */ }
+  }
 
   const me = await prisma.user.findUnique({ where: { id: user.id }, select: { saveData: true, saveVersion: true } });
   const save = safeParseSave(me?.saveData ?? null);
@@ -809,7 +991,33 @@ app.post("/:id/cancel", requireUser, blockStream, async (c) => {
         data: { status: "cancelled", settledAt: new Date() },
       });
       if (cancelClaim.count === 0) throw new Error("auction_gone");
-      if (save && mon && typeof mon.id === "string") {
+
+      // ITEM LOT: put the escrowed machine back. Idempotent on the same
+      // reasoning as the mon path below — if the seller somehow already holds
+      // it, adding another would mint one, and a machine is capped at one.
+      if (save && auction.lotKind === "item" && auction.itemId) {
+        const inv = (save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+          ? { ...(save.inventory as Record<string, number>) }
+          : {};
+        if (!(Number(inv[auction.itemId] ?? 0) > 0)) {
+          inv[auction.itemId] = auction.itemQty ?? 1;
+          const restoredSave = { ...save, inventory: inv };
+          const derived = computeAccountLevel(restoredSave);
+          const saveClaim = await tx.user.updateMany({
+            where: { id: user.id, saveVersion: me!.saveVersion },
+            data: {
+              saveData: JSON.stringify(restoredSave),
+              saveVersion: { increment: 1 },
+              saveAdoptSeq: { increment: 1 },
+              saveUpdatedAt: new Date(),
+              accountLevel: derived.accountLevel,
+              totalCaughtLevels: derived.totalCaughtLevels,
+              pokedexCaughtCount: derived.pokedexCaughtCount,
+            },
+          });
+          if (saveClaim.count === 0) throw new Error("save_conflict");
+        }
+      } else if (save && mon && typeof mon.id === "string") {
         const box = Array.isArray(save.box) ? (save.box as Record<string, unknown>[]) : [];
         const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
         const alreadyHas = box.some((m) => m && m.id === mon!.id) || party.some((m) => m && m.id === mon!.id);

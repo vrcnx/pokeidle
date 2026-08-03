@@ -23,7 +23,7 @@
 // Also enforced here: the migration stays ADDITIVE. No DROP, no ALTER of an
 // existing table, no UPDATE/DELETE backfill — the rules the deploy relies on.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -34,6 +34,27 @@ const MIGRATION = readFileSync(
   "utf8",
 );
 const SCHEMA = readFileSync(resolve(here, "../prisma/schema.prisma"), "utf8");
+
+/**
+ * Every migration`s SQL, concatenated.
+ *
+ * The RAW-SQL-ONLY block in schema.prisma is a registry of the WHOLE
+ * database`s invisible constraints, not the ladder`s alone — a reader
+ * debugging a 23514 looks there whatever table threw it. So the "documented
+ * but never created" check below has to look at every migration, or adding a
+ * CHECK in a later one would force a choice between leaving it undocumented
+ * and failing a test about a different feature.
+ */
+const ALL_MIGRATIONS = readdirSync(resolve(here, "../prisma/migrations"))
+  .filter((d) => !d.includes("."))
+  .map((d) => {
+    try {
+      return readFileSync(resolve(here, "../prisma/migrations", d, "migration.sql"), "utf8");
+    } catch {
+      return "";
+    }
+  })
+  .join("\n");
 
 /** The migration with every `--` comment line removed. The comments deliberately
  *  discuss the objects that were REMOVED (PvpDailyFirstWin, the firstWinOfDay
@@ -138,9 +159,25 @@ describe("schema.prisma documents what Prisma cannot see", () => {
     });
   }
 
-  it("lists no CHECK in the schema note that the migration does not create", () => {
+  it("lists no CHECK in the schema note that no migration creates", () => {
+    // The registry must not accumulate constraints that do not exist. Scanned
+    // across every migration so a CHECK added by a later feature can be
+    // documented here without failing a test about the ladder.
     const noteChecks = [...SCHEMA.matchAll(/^\/\/\s+CHECK\s+(\w+)/gm)].map((m) => m[1]);
-    expect(noteChecks.sort()).toEqual(CHECKS.map((c) => c.name).sort());
+    expect(noteChecks.length).toBeGreaterThanOrEqual(CHECKS.length);
+    for (const name of noteChecks) {
+      expect(ALL_MIGRATIONS, `${name} is documented but never created`).toContain(name);
+    }
+  });
+
+  it("documents every CHECK any migration creates", () => {
+    // The other direction: a constraint that exists but is not in the registry
+    // is exactly the 23514 nobody can explain.
+    const created = [...ALL_MIGRATIONS.matchAll(/ADD CONSTRAINT "(\w+)" CHECK/g)].map((m) => m[1]);
+    const noteChecks = new Set([...SCHEMA.matchAll(/^\/\/\s+CHECK\s+(\w+)/gm)].map((m) => m[1]));
+    for (const name of new Set(created)) {
+      expect(noteChecks.has(name), `${name} exists but is not in the RAW-SQL-ONLY block`).toBe(true);
+    }
   });
 
   it("explains WHY there is no partial index, so it is not re-added as an improvement", () => {

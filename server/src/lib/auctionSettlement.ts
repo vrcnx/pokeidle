@@ -29,6 +29,55 @@ import { emitSaveAdopt } from "./saveAdopt.js";
 // save:adopt so the seller's client picks it back up authoritatively (online
 // and offline). Retries against the seller's live version a few times so a
 // concurrent autosave doesn't silently drop the restore.
+type EscrowedLot =
+  | { kind: "pokemon"; snapshot: string | null }
+  | { kind: "item"; itemId: string | null; qty: number | null };
+
+/**
+ * Give an ITEM lot back. Same contract as the Pokemon restore below: retried
+ * against the seller's live version, and idempotent — if they already hold
+ * the machine (a previous attempt landed, or they found another) this does
+ * nothing rather than minting a second copy of something capped at one.
+ */
+async function restoreEscrowedItem(sellerId: string, itemId: string, qty: number): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true, saveVersion: true } });
+    const save = safeParseSave(u?.saveData ?? null);
+    if (!save) return;
+    const inv = (save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+      ? { ...(save.inventory as Record<string, number>) }
+      : {};
+    if (Number(inv[itemId] ?? 0) > 0) return; // already restored
+    inv[itemId] = qty;
+    const restored = { ...save, inventory: inv };
+    const derived = computeAccountLevel(restored);
+    const claim = await prisma.user.updateMany({
+      where: { id: sellerId, saveVersion: u!.saveVersion },
+      data: {
+        saveData: JSON.stringify(restored),
+        saveVersion: { increment: 1 },
+        saveAdoptSeq: { increment: 1 },
+        saveUpdatedAt: new Date(),
+        accountLevel: derived.accountLevel,
+        totalCaughtLevels: derived.totalCaughtLevels,
+        pokedexCaughtCount: derived.pokedexCaughtCount,
+      },
+    });
+    if (claim.count > 0) { emitSaveAdopt(sellerId); return; }
+  }
+  void recordError({ kind: "server", message: "auction_restore_escrow_item_failed", source: "auctionSettlement.restoreEscrowedItem", meta: { sellerId, itemId } });
+}
+
+/** Whichever kind of lot this was, put it back where it came from. */
+async function restoreEscrow(sellerId: string, lot: EscrowedLot): Promise<void> {
+  if (lot.kind === "item") {
+    if (!lot.itemId) return;
+    return restoreEscrowedItem(sellerId, lot.itemId, lot.qty ?? 1);
+  }
+  if (!lot.snapshot) return;
+  return restoreEscrowedMon(sellerId, lot.snapshot);
+}
+
 async function restoreEscrowedMon(sellerId: string, snapshotJson: string): Promise<void> {
   let mon: Record<string, unknown> | null = null;
   try { mon = JSON.parse(snapshotJson); } catch { return; }
@@ -91,20 +140,30 @@ function findMon(
   return null;
 }
 
+/** Read the escrowed lot off an auction row, whichever kind it is. */
+function lotOf(row: {
+  lotKind: string; pokemonSnapshot: string | null; itemId: string | null; itemQty: number | null;
+}): EscrowedLot {
+  return row.lotKind === "item"
+    ? { kind: "item", itemId: row.itemId, qty: row.itemQty }
+    : { kind: "pokemon", snapshot: row.pokemonSnapshot };
+}
+
 type Outcome = "settled" | "cancelled" | "retry" | "skipped";
 
 async function cancelAuction(auctionId: string, reason: string): Promise<void> {
   const row = await prisma.auction.findUnique({
     where: { id: auctionId },
-    select: { sellerId: true, currentBidderId: true, pokemonSnapshot: true },
+    select: { sellerId: true, currentBidderId: true, lotKind: true, pokemonSnapshot: true, itemId: true, itemQty: true },
   });
   const claim = await prisma.auction.updateMany({
     where: { id: auctionId, status: "active" },
     data: { status: "cancelled", settledAt: new Date() },
   });
   if (claim.count === 0 || !row) return;
-  // The listed mon was escrowed out of the seller's save — give it back.
-  await restoreEscrowedMon(row.sellerId, row.pokemonSnapshot);
+  // The lot was escrowed out of the seller's save — give it back, whichever
+  // kind it was.
+  await restoreEscrow(row.sellerId, lotOf(row));
   sendToUserGlobal(row.sellerId, "auction:cancelled", { auctionId, reason });
   if (row.currentBidderId) sendToUserGlobal(row.currentBidderId, "auction:cancelled", { auctionId, reason });
 }
@@ -121,7 +180,7 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
       data: { status: "expired", settledAt: new Date() },
     });
     if (claim.count > 0) {
-      await restoreEscrowedMon(auction.sellerId, auction.pokemonSnapshot);
+      await restoreEscrow(auction.sellerId, lotOf(auction));
       sendToUserGlobal(auction.sellerId, "auction:expired", { auctionId: auction.id });
     }
     return "settled";
@@ -149,39 +208,78 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
     return "cancelled";
   }
 
-  // The mon is in ESCROW — it was removed from the seller at listing and lives
-  // only in the snapshot now. Deliver it to the winner from there; the seller
-  // no longer has (and doesn't need) it in their save.
+  // The lot is in ESCROW — it left the seller's save at listing time and
+  // lives only on the auction row now. Deliver it to the winner from there;
+  // the seller no longer has (and doesn't need) it.
+  const isItemLot = auction.lotKind === "item";
   let mon: Record<string, unknown> | null = null;
-  try { mon = JSON.parse(auction.pokemonSnapshot); } catch { /* */ }
-  if (!mon || typeof mon.id !== "string") {
-    await cancelAuction(auction.id, "corrupt_snapshot");
+  if (!isItemLot) {
+    try { mon = auction.pokemonSnapshot ? JSON.parse(auction.pokemonSnapshot) : null; } catch { /* */ }
+    if (!mon || typeof mon.id !== "string") {
+      await cancelAuction(auction.id, "corrupt_snapshot");
+      return "cancelled";
+    }
+  } else if (!auction.itemId) {
+    await cancelAuction(auction.id, "corrupt_item_lot");
     return "cancelled";
   }
 
   const winnerMoney = Number(winnerSave.money ?? 0);
   if (!Number.isFinite(winnerMoney) || winnerMoney < auction.currentBid) {
-    // Winner can't pay — cancel, which returns the escrowed mon to the seller.
+    // Winner can't pay — cancel, which returns the escrowed lot to the seller.
     await cancelAuction(auction.id, "winning_bidder_insufficient_funds");
     return "cancelled";
   }
 
-  // Seller: just gains the proceeds (the mon already left at listing time).
+  // ── A MACHINE THE WINNER ALREADY HAS ────────────────────────────────
+  // Machines are reusable and capped at one, so delivering a second copy
+  // would mint something the game says cannot exist — and the winner would
+  // have paid for it. The bid route refuses these up front, but the winner
+  // could have found their own copy on a route between bidding and closing,
+  // which is a perfectly ordinary thing to do over a 48-hour listing.
+  //
+  // Cancelling returns the machine to the seller and moves no money, which is
+  // the honest outcome: nobody gets something they cannot hold, and nobody
+  // pays for nothing.
+  if (isItemLot && auction.itemId) {
+    const winnerInv = (winnerSave.inventory && typeof winnerSave.inventory === "object" && !Array.isArray(winnerSave.inventory))
+      ? (winnerSave.inventory as Record<string, number>)
+      : {};
+    if (Number(winnerInv[auction.itemId] ?? 0) > 0) {
+      await cancelAuction(auction.id, "winner_already_owns_machine");
+      return "cancelled";
+    }
+  }
+
+  // Seller: just gains the proceeds (the lot already left at listing time).
   const sellerMerged: Record<string, unknown> = {
     ...sellerSave,
     money: Number(sellerSave.money ?? 0) + auction.currentBid,
   };
 
-  const winnerParty = Array.isArray(winnerSave.party) ? [...(winnerSave.party as Record<string, unknown>[])] : [];
-  const winnerBox = Array.isArray(winnerSave.box) ? [...(winnerSave.box as Record<string, unknown>[])] : [];
-  if (winnerParty.length < 6) winnerParty.push(mon);
-  else winnerBox.push(mon);
-  const winnerMerged: Record<string, unknown> = {
-    ...winnerSave,
-    party: winnerParty,
-    box: winnerBox,
-    money: winnerMoney - auction.currentBid,
-  };
+  let winnerMerged: Record<string, unknown>;
+  if (isItemLot) {
+    const inv = (winnerSave.inventory && typeof winnerSave.inventory === "object" && !Array.isArray(winnerSave.inventory))
+      ? { ...(winnerSave.inventory as Record<string, number>) }
+      : {};
+    inv[auction.itemId!] = (Number(inv[auction.itemId!] ?? 0) || 0) + (auction.itemQty ?? 1);
+    winnerMerged = {
+      ...winnerSave,
+      inventory: inv,
+      money: winnerMoney - auction.currentBid,
+    };
+  } else {
+    const winnerParty = Array.isArray(winnerSave.party) ? [...(winnerSave.party as Record<string, unknown>[])] : [];
+    const winnerBox = Array.isArray(winnerSave.box) ? [...(winnerSave.box as Record<string, unknown>[])] : [];
+    if (winnerParty.length < 6) winnerParty.push(mon!);
+    else winnerBox.push(mon!);
+    winnerMerged = {
+      ...winnerSave,
+      party: winnerParty,
+      box: winnerBox,
+      money: winnerMoney - auction.currentBid,
+    };
+  }
 
   const sellerValidation = validateSave(sellerMerged);
   const winnerValidation = validateSave(winnerMerged);
