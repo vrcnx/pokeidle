@@ -347,6 +347,24 @@ class DragController {
 
   private endDrag(commit: boolean, upX?: number, upY?: number) {
     if (!this.dragging) return;
+    // RESOLVE THE TARGET AT THE RELEASE POINT, synchronously, before
+    // committing.
+    //
+    // updateTarget otherwise only ever runs inside scheduleFrame() — a
+    // requestAnimationFrame callback. So a drag that is released before a
+    // frame lands commits against whatever target the LAST painted frame
+    // found, which for a quick flick is null: the pointer went down, moved,
+    // and came up inside one frame, and the drop silently did nothing.
+    //
+    // That is invisible on a slow, deliberate drag and reliable on a fast
+    // one, which is the worst possible shape for a bug — it reads as "drag
+    // and drop doesn't work" to whoever moves quickly and as "works fine" to
+    // whoever tests it carefully. It also fails in any environment where rAF
+    // is throttled or never fires: a backgrounded tab, or a headless
+    // renderer.
+    //
+    // Cheap, because it happens once per gesture rather than per frame.
+    if (commit && upX !== undefined && upY !== undefined) this.updateTarget(upX, upY);
     const { source, payload, ghost, target } = this.dragging;
     document.removeEventListener("keydown", this.boundEscape);
     document.body.classList.remove("dnd-active");
