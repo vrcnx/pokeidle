@@ -174,7 +174,9 @@ async function bid(amount: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ amount }),
   });
-  return { status: res.status, body: await res.json().catch(() => null) };
+  let parsed: any = null;
+  try { parsed = await res.json(); } catch { /* */ }
+  return { status: res.status, body: parsed };
 }
 
 const dropped = () => h.direct.find((d) => d.event === "auction:proxy_dropped");

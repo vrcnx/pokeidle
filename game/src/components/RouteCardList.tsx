@@ -233,9 +233,14 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
               {sorted.slice(0, ROUTE_CARD_MONS).map((e) => {
                 const seen = state.pokedexSeen.includes(e.speciesKey);
                 const sp = pokemonTable[e.speciesKey];
+                // Same rule as the Wild Pokemon panel: the level range and the
+                // encounter chance are already one click away for an unseen
+                // species, so hiding them on hover hid nothing and cost a
+                // click. Only the NAME is withheld.
+                const meta = `Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`;
                 const label = seen
-                  ? `${sp?.name ?? e.speciesKey} · Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`
-                  : t("Not yet seen");
+                  ? `${sp?.name ?? e.speciesKey} · ${meta}`
+                  : `??? · ${meta}`;
                 // `title` only — this cell used to carry a styled tooltip span
                 // as well, with the same `label` text in both. The custom one
                 // was absolutely positioned inside a 26px flex cell with

@@ -1,4 +1,5 @@
 import { useGame } from "../state/GameContext";
+import { closeHub } from "./HubModal";
 import { pokemonTable } from "../data/pokemon";
 import { PokemonSprite } from "./Sprite";
 import { encounters } from "../data/encounters";
@@ -57,7 +58,7 @@ interface Props {
 // live. What a disabled cell actually hid was the dex's core job — what's
 // left, and where to look.
 export function DexSpeciesModal({ speciesKey, onClose }: Props) {
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const sp = pokemonTable[speciesKey];
   const dialogRef = useModalEnter(".g-profile-hero, .g-card");
   const t = useT();
@@ -242,6 +243,31 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
                         {revealed && `${r.ratePct.toFixed(1)}%`}
                         {!unlocked && `${revealed ? " · " : ""}${t("not unlocked yet")}`}
                       </span>
+                      {/* Go. This list tells a player exactly where a Pokemon
+                          lives and then made them close the dialog, open the
+                          Map, and find the route again by name — the answer
+                          was on screen and not actionable.
+                          Locked routes keep their row and say why, rather
+                          than offering a button that refuses. */}
+                      {unlocked && (
+                        <button
+                          type="button"
+                          className="dex-route-go"
+                          disabled={here}
+                          onClick={() => {
+                            dispatch({ type: "TRAVEL", payload: { locationId: r.routeKey } });
+                            // Both dialogs are in the way of the thing you
+                            // just asked for. The species sheet can sit above
+                            // the hub (it opens from the Dex), so closing one
+                            // would leave the other.
+                            onClose();
+                            closeHub();
+                          }}
+                          title={here ? t("You are here") : `${t("Travel to")} ${r.name}`}
+                        >
+                          {here ? t("Here") : t("Go")}
+                        </button>
+                      )}
                     </li>
                   );
                 })}

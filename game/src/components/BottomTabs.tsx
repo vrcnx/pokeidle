@@ -564,8 +564,18 @@ export function BagTab() {
               // Repel/Honey are per-species and per-route, so name the target.
               // Without it the list showed a bare "Max Repel" and the player
               // had no way to tell which Pokemon on which route it was on.
+              // NAME LEAK — reported inside a QoL thread, and a real one.
+              // Using Honey on a species you have never seen printed its name
+              // here, which is the single thing the Pokedex withholds
+              // everywhere else: the wild panel shows "???", the map card
+              // shows "???", the dex shows a silhouette. The Bag was the one
+              // surface that just said it.
+              //
+              // `pokedexSeen`, not `pokedexCaught`: seeing one is what earns
+              // the name, and that is the rule the other three surfaces use.
+              const targetSeen = !eff.speciesKey || state.pokedexSeen.includes(eff.speciesKey);
               const target = eff.speciesKey
-                ? `${pokemonTable[eff.speciesKey]?.name ?? eff.speciesKey}${
+                ? `${targetSeen ? (pokemonTable[eff.speciesKey]?.name ?? eff.speciesKey) : "???"}${
                     eff.routeKey ? ` - ${routes[eff.routeKey]?.name ?? eff.routeKey}` : ""
                   }`
                 : "";

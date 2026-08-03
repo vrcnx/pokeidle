@@ -82,7 +82,11 @@ async function discordLinkPromo(userId: string): Promise<Promo | null> {
   return {
     id: "discord-link",
     title: "Join the Discord",
-    blurb: "Link your account to the community server and the reward is yours.",
+    // Names the command. The blurb used to say "link your account" without
+    // saying HOW, and the how is a slash command in a different application —
+    // there is no way to guess `/link` from inside the game. Player-facing
+    // copy for a two-app flow has to name both ends of it.
+    blurb: "Get your code here, then run /link in the Discord server and the reward is yours.",
     icon: "discord",
     prizes: parsed.prizes,
     state,

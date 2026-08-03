@@ -20282,3 +20282,32 @@ strong, b { font-variant-numeric: tabular-nums; }
    Route 1 — have no parent to hang off, so they get the indent without the
    rail rather than being forced under a town they do not belong to. */
 .route-group-kids.is-lead { margin-left: 0; padding-left: 0; border-left: 0; }
+
+/* Travel, from the row that told you where to go. This list named the exact
+   route a Pokemon lives on and then made the player close the dialog, open
+   the Map and find it again by name — the answer was on screen and not
+   actionable. */
+.dex-species-routes li { gap: 8px; }
+.dex-route-go {
+  flex: 0 0 auto;
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 120ms, opacity 120ms;
+}
+.dex-route-go:hover:not(:disabled) { filter: brightness(1.15); }
+.dex-route-go:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }
+/* Already standing there. Muted rather than removed, so the row keeps the
+   same shape as the ones around it. */
+.dex-route-go:disabled {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+  cursor: default;
+}

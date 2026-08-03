@@ -551,7 +551,13 @@ function WildPokemonSection({ routeKey }: { routeKey: string }) {
               onClick={() =>
                 setSelected((cur) => (cur === e.speciesKey ? null : e.speciesKey))
               }
-              title={seen ? `${sp.name} · ${ratePct.toFixed(1)}%` : "???"}
+              // "??? · 3.5%" for an unseen species, not a bare "???".
+              //
+              // The rate is NOT hidden information: clicking this cell already
+              // shows it, for seen and unseen alike. So withholding it on
+              // hover hid nothing — it only made you click. The one thing the
+              // dex actually withholds is the NAME, and that still is.
+              title={seen ? `${sp.name} · ${ratePct.toFixed(1)}%` : `??? · ${ratePct.toFixed(1)}%`}
             >
               <PokemonSprite
                 speciesKey={e.speciesKey}
