@@ -31,7 +31,10 @@ import { useT } from "../i18n/useT";
 /** The auction house as a hub section rather than a tab inside the chat
  *  panel. Same component; it was only ever mounted in the wrong place. */
 function AuctionBoardPane() {
-  return <AuctionBoard />;
+  // The marker the page's own stylesheet keys off. Not `.hub-pane` — that
+  // belongs to the hub, and styling it from elsewhere is how a component
+  // ends up at the mercy of a file it has never heard of.
+  return <div className="auction-page"><AuctionBoard /></div>;
 }
 
 /** The detail sheet, drawn inside the PC rather than on top of the game. */

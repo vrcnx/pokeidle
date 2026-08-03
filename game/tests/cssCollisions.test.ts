@@ -85,6 +85,14 @@ const ALLOWED = new Map<string, string>([
   ["party-heal-btn", "same"],
   ["party-column", "same"],
   ["ctx-section", "shared section card"],
+  // The auction board's base styles live in app.css; auctionBoard.css adds
+  // PAGE-level layout to the same elements, scoped under its own
+  // `.auction-page` wrapper. Deliberate co-styling of one element by two
+  // sheets, which is the safe form — as opposed to two sheets that both
+  // think they own a name.
+  ["auction-board-list", "page layout over app.css's base board styles"],
+  ["auction-list-form", "same"],
+  ["auction-picker-grid", "same"],
   ["active", "a state class, not a component"],
   ["is-active", "a state class"],
   ["locked", "a state class"],

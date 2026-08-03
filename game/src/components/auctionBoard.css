@@ -355,3 +355,58 @@
   .auc2-info-btn { padding: 12px 0; margin: -12px 0; }
   .auc-mine-money { margin-left: 0; width: 100%; }
 }
+
+/* ── THE AUCTION PAGE AT FULL WIDTH ────────────────────────────────
+   Everything here was sized for a 300px chat rail. In a hub pane the same
+   markup gave one lot per line down a 1000px column, and a create form the
+   width of the dialog with a single field in it.
+
+   LOTS AS A GRID. An auction card is a fixed block — sprite, tags, price,
+   timer, bid — so it tiles. One per row was never a layout decision, it was
+   the rail's width showing through.
+
+   Keyed off `.auction-page`, a wrapper the hub section adds, NOT off
+   `.hub-pane`. The first version wrote `.hub-pane .auction-*` rules into
+   app.css and the collision test caught it immediately: `.hub-pane` belongs
+   to hub.css, and styling a component's own class from the 20,000-line file
+   is the exact pattern that guard exists to stop. A marker the auction page
+   owns cannot be broken by whatever the hub does to its pane. */
+.auction-page .auction-board-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  align-content: start;
+  gap: 10px;
+}
+
+/* THE CREATE FLOW, two-up: which Pokemon on the left, what it is worth and
+   how long for on the right. Stacked, the seller picked a Pokemon and then
+   scrolled away from it to price something they could no longer see — which
+   is the one moment in this flow where the two facts belong together. */
+.auction-page .auction-list-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  gap: 16px;
+  align-items: start;
+}
+/* The picker fills the left column and scrolls itself rather than the page:
+   a full box is hundreds of eligible Pokemon and the form must not travel
+   up the screen as you look through them. */
+.auction-page .auction-picker-grid {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  max-height: 58vh;
+  overflow-y: auto;
+  align-content: start;
+}
+/* Everything that is not the picker sits in the right column, in order. */
+.auction-page .auction-list-form > :not(.auction-picker-grid) { grid-column: 2; }
+/* ...except the intro line, which is about the picker and belongs over it. */
+.auction-page .auction-list-form > p:first-child { grid-column: 1; }
+
+@media (max-width: 900px) {
+  .auction-page .auction-list-form { grid-template-columns: minmax(0, 1fr); }
+  .auction-page .auction-list-form > * { grid-column: 1 !important; }
+  .auction-page .auction-picker-grid { max-height: 40vh; }
+}
