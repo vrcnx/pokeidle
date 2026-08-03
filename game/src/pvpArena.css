@@ -1753,3 +1753,43 @@
 .pvp2-console.mode-preview.is-locked .pvp2-console-title { color: var(--text-muted); }
 .pvp2-preview-change { align-self: flex-start; min-height: 32px; }
 .mobile-shell .pvp2-preview-change { min-height: 40px; align-self: stretch; }
+
+/* The battle you are already in, at the top of the Battle pane.
+   The pane used to be greyed out of the rail with "You're already in a PvP
+   battle" — a refusal, where the player was asking a question. */
+.pvp-live-now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 11px 14px;
+  border-radius: var(--card-radius, 8px);
+  background: rgba(251, 191, 36, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+.pvp-live-now-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pvp-live-now-k {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.pvp-live-now-text strong { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+.pvp-live-now-go {
+  flex: 0 0 auto;
+  min-height: var(--ctl-h, 32px);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--gold);
+  color: #0a0a0b;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pvp-live-now-go:hover { filter: brightness(1.1); }
+.pvp-live-now-go:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 2px; }

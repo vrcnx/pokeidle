@@ -76,6 +76,20 @@ export function PvpHubPane() {
   const { me } = useAuth();
   const t = useT();
 
+  // The dialog gets out of the way when the battle starts.
+  //
+  // Queueing used to close the hub immediately, because it opened the team
+  // builder next. Dropping that dialog left nothing closing the hub at all —
+  // so a match was found, the arena mounted underneath, and the player was
+  // looking at the queue screen on top of their own battle.
+  //
+  // On the ROOM appearing rather than on the button press: pressing Battle
+  // starts a search, and a player who is queuing should see that they are
+  // queuing. The hub leaves when there is something to leave for.
+  useEffect(() => {
+    if (pvp.room) closeHub();
+  }, [pvp.room]);
+
   const [rating, setRating]   = useState<RatingRow | null>(null);
   const [history, setHistory] = useState<PvpHistoryRow[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
@@ -281,6 +295,26 @@ export function PvpHubPane() {
 
   return (
     <div className={`pvp-hub-pane ${inQueue ? "is-queued" : ""}`}>
+      {/* IN A BATTLE. The pane used to be greyed out of the rail entirely
+          with "You're already in a PvP battle" — which answered the wrong
+          question. Someone opening Battle mid-battle is asking about THAT
+          battle: who they are fighting and how to get back to it. */}
+      {inBattle && (
+        <section className="pvp-live-now">
+          <div className="pvp-live-now-text">
+            <span className="pvp-live-now-k">{t("Battle in progress")}</span>
+            <strong>{t("vs")} {pvp.room?.opponent?.username ?? t("your opponent")}</strong>
+          </div>
+          <button
+            type="button"
+            className="pvp-live-now-go"
+            onClick={() => closeHub()}
+          >
+            {t("Back to the battle")}
+          </button>
+        </section>
+      )}
+
 
 
         {/* MODE CHIPS + READY UP — tighter row, less hero space */}

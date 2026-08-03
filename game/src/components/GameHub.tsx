@@ -116,7 +116,20 @@ export function GameHub() {
   // subject is starting one. The reason travels with the flag so the rail can
   // put it in a tooltip instead of just grey­ing a row out and leaving the
   // player to guess.
-  const disabled = pvp.room ? { pvp: t("You're already in a PvP battle") } : undefined;
+  // ── Locked out during a PvP battle ────────────────────────────────
+  // A ranked battle is played against another person on a server that holds
+  // the authoritative team. Travelling, buying, selling, depositing or
+  // reorganising mid-match changes the save under a fight that has already
+  // been handed a copy of it — so the two disagree, and the disagreement is
+  // resolved in whichever direction the reconcile happens to run.
+  //
+  // Battle itself stays OPEN, and that is the point of the list: everything
+  // that acts on your save is closed, and the one section that tells you
+  // about the match you are in is not.
+  const busy = pvp.room ? t("Not while you're in a battle") : null;
+  const disabled = busy
+    ? { map: busy, mart: busy, bag: busy, pc: busy, dex: busy }
+    : undefined;
 
   return <HubModal sections={SECTIONS} disabled={disabled} identity={<HubIdentity />} identitySection="trainer" />;
 }
