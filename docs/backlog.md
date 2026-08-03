@@ -108,17 +108,18 @@ The safe pair against a live database:
 builds and typechecks; the step itself was never seen rendering. Worth a
 look the next time anyone is in the Bag.
 
-**The TM dialogs shipped unverified too, for the same reason.** The local
-dev server sits behind a sign-in and there is no test account, so the Teach
-picker, the Manage Moves source filter and the Mart's single-buy TM card
-have never been seen on screen. Everything under them is tested — 46 cases
-over the catalog, compatibility, item text, the `SET_MOVES` rule and the
-shop wiring — but that is the data, not the pixels. Worth a look at:
+**The TM dialogs are partly verified now.** The local dev server sits behind
+a sign-in with no test account, but main auto-deploys, so the shipped work
+was checked on the live site instead: TM cards render with per-type disc
+sprites, the right names, and the single-buy card with no quantity stepper.
+
+Still unseen on screen: the Teach picker, the Manage Moves source filter,
+and the TM Mart page itself. Worth a look at:
 
   · Bag → TMs → Teach on a Pokémon with a free slot vs one with four moves
   · Manage Moves → the All / Level-up / TM/HM filter, and the collapsed
     "needs a machine you don't have" list
-  · Mart → Pewter or Vermilion, which now stock a TM each
+  · TM Mart → the six-slot counter, the restock clock, and "Not today"
 
 **Three level-up moves do nothing.** `lightScreen`, `reflect` and `rest`
 are in the level-up pool with no `effect` attached, so they cost a turn and
