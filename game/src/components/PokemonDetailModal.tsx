@@ -26,6 +26,7 @@ import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
 import { IconEdit } from "./Icon";
+import { genderSymbol } from "../data/gender";
 import { openHeldItemPicker } from "./UseItemModal";
 import "./releaseControls.css";
 
@@ -1088,6 +1089,18 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
   return (
     <span className="nickname-row">
       {displayName(pokemon)}{pokemon.isShiny ? " ✨" : ""}
+      {/* Genderless species show nothing at all rather than a dash: an
+          absent symbol reads as "not applicable", a placeholder reads as
+          "missing". Pokemon caught before the field existed also show
+          nothing, which is the honest answer — we never rolled one. */}
+      {genderSymbol(pokemon.gender) && (
+        <span
+          className={`mon-gender is-${pokemon.gender === "M" ? "male" : "female"}`}
+          title={pokemon.gender === "M" ? "Male" : "Female"}
+        >
+          {genderSymbol(pokemon.gender)}
+        </span>
+      )}
       {/* A REAL BUTTON, beside the name. The whole feature was previously
           reachable only by clicking a heading that gave no sign it was
           interactive — discoverable if you already knew, invisible if you

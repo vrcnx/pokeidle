@@ -79,6 +79,21 @@ export function RouteCardList() {
   // step on a region's route chain.
   const RAID_TAB = "__raid";
   const [activeRegion, setActiveRegion] = useState(regionList[0]?.id ?? "");
+  const [q, setQ] = useState("");
+
+  // Searching looks across EVERY region, not just the open tab.
+  //
+  // "Where is Mt. Moon" is the question a map search answers, and answering
+  // it with "not in Kanto" when the player is standing on the Johto tab is
+  // answering a different one. A hit outside the open region says which
+  // region it is in, so the answer is never ambiguous.
+  const needle = q.trim().toLowerCase();
+  const searchHits = useMemo(() => {
+    if (!needle) return null;
+    return Object.values(routes)
+      .filter((r) => r.type !== "raid" && r.name.toLowerCase().includes(needle))
+      .sort((a, b) => a.unlockOrder - b.unlockOrder);
+  }, [needle]);
 
   const routesInRegion = useMemo(
     () =>
@@ -150,6 +165,14 @@ export function RouteCardList() {
           {t("Raids")}
         </button>
       </nav>
+      <input
+        className="route-search"
+        type="search"
+        placeholder={t("Find a place")}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        aria-label={t("Search locations")}
+      />
       <span className="dim small route-here">{t("Here: ")}{currentName}</span>
     </span>
   );
@@ -169,7 +192,24 @@ export function RouteCardList() {
           case is how two tab rows end up disagreeing about what a region is. */}
       {head}
       {/* The Raids tab is a raid picker, not a route. See RaidTierList. */}
-      {activeRegion === RAID_TAB ? (
+      {searchHits ? (
+        <div className="route-card-grid">
+          {searchHits.length === 0 ? (
+            <p className="mart-note">{t("No place by that name.")}</p>
+          ) : (
+            searchHits.map((route) => (
+              <RouteCard
+                key={route.id}
+                route={route}
+                onTravel={travel}
+                // Which region a hit is in. The tree's city headings are what
+                // normally answer that, and a flat result list has none.
+                regionLabel={regions[regionForLocation(route.id) ?? ""]?.name}
+              />
+            ))
+          )}
+        </div>
+      ) : activeRegion === RAID_TAB ? (
         <RaidTierList />
       ) : (
         <div className="route-card-grid">
@@ -194,7 +234,12 @@ export function RouteCardList() {
   );
 }
 
-function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) => void }) {
+function RouteCard({ route, onTravel, regionLabel }: {
+  route: Route;
+  onTravel: (id: string) => void;
+  /** Set only in search results, where the tree's city heading is missing. */
+  regionLabel?: string;
+}) {
   const { state } = useGame();
   const t = useT();
   const unlocked = state.unlockedLocations.includes(route.id);
@@ -216,6 +261,7 @@ function RouteCard({ route, onTravel }: { route: Route; onTravel: (id: string) =
       <div className="route-card-head">
         <span className="route-card-icon">{iconForType(route.type)}</span>
         <strong className="route-card-name" title={unlocked ? route.name : undefined}>{unlocked ? route.name : t("???")}</strong>
+        {regionLabel && <span className="route-card-region">{regionLabel}</span>}
         {current && <span className="route-card-current-badge">{t("Here")}</span>}
       </div>
 

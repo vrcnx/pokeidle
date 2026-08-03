@@ -1,4 +1,5 @@
 import { pokemonTable } from "../data/pokemon";
+import { genderFor } from "../data/gender";
 import type { Move, Pokemon, Stats } from "../types";
 import { calcAllStats, expForLevel, randomIVs } from "./stats";
 import { defaultMoves } from "./moves";
@@ -24,6 +25,7 @@ export function createPokemon(
   const stats = calcAllStats(species, level, ivs, evs, nature);
   const moveset = defaultMoves(speciesKey, level).map(toMove);
   const ability = pickAbility(speciesKey) ?? undefined;
+  const gender = genderFor(speciesKey, ivs as unknown as Record<string, number>);
   return {
     id: String(nextId),
     speciesKey,
@@ -43,6 +45,7 @@ export function createPokemon(
     evs,
     isShiny,
     ability,
+    gender,
   };
 }
 

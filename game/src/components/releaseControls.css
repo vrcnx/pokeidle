@@ -377,3 +377,10 @@
 .nickname-btn svg { display: block; }
 
 .nickname-edit { display: inline-flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+/* Gender. Colour carries it as much as the glyph does — ♂ and ♀ are small
+   and similar at 13px, and a player scanning a box is not reading them
+   letter by letter. */
+.mon-gender { font-size: 13px; font-weight: 700; line-height: 1; }
+.mon-gender.is-male { color: #60a5fa; }
+.mon-gender.is-female { color: #f472b6; }

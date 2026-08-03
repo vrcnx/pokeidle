@@ -122,6 +122,11 @@ export interface Pokemon {
   ivs: IVs;
   evs?: Stats;         // 0–252 each, 510 total cap; gained per defeated foe
   isShiny: boolean;
+  /** "M" | "F", or null for a genderless species. Optional because every
+   *  save written before it existed has none — anything reading it has to
+   *  tolerate `undefined`, which is NOT the same as null: undefined means
+   *  "we never rolled one", null means "this species has no gender". */
+  gender?: "M" | "F" | null;
   /** When this Pokemon was obtained, epoch ms. Optional because every save
    *  written before it existed has none — sorting falls back to box order
    *  for those, which is close to the truth: the box is append-only, so a
