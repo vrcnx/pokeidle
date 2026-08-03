@@ -25,6 +25,7 @@ import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
 import { useModalEnter } from "../utils/animate";
 import { openManageMoves } from "./ManageMovesModal";
 import { useT } from "../i18n/useT";
+import { IconEdit } from "./Icon";
 import { openHeldItemPicker } from "./UseItemModal";
 import "./releaseControls.css";
 
@@ -565,8 +566,16 @@ function PokemonDetailDialog({
       role="dialog"
       aria-label={displayName(p)}
     >
+      {/* A TITLE, not the rename control.
+          It used to be <NicknameField/> — the Pokemon's name and level, which
+          you renamed by clicking, with nothing saying so. Two problems in one
+          element: the name and level are already on the line directly below,
+          so the header was repeating them, and the only affordance the rename
+          had was knowing it was there. Player report: found it in the patch
+          notes, then had to guess which of the two names was the button.
+          The rename lives beside the name in the hero now, as a button. */}
       <header className="g-modal-head">
-        <h2><NicknameField pokemon={p} /></h2>
+        <h2>{t("Pokémon")}</h2>
         <button className="g-modal-close" onClick={closePokemonDetail} aria-label={t("Close")}>×</button>
       </header>
 
@@ -588,7 +597,7 @@ function PokemonDetailDialog({
                 printed "Bulbasaur / Bulbasaur" and renamed ones hid the
                 nickname the player had just typed one header above. */}
             <div className="g-profile-name">
-              {displayName(p)}{p.isShiny ? " ✨" : ""}
+              <NicknameField pokemon={p} />
               <span className="g-profile-species">{sp.name}</span>
             </div>
             <div className="dex-species-types">
@@ -1050,7 +1059,7 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
 
   if (editing) {
     return (
-      <h2>
+      <span className="nickname-edit">
         <input
           autoFocus
           className="nickname-input"
@@ -1066,7 +1075,6 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
           aria-label={t("Nickname")}
           aria-invalid={error ? true : undefined}
         />
-        <small> Lv. {pokemon.level}</small>
         {/* Reuses the shared .g-error chip rather than inventing a class, so
             the refusal looks like every other refusal in the app. */}
         {error && (
@@ -1074,14 +1082,27 @@ function NicknameField({ pokemon }: { pokemon: Pokemon }) {
             {t(error)}
           </small>
         )}
-      </h2>
+      </span>
     );
   }
   return (
-    <h2 onClick={() => setEditing(true)} title={t("Click to rename")} style={{ cursor: "text" }}>
+    <span className="nickname-row">
       {displayName(pokemon)}{pokemon.isShiny ? " ✨" : ""}
-      <small> Lv. {pokemon.level}</small>
-    </h2>
+      {/* A REAL BUTTON, beside the name. The whole feature was previously
+          reachable only by clicking a heading that gave no sign it was
+          interactive — discoverable if you already knew, invisible if you
+          did not. A pencil with a label says what it does before you press
+          it, which is the entire ask. */}
+      <button
+        type="button"
+        className="nickname-btn"
+        onClick={() => setEditing(true)}
+        title={pokemon.nickname ? t("Rename") : t("Give this Pokémon a nickname")}
+      >
+        <IconEdit size={12} />
+        <span>{pokemon.nickname ? t("Rename") : t("Nickname")}</span>
+      </button>
+    </span>
   );
 }
 

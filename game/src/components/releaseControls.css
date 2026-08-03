@@ -332,3 +332,48 @@
   padding: 0;
 }
 .pc-tab .pc-toolbar .pc-select-toggle { width: auto; padding: 0 11px; }
+
+/* =====================================================================
+   RENAMING A POKEMON
+
+   The rename used to be the dialog's <h2>: the Pokemon's name and level,
+   which you renamed by clicking, with nothing indicating you could. Two
+   problems in one element — the header repeated the name and level that
+   are on the line directly beneath it, and the only affordance the
+   feature had was already knowing about it.
+
+   Player report: found it in the patch notes, then still had to guess
+   WHICH of the two names on screen was the button.
+   ===================================================================== */
+.nickname-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Quiet until you look at it. The name is the subject of the line; this is
+   a thing you can do to the name, and it should not compete with it. */
+.nickname-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.nickname-btn:hover { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.nickname-btn:focus-visible { outline: 2px solid var(--ctl-focus); outline-offset: 1px; }
+.nickname-btn svg { display: block; }
+
+.nickname-edit { display: inline-flex; flex-direction: column; gap: 4px; min-width: 0; }
