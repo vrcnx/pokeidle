@@ -885,10 +885,11 @@ const IV_TIER_SHORT: Record<IvTier, string> = {
   perfect: "Perfect",
 };
 
-const SORT_MODES = ["id", "level", "name"] as const;
+const SORT_MODES = ["caught", "id", "level", "name"] as const;
 /** Short label, then what it actually orders by. The short one is what the
  *  button says; the long one is its title, because "#" alone is a guess. */
 const SORT_LABEL: Record<SortMode, [short: string, long: string]> = {
+  caught: ["Newest", "Most recently caught first"],
   id: ["Dex", "Pokédex number"],
   level: ["Level", "Level, highest first"],
   name: ["A–Z", "Name, A–Z"],
@@ -915,7 +916,7 @@ interface BoxView {
   index: number;
 }
 
-type SortMode = "id" | "level" | "name";
+type SortMode = "id" | "level" | "name" | "caught";
 
 /** Cell density. A device preference, not save state — same reasoning as
  *  layoutMode: it describes the screen you're sitting at.
@@ -956,15 +957,24 @@ function currentSortMode(box: Pokemon[]): SortMode | null {
   let byId = true;
   let byLevel = true;
   let byName = true;
+  let byCaught = true;
   for (let i = 1; i < box.length; i++) {
     const a = box[i - 1];
     const b = box[i];
     if (byId && (pokemonTable[a.speciesKey]?.id ?? 0) > (pokemonTable[b.speciesKey]?.id ?? 0)) byId = false;
     if (byLevel && a.level < b.level) byLevel = false;
     if (byName && a.name.localeCompare(b.name) > 0) byName = false;
-    if (!byId && !byLevel && !byName) return null;
+    // Newest first, so a run is in order while each date is <= the one
+    // before it. Undated entries count as 0 and therefore only sort as
+    // "still in caught order" when they are at the END, which is exactly
+    // where SORT_BOX puts them.
+    if (byCaught && (a.caughtAt ?? 0) < (b.caughtAt ?? 0)) byCaught = false;
+    if (!byId && !byLevel && !byName && !byCaught) return null;
   }
-  return byId ? "id" : byLevel ? "level" : byName ? "name" : null;
+  // Checked LAST of the four. A box where every entry predates the field has
+  // every caughtAt undefined, which is trivially "sorted by catch date" and
+  // would claim the Newest tab for a box that is actually in dex order.
+  return byId ? "id" : byLevel ? "level" : byName ? "name" : byCaught ? "caught" : null;
 }
 
 /** Menu rows reserve the tick column whether or not they're ticked, so the

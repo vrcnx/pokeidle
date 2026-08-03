@@ -122,6 +122,11 @@ export interface Pokemon {
   ivs: IVs;
   evs?: Stats;         // 0–252 each, 510 total cap; gained per defeated foe
   isShiny: boolean;
+  /** When this Pokemon was obtained, epoch ms. Optional because every save
+   *  written before it existed has none — sorting falls back to box order
+   *  for those, which is close to the truth: the box is append-only, so a
+   *  Pokemon's position in it already IS roughly its catch order. */
+  caughtAt?: number;
   ability?: string;    // canonical ability id (rolled at creation; see data/speciesAbilities.ts)
   status?: StatusCondition;  // major status condition; null/undefined = healthy
   sleepTurns?: number;       // remaining sleep turns (decremented at turn start)

@@ -528,7 +528,10 @@ function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | 
 // legendary comes straight in; outside a raid the encounter ends and the
 // player drops to idle, unchanged.
 function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean): GameState {
-  const caught: Pokemon = { ...enemy, id: String(state.nextPokemonId) };
+  // Stamped here rather than in createPokemon: an ENEMY is created the moment
+  // an encounter starts, and the interesting date is when you caught it, not
+  // when it appeared in the grass.
+  const caught: Pokemon = { ...enemy, id: String(state.nextPokemonId), caughtAt: Date.now() };
   let next: GameState = { ...state, nextPokemonId: state.nextPokemonId + 1 };
   if (next.party.length < 6) {
     next = { ...next, party: [...next.party, caught] };
@@ -1575,11 +1578,26 @@ export function reducer(state: GameState, action: Action): GameState {
     case "SORT_BOX": {
       const box = [...state.box];
       const mode = action.payload.mode;
+      // Index BEFORE the sort, so "caught" has something to fall back on for
+      // Pokemon stored before caughtAt existed. The box is append-only, so a
+      // Pokemon's existing position in it is already roughly its catch order
+      // — which makes the fallback close to right rather than arbitrary.
+      const at = new Map(box.map((p, i) => [p.id, i]));
       box.sort((a, b) => {
         if (mode === "level") return b.level - a.level;
         if (mode === "name") return a.name.localeCompare(b.name);
         if (mode === "id")
           return (pokemonTable[a.speciesKey]?.id ?? 0) - (pokemonTable[b.speciesKey]?.id ?? 0);
+        if (mode === "caught") {
+          // Newest first. "Sort by catch date" is nearly always asked for to
+          // find what you just caught, not what you caught in 2024.
+          const ta = a.caughtAt ?? 0;
+          const tb = b.caughtAt ?? 0;
+          if (ta !== tb) return tb - ta;
+          // Both undated (or caught in the same millisecond): keep the order
+          // they were already in, newest-first to match.
+          return (at.get(b.id) ?? 0) - (at.get(a.id) ?? 0);
+        }
         return 0;
       });
       return { ...state, box };
