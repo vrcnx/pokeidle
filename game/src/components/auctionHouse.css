@@ -55,34 +55,49 @@
   font-size: 11.5px;
 }
 
-/* At the BOTTOM of the column, and quiet. It sat above the product, which
-   put a call to action between the reader and the thing they opened — and a
-   solid primary button there competed with the Bid button six inches below
-   it. Selling is a different errand; it waits its turn. */
+/* ── Selling, after the lot rather than pinned to the floor ────────
+   Two things were wrong with the first attempt. `margin-top: auto` pushed
+   this to the bottom of a full-height column, so a short lot — no bids yet,
+   a machine with no IV table — left 300px of black between the last control
+   and the button. And a dashed border with dim text reads as disabled or as
+   a drop zone, not as something you can press: it was de-emphasised past the
+   point of being legible as a button at all.
+
+   It now sits directly under the content behind a hairline, so the column
+   ends where the content ends, and it looks like a button — just a quieter
+   one than Bid, which is the only ranking that needed expressing. */
 .ah-sell-cta {
   width: 100%;
-  margin-top: auto;
+  margin-top: 6px;
   padding-top: 10px;
+  border-top: 1px solid var(--border-strong);
 }
 .ah-sell-cta > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
   height: var(--ctl-h, 32px);
-  border: 1px dashed var(--border-strong);
+  border: 1px solid var(--border-strong);
   border-radius: var(--ctl-r, 6px);
-  background: transparent;
-  color: var(--text-dim);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg, var(--text));
   font-family: var(--font-body);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
-.ah-sell-cta > button:hover { color: var(--text); border-color: var(--gold); }
+.ah-sell-cta > button:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.ah-sell-plus { font-size: 14px; line-height: 1; opacity: 0.8; }
 .ah-aside-stack {
   display: flex;
   flex-direction: column;
   gap: 0;
   min-height: 0;
-  height: 100%;
   overflow-y: auto;
 }
 .ah-aside-stack > .ah-aside { overflow: visible; }
@@ -260,10 +275,13 @@
 .ah-badge.is-warn    { background: #b45309; color: #fff; }
 
 /* ── The panel ──────────────────────────────────────────────────── */
+/* One rhythm down the column: 12px between blocks, and each block owns its
+   own internal spacing. The first pass mixed 8px, 6px and 3px, so the tags
+   sat almost on top of the IV table while the price block floated. */
 .ah-aside {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-height: 0;
 }
 .ah-aside.is-empty { justify-content: center; }
@@ -299,7 +317,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 17px;
   line-height: 1.15;
   text-align: center;
@@ -310,8 +328,15 @@
   font-size: 11px;
   color: var(--text-dim);
 }
+/* The identity block: frame, name and sub-line are one unit, tightly set,
+   so the 12px column rhythm separates GROUPS rather than every line. */
+.ah-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
-.ah-facts { display: flex; flex-direction: column; gap: 6px; }
+.ah-facts { display: flex; flex-direction: column; gap: 9px; }
 /* Two columns of three. Six full-width grey rails down the panel was a lot
    of vertical space spent on very little — and the bars all looked the same
    whether a stat was 7 or 29, which is the one thing the reader is here to
@@ -322,7 +347,7 @@
   padding: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px 10px;
+  gap: 5px 12px;
 }
 .ah-ivs li {
   display: grid;

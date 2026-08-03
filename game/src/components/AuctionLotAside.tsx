@@ -88,7 +88,11 @@ function SellCta() {
   return (
     <div className="ah-sell-cta">
       <button type="button" onClick={() => setAuctionMode("sell")}>
-        {t("Sell something")}
+        <span className="ah-sell-plus" aria-hidden="true">+</span>
+        {/* "Sell something" was ambiguous exactly where it sits: beside a lot
+            somebody else is selling, it read as though it might act on THAT.
+            Naming what you can sell makes it unmistakably about your own. */}
+        {t("Sell a Pokémon or TM")}
       </button>
     </div>
   );
@@ -186,40 +190,42 @@ export function LotDetail({ lot }: { lot: PublicAuction }) {
           This is what you are buying. It gets the top of the panel and a
           real size, because the whole complaint about the old page was that
           the product was the smallest thing on it. */}
-      <div className="ah-hero">
-        {mon ? (
-          <PokemonSprite
-            speciesKey={mon.speciesKey}
-            isShiny={!!mon.isShiny}
-            alt=""
-            width={112}
-            height={112}
-            style={{ imageRendering: "pixelated" }}
-          />
-        ) : machine ? (
-          <Sprite
-            src={itemSpriteUrl(machine.id, itemSpriteSlug(machine.id))}
-            alt=""
-            width={80}
-            height={80}
-            style={{ imageRendering: "pixelated" }}
-          />
-        ) : null}
-      </div>
+      <div className="ah-identity">
+        <div className="ah-hero">
+          {mon ? (
+            <PokemonSprite
+              speciesKey={mon.speciesKey}
+              isShiny={!!mon.isShiny}
+              alt=""
+              width={112}
+              height={112}
+              style={{ imageRendering: "pixelated" }}
+            />
+          ) : machine ? (
+            <Sprite
+              src={itemSpriteUrl(machine.id, itemSpriteSlug(machine.id))}
+              alt=""
+              width={80}
+              height={80}
+              style={{ imageRendering: "pixelated" }}
+            />
+          ) : null}
+        </div>
 
-      <h3 className="ah-hero-name">
-        {mon?.isShiny && <span className="ah-shiny">✨</span>}
-        {lotName(lot)}
-        {mon && genderSymbol(mon.gender) && (
-          <span className={`mon-gender is-${mon.gender === "M" ? "male" : "female"}`}>
-            {genderSymbol(mon.gender)}
-          </span>
-        )}
-      </h3>
-      <p className="ah-hero-sub">
-        {mon ? `Lv ${mon.level}` : machine ? machine.label : ""}
-        {lot.sellerUsername ? ` · ${t("from")} ${lot.sellerUsername}` : ""}
-      </p>
+        <h3 className="ah-hero-name">
+          {mon?.isShiny && <span className="ah-shiny">✨</span>}
+          {lotName(lot)}
+          {mon && genderSymbol(mon.gender) && (
+            <span className={`mon-gender is-${mon.gender === "M" ? "male" : "female"}`}>
+              {genderSymbol(mon.gender)}
+            </span>
+          )}
+        </h3>
+        <p className="ah-hero-sub">
+          {mon ? `Lv ${mon.level}` : machine ? machine.label : ""}
+          {lot.sellerUsername ? ` · ${t("from")} ${lot.sellerUsername}` : ""}
+        </p>
+      </div>
 
       {mon && <MonFacts mon={mon} />}
       {machine && <MachineFacts machineId={machine.id} />}
