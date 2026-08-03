@@ -5,7 +5,7 @@ import { BALL_ORDER } from "./items";
 import { resolveCatchSettings } from "./catchSettings";
 import { ownsSpecies } from "./pokemon";
 import { maxSingleHitDamage } from "./battle";
-import type { GameState, Pokemon } from "../types";
+import type { GameState, Pokemon, CatchSettings } from "../types";
 
 export function speciesCatchRate(speciesKey: string): number {
   return catchRates[speciesKey] ?? 255;
@@ -52,12 +52,25 @@ export function pickAutoBall(
   return owned[owned.length - 1];
 }
 
+/**
+ * @param encounter The wild Pokémon itself, when the caller has it.
+ *
+ *   OPTIONAL, and that is the whole migration story. This function used to
+ *   take a species key and a level, which meant the advanced filters could
+ *   not exist: IVs, nature and gender live on the individual, and the
+ *   individual never reached here. Callers that pass it get the filters;
+ *   callers that do not are unchanged, and a filter that cannot be evaluated
+ *   is SKIPPED rather than treated as failed — refusing to throw a ball
+ *   because the caller was thin would be a silent auto-catch outage, which
+ *   is exactly the class of bug the shiny override at the top exists for.
+ */
 export function shouldAutoCatch(
   state: GameState,
   routeKey: string,
   speciesKey: string,
   level: number,
-  isShiny: boolean
+  isShiny: boolean,
+  encounter?: Pokemon
 ): boolean {
   // ULTIMATE override — a shiny encounter is 1/8192 (or 1/4096 with
   // Shiny Charm). Player report from global chat: "5 shinies today,
@@ -70,6 +83,9 @@ export function shouldAutoCatch(
   if (isShiny && state.alwaysCatchShinies) return true;
   const settings = resolveCatchSettings(state, routeKey, speciesKey);
   if (!settings.enabled || settings.enabledBalls.length === 0) return false;
+  // The extra conditions AND with the mode below — "Adamant male Charmander
+  // with IVs above 85%" is four rules, and `mode` only ever expressed one.
+  if (!passesFilters(settings.filters, encounter)) return false;
   switch (settings.mode) {
     case "always":          return true;
     case "shiny_only":      return isShiny;
@@ -87,6 +103,50 @@ export function shouldAutoCatch(
     case "not_owned":       return !ownsSpecies(state.party, state.box, speciesKey);
     default:                return true;
   }
+}
+
+/** Perfect IV total — six stats at 31. Exported so the settings UI shows the
+ *  same denominator the rule uses. */
+export const IV_TOTAL_MAX = 31 * 6;
+
+export function ivPercent(p: Pokemon): number | null {
+  const iv = p.ivs;
+  if (!iv) return null;
+  const total = iv.hp + iv.attack + iv.defense + iv.spAttack + iv.spDefense + iv.speed;
+  return (total / IV_TOTAL_MAX) * 100;
+}
+
+/**
+ * Every extra condition, ANDed. Absent filters and unknowable ones pass.
+ *
+ * "Unknowable passes" is deliberate and worth stating: a caller with no
+ * encounter object, or a Pokémon with no IVs (older saves), must not silently
+ * stop auto-catching. A filter that cannot be judged is not a filter that
+ * failed.
+ */
+export function passesFilters(
+  filters: CatchSettings["filters"],
+  p?: Pokemon,
+): boolean {
+  if (!filters) return true;
+  if (!p) return true;
+
+  if (filters.minIvPct != null) {
+    const pct = ivPercent(p);
+    if (pct != null && pct < filters.minIvPct) return false;
+  }
+  if (filters.natures && filters.natures.length > 0) {
+    // A Pokémon with no nature recorded cannot be judged, so it passes.
+    if (p.nature && !filters.natures.includes(p.nature)) return false;
+  }
+  if (filters.gender) {
+    // Genderless (null) fails a gender filter, and that is correct — asking
+    // for males is a statement about gender, and a Magnemite has none.
+    // `undefined` is different: it means we never derived one (a Pokémon
+    // from before the field existed), so it passes.
+    if (p.gender !== undefined && p.gender !== filters.gender) return false;
+  }
+  return true;
 }
 
 export function ballForAutoCatch(

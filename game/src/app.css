@@ -20341,3 +20341,69 @@ strong, b { font-variant-numeric: tabular-nums; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
+
+/* ── Auto-catch: extra conditions ──────────────────────────────────
+   These AND with the mode above. Laid out as rows of
+   [checkbox] [label] [value] so the sentence reads left to right —
+   "IVs at least 85 %", "Gender Male" — rather than as a form to decode. */
+.catch-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 12.5px;
+}
+.catch-filter-row > span { color: var(--text-muted); }
+.catch-filter-num {
+  width: 64px;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.catch-filter-sel {
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+.catch-filter-num:disabled,
+.catch-filter-sel:disabled { opacity: 0.4; }
+
+/* Twenty-five natures. A grid of small chips rather than a multi-select:
+   the question is "which of these", and a native multi-select answers it
+   by making you ctrl-click. */
+.catch-nature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 4px;
+  margin: 6px 0 2px;
+  padding: 8px;
+  border-radius: var(--card-radius, 8px);
+  background: rgba(0, 0, 0, 0.26);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.catch-nature {
+  min-height: var(--ctl-h-sm, 26px);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--ctl-fg);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.catch-nature:hover { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
+.catch-nature.is-on { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }

@@ -12,6 +12,7 @@ import { pokeballs } from "../data/pokeballs";
 import { useModalEnter } from "../utils/animate";
 import { useT } from "../i18n/useT";
 import type { CatchMode, CatchSettings } from "../types";
+import { NATURE_NAMES } from "../data/natures";
 
 // Imperative open/close for modal state, matching ManageMovesModal pattern.
 let _routeKey: string | null = null;
@@ -123,6 +124,19 @@ function CatchSettingsDialog({
   const dialogRef = useModalEnter(".g-card");
   const t = useT();
   const routeName = routes[routeKey]?.name ?? routeKey;
+  const f = defaults.filters ?? {};
+  const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n) || 0));
+  /** Patch the filter set, and drop it entirely once nothing is left — an
+   *  empty `filters` object is the same as none, and keeping one around
+   *  makes every save carry a dead key. */
+  function setFilters(patch: Partial<NonNullable<CatchSettings["filters"]>>) {
+    const next = { ...f, ...patch };
+    for (const k of Object.keys(next) as (keyof typeof next)[]) {
+      if (next[k] === undefined) delete next[k];
+    }
+    updateDefault({ filters: Object.keys(next).length ? next : undefined });
+  }
+
   return (
     <div ref={dialogRef} className="g-modal catch-settings-modal-v2" onClick={(e) => e.stopPropagation()}>
       <header className="g-modal-head">
@@ -175,6 +189,106 @@ function CatchSettingsDialog({
             </div>
           </section>
 
+
+          {/* ── Extra conditions ───────────────────────────────────
+              These AND with the rule above. `mode` only ever expressed ONE
+              condition, and the request was explicitly about combining them:
+              "Adamant male Charmander with IVs above 85%" is four rules, and
+              a single-select could never say it.
+
+              Every one is opt-out: absent means "do not care", so a save
+              with none of these set behaves exactly as it always did. */}
+          <section className="g-card">
+            <h3>{t("Only catch if…")}</h3>
+            <p className="g-help">
+              {t("Extra conditions on top of the rule above. All of them must match.")}
+            </p>
+
+            <label className="catch-filter-row">
+              <input
+                type="checkbox"
+                checked={f.minIvPct != null}
+                onChange={(e) =>
+                  setFilters({ minIvPct: e.target.checked ? 85 : undefined })
+                }
+              />
+              <span>{t("IVs at least")}</span>
+              <input
+                className="catch-filter-num"
+                type="number"
+                min={0}
+                max={100}
+                step={5}
+                disabled={f.minIvPct == null}
+                value={f.minIvPct ?? 85}
+                onChange={(e) => setFilters({ minIvPct: clampPct(Number(e.target.value)) })}
+              />
+              <span className="dim">%</span>
+            </label>
+
+            <label className="catch-filter-row">
+              <input
+                type="checkbox"
+                checked={!!f.gender}
+                onChange={(e) => setFilters({ gender: e.target.checked ? "M" : undefined })}
+              />
+              <span>{t("Gender")}</span>
+              <select
+                className="catch-filter-sel"
+                disabled={!f.gender}
+                value={f.gender ?? "M"}
+                onChange={(e) => setFilters({ gender: e.target.value as "M" | "F" })}
+              >
+                <option value="M">{t("Male")}</option>
+                <option value="F">{t("Female")}</option>
+              </select>
+              {/* Said out loud, because it is the one rule with a surprising
+                  consequence: a gender filter excludes Magnemite entirely. */}
+              {f.gender && (
+                <small className="dim">{t("genderless species are skipped")}</small>
+              )}
+            </label>
+
+            <div className="catch-filter-natures">
+              <label className="catch-filter-row">
+                <input
+                  type="checkbox"
+                  checked={!!f.natures?.length}
+                  onChange={(e) => setFilters({ natures: e.target.checked ? ["Adamant"] : undefined })}
+                />
+                <span>{t("Nature is one of")}</span>
+                {!!f.natures?.length && (
+                  <small className="dim">{f.natures.length} {t("selected")}</small>
+                )}
+              </label>
+              {!!f.natures?.length && (
+                <div className="catch-nature-grid">
+                  {NATURE_NAMES.map((n) => {
+                    const on = f.natures!.includes(n);
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        className={`catch-nature${on ? " is-on" : ""}`}
+                        onClick={() => {
+                          const next = on
+                            ? f.natures!.filter((x) => x !== n)
+                            : [...f.natures!, n];
+                          // Never leave an empty list: "nature is one of
+                          // NOTHING" matches nothing, which would silently
+                          // stop auto-catch. Unticking the last one turns the
+                          // whole filter off instead.
+                          setFilters({ natures: next.length ? next : undefined });
+                        }}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
           <section className="g-card">
             <h3>{t("Balls")}</h3>
             <div className="catch-balls-row">

@@ -229,7 +229,11 @@ export function useBattleLoop(suspended = false): void {
         const enemy = cur.enemyPokemon;
         if (
           cur.autoCatch &&
-          shouldAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.level, enemy.isShiny)
+          // `enemy` last: the advanced filters (IVs, nature, gender) live on
+          // the individual, and until this argument existed they could not be
+          // evaluated at all — the predicate only ever saw a species and a
+          // level.
+          shouldAutoCatch(cur, cur.currentRoute, enemy.speciesKey, enemy.level, enemy.isShiny, enemy)
         ) {
           // Weaken-before-catch: if the rule for this encounter has it on,
           // keep attacking until the wild Pokémon is at/below the low-HP

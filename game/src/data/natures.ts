@@ -59,3 +59,8 @@ export function natureMultiplier(nature: Nature, stat: StatKey): number {
 export function findNature(name: string): Nature | undefined {
   return natures.find((n) => n.name === name);
 }
+
+/** Just the names, for anything that needs to offer a choice of nature —
+ *  the auto-catch filter, today. Derived from the table so a nature can
+ *  never exist in the game and be missing from the picker. */
+export const NATURE_NAMES: string[] = natures.map((n) => n.name);

@@ -280,6 +280,29 @@ export interface CatchSettings {
    *  Never applies to shinies — those are caught immediately so weakening
    *  can't accidentally faint one. Optional for back-compat; absent = off. */
   weakenFirst?: boolean;
+  /**
+   * EXTRA CONDITIONS, all of which must hold on top of `mode`.
+   *
+   * `mode` is one rule and only one — "always", "shiny only", "above level
+   * N". The request was explicitly about COMBINING conditions ("Adamant male
+   * Charmander with IVs above 85%"), which that shape cannot express, so
+   * these AND together with it rather than replacing it.
+   *
+   * Every one is optional and absent means "do not care", so an existing
+   * save with none of them behaves exactly as it did.
+   */
+  filters?: CatchFilters;
+}
+
+export interface CatchFilters {
+  /** Minimum IV total as a PERCENT of perfect (0-100). Players think in
+   *  "85% IVs", not "158 of 186". */
+  minIvPct?: number;
+  /** Nature names, any of which qualifies. Empty/absent = any. */
+  natures?: string[];
+  /** "M" | "F". Genderless species are matched by neither, which is
+   *  correct: a gender filter is a statement about gender. */
+  gender?: "M" | "F";
 }
 
 export interface BattleEvent {
