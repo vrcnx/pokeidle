@@ -176,7 +176,10 @@ export function ManageMovesModal() {
     draft.some((id, i) => pokemon.moves[i]?.id !== id);
 
   return (
-    <div className="modal-overlay" onClick={closeManageMoves}>
+    // Above the detail sheet (120), because it opens from it — see
+    // .manage-moves-overlay. Without this it appeared UNDER the sheet that
+    // launched it, which is the bug the detail sheet itself had.
+    <div className="modal-overlay manage-moves-overlay" onClick={closeManageMoves}>
       <ManageMovesDialog
         pokemon={pokemon}
         draft={draft}
@@ -209,6 +212,14 @@ function ManageMovesDialog({
 }) {
   const dialogRef = useModalEnter();
   const t = useT();
+  const [q, setQ] = useState("");
+  // Name search only. Filtering by type or power sounds useful and is not:
+  // the question at this dialog is "where is the move I already have in
+  // mind", and that is a name.
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? learnable.filter((lm) => (movesTable[lm.moveId]?.name ?? lm.moveId).toLowerCase().includes(needle))
+    : learnable;
   return (
     <div ref={dialogRef} className="g-modal manage-moves-modal-v2" onClick={(e) => e.stopPropagation()}>
       <header className="g-modal-head">
@@ -216,8 +227,62 @@ function ManageMovesDialog({
         <button className="g-modal-close" onClick={closeManageMoves} aria-label={t("Close")}>×</button>
       </header>
 
-      <div className="g-modal-body">
-        <section className="g-card g-card-full">
+      {/* TWO COLUMNS: what you could learn on the left, what it knows on the
+          right. The two lists were stacked, so choosing a move meant reading
+          the top of the dialog, scrolling to the bottom to find the one you
+          wanted, and scrolling back to see where it landed. Side by side,
+          the source and the destination of the drag are both on screen —
+          which is the only arrangement in which dragging between them is a
+          feature rather than a trick. */}
+      <div className="g-modal-body manage-moves-body">
+        <section className="g-card manage-pool-card">
+          <div className="detail-moves-header">
+            <h3>{t("Available Moves")}</h3>
+            <span className="dim small">{shown.length}/{learnable.length}</span>
+          </div>
+          {/* Search, because a fully-grown Pokemon can learn fifty of these
+              and the list was the only way through them. */}
+          <input
+            className="manage-search"
+            type="search"
+            placeholder={t("Search moves")}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label={t("Search available moves")}
+          />
+          <ul className="manage-available">
+            {learnable.length === 0 && (
+              <li className="g-help">{t("No moves learned yet.")}</li>
+            )}
+            {learnable.length > 0 && shown.length === 0 && (
+              <li className="g-help">{t("No move by that name.")}</li>
+            )}
+            {shown.map((lm) => {
+              const def = movesTable[lm.moveId];
+              if (!def) return null;
+              const equipped = draft.includes(lm.moveId);
+              return (
+                <AvailableMove
+                  key={lm.moveId}
+                  moveId={lm.moveId}
+                  className={equipped ? "equipped" : ""}
+                  style={{ background: TYPE_COLOR[def.type] + (equipped ? "ff" : "55") }}
+                  onClick={() => toggleMove(lm.moveId)}
+                  title={equipped ? undefined : "Click to add, or drag onto a slot to place it"}
+                >
+                  <span className="ma-cat">{CATEGORY_ICON[def.category]}</span>
+                  <span className="ma-name">{def.name}</span>
+                  <span className="ma-stats">
+                    {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}{t("% · Lv.")}{lm.learnLevel}
+                  </span>
+                  <span className="ma-action">{equipped ? "✓" : "+"}</span>
+                </AvailableMove>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="g-card manage-current-card">
           <h3>{displayName(pokemon)} <span className="dim">{t("— Lv. ")}{pokemon.level}</span></h3>
           <div className="manage-current-v2">
             <span className="dim small" style={{ marginBottom: 4 }}>{t("Current (")}{draft.length}{t("/4)")}</span>
@@ -253,36 +318,6 @@ function ManageMovesDialog({
           </div>
         </section>
 
-        <section className="g-card g-card-full">
-          <h3>{t("Available Moves")}</h3>
-          <ul className="manage-available">
-            {learnable.length === 0 && (
-              <li className="g-help">{t("No moves learned yet.")}</li>
-            )}
-            {learnable.map((lm) => {
-              const def = movesTable[lm.moveId];
-              if (!def) return null;
-              const equipped = draft.includes(lm.moveId);
-              return (
-                <AvailableMove
-                  key={lm.moveId}
-                  moveId={lm.moveId}
-                  className={equipped ? "equipped" : ""}
-                  style={{ background: TYPE_COLOR[def.type] + (equipped ? "ff" : "55") }}
-                  onClick={() => toggleMove(lm.moveId)}
-                  title={equipped ? undefined : "Click to add, or drag onto a slot to place it"}
-                >
-                  <span className="ma-cat">{CATEGORY_ICON[def.category]}</span>
-                  <span className="ma-name">{def.name}</span>
-                  <span className="ma-stats">
-                    {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}{t("% · Lv.")}{lm.learnLevel}
-                  </span>
-                  <span className="ma-action">{equipped ? "✓" : "+"}</span>
-                </AvailableMove>
-              );
-            })}
-          </ul>
-        </section>
       </div>
 
       <footer className="g-modal-foot">

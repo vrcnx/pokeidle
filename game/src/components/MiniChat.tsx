@@ -12,6 +12,7 @@ import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
 import { AuctionBoard } from "./AuctionBoard";
 import { PollCard } from "./PollCard";
 import { useGame } from "../state/GameContext";
+import { openHub } from "./HubModal";
 import { SaveStatusDot } from "./ChannelHeader";
 import { useT } from "../i18n/useT";
 
@@ -122,15 +123,20 @@ export function MiniChat() {
         >
           <span className="mini-chat-dot" /> {t("Global")}
         </button>
+        {/* Opens the auction PAGE, not a tab in this rail.
+            The board lived here because there was nowhere else to put it,
+            and a 300px chat column is the wrong shape for a marketplace:
+            lots one per line, a create form squeezed into the width of a
+            message, and the whole thing findable only by knowing it was a
+            tab in a chat widget. It has a hub section now; this stays as
+            the shortcut, because this is where people looked for it. */}
         <button
           type="button"
-          role="tab"
-          aria-selected={tab === "trade"}
-          className={`mini-chat-tab ${tab === "trade" ? "active" : ""}`}
-          onClick={() => setTab("trade")}
+          className="mini-chat-tab"
+          onClick={() => openHub("auctions")}
           title={t("Browse and bid on Pokemon auctions")}
         >
-          <span className="mini-chat-dot trade" /> {t("Auctions")}
+          <span className="mini-chat-dot trade" /> {t("Auctions")} <span className="mini-chat-tab-out" aria-hidden>↗</span>
         </button>
         {/* Right side of the single header row. This used to be a second
             row above — "CHAT" plus the same online count again — which spent

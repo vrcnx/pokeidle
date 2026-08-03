@@ -232,8 +232,25 @@ export function MartTab() {
       ) : shown.length === 0 ? (
         <p className="mart-note">{t("No items available yet.")}</p>
       ) : (
-        <ul className="mart-grid">
-          {shown.map((entry) => {
+        // ONE SHELF PER SECTION when showing everything. Forty cards in an
+        // undifferentiated grid made the tabs the only way to tell a Poké
+        // Ball from a held item — and the tab you want is the one you have
+        // to guess at before you can see what is in it. Headed sections say
+        // it without a click; picking a tab still narrows to one.
+        <div className="mart-shelves">
+        {(shelf === "all" ? shelves : [shelf]).map((sec) => {
+          const inSection = shown.filter((e) => itemsCatalog[e.itemId]?.category === sec);
+          if (inSection.length === 0) return null;
+          return (
+            <section className="mart-section" key={sec}>
+              {shelf === "all" && (
+                <h3 className="mart-section-head">
+                  {t(CATEGORY_LABELS[sec])}
+                  <span className="mart-section-count">{inSection.length}</span>
+                </h3>
+              )}
+              <ul className="mart-grid">
+          {inSection.map((entry) => {
             const resolved = resolve(entry.itemId);
             if (!resolved) return null;
             return (
@@ -249,7 +266,11 @@ export function MartTab() {
               />
             );
           })}
-        </ul>
+              </ul>
+            </section>
+          );
+        })}
+        </div>
       )}
     </div>
   );

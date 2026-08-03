@@ -3,6 +3,7 @@ import { api, type PublicAuction, type AuctionBid } from "../net/api";
 import { useGame } from "../state/GameContext";
 import { PokemonSprite } from "./Sprite";
 import { genderSymbol } from "../data/gender";
+import { HubViews } from "./HubModal";
 import { valuePokemon, suggestedStartingBid, explain } from "../utils/pokemonValue";
 import { abilityInfo } from "../data/abilities";
 import {
@@ -152,6 +153,11 @@ export function AuctionBoard() {
 
   return (
     <div className="auction-board">
+      {/* The board's own controls go on the dialog's header bar, like every
+          other hub section. In the chat rail this row cost 44px of a 300px
+          column; here it was a second bar under the title saying which of
+          three views you were in. */}
+      <HubViews>
       <div className="auction-board-tabs">
         <div className="auction-board-seg" role="tablist">
           <button
@@ -175,6 +181,7 @@ export function AuctionBoard() {
           + {t("List a Pokemon")}
         </button>
       </div>
+      </HubViews>
 
       {view === "browse" && (
         <div className="auction-board-list">

@@ -20571,3 +20571,69 @@ strong, b { font-variant-numeric: tabular-nums; }
 /* The working, in full. A suggested price a player cannot interrogate is
    one they will assume is rigged the first time it disagrees with them. */
 .auc2-suggest-why { flex: 1 1 100%; line-height: 1.45; }
+
+/* ── MANAGE MOVES: two columns ─────────────────────────────────────
+   Available on the left, what it knows on the right. The two lists were
+   stacked, so choosing a move meant reading the top of the dialog,
+   scrolling to the bottom for the one you wanted, and scrolling back to
+   see where it landed. Side by side, the source and the destination of the
+   drag are both on screen — which is the only arrangement in which
+   dragging between them is a feature rather than a trick. */
+.manage-moves-modal-v2 { width: min(940px, 95vw); }
+.g-modal-body.manage-moves-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .g-modal-body.manage-moves-body { grid-template-columns: minmax(0, 1fr); }
+  /* On a phone the CURRENT moves come first — you cannot drag comfortably
+     there anyway, so the useful order is "what have I got" then "what could
+     I have". */
+  .manage-current-card { order: -1; }
+}
+/* Above this the pool scrolled at 35vh inside a dialog that had room. */
+.manage-moves-body .manage-available { max-height: 52vh; }
+.manage-search {
+  width: 100%;
+  height: var(--ctl-h-sm, 26px);
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+.manage-search::placeholder { color: var(--text-dim); }
+.manage-search:focus { border-color: var(--ctl-focus); outline: none; }
+/* It opens FROM the detail sheet, so it has to sit above it (120). */
+.modal-overlay.manage-moves-overlay { z-index: 150; }
+
+/* ── MART: one shelf per section ───────────────────────────────────
+   "All" was 40 cards in one undifferentiated grid, so the tabs were the
+   only way to tell a Poké Ball from a held item — and the tab you want is
+   the one you have to guess at before you can see what is in it. Headed
+   sections say it without a click, and the tabs still narrow to one. */
+.mart-section + .mart-section { margin-top: 18px; }
+.mart-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.mart-section-count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
