@@ -12362,26 +12362,52 @@ input:focus, textarea:focus, select:focus {
    instead of the modal itself changing size. */
 .settings-modal-v2 { height: min(640px, 90vh); }
 .trainer-card-modal-v2 { width: min(720px, 96vw); }
-/* THE SAME WIDTH AS THE HUB.
-   740 was chosen when this sheet was a small dialog over the game. It is now
-   the surface the PC opens INTO, and two dialogs of different widths for the
-   same Pokemon is the kind of seam a player notices without being able to
-   say why. min(1468px, 95vw) is the hub's own rule, verbatim. */
-.pokemon-detail-v2 { width: min(1468px, 95vw); }
-/* And the room has to be used, or widening it just makes longer lines.
-   Stats, EV training and Moves side by side at desk widths; the sheet's
-   own two-up grid still applies below that. */
-@media (min-width: 1100px) {
-  .pokemon-detail-v2 .g-modal-body > .g-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
-  }
-  /* Moves was full-width because it was the last card in a two-column
-     layout. With three columns it is simply the third. */
-  .pokemon-detail-v2 .g-modal-body > .g-grid > .g-card-full:last-child {
-    grid-column: auto;
-  }
+/* WIDTH FOLLOWS CONTENT, not the hub.
+   This was set to the hub's min(1468px, 95vw) so the two dialogs would
+   match. They should not: the hub is that wide because it holds THREE
+   panes — rail, content, art — and this sheet has about two columns of
+   content. Forcing a third produced an empty gutter down the right of every
+   box Pokemon and an 800px gap across the hero. Matching a number is not
+   the same as matching a design.
+   1120 is what the content actually occupies: two 360px-plus columns, the
+   gap, and the padding. */
+.pokemon-detail-v2 { width: min(1120px, 95vw); }
+.pokemon-detail-v2 .g-modal-body > .g-grid {
+  /* TWO columns, stated. auto-fit was tried and gives THREE at this width —
+     which is how the empty gutter got here in the first place: a row with
+     two cards in a three-column grid leaves the third one blank. auto-fit
+     is right when the item count is unknown; here it is known and small.
+     No `align-items: start` — cards in a row stretch to the tallest, which
+     is what stops a short Stats card leaving a hole beside a tall EV radar. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
+@media (max-width: 900px) {
+  .pokemon-detail-v2 .g-modal-body > .g-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The moves strip spans both columns, so its four rows would be four thin
+   lines across 1080px. Two up instead — the same block of information at a
+   readable width. */
+.pokemon-detail-v2 .detail-moves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+@media (max-width: 900px) {
+  .pokemon-detail-v2 .detail-moves { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* THE HERO.
+   `auto 1fr auto` put the name hard left and the Level/HP/EXP pills hard
+   right with the whole dialog's width of nothing between them — fine at
+   740px, absurd at 1120. The name column now takes only what it needs and
+   the pills sit next to it, with the slack after both. */
+.pokemon-detail-v2 .g-profile-hero {
+  grid-template-columns: auto auto auto 1fr;
+}
+.pokemon-detail-v2 .g-profile-hero .g-profile-stats { grid-column: 3; }
+
 .dex-species-modal-v2 { width: min(720px, 96vw); }
 .manage-moves-modal-v2 { width: min(640px, 96vw); }
 /* 1080, not 700. Three cards now compete for this dialog — Mode, the extra
