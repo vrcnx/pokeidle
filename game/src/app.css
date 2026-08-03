@@ -12385,13 +12385,17 @@ input:focus, textarea:focus, select:focus {
   gap: 12px;
   align-items: start;
 }
-/* The EV radar is the tall card, so it holds the right column for two rows
-   and Stats + Moves stack down the left beside it. Moves used to be a thin
-   strip across the bottom of the dialog; it fills the gap under Stats now,
-   which is where the space actually was. */
-@media (min-width: 901px) {
-  .pokemon-detail-v2 .ev-training-card { grid-column: 2; grid-row: 1 / span 2; }
-  .pokemon-detail-v2 .detail-moves-card { grid-column: 1; grid-row: 2; }
+/* The left column is a real STACK, not two grid cells.
+   Explicit grid placement was tried first and could not work here: the meta
+   card above these is full-width and takes row 1, so pinning the radar to
+   `grid-row: 1` collided with it and the rule silently never applied — which
+   is exactly what the screenshot showed, a hole under Stats and no Moves.
+   A nested stack does not care what the grid is doing. */
+.pokemon-detail-v2 .detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 @media (max-width: 900px) {
   .pokemon-detail-v2 .g-modal-body > .g-grid { grid-template-columns: minmax(0, 1fr); }

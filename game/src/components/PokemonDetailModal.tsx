@@ -739,6 +739,14 @@ function PokemonDetailDialog({
         )}
 
         <div className="g-grid">
+          {/* LEFT COLUMN as a real stack.
+              Grid placement was tried first and could not work: the meta
+              card above is full-width and occupies row 1, so pinning the EV
+              radar to `grid-row: 1` collided with it and the rule never
+              applied. A nested stack does not care what the grid is doing —
+              Stats keeps its own height and Moves sits directly beneath it,
+              which is the whole ask. */}
+          <div className="detail-col">
           <section className="g-card">
             <h3>{t("Stats")}</h3>
             <ul className="detail-stats">
@@ -750,6 +758,64 @@ function PokemonDetailDialog({
               <StatRow label={t("Speed")} value={p.speed} pokemon={p} stat="speed" />
             </ul>
           </section>
+          <section className="g-card detail-moves-card">
+            <div className="detail-moves-header">
+              <h3>{t("Moves")}</h3>
+              {selected.type === "party" && !inBattle && (
+                <button
+                  className="g-btn-ghost g-btn-small"
+                  // Does NOT close this sheet any more. It used to, so adding a
+                  // move dropped you back to the game and you had to find the
+                  // Pokemon again to see the result. The manager stacks above
+                  // instead, and closing it returns you here.
+                  onClick={() => openManageMoves({ type: "party", index: selected.index })}
+                  title={t("Open the move manager for this Pokémon")}
+                >
+                  {t("Manage moves")}
+                </button>
+              )}
+            </div>
+            {/* Reorderable in place. This list was read-only, so changing the
+                order of the four moves you are already looking at meant closing
+                this sheet, opening the move manager, dragging there, and coming
+                back. Adding a move still opens the manager — that needs the
+                whole learnable pool, which does not belong in a summary — but
+                ORDER is a property of these four, and it belongs here.
+
+                Party only: a boxed Pokemon has no active move order to change,
+                and neither has one mid-battle. */}
+            <ul className="detail-moves">
+              {p.moves.map((m: any, i: number) => {
+                const def = movesTable[m.id];
+                const color = def ? TYPE_COLOR[def.type] : "#666";
+                const icon = def ? CATEGORY_ICON[def.category] ?? "✴" : "✴";
+                return (
+                  <DetailMoveRow
+                    key={m.id}
+                    moveId={m.id}
+                    index={i}
+                    draggable={selected.type === "party" && !inBattle}
+                    tint={color}
+                    onSwap={(from, to) => {
+                      if (from === to) return;
+                      const ids = p.moves.map((x: any) => x.id);
+                      [ids[from], ids[to]] = [ids[to], ids[from]];
+                      onReorderMoves(ids);
+                    }}
+                  >
+                    <strong>
+                      <span style={{ marginRight: 4, opacity: 0.85 }}>{icon}</span>
+                      {def?.name ?? m.id}
+                    </strong>
+                    <small>
+                      Pwr {def?.power || "—"} · Acc {def?.accuracy}% · {def?.type ?? "—"}
+                    </small>
+                  </DetailMoveRow>
+                );
+              })}
+            </ul>
+          </section>
+          </div>
 
           <section className="g-card ev-training-card">
             <h3>{t("EV training")}</h3>
@@ -834,63 +900,6 @@ function PokemonDetailDialog({
           </section>
         )}
 
-        <section className="g-card detail-moves-card">
-          <div className="detail-moves-header">
-            <h3>{t("Moves")}</h3>
-            {selected.type === "party" && !inBattle && (
-              <button
-                className="g-btn-ghost g-btn-small"
-                // Does NOT close this sheet any more. It used to, so adding a
-                // move dropped you back to the game and you had to find the
-                // Pokemon again to see the result. The manager stacks above
-                // instead, and closing it returns you here.
-                onClick={() => openManageMoves({ type: "party", index: selected.index })}
-                title={t("Open the move manager for this Pokémon")}
-              >
-                {t("Manage moves")}
-              </button>
-            )}
-          </div>
-          {/* Reorderable in place. This list was read-only, so changing the
-              order of the four moves you are already looking at meant closing
-              this sheet, opening the move manager, dragging there, and coming
-              back. Adding a move still opens the manager — that needs the
-              whole learnable pool, which does not belong in a summary — but
-              ORDER is a property of these four, and it belongs here.
-
-              Party only: a boxed Pokemon has no active move order to change,
-              and neither has one mid-battle. */}
-          <ul className="detail-moves">
-            {p.moves.map((m: any, i: number) => {
-              const def = movesTable[m.id];
-              const color = def ? TYPE_COLOR[def.type] : "#666";
-              const icon = def ? CATEGORY_ICON[def.category] ?? "✴" : "✴";
-              return (
-                <DetailMoveRow
-                  key={m.id}
-                  moveId={m.id}
-                  index={i}
-                  draggable={selected.type === "party" && !inBattle}
-                  tint={color}
-                  onSwap={(from, to) => {
-                    if (from === to) return;
-                    const ids = p.moves.map((x: any) => x.id);
-                    [ids[from], ids[to]] = [ids[to], ids[from]];
-                    onReorderMoves(ids);
-                  }}
-                >
-                  <strong>
-                    <span style={{ marginRight: 4, opacity: 0.85 }}>{icon}</span>
-                    {def?.name ?? m.id}
-                  </strong>
-                  <small>
-                    Pwr {def?.power || "—"} · Acc {def?.accuracy}% · {def?.type ?? "—"}
-                  </small>
-                </DetailMoveRow>
-              );
-            })}
-          </ul>
-        </section>
 
 
       </div>
