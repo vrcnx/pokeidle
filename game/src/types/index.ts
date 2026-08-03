@@ -131,6 +131,16 @@ export interface Pokemon {
    *  tolerate `undefined`, which is NOT the same as null: undefined means
    *  "we never rolled one", null means "this species has no gender". */
   gender?: "M" | "F" | null;
+  /**
+   * The region this was caught in — the origin that region journeys read.
+   *
+   * Optional for the same reason `caughtAt` and `gender` are: every save
+   * written before journeys existed has none, and there is no data to
+   * backfill it from. Absent does NOT mean "unrestricted" — see
+   * LEGACY_REGIONS in utils/regionJourney.ts, where that distinction is the
+   * decision the whole feature rests on.
+   */
+  caughtIn?: string;
   /** When this Pokemon was obtained, epoch ms. Optional because every save
    *  written before it existed has none — sorting falls back to box order
    *  for those, which is close to the truth: the box is append-only, so a

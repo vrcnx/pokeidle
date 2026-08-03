@@ -11,7 +11,7 @@
 import type { Action, ActiveEffect, BossBattle, GameState, Pokemon, TrainerBattle } from "../types";
 import { pokemonTable } from "../data/pokemon";
 import { routes } from "../data/routes";
-import { mergedEncounters, regions } from "../data/regions";
+import { mergedEncounters, regions, regionForLocation } from "../data/regions";
 import { pokeballs } from "../data/pokeballs";
 import { consumables } from "../data/consumables";
 import { evolutionStones } from "../data/evolutionStones";
@@ -590,8 +590,15 @@ function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | 
 function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean): GameState {
   // Stamped here rather than in createPokemon: an ENEMY is created the moment
   // an encounter starts, and the interesting date is when you caught it, not
-  // when it appeared in the grass.
-  const caught: Pokemon = { ...enemy, id: String(state.nextPokemonId), caughtAt: Date.now() };
+  // when it appeared in the grass. `caughtIn` rides along for the same
+  // reason — where you caught it, not where it spawned — and because this is
+  // the single funnel both the instant and the animated catch pass through.
+  const caught: Pokemon = {
+    ...enemy,
+    id: String(state.nextPokemonId),
+    caughtAt: Date.now(),
+    caughtIn: regionForLocation(state.currentLocation),
+  };
   let next: GameState = { ...state, nextPokemonId: state.nextPokemonId + 1 };
   if (next.party.length < 6) {
     next = { ...next, party: [...next.party, caught] };
