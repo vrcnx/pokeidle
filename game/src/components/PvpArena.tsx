@@ -70,7 +70,6 @@ import {
   usePvpState,
   chooseBattleAction,
   lockTeamPreview,
-  unlockTeamPreview,
   cancelBattle,
   clearBattleRoom,
   isBotBattle,
@@ -198,24 +197,19 @@ interface BattleControls {
   forceSwitch: boolean;
   trapped: boolean;
   over: boolean;
-  /** Team Preview owns the screen. TWO SOURCES, and they answer different
-   *  questions — see canPickLead. This one is "is the phase on", read from the
-   *  shared protocol (`|teampreview` … `|start`), so it stays true while I wait
-   *  for the opponent after locking in. */
-  previewing: boolean;
   /**
-   * Do I still OWE a lead? This is the "you have a decision to make" signal —
-   * the one the phone's always-visible status strip shows and the one the
-   * picker arms its button on.
+   * Team Preview owns the screen. Read from the SHARED protocol
+   * (`|teampreview` … `|start`), not from `request.teamPreview`.
    *
-   * It is NOT `request.teamPreview`, and that distinction was measured rather
-   * than reasoned about: the simulator sends no acknowledgement when a side
-   * answers Team Preview, so the request stays a preview request after this
-   * player has locked in and keeps saying so until `|start`. Reading it alone
-   * left the arena telling somebody who had already chosen to choose. The
-   * client's own record of the lock (room.previewLead) is the missing half.
+   * That distinction was measured rather than reasoned about: the simulator
+   * sends no acknowledgement when a side answers Team Preview, so the request
+   * stays a preview request after this player has answered and keeps saying
+   * so until `|start`. The shared protocol is the half that actually ends.
+   *
+   * There is no longer a companion "do I owe a lead" flag. Nobody owes one —
+   * the order set in Edit Team is sent the moment the phase opens.
    */
-  canPickLead: boolean;
+  previewing: boolean;
 }
 
 function battleControls(room: BattleRoom): BattleControls {
@@ -232,7 +226,6 @@ function battleControls(room: BattleRoom): BattleControls {
     // otherwise leave the picker up over a dead room, with a countdown running
     // toward an auto-lock nothing is going to perform.
     previewing: !over && room.view.teamPreview,
-    canPickLead: !over && !!room.request?.teamPreview && room.previewLead == null,
   };
 }
 
@@ -418,7 +411,16 @@ function PvpConsoleFor({ room }: { room: BattleRoom }) {
   // Preview here is what makes it reachable on a phone without a second
   // implementation — and what stops the two from disagreeing about whether the
   // phase is still on.
-  if (c.previewing) return <PvpTeamPreview room={room} canPick={c.canPickLead} />;
+  // ── NO LEAD PICKER ────────────────────────────────────────────────
+  // Team Preview is answered from the party order the player already set in
+  // the pregame team editor, by <PvpAutoLead> below. Asking again was asking
+  // twice: the editor exists to decide who leads, and a second screen that
+  // could contradict it made the first one feel provisional — while blocking
+  // the battle behind a 30-second clock to re-state a decision already made.
+  //
+  // The SCOUTING half of the phase stays. Seeing the opponent's six is the
+  // point of Team Preview; choosing again is not.
+  if (c.previewing) return <PvpPreviewWaiting room={room} />;
   return (
     <PvpConsole
       room={room}
@@ -601,15 +603,9 @@ function messagePrompt(
   // `active` nor `forceSwitch`, and "Waiting for the opponent's move…" is a lie
   // during a phase where no move has been possible yet.
   //
-  // `previewLead` and not `request.teamPreview`: the request stays a preview
-  // request after this player answers (the simulator acknowledges nothing), so
-  // reading it here left the box telling somebody who had already locked in to
-  // choose. Measured in the browser.
-  if (room.view.teamPreview) {
-    return room.previewLead == null
-      ? t("Team Preview — choose who leads.")
-      : t("Locked in. Waiting for your opponent…");
-  }
+  // No decision is owed here any more — the order from Edit Team is sent the
+  // moment the phase opens — so the box reports rather than prompts.
+  if (room.view.teamPreview) return t("Team Preview — both trainers size each other up.");
   if (s.forceSwitch) return t("Choose your next Pokémon!");
   if (s.isWaiting) return t("Waiting for the opponent's move…");
   const mine = room.view.you.active;
@@ -1274,133 +1270,43 @@ function PvpPreviewRow({
  * the honest message is reassuring rather than threatening, because `default`
  * is the order they already built in the Team Builder.
  */
-function PvpTeamPreview({ room, canPick }: { room: BattleRoom; canPick: boolean }) {
+/**
+ * Team Preview, without the question.
+ *
+ * The player's lead is slot one of the party they arranged before queuing, so
+ * this answers the phase the moment it opens and shows what is actually
+ * happening — both teams, and who is about to lead — rather than a picker.
+ *
+ * The answer is `default`, which tells the simulator "use my current order".
+ * That is the same thing the server's auto-lock sends when a clock runs out,
+ * so this is not a new code path: it is the existing one, taken deliberately
+ * and immediately instead of after thirty seconds of waiting.
+ */
+function PvpPreviewWaiting({ room }: { room: BattleRoom }) {
   const t = useT();
-  const mons = room.view.you.preview;
-  // SELECTION is local — a decision that has not been sent, which nothing
-  // outside this panel needs, and which the remount on a new battle resets for
-  // free. THE LOCK is not local: it lives on the room (state/pvp.ts's
-  // previewLead) because the message box is a sibling component and, on a
-  // phone, the status strip is on a DIFFERENT TAB. See that field's comment for
-  // what was measured in the browser.
-  const [lead, setLead] = useState<number | null>(null);
-  const sent = room.previewLead;
-  const locked = sent !== null;
-  // The SERVER will still accept a change — a second `team` overwrites the
-  // first until both sides have answered — so this is a separate question from
-  // `canPick`, which goes false the moment we lock.
-  const phaseOpen = !!room.request?.teamPreview && !room.result;
+  // `preview` is the |poke| roster, in the order the team was packed —
+  // so slot one is the lead the player arranged in Edit Team.
+  const lead = room.view.you.preview[0];
 
-  const nameOfSlot = (slot: number | null) =>
-    slot == null ? "" : (pokemonTable[mons.find((m) => m.slot === slot)?.speciesKey ?? ""]?.name ?? "");
-  const chosenName = nameOfSlot(lead);
-  const sentName = sent ? nameOfSlot(sent) : nameOfSlot(mons[0]?.slot ?? null);
+  // Answer once, as soon as the phase is open and we have not already.
+  useEffect(() => {
+    if (!room.request?.teamPreview) return;
+    if (room.previewLead != null) return;
+    lockTeamPreview(room.battleId, null);
+  }, [room.battleId, room.request?.teamPreview, room.previewLead]);
 
   return (
-    <section className={`pvp2-console mode-preview${locked ? " is-locked" : ""}`} aria-label={t("Team Preview")}>
-      <header className="pvp2-console-head">
-        <h4 className="pvp2-console-title">
-          {canPick ? t("Choose your lead") : t("Locked in")}
-        </h4>
-        {!room.result && room.turnDeadlineAt && (
-          <span className="pvp2-preview-clock">
-            <span className="dim small">{t("Auto-locks in")}</span>
-            <TurnTimer deadline={room.turnDeadlineAt} />
-          </span>
-        )}
-      </header>
-
-      <div className="pvp2-console-body is-preview">
-        <div className="pvp2-preview-pick">
-          {mons.length === 0 ? (
-            <p className="pvp2-waiting dim">{t("Getting the battle ready…")}</p>
-          ) : (
-            <div className="pvp2-switch-grid as-wide pvp2-preview-grid">
-              {mons.map((m) => {
-                const picked = (sent ?? lead) === m.slot || (sent === 0 && m.slot === 1 && lead == null);
-                return (
-                  <button
-                    key={m.slot}
-                    type="button"
-                    className={`pvp2-switch-card pvp2-preview-card ${picked ? "picked" : ""}`}
-                    // Frozen once locked, and re-armed by "Change lead" rather
-                    // than by tapping a card. Tapping only SELECTS — the send
-                    // is the button — so leaving the cards live after a lock
-                    // would let a stray tap silently disagree with the choice
-                    // the server is holding.
-                    disabled={!canPick}
-                    aria-pressed={picked}
-                    onClick={() => setLead(m.slot)}
-                    title={`${t("Lead with")} ${pokemonTable[m.speciesKey]?.name ?? m.speciesKey}`}
-                  >
-                    <span className="pvp2-switch-pic">
-                      <PokemonSprite
-                        speciesKey={m.speciesKey}
-                        alt=""
-                        width={40}
-                        height={40}
-                        style={{ imageRendering: "pixelated" }}
-                      />
-                    </span>
-                    <span className="pvp2-switch-name">
-                      {pokemonTable[m.speciesKey]?.name ?? m.speciesKey}
-                    </span>
-                    <span className="pvp2-preview-slot dim small">
-                      {t("Lv")}{m.level}
-                    </span>
-                    {picked && <span className="pvp2-switch-tag">{t("Lead")}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="pvp2-preview-actions">
-          {canPick ? (
-            <>
-              <button
-                type="button"
-                className="g-btn-primary pvp2-preview-lock"
-                onClick={() => lockTeamPreview(room.battleId, lead)}
-                disabled={mons.length === 0}
-              >
-                {lead == null
-                  ? t("Lock in my order")
-                  : `${t("Lead with")} ${chosenName}`}
-              </button>
-              <p className="dim small pvp2-preview-hint">
-                {t("You only see each other's species. If the clock runs out, your current order is used.")}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="pvp2-preview-locked" role="status">
-                <strong>{t("Locked in.")}</strong>
-                <span>{sentName ? `${t("Leading with")} ${sentName}.` : ""}</span>
-                <span>{t("Waiting for your opponent…")}</span>
-              </p>
-              {/* Changing your mind is LEGAL until both sides have answered —
-                  a second `team` choice overwrites the first, measured against
-                  the real simulator — so the affordance exists rather than the
-                  screen pretending the decision is final. It disappears the
-                  moment the phase does, because this whole component unmounts
-                  on |start. */}
-              {phaseOpen && (
-                <button
-                  type="button"
-                  className="g-btn-ghost g-btn-small pvp2-preview-change"
-                  onClick={() => unlockTeamPreview(room.battleId)}
-                >
-                  {t("Change lead")}
-                </button>
-              )}
-              <p className="dim small pvp2-preview-hint">
-                {t("The battle starts the moment they choose.")}
-              </p>
-            </>
-          )}
-        </div>
+    <section className="pvp2-console mode-preview is-locked" aria-label={t("Team Preview")}>
+      <div className="pvp2-preview-body">
+        <p className="pvp2-preview-locked" role="status">
+          <strong>
+            {lead
+              ? `${t("Leading with")} ${pokemonTable[lead.speciesKey]?.name ?? lead.speciesKey}.`
+              : t("Sizing up the opposition…")}
+          </strong>
+          <span>{t("Your order is the one you set in Edit Team.")}</span>
+          <span>{t("Waiting for your opponent…")}</span>
+        </p>
       </div>
     </section>
   );
@@ -1675,12 +1581,10 @@ export function PvpMobileStage() {
   const state = c.over ? { cls: "over", label: t("Battle over") }
     : room.opponentAway ? { cls: "away", label: t("Opponent away") }
     // Team Preview above forceSwitch/isWaiting: none of the labels below
-    // describes a phase in which no move has been possible yet. This strip is
-    // the phone's ALWAYS-VISIBLE row while the picker is one tab away, so it is
-    // the only thing that can tell a player they still owe a decision.
-    : c.previewing ? (c.canPickLead
-        ? { cls: "act", label: t("Pick your lead") }
-        : { cls: "wait", label: t("Locked in — waiting") })
+    // describes a phase in which no move has been possible yet. It is always
+    // a WAIT now — the lead comes from Edit Team and is sent automatically,
+    // so the player owes nothing here.
+    : c.previewing ? { cls: "wait", label: t("Team Preview") }
     : c.forceSwitch ? { cls: "act", label: t("Send out a Pokémon") }
     : c.isWaiting ? { cls: "wait", label: t("Opponent choosing") }
     : c.active ? { cls: "act", label: t("Your turn") }
