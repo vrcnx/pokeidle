@@ -29,7 +29,7 @@ import type { Pokemon } from "../types";
 import {
   bidFloorFor, concentrationRatio, contestMultiplier, formatMoney, prefillBidAmount,
 } from "../utils/auctionBidRules";
-import { useAuctionStore, useSelectedLot, refreshLots } from "../state/auctionStore";
+import { useAuctionStore, useSelectedLot, refreshLots, setAuctionMode } from "../state/auctionStore";
 import { lotName, timeLeft, ivPercent } from "./AuctionHouse";
 import "./auctionHouse.css";
 
@@ -55,6 +55,7 @@ export function AuctionLotAside() {
   if (!lot) {
     return (
       <div className="ah-aside is-empty">
+        <SellCta />
         <div className="ah-aside-hint">
           <span className="ah-aside-hint-mark" aria-hidden="true">◈</span>
           <p className="ah-aside-hint-head">{t("Pick a lot")}</p>
@@ -65,7 +66,34 @@ export function AuctionLotAside() {
       </div>
     );
   }
-  return <LotDetail key={lot.id} lot={lot} />;
+  return (
+    <div className="ah-aside-stack">
+      <SellCta />
+      <LotDetail key={lot.id} lot={lot} />
+    </div>
+  );
+}
+
+/**
+ * Selling, from the column that acts.
+ *
+ * It was a button on the hub's header bar until that bar ran out of room —
+ * the slot is a fixed 800px and the four category tabs, the search box, the
+ * sort control and the wallet already fill it, so Sell was laid out past the
+ * end and clipped. Here it is always visible, next to the other thing you
+ * can do with a lot, and it cannot be crowded out by a filter.
+ */
+function SellCta() {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      className="ah-btn is-primary ah-sell-cta"
+      onClick={() => setAuctionMode("sell")}
+    >
+      {t("Sell something")}
+    </button>
+  );
 }
 
 /** Exported for the render tests, which drive it directly with a lot rather

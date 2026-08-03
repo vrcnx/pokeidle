@@ -193,12 +193,15 @@ export function AuctionHousePane() {
           <option value="price-low">{t("Cheapest")}</option>
           <option value="price-high">{t("Priciest")}</option>
         </select>
+        {/* No Sell button here. The hub's header slot is a fixed 800px, and
+            with four category tabs, a search box, a sort control and the
+            wallet in it, Sell was laid out at x=1250 — off the end of the
+            slot and clipped by the dialog, so the page's primary action was
+            invisible. It lives in the Aside now, which is the column that
+            acts on things anyway. */}
         <span className="mart-wallet-chip" title={t("Your money")}>
           ${state.money.toLocaleString()}
         </span>
-        <button type="button" className="ah-sell-btn" onClick={() => setAuctionMode("sell")}>
-          {t("Sell something")}
-        </button>
       </HubViews>
 
       {store.loading && store.lots.length === 0 ? (
