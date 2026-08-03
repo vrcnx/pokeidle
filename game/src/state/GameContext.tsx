@@ -13,6 +13,7 @@ import { reducer } from "./reducer";
 import { initialState } from "./initialState";
 import { SAVE_KEY } from "../data/raidLegendaries";
 import { pokemonTable } from "../data/pokemon";
+import { genderFor } from "../data/gender";
 import { expForLevel } from "../utils/stats";
 import { pickAbility } from "../data/abilities";
 import { routes } from "../data/routes";
@@ -55,6 +56,24 @@ function normalizePokemon(p: Pokemon): Pokemon {
       ...next,
       evs: { hp: 0, attack: 0, defense: 0, spAttack: 0, spDefense: 0, speed: 0 },
     };
+  }
+  // BACKFILL GENDER, rather than defaulting it.
+  //
+  // Every Pokemon caught before the field existed has none. The tempting fix
+  // is "call them all male", and it is wrong in a way you can see: it puts a
+  // male Chansey, a male Miltank and a male Nidoran-F in the box. Those
+  // species have exactly one possible answer and the game already knows it.
+  //
+  // genderFor is pure and reads only the IVs — which are on the Pokemon
+  // already, and which this function has just guaranteed exist. So an old
+  // Pokemon gets the SAME gender it would have been given had the field
+  // existed when it was caught: genderless species stay genderless, the
+  // fixed ones come out right, and the rest split evenly and stably.
+  //
+  // Runs AFTER the IV fill above, deliberately. The other order would hash a
+  // missing IV block for anything that needed one.
+  if (next.gender === undefined) {
+    next = { ...next, gender: genderFor(next.speciesKey, next.ivs as unknown as Record<string, number>) };
   }
   if (!next.nature) {
     // Pick a neutral-ish default: Hardy (no stat impact). Keeps legacy stats
