@@ -23,6 +23,17 @@ import {
 import { conservativeMinBid } from "../utils/auctionBidRules";
 
 export interface AuctionStoreState {
+  /**
+   * Which job the page is doing.
+   *
+   * The Aside is a sibling of the Body, so it cannot see the Body's local
+   * state — and while the Body was showing the sell flow, the Aside went on
+   * saying "Pick a lot · everything about it opens here". Stale context that
+   * describes a screen you are not on reads as a panel that has stopped
+   * working. It lives here because it is the one piece of Body state the
+   * Aside has to know.
+   */
+  mode: "browse" | "sell";
   lots: PublicAuction[];
   /** id of the lot open in the detail panel, or null. */
   selectedId: string | null;
@@ -34,6 +45,7 @@ export interface AuctionStoreState {
 }
 
 let state: AuctionStoreState = {
+  mode: "browse",
   lots: [],
   selectedId: null,
   loading: true,
@@ -64,6 +76,10 @@ export function useSelectedLot(): PublicAuction | null {
 
 export function selectLot(id: string | null) {
   emit({ selectedId: id });
+}
+
+export function setAuctionMode(mode: "browse" | "sell") {
+  emit({ mode });
 }
 
 /**

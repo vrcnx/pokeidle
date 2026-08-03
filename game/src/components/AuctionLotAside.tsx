@@ -35,7 +35,23 @@ import "./auctionHouse.css";
 
 export function AuctionLotAside() {
   const lot = useSelectedLot();
+  const store = useAuctionStore();
   const t = useT();
+  // While the Body is selling, this panel must describe THAT, not the browse
+  // screen behind it.
+  if (store.mode === "sell") {
+    return (
+      <div className="ah-aside is-empty">
+        <div className="ah-aside-hint">
+          <span className="ah-aside-hint-mark" aria-hidden="true">🔨</span>
+          <p className="ah-aside-hint-head">{t("Setting up a lot")}</p>
+          <p className="ah-aside-hint-sub">
+            {t("Pick what to sell, then name your opening price. Nothing leaves you until you list it.")}
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (!lot) {
     return (
       <div className="ah-aside is-empty">

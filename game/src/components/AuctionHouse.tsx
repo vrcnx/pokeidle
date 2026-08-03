@@ -35,7 +35,7 @@ import { useT } from "../i18n/useT";
 import type { Pokemon } from "../types";
 import { formatMoney } from "../utils/auctionBidRules";
 import {
-  startAuctionFeed, useAuctionStore, useSelectLot, refreshLots,
+  startAuctionFeed, useAuctionStore, useSelectLot, refreshLots, setAuctionMode,
 } from "../state/auctionStore";
 import { SellFlow } from "./AuctionSell";
 import "./auctionHouse.css";
@@ -76,7 +76,6 @@ export function AuctionHousePane() {
   const store = useAuctionStore();
   const select = useSelectLot();
 
-  const [mode, setMode] = useState<"browse" | "sell">("browse");
   const [filter, setFilter] = useState<LotFilter>("all");
   const [sort, setSort] = useState<LotSort>("ending");
   const [q, setQ] = useState("");
@@ -143,11 +142,12 @@ export function AuctionHousePane() {
     mine: store.lots.filter((a) => a.youAreSeller || a.youAreHighBidder).length,
   }), [store.lots]);
 
-  if (mode === "sell") {
+  // Mode lives in the store so the Aside can follow — see the note there.
+  if (store.mode === "sell") {
     return (
       <SellFlow
-        onDone={() => { setMode("browse"); void refreshLots(); }}
-        onCancel={() => setMode("browse")}
+        onDone={() => { setAuctionMode("browse"); void refreshLots(); }}
+        onCancel={() => setAuctionMode("browse")}
       />
     );
   }
@@ -196,7 +196,7 @@ export function AuctionHousePane() {
         <span className="mart-wallet-chip" title={t("Your money")}>
           ${state.money.toLocaleString()}
         </span>
-        <button type="button" className="ah-sell-btn" onClick={() => setMode("sell")}>
+        <button type="button" className="ah-sell-btn" onClick={() => setAuctionMode("sell")}>
           {t("Sell something")}
         </button>
       </HubViews>
@@ -214,7 +214,7 @@ export function AuctionHousePane() {
               : t("Try a different category, or clear the search.")}
           </p>
           {store.lots.length === 0 && (
-            <button type="button" className="ah-sell-btn" onClick={() => setMode("sell")}>
+            <button type="button" className="ah-sell-btn" onClick={() => setAuctionMode("sell")}>
               {t("Sell something")}
             </button>
           )}
