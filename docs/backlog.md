@@ -1,146 +1,63 @@
-# Backlog — player requests, with what each one actually needs
+# Backlog — player requests
 
-Written at the end of a long session, so the findings below (particularly
-the two blockers) are not re-discovered from scratch. Every item here is a
-real request; none of them needs clarification from the reporter.
+Everything that was on this list has shipped. Kept as a record of what was
+built and, where it matters, the finding that shaped it — several of these
+turned out to be different problems from the ones reported.
 
-Ordered by "how much is in the way", not by how much anyone wants it.
+## Done
 
----
+**Discord rewards say `/link`.** The blurb said "link your account" without
+saying how, and the how is a slash command in another application.
 
-## 1. Discord rewards should say to use `/link`
+**"Go" on a species' locations.** The dex sheet named the exact route and
+then made you close it, open the Map and find that route by name.
 
-**Smallest of the set.** The rewards promo card offers a Master Ball for
-linking a Discord account and never says the linking is done with `/link` in
-the server. Almost certainly copy-only, in the promo definition
-(`server/src/lib/promos.ts` — `discordLinkPromo()`), which already carries a
-`blurb` and a `cta`.
+**Unseen Pokémon show encounter data.** Not hidden information — clicking
+already revealed it, so `???` on hover only cost a click. `??? · 3.5%` in the
+wild panel, `??? · Lv40-42 · 4%` on the Map. The name is still withheld.
 
-Check whether the CTA currently deep-links to the link page; if it does, the
-sentence needs to cover both routes ("in the game, or `/link` in Discord").
+**Honey revealed an unseen species' NAME in the Bag.** A real bug found
+inside that QoL report. The one thing the dex withholds everywhere else.
 
----
+**Honey/Repel only burn where they apply**, and can be cancelled. An effect
+is per-species AND per-route, so wandering off used to burn 500 battles of
+something that never fired. Pause kept a mis-click; Cancel ends it.
 
-## 2. "Go" button on locations in the species modal
+**Map search**, across every region rather than the open tab.
 
-`DexSpeciesModal` lists "where to find" rows with a route name, a level range
-and an encounter chance. They are not actionable, so a player who has just
-learned where a Pokémon lives has to close the modal and go find the route
-on the Map.
+**Pokémon gender** as a real field. Derived from IVs rather than rolled — an
+extra `Math.random()` in `createPokemon` shifts the shared stream and breaks
+seeded tests elsewhere. Backfilled on load for existing Pokémon rather than
+defaulted, because "all male" would show a male Chansey.
 
-`RouteCardList` already has the travel dispatch to copy:
-`dispatch({ type: "TRAVEL", payload: { locationId } })`, gated on
-`state.unlockedLocations.includes(id)`. A locked route should show why it is
-locked rather than a dead button.
+**Auto-catch filters** — nature, IV%, gender, combined. The blocker was the
+signature: `shouldAutoCatch` never received the encounter, so it could not
+see IVs or nature at all. An unjudgeable filter PASSES, deliberately.
 
----
+**Manage Moves drag** — and the fix that made it work at all: `updateTarget`
+only ran inside a `requestAnimationFrame`, so any drag released before a
+frame landed dropped nothing. That was the whole drag system, not just moves.
 
-## 3. Hovering an unseen Pokémon should show its encounter data
+**PC sorts by catch date**, and filters by "holding an item".
 
-The reporter's argument is the load-bearing part: **this is not hidden
-information.** Clicking the sprite already shows the encounter chance and
-level range; only the NAME is hidden. So the hover showing bare `???` hides
-nothing — it just makes you click.
+**Rename is a button.** It was the dialog's `<h2>`, which also repeated the
+name and level from the line below it.
 
-- Wild Pokémon panel: `???` → `??? · 3.5%`
-- Map tab: `???` → `??? · Lv40–42 · 4%` (that tab rounds its chances)
+**Auctions** — full Pokémon detail on listings (the data was always sent),
+a suggested opening price that deliberately does NOT prefill the field, and
+its own page in the hub instead of a tab inside the chat panel.
 
-Both live in `WildPokemonSection` / `RouteCard`, and both already compute the
-percentage for the seen case — the unseen branch simply drops it.
+## Not a backlog item, but outstanding
 
-**And a real bug in the same report:** using Honey on an unseen species
-reveals its NAME in the Bag. That is the one thing the dex is meant to
-withhold, and it leaks everywhere else it is hidden. Look at the active
-effects list — it names the target species (`pokemonTable[eff.speciesKey].name`)
-with no seen check. Should read `???` for an unseen species.
+**Prod migrations have not been run.** `server/prisma/migrations/` contains
+`20260801230000_add_signup_attribution` and `20260802220000_discord_link_codes`
+(the latter from a concurrent session). Neither has been applied to
+production from here.
 
----
+    cd server && npm run db:migrate
 
-## 4. Honey / Repel should not deplete outside the area they were used
+Never `db:push`.
 
-Two halves, and the second is arguably worth more than the first.
-
-**(a) Don't tick down elsewhere.** An effect is per-species AND per-route
-(`eff.speciesKey`, `eff.routeKey`), so the data to decide this already
-exists. The consumption happens wherever `battlesRemaining` is decremented —
-it needs to skip effects whose `routeKey` is not the current location.
-
-**(b) Let the player cancel one.** Sak4i: "I click the wrong thing and have
-to wait 500 matches to switch." Today there is Pause and nothing else, so a
-mis-click is a 500-battle sentence. Needs a `CANCEL_EFFECT` action and a
-control on the effect card in the Bag (the card already has Pause/Resume
-there — `.bag-effect-foot`).
-
-Decide deliberately whether cancelling refunds the item. Not refunding is
-simpler and defensible; refunding invites use-then-cancel abuse only if the
-effect did something first, which it did.
-
----
-
-## 5. Map search box
-
-`RouteCardList` already filters by region and now groups by city. A name
-filter over `routesInRegion` is small. One decision: whether searching looks
-across ALL regions or only the open one. Searching the open region only is
-consistent with the tabs; searching everything is more useful and needs the
-result to say which region each hit is in.
-
----
-
-## 6. Pokémon gender — BLOCKER for #7
-
-**`gender` does not exist on the `Pokemon` type.** Only `nature?` does. This
-is not a filter feature, it is a data-model change, and it has to land before
-the gender half of the auto-capture request can:
-
-- a field on `Pokemon`
-- generation in `createPokemon`, from per-species gender ratios — **check
-  whether the species table carries a ratio at all**; if not, that data has
-  to come from somewhere
-- display in the detail sheet
-- and an answer for every Pokémon already caught, which will have none.
-  Same shape as `caughtAt`: optional field, and everything that reads it has
-  to tolerate `undefined` rather than assuming a default
-
----
-
-## 7. Auto-capture: advanced filters — BLOCKED
-
-Nature, IV range, gender, and combining them. The reporter is right that it
-touches no rates and therefore no balance.
-
-**The blocker is the signature.** Today:
-
-```ts
-shouldAutoCatch(state, routeKey, speciesKey, level, isShiny)
-```
-
-It receives a species key and a level. It **cannot see IVs or nature** — the
-encounter object never reaches it. So this needs:
-
-1. the encounter threaded through from the battle loop (`useBattleLoop`
-   already holds `enemy`, which has `ivs` and `nature`)
-2. `CatchSettings` extended from a single `mode` string to a set of
-   criteria that AND together — the current shape is one-rule-only and the
-   request is explicitly about combining
-3. gender, which does not exist yet (see #6)
-
-Do it in that order. Building the settings UI first would look finished
-while filtering on nothing.
-
-Keep the existing `alwaysCatchShinies` override ahead of everything, for the
-reason written in `catching.ts`: a per-route rule silently ate every shiny
-once already, and that report is why the shiny gate fires first.
-
----
-
-## 8. Manage Moves: drag to reorder
-
-From pani. Drag moves to reorder instead of Move Up / Move Down, and drag
-from "Available Moves" onto a slot to fill or replace it.
-
-The drag controller is already touch-friendly and in use in two places
-(`useDragAndDrop`, party rows and PC cells) — reuse it rather than adding a
-library. Needs an id-addressed reorder action, not index-addressed: the same
-reasoning as `RELEASE_MANY` (see `bulkRelease.test.ts`), because the list
-being dragged is the list being mutated.
+**The silver bottle cap's two-step dialog shipped unverified.** The code
+builds and typechecks; the step itself was never seen rendering. Worth a
+look the next time anyone is in the Bag.

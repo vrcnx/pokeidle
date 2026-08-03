@@ -12377,25 +12377,34 @@ input:focus, textarea:focus, select:focus {
      which is how the empty gutter got here in the first place: a row with
      two cards in a three-column grid leaves the third one blank. auto-fit
      is right when the item count is unknown; here it is known and small.
-     No `align-items: start` — cards in a row stretch to the tallest, which
-     is what stops a short Stats card leaving a hole beside a tall EV radar. */
+     Cards keep their OWN height. Stretching them to match was the first
+     attempt at the hole under Stats, and it only made an empty card taller
+     — the fix is to put something IN the space, not to inflate the card
+     beside it. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
+}
+/* The EV radar is the tall card, so it holds the right column for two rows
+   and Stats + Moves stack down the left beside it. Moves used to be a thin
+   strip across the bottom of the dialog; it fills the gap under Stats now,
+   which is where the space actually was. */
+@media (min-width: 901px) {
+  .pokemon-detail-v2 .ev-training-card { grid-column: 2; grid-row: 1 / span 2; }
+  .pokemon-detail-v2 .detail-moves-card { grid-column: 1; grid-row: 2; }
 }
 @media (max-width: 900px) {
   .pokemon-detail-v2 .g-modal-body > .g-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* The moves strip spans both columns, so its four rows would be four thin
-   lines across 1080px. Two up instead — the same block of information at a
-   readable width. */
+/* One move per line now that the card is a COLUMN rather than a strip
+   across the whole dialog. Two-up was right when it spanned both columns
+   and four rows would have been four thin lines; in a half-width card it
+   would just squeeze the names. */
 .pokemon-detail-v2 .detail-moves {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-}
-@media (max-width: 900px) {
-  .pokemon-detail-v2 .detail-moves { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* THE HERO.

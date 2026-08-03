@@ -751,7 +751,7 @@ function PokemonDetailDialog({
             </ul>
           </section>
 
-          <section className="g-card">
+          <section className="g-card ev-training-card">
             <h3>{t("EV training")}</h3>
             {/* The radar alone showed a number with no story attached, and the
                 only EV CONTROL in this modal is the berry row below, which
@@ -834,7 +834,7 @@ function PokemonDetailDialog({
           </section>
         )}
 
-        <section className="g-card g-card-full">
+        <section className="g-card detail-moves-card">
           <div className="detail-moves-header">
             <h3>{t("Moves")}</h3>
             {selected.type === "party" && !inBattle && (
