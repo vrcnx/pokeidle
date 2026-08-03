@@ -987,7 +987,11 @@ export function PCTab() {
   const { state, dispatch } = useGame();
   const t = useT();
   const [query, setQuery] = useState("");
-  const [shinyOnly, setShinyOnly] = useState(false);
+  // One answer, not two booleans. "Show" is a segmented control and a
+  // segmented control has exactly one selection — a Shiny checkbox plus a
+  // Held checkbox would raise "shiny AND held?" and then have to answer it
+  // in a row that has no room to.
+  const [show, setShow] = useState<"all" | "shiny" | "held">("all");
   const [ivTier, setIvTier] = useState<IvTier>("any");
 
   // Bulk release (br_ff6112fc5180462b81 — two players asked, one with 500
@@ -999,7 +1003,7 @@ export function PCTab() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
 
   const box = state.box;
-  const filtering = query.trim() !== "" || shinyOnly || ivTier !== "any";
+  const filtering = query.trim() !== "" || show !== "all" || ivTier !== "any";
 
   // `null` means "no filter active" — deliberately NOT a copy of the box.
   // Materialising a 9,999-entry array of wrappers on every render (the box
@@ -1014,7 +1018,10 @@ export function PCTab() {
     for (let i = 0; i < box.length; i++) {
       const p = box[i];
       if (!p) continue;
-      if (shinyOnly && !p.isShiny) continue;
+      if (show === "shiny" && !p.isShiny) continue;
+      // Holding something. Asked for to find the Pokemon carrying an item you
+      // want back — the alternative was opening them one at a time.
+      if (show === "held" && !p.heldItem) continue;
       if (minIv > 0 && ivTotal(p) < minIv) continue;
       if (q) {
         const nick = p.nickname?.toLowerCase();
@@ -1029,7 +1036,7 @@ export function PCTab() {
       out.push({ p, index: i });
     }
     return out;
-  }, [box, filtering, query, shinyOnly, ivTier]);
+  }, [box, filtering, query, show, ivTier]);
 
   const shown = view ? view.length : box.length;
 
@@ -1094,7 +1101,7 @@ export function PCTab() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setTopRow(0);
-  }, [query, shinyOnly, ivTier]);
+  }, [query, show, ivTier]);
 
   const totalRows = Math.ceil(total / cols);
   // Clamp for THIS render as well as via the scroll reset above: the effect
@@ -1128,7 +1135,7 @@ export function PCTab() {
   // Sort and filter are CONTROLS now, not menus — see the .pc-filters row
   // below. The two openContextMenu builders that used to be here are gone.
   const sortMode = currentSortMode(box);
-  const clearFilters = () => { setQuery(""); setShinyOnly(false); setIvTier("any"); };
+  const clearFilters = () => { setQuery(""); setShow("all"); setIvTier("any"); };
 
   // ---- Bulk release ------------------------------------------------------
   // Everything the CURRENT filter shows that is legal to bulk-release. Derived
@@ -1205,7 +1212,7 @@ export function PCTab() {
 
   // Leaving the filter behind would leave a selection the player can no longer
   // see. Drop it rather than release something off-screen later.
-  useEffect(() => { setSelected(new Set()); }, [query, shinyOnly, ivTier]);
+  useEffect(() => { setSelected(new Set()); }, [query, show, ivTier]);
 
   return (
     <div className="tab-pane pc-tab">
@@ -1324,20 +1331,29 @@ export function PCTab() {
                 and never having turned it on look identical. */}
             <button
               type="button"
-              className={`g-tab g-tab-small${shinyOnly ? "" : " active"}`}
-              aria-pressed={!shinyOnly}
-              onClick={() => setShinyOnly(false)}
+              className={`g-tab g-tab-small${show === "all" ? " active" : ""}`}
+              aria-pressed={show === "all"}
+              onClick={() => setShow("all")}
             >
               {t("All")}
             </button>
             <button
               type="button"
-              className={`g-tab g-tab-small${shinyOnly ? " active" : ""}`}
-              aria-pressed={shinyOnly}
+              className={`g-tab g-tab-small${show === "shiny" ? " active" : ""}`}
+              aria-pressed={show === "shiny"}
               title={t("Shiny only")}
-              onClick={() => setShinyOnly(true)}
+              onClick={() => setShow("shiny")}
             >
               ✦ {t("Shiny")}
+            </button>
+            <button
+              type="button"
+              className={`g-tab g-tab-small${show === "held" ? " active" : ""}`}
+              aria-pressed={show === "held"}
+              title={t("Only Pokémon holding an item")}
+              onClick={() => setShow("held")}
+            >
+              {t("Held")}
             </button>
           </div>
         </div>
@@ -1446,7 +1462,7 @@ export function PCTab() {
               <button
                 type="button"
                 className="pc-tool"
-                onClick={() => { setQuery(""); setShinyOnly(false); setIvTier("any"); }}
+                onClick={clearFilters}
               >
                 {t("Clear filters")}
               </button>
