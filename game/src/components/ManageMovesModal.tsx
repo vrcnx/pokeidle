@@ -3,6 +3,7 @@ import type { Pokemon, PokemonType } from "../types";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { learnableMovesUpToLevel, type LearnedMove } from "../utils/moves";
+import { useDragAndDrop } from "../hooks/useDrag";
 import { useModalEnter } from "../utils/animate";
 import { pokemonTable } from "../data/pokemon";
 import { useT } from "../i18n/useT";
@@ -69,6 +70,47 @@ export function ManageMovesModal() {
       // 4 already chosen — swap into the LAST slot (most recently added)
       setDraft([...draft.slice(0, -1), id]);
     }
+  }
+
+  /**
+   * Drag a move into a slot.
+   *
+   * ── ADDRESSED BY MOVE ID, NOT BY SLOT ────────────────────────────
+   * Same reasoning as RELEASE_MANY: the list being dragged IS the list being
+   * mutated, so a slot index captured when the drag started can point at a
+   * different move by the time it is dropped. Both ends resolve by id.
+   *
+   * Three cases, and they are genuinely different actions:
+   *   · a slot dragged onto another slot   -> reorder (swap)
+   *   · an available move onto an empty slot -> fill it
+   *   · an available move onto a filled slot -> replace THAT one
+   *
+   * The third is the one the old UI could not do at all. `toggleMove`
+   * always swapped into the LAST slot, so replacing move 2 meant removing
+   * it, adding the new one, and then pressing ↑ twice.
+   */
+  function dropOnSlot(slot: number, payload: { from: "slot" | "pool"; moveId: string }) {
+    const next = [...draft];
+    if (payload.from === "pool") {
+      // Already in the kit — dropping it somewhere else is a reorder, not a
+      // second copy. Four slots and no duplicates is the whole constraint.
+      const existing = next.indexOf(payload.moveId);
+      if (existing !== -1) {
+        const t = next[slot];
+        next[existing] = t;
+        next[slot] = payload.moveId;
+        setDraft(next.filter(Boolean));
+        return;
+      }
+      if (slot >= next.length) next.push(payload.moveId);
+      else next[slot] = payload.moveId;
+      setDraft(next);
+      return;
+    }
+    const fromIdx = next.indexOf(payload.moveId);
+    if (fromIdx === -1 || fromIdx === slot) return;
+    [next[fromIdx], next[slot]] = [next[slot], next[fromIdx]];
+    setDraft(next);
   }
 
   function reorderInDraft(slot: number, dir: -1 | 1) {
@@ -141,6 +183,7 @@ export function ManageMovesModal() {
         learnable={learnable}
         toggleMove={toggleMove}
         reorderInDraft={reorderInDraft}
+        dropOnSlot={dropOnSlot}
         confirm={confirm}
         reset={reset}
         optimize={optimize}
@@ -151,13 +194,14 @@ export function ManageMovesModal() {
 }
 
 function ManageMovesDialog({
-  pokemon, draft, learnable, toggleMove, reorderInDraft, confirm, reset, optimize, hasChanges,
+  pokemon, draft, learnable, toggleMove, reorderInDraft, dropOnSlot, confirm, reset, optimize, hasChanges,
 }: {
   pokemon: Pokemon;
   draft: string[];
   learnable: LearnedMove[];
   toggleMove: (id: string) => void;
   reorderInDraft: (slot: number, dir: -1 | 1) => void;
+  dropOnSlot: (slot: number, payload: { from: "slot" | "pool"; moveId: string }) => void;
   confirm: () => void;
   reset: () => void;
   optimize: () => void;
@@ -181,10 +225,12 @@ function ManageMovesDialog({
               const id = draft[slot];
               const def = id ? movesTable[id] : null;
               return (
-                <div
+                <MoveSlot
                   key={slot}
-                  className={`current-slot ${def ? "filled" : "empty"}`}
-                  style={def ? { background: TYPE_COLOR[def.type] } : undefined}
+                  slot={slot}
+                  moveId={id}
+                  tint={def ? TYPE_COLOR[def.type] : undefined}
+                  onDrop={dropOnSlot}
                 >
                   {def ? (
                     <>
@@ -201,7 +247,7 @@ function ManageMovesDialog({
                   ) : (
                     <span className="cs-empty">{t("empty")}</span>
                   )}
-                </div>
+                </MoveSlot>
               );
             })}
           </div>
@@ -218,11 +264,13 @@ function ManageMovesDialog({
               if (!def) return null;
               const equipped = draft.includes(lm.moveId);
               return (
-                <li
+                <AvailableMove
                   key={lm.moveId}
+                  moveId={lm.moveId}
                   className={equipped ? "equipped" : ""}
                   style={{ background: TYPE_COLOR[def.type] + (equipped ? "ff" : "55") }}
                   onClick={() => toggleMove(lm.moveId)}
+                  title={equipped ? undefined : "Click to add, or drag onto a slot to place it"}
                 >
                   <span className="ma-cat">{CATEGORY_ICON[def.category]}</span>
                   <span className="ma-name">{def.name}</span>
@@ -230,7 +278,7 @@ function ManageMovesDialog({
                     {t("Pwr ")}{def.power || "—"}{t(" · ")}{def.accuracy}{t("% · Lv.")}{lm.learnLevel}
                   </span>
                   <span className="ma-action">{equipped ? "✓" : "+"}</span>
-                </li>
+                </AvailableMove>
               );
             })}
           </ul>
@@ -258,5 +306,64 @@ function ManageMovesDialog({
         </button>
       </footer>
     </div>
+  );
+}
+
+/**
+ * One of the four move slots: a drag source AND a drop target.
+ *
+ * The arrows stay. Dragging is the faster way to say it and a keyboard
+ * cannot drag — removing them would trade one group of players for another,
+ * which is not what a quality-of-life change is for.
+ */
+function MoveSlot({
+  slot, moveId, tint, onDrop, children,
+}: {
+  slot: number;
+  moveId: string | undefined;
+  tint?: string;
+  onDrop: (slot: number, payload: { from: "slot" | "pool"; moveId: string }) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useDragAndDrop<HTMLDivElement>({
+    // An empty slot is not draggable — there is nothing to pick up — but it
+    // IS a target, which is how an available move gets in.
+    source: moveId
+      ? { payload: () => ({ kind: "move", data: { from: "slot", moveId } }) }
+      : undefined,
+    target: {
+      accept: (p) => p.kind === "move",
+      onDrop: (p) => onDrop(slot, p.data as { from: "slot" | "pool"; moveId: string }),
+    },
+  });
+  return (
+    <div
+      ref={ref}
+      className={`current-slot ${moveId ? "filled" : "empty"} is-droppable`}
+      style={tint ? { background: tint } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A move in the Available list — drag source only. */
+function AvailableMove({
+  moveId, children, className, style, onClick, title,
+}: {
+  moveId: string;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
+  title?: string;
+}) {
+  const ref = useDragAndDrop<HTMLLIElement>({
+    source: { payload: () => ({ kind: "move", data: { from: "pool", moveId } }) },
+  });
+  return (
+    <li ref={ref} className={className} style={style} onClick={onClick} title={title}>
+      {children}
+    </li>
   );
 }

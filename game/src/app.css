@@ -12365,7 +12365,25 @@ input:focus, textarea:focus, select:focus {
 .pokemon-detail-v2 { width: min(740px, 96vw); }
 .dex-species-modal-v2 { width: min(720px, 96vw); }
 .manage-moves-modal-v2 { width: min(640px, 96vw); }
-.catch-settings-modal-v2 { width: min(700px, 96vw); }
+/* 1080, not 700. Three cards now compete for this dialog — Mode, the extra
+   conditions, and Balls — and at 700 the .g-grid gave them two columns, so
+   Balls dropped to a half-width row of its own with a column of dead space
+   beside it and the route's species list pushed below the fold. */
+.catch-settings-modal-v2 { width: min(1080px, 96vw); }
+/* Three columns, explicitly. The shared .g-grid is an auto-fit that decides
+   for itself, and what it decided here was two — the cards are narrow enough
+   for three and the dialog is now wide enough to hold them.
+   `align-items: start` so a short card does not stretch to match the tall
+   one beside it; these are three separate settings, not a row. */
+@media (min-width: 900px) {
+  .catch-settings-modal-v2 .g-modal-body > .g-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+  /* The species list is per-route detail and belongs under all three, at
+     full width, rather than as a fourth column of one. */
+  .catch-settings-modal-v2 .g-card-full { grid-column: 1 / -1; }
+}
 .evolution-modal-v2 { width: min(560px, 96vw); }
 
 /* Manage Moves: tweak the inner stack so it doesn't double up its
@@ -20407,3 +20425,20 @@ strong, b { font-variant-numeric: tabular-nums; }
 }
 .catch-nature:hover { background: var(--ctl-bg-hover); color: var(--ctl-fg-hover); }
 .catch-nature.is-on { background: var(--ctl-on-bg); color: var(--ctl-on-fg); }
+
+/* The map header is ONE row: region tabs, search, "Here: …".
+   `.route-head-meta` wraps by design — it was written for the tabs alone,
+   which genuinely need to wrap on a phone — and adding the search box made
+   three items where there were two, so "Here:" fell to a second line and
+   the header grew.
+   The tabs and the location still cannot shrink; the SEARCH gives way,
+   because a narrower field is still a usable field while a wrapped label is
+   a taller header. */
+.hub-head-slot .route-head-meta {
+  flex-wrap: nowrap;
+  gap: 10px;
+  min-width: 0;
+}
+.hub-head-slot .route-head-meta .route-region-tabs { flex: 0 0 auto; }
+.hub-head-slot .route-head-meta .route-here { flex: 0 0 auto; }
+.hub-head-slot .route-search { flex: 1 1 120px; min-width: 90px; }
