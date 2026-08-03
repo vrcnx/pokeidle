@@ -148,3 +148,65 @@ export function illegalPartyMembers(state: GameState): { mon: Pokemon; reason: s
   }
   return out;
 }
+
+// ── JOURNEY LEVELS ────────────────────────────────────────────────────────
+//
+// Johto's encounters were authored by adding a FLAT OFFSET to the Gold/Silver
+// levels, and the offset is exactly 38. That is not a guess — subtracting it
+// reproduces the canon curve precisely across all 34 areas:
+//
+//     Route 29     40-42  ->   2-4      (canon Sentret/Pidgey Lv 2-4)
+//     Route 31     42-44  ->   4-6
+//     Union Cave   46-49  ->   8-11
+//     National Pk  52-55  ->  14-17
+//     Dragon's Den 68-71  ->  30-33
+//     Mt Silver    75-80  ->  37-42
+//
+// So the original data is recoverable arithmetically and there is nothing to
+// fetch, map or hand-author. That matters beyond convenience: a PokéAPI pull
+// would have needed every one of those 34 areas matched to a location-area
+// name, by hand, and re-matched for every region added afterwards.
+//
+// Kanto is absent because Kanto was never inflated — its encounters already
+// start at Lv 2.
+const JOURNEY_LEVEL_OFFSET: Record<RegionId, number> = {
+  johto: 38,
+};
+
+/** Nothing is ever rolled below this, whatever the arithmetic says. */
+const MIN_JOURNEY_LEVEL = 2;
+
+/**
+ * How much to take off this route's encounter levels for this player.
+ *
+ * Zero in farm mode, which is what keeps an established player's Johto the
+ * Lv 40-80 grind it is today — they completed it, so nothing moves. Zero for
+ * Kanto always, and zero for anywhere outside a journey.
+ */
+export function journeyLevelOffset(routeId: string, state: GameState): number {
+  if (isOutsideJourneys(routeId)) return 0;
+  const regionId = regionForLocation(routeId);
+  if (!regionId) return 0;
+  if (regionCompleted(regionId, state)) return 0;
+  return JOURNEY_LEVEL_OFFSET[regionId] ?? 0;
+}
+
+/**
+ * Apply an offset to a level band.
+ *
+ * Shared by the roller and by every screen that PRINTS a band — the Map card,
+ * the dex sheet, the catch-settings list. If the map says Lv 40-42 and you
+ * meet a Lv 3 Sentret, the map is lying, and that is a worse bug than the one
+ * this feature set out to fix.
+ */
+export function applyJourneyOffset<T extends { minLevel: number; maxLevel: number }>(
+  enc: T,
+  offset: number,
+): T {
+  if (offset <= 0) return enc;
+  return {
+    ...enc,
+    minLevel: Math.max(MIN_JOURNEY_LEVEL, enc.minLevel - offset),
+    maxLevel: Math.max(MIN_JOURNEY_LEVEL, enc.maxLevel - offset),
+  };
+}

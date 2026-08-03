@@ -1,4 +1,5 @@
 import { encounters as encounterTable } from "../data/encounters";
+import { applyJourneyOffset } from "./regionJourney";
 import { consumables } from "../data/consumables";
 import type { ActiveEffect } from "../types";
 
@@ -81,11 +82,16 @@ function adjustWeights(
 
 export function rollEncounter(
   routeKey: string,
-  effects: ActiveEffect[] = []
+  effects: ActiveEffect[] = [],
+  /** Levels to take off — see journeyLevelOffset. Passed in rather than
+   *  derived here so this module stays free of GameState, and so the screens
+   *  that PRINT a band can apply the identical transform. */
+  levelOffset = 0,
 ): { speciesKey: string; level: number } | null {
   const route = encounterTable[routeKey];
   if (!route) return null;
-  const adjusted = adjustWeights(route.encounters, routeKey, effects);
+  const adjusted = adjustWeights(route.encounters, routeKey, effects)
+    .map((e) => applyJourneyOffset(e, levelOffset));
   const total = adjusted.reduce((s, e) => s + e.weight, 0);
   if (total <= 0) return null;
   let r = Math.random() * total;

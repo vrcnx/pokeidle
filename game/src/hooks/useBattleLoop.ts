@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../state/GameContext";
+import { journeyLevelOffset } from "../utils/regionJourney";
 import { rollEncounter, routeHasEncounters } from "../utils/encounters";
 import { createPokemon } from "../utils/pokemon";
 import { rollShiny } from "../utils/pokemon";
@@ -209,7 +210,11 @@ export function useBattleLoop(suspended = false): void {
           }
         } else if (routeHasEncounters(cur.currentRoute)) {
           // Routes auto-trigger wild encounters
-          const roll = rollEncounter(cur.currentRoute, cur.activeEffects);
+          const roll = rollEncounter(
+            cur.currentRoute,
+            cur.activeEffects,
+            journeyLevelOffset(cur.currentRoute, cur),
+          );
           if (roll) {
             const enemy = createPokemon(
               roll.speciesKey,

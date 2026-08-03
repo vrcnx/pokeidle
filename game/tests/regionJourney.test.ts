@@ -17,7 +17,10 @@ import {
   regionCompleted,
   illegalPartyMembers,
   LEGACY_REGIONS,
+  journeyLevelOffset,
+  applyJourneyOffset,
 } from "../src/utils/regionJourney";
+import { encounters } from "../src/data/encounters";
 import { regions } from "../src/data/regions";
 import { makeMon, makeState } from "./helpers";
 
@@ -165,5 +168,52 @@ describe("the party check names names", () => {
       party: [makeMon({ caughtIn: "kanto" })],
     });
     expect(illegalPartyMembers(s)).toHaveLength(0);
+  });
+});
+
+// ── JOURNEY LEVELS ────────────────────────────────────────────────────────
+describe("journey levels", () => {
+  const KANTO = regions.kanto.champion!.id;
+  const JOHTO = regions.johto.champion!.id;
+
+  it("hands Johto back its real Gold/Silver curve while it is unfinished", () => {
+    // The offset was measured, not guessed: subtracting 38 reproduces canon
+    // across all 34 areas. These are the load-bearing samples.
+    const fresh = makeState({ defeatedChampions: [] });
+    const band = (route: string) => {
+      const e = encounters[route].encounters[0];
+      const a = applyJourneyOffset(e, journeyLevelOffset(route, fresh));
+      return `${a.minLevel}-${a.maxLevel}`;
+    };
+    expect(band("route29")).toBe("2-4");        // canon Sentret / Pidgey
+    expect(band("unionCave")).toBe("8-11");
+    expect(band("nationalPark")).toBe("14-17");
+    expect(band("mtSilver")).toBe("37-42");
+  });
+
+  it("leaves Johto EXACTLY as it is today once it is beaten", () => {
+    // The promise that nobody's income moves. If this ever drifts, every
+    // established player's farm has been quietly nerfed.
+    const done = makeState({ defeatedChampions: [KANTO, JOHTO] });
+    for (const route of ["route29", "unionCave", "mtSilver"]) {
+      const e = encounters[route].encounters[0];
+      const a = applyJourneyOffset(e, journeyLevelOffset(route, done));
+      expect(a.minLevel, route).toBe(e.minLevel);
+      expect(a.maxLevel, route).toBe(e.maxLevel);
+    }
+  });
+
+  it("never touches Kanto, which was never inflated", () => {
+    for (const s of [makeState({ defeatedChampions: [] }), makeState({ defeatedChampions: [KANTO] })]) {
+      expect(journeyLevelOffset("route1", s)).toBe(0);
+    }
+  });
+
+  it("never rolls below level 2, whatever the arithmetic says", () => {
+    expect(applyJourneyOffset({ minLevel: 3, maxLevel: 5 }, 99)).toEqual({ minLevel: 2, maxLevel: 2 });
+  });
+
+  it("leaves raids alone — they belong to no journey", () => {
+    expect(journeyLevelOffset("raidIsland", makeState({ defeatedChampions: [] }))).toBe(0);
   });
 });

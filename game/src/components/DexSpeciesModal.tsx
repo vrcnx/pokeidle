@@ -6,6 +6,7 @@ import { encounters } from "../data/encounters";
 import { routes } from "../data/routes";
 import { evolutions } from "../data/evolutions";
 import { raidTiersOrdered, isTierUnlocked } from "../data/raidLegendaries";
+import { journeyLevelOffset, applyJourneyOffset } from "../utils/regionJourney";
 import { STARTER_KEYS } from "../state/initialState";
 import { abilitiesFor, abilityInfo } from "../data/abilities";
 import { ownsSpecies } from "../utils/pokemon";
@@ -82,12 +83,15 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
       if (!entry) return [];
       const totalWeight = def.encounters.reduce((s, e) => s + e.weight, 0);
       const ratePct = totalWeight > 0 ? (entry.weight / totalWeight) * 100 : 0;
+      // Same band the route will actually roll for this player — see the
+      // note in RouteCardList.
+      const shown = applyJourneyOffset(entry, journeyLevelOffset(routeKey, state));
       return [{
         routeKey,
         name: routes[routeKey]?.name ?? routeKey,
         ratePct,
-        minLevel: entry.minLevel,
-        maxLevel: entry.maxLevel,
+        minLevel: shown.minLevel,
+        maxLevel: shown.maxLevel,
       }];
     })
     .sort((a, b) => b.ratePct - a.ratePct);

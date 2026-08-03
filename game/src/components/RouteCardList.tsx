@@ -11,6 +11,7 @@ import {
 import { PokemonSprite } from "./Sprite";
 import { raidMachines, RAID_MACHINE_DROP_CHANCE } from "../data/machineSources";
 import { itemSpriteUrl } from "../utils/sprites";
+import { journeyLevelOffset, applyJourneyOffset } from "../utils/regionJourney";
 import { itemSpriteSlug } from "../utils/items";
 import "./raidTiers.css";
 import { rememberRaidReturn } from "../hooks/useRaidReturn";
@@ -286,7 +287,12 @@ function RouteCard({ route, onTravel, regionLabel }: {
                 // encounter chance are already one click away for an unseen
                 // species, so hiding them on hover hid nothing and cost a
                 // click. Only the NAME is withheld.
-                const meta = `Lv${e.minLevel}-${e.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`;
+                // The band the player will ACTUALLY meet. Printing the raw
+                // data here would advertise Lv40-42 on a route that rolls
+                // Lv2-4 in journey mode, which is a worse lie than the
+                // inflated levels this feature set out to fix.
+                const shown = applyJourneyOffset(e, journeyLevelOffset(route.id, state));
+                const meta = `Lv${shown.minLevel}-${shown.maxLevel} · ${Math.round((e.weight / totalWeight) * 100)}%`;
                 const label = seen
                   ? `${sp?.name ?? e.speciesKey} · ${meta}`
                   : `??? · ${meta}`;
