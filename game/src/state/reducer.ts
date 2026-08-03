@@ -1594,9 +1594,21 @@ export function reducer(state: GameState, action: Action): GameState {
           const ta = a.caughtAt ?? 0;
           const tb = b.caughtAt ?? 0;
           if (ta !== tb) return tb - ta;
-          // Both undated (or caught in the same millisecond): keep the order
-          // they were already in, newest-first to match.
-          return (at.get(b.id) ?? 0) - (at.get(a.id) ?? 0);
+          // Undated, or caught in the same millisecond: keep the order they
+          // are already in.
+          //
+          // This tiebreak used to REVERSE that order, on the reasoning that
+          // the box is append-only so its order is roughly catch order and
+          // newest-first means flipping it. That reasoning is fine and the
+          // implementation was still wrong: a sort has to be IDEMPOTENT, and
+          // reversing recomputes the indices from the order it just produced,
+          // so pressing Newest twice flipped a legacy box back. Caught by
+          // tests/boxSortCaught.test.ts, which sorts twice and compares.
+          //
+          // So an undated Pokemon keeps its place. That is also the honest
+          // answer: we do not know when it was caught, and inventing an order
+          // for it would be guessing dressed as data.
+          return (at.get(a.id) ?? 0) - (at.get(b.id) ?? 0);
         }
         return 0;
       });
