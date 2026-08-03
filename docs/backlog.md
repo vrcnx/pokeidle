@@ -49,14 +49,28 @@ its own page in the hub instead of a tab inside the chat panel.
 
 ## Not a backlog item, but outstanding
 
-**Prod migrations have not been run.** `server/prisma/migrations/` contains
-`20260801230000_add_signup_attribution` and `20260802220000_discord_link_codes`
-(the latter from a concurrent session). Neither has been applied to
-production from here.
+**Prod migrations: already applied — this entry was wrong.**
+Checked against the live database rather than assumed:
 
-    cd server && npm run db:migrate
+    20260801230000_add_signup_attribution   applied 2026-08-02 01:03  (17 rows)
+    20260802220000_discord_link_codes       applied 2026-08-02 21:44  (0 rows)
 
-Never `db:push`.
+`prisma migrate status` reports all 31 applied. The deploy pipeline runs
+`migrate deploy`, so anything merged is live before anyone thinks to run it
+by hand. Nothing to do.
+
+**And do not run `npm run db:migrate` against production.** That script is
+`prisma migrate dev`, which is the DEVELOPMENT command — on schema drift it
+offers to reset the database, i.e. drop everything. `.env` here points at the
+Railway production instance, so the command in the previous version of this
+note was a data-loss hazard, not a chore.
+
+The safe pair against a live database:
+
+    npx prisma migrate status     # read-only, says what is pending
+    npx prisma migrate deploy     # applies pending only, never resets
+
+`db:push` is already refused by the package script, for the same reason.
 
 **The silver bottle cap's two-step dialog shipped unverified.** The code
 builds and typechecks; the step itself was never seen rendering. Worth a
