@@ -79,6 +79,40 @@ one, not rationing charges. Marts sell the setup toolkit (each town stocking
 what it is known for), every route hides exactly one attacking TM and nothing
 else drops it, and raids pay out the HMs and the heaviest TMs.
 
+**The TM Mart.** TMs were briefly stocked permanently, town by town, themed
+to each gym. It read nicely and it was the wrong shape: a permanent shelf
+makes every TM a question of money alone, and the route that hides one stops
+mattering the moment your wallet is big enough. They all moved to one page
+that rotates six a day.
+
+DEALT, NOT DRAWN. The first version drew independently each day and was
+measured over a simulated year: every machine came around, but a specific one
+could be 28 days out — a slot machine, not a shop. The pool is now shuffled
+once per cycle and dealt six a day, so every machine appears exactly once
+every eight days, the wait is always knowable, and the page shows it.
+
+The rotation is enforced in the reducer, not the page. `itemsCatalog` gives
+every machine `buyPrice: null` — a price there would say "available" about
+something available one day in eight, and quote half the asking price on the
+route machines, which cost double at the counter. Without that, the rotation
+would have been a decoration on one screen.
+
+**Auctions sell machines too**, and the page was rebuilt around it.
+
+The old one put a complete bid form on every card: six listings meant six
+"Your maximum" inputs, six Bid buttons and six "How bidding works" links
+stacked down the page, with the Pokémon at 24px. It is master/detail now — a
+card compares, the third column commits. The listing flow used half the
+dialog for a scrollbar-in-a-scrollbar picker with no search and left the
+other half black; both steps use the full width now, and the suggested price
+is clamped to the floor it used to fall below.
+
+Two things were found by looking at the live page rather than by a test: a
+seven-figure lot rendered `$4,000,0001h 25m` (a flex `gap` collapses once the
+row overflows, and a price has no upper bound — so nothing shares its line
+now), and the third column went on saying "Pick a lot" while the body was
+showing the sell flow.
+
 ## Not a backlog item, but outstanding
 
 **Prod migrations: already applied — this entry was wrong.**
