@@ -9,7 +9,6 @@ import { useMuteList } from "../utils/mute";
 import { EmojiPicker } from "./EmojiPicker";
 import { openGiveaways } from "./GiveawayModal";
 import { isSystemKind, SYSTEM_CARD_META } from "../utils/systemChatCards";
-import { AuctionBoard } from "./AuctionBoard";
 import { PollCard } from "./PollCard";
 import { useGame } from "../state/GameContext";
 import { openHub } from "./HubModal";
@@ -22,7 +21,6 @@ import { useT } from "../i18n/useT";
 //               Replaces the old free-text "offering X for Y" trade-offer
 //               cards with picking a specific Pokemon and real bidding —
 //               see server/src/routes/auctions.ts + lib/auctionSettlement.ts.
-type Tab = "global" | "trade";
 
 const GLOBAL = "global";
 
@@ -41,7 +39,6 @@ export function MiniChat() {
   const { me } = useAuth();
   const t = useT();
 
-  const [tab, setTab] = useState<Tab>("global");
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, ChatMessage[]>>({});
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -97,9 +94,9 @@ export function MiniChat() {
 
   // Auto-scroll on new message.
   useEffect(() => {
-    if (!listRef.current || tab !== "global") return;
+    if (!listRef.current) return;
     listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, tab]);
+  }, [messages]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,9 +114,8 @@ export function MiniChat() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === "global"}
-          className={`mini-chat-tab ${tab === "global" ? "active" : ""}`}
-          onClick={() => setTab("global")}
+          aria-selected
+          className="mini-chat-tab active"
         >
           <span className="mini-chat-dot" /> {t("Global")}
         </button>
@@ -158,10 +154,12 @@ export function MiniChat() {
         </span>
       </div>
 
-      {tab === "trade" ? (
-        <AuctionBoard />
-      ) : (
-        <>
+      {/* The Auctions tab is a DOOR, not a pane: it calls openHub("auctions")
+          above, so this panel only ever shows chat. It used to render the
+          whole auction board inline — the chat rail is 300px wide and the
+          auction house is a master/detail marketplace, which is exactly the
+          "market living inside a chat widget" the hub section replaced. The
+          branch was already unreachable; this removes it. */}
           <div className="mini-chat-list" ref={listRef}>
             {messages.length === 0 && <div className="dim small mini-chat-empty">{t("No messages yet.")}</div>}
             {messages.map((m) => {
@@ -213,8 +211,6 @@ export function MiniChat() {
             />
             <EmojiPicker onPick={(e) => setDraft((draft + e).slice(0, 500))} />
           </form>
-        </>
-      )}
     </section>
   );
 }

@@ -195,7 +195,11 @@ export const api = {
   getAuction: (id: string) =>
     request<{ auction: PublicAuction; bids: AuctionBid[] }>("GET", `/api/auctions/${id}`),
   myAuctions: () => request<{ selling: PublicAuction[]; bidding: PublicAuction[] }>("GET", "/api/auctions/mine"),
-  createAuction: (input: { pokemonId: string; startingBid: number; durationMinutes: number }) =>
+  createAuction: (
+    input:
+      | { pokemonId: string; startingBid: number; durationMinutes: number }
+      | { itemId: string; startingBid: number; durationMinutes: number },
+  ) =>
     request<{ auction: PublicAuction }>("POST", "/api/auctions", input),
   /**
    * `amount` is the bidder's MAXIMUM, not the price they pay. The server
@@ -452,7 +456,14 @@ export interface PublicAuction {
    * bid box that can never succeed.
    */
   youAreSeller: boolean;
+  /**
+   * Which kind of lot this is. Exactly one of `pokemon` / `item` is non-null,
+   * and this says which without the caller having to probe them.
+   */
+  lotKind: "pokemon" | "item";
   pokemon: unknown; // Pokemon snapshot at listing time — cast at the call site
+  /** For `lotKind: "item"` — a TM or HM. Machines are the only items sold. */
+  item: { itemId: string; quantity: number } | null;
   startingBid: number;
   currentBid: number;
   currentBidderUsername: string | null;

@@ -7,7 +7,8 @@ import { SettingsPane } from "./GlobalDock";
 import { TrainerSelfPane } from "./TrainerCardModal";
 import { MartTab, BagTab, PCTab, DexTab } from "./BottomTabs";
 import { PcPartyAside } from "./PcPartyAside";
-import { AuctionBoard } from "./AuctionBoard";
+import { AuctionHousePane } from "./AuctionHouse";
+import { AuctionLotAside } from "./AuctionLotAside";
 import { PokemonDetailModal } from "./PokemonDetailModal";
 import { RouteCardList } from "./RouteCardList";
 import { usePvpState } from "../state/pvp";
@@ -29,15 +30,6 @@ import { useT } from "../i18n/useT";
 // the leaderboard, and Rewards refetches promos. Building all four to render
 // one would put three subsystems on the wire so somebody could change the
 // music volume.
-/** The auction house as a hub section rather than a tab inside the chat
- *  panel. Same component; it was only ever mounted in the wrong place. */
-function AuctionBoardPane() {
-  // The marker the page's own stylesheet keys off. Not `.hub-pane` — that
-  // belongs to the hub, and styling it from elsewhere is how a component
-  // ends up at the mercy of a file it has never heard of.
-  return <div className="auction-page"><AuctionBoard /></div>;
-}
-
 /** The detail sheet, drawn inside the PC rather than on top of the game. */
 function PcDetailLayer() {
   return <PokemonDetailModal inline />;
@@ -84,8 +76,16 @@ const SECTIONS: Record<HubSection, HubSectionContent> = {
   settings: {
     Body: SettingsPane,
   },
+  // MASTER / DETAIL. The lot grid is the Body, the selected lot's full
+  // detail and the page's ONE bid form are the Aside — the same shape the PC
+  // uses for the box and the party, and for the same reason: the two halves
+  // are one job, and the decision only makes sense with both on screen.
+  //
+  // The Aside also replaces the section art here. That art was doing nothing
+  // but occupying a quarter of a marketplace.
   auctions: {
-    Body: AuctionBoardPane,
+    Body: AuctionHousePane,
+    Aside: AuctionLotAside,
     fill: true,
   },
   // No rail row — the identity block at the top of the rail IS this

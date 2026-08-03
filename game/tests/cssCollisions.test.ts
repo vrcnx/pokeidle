@@ -85,7 +85,10 @@ const ALLOWED = new Map<string, string>([
   ["party-heal-btn", "same"],
   ["party-column", "same"],
   ["ctx-section", "shared section card"],
-  // The auction board's base styles live in app.css; auctionBoard.css adds
+  // (auctionBoard.css is gone — the auction house was rebuilt as
+// auctionHouse.css, which starts clean. The note below is kept because it
+// explains the baseline's existence.)
+// The auction board's base styles lived in app.css; auctionBoard.css added
   // PAGE-level layout to the same elements, scoped under its own
   // `.auction-page` wrapper. Deliberate co-styling of one element by two
   // sheets, which is the safe form — as opposed to two sheets that both
@@ -125,9 +128,6 @@ const ALLOWED = new Map<string, string>([
  * fails if one goes stale, so this cannot silently re-permit a name.
  */
 const BASELINE: Record<string, string[]> = {
-  "components/auctionBoard.css": [
-    "auction-board", "auction-board-tab", "auction-card", "auction-card-bidlink",
-  ],
   "components/giveaways.css": [
     "giveaway-card", "giveaway-enter", "giveaway-fair", "gw-more", "gw-past-youwon",
     "gw-rail-label", "gw-rail-pill", "is-won", "mini-chat", "mini-chat-input",
