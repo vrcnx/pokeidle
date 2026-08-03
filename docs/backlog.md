@@ -162,9 +162,23 @@ poisons the target", not "poisons". That is the runtime describer reading the
 live move table — PokéAPI files Toxic's ailment as plain poison, and a
 description generated from it would have promised the weaker status.
 
-Not exercised: teaching into a FREE slot (every party member had four moves),
-and the auction "List for auction" submit, which was deliberately not clicked
-on a live account.
+**The auction listing round-trip is verified too**, on production, with a
+machine listed at an unpayable price for the shortest duration and pulled
+straight back: list → escrowed out of the bag and shown as an item lot
+badged "Your listing" → the panel renders machine facts with no IV bars and
+no bid box on your own lot → pull → the lot disappears and the machine
+returns to the bag. That is the create/escrow/browse/cancel/restore cycle
+end to end, which was the least-tested code in the feature.
+
+Still not exercised: teaching into a FREE slot (every party member had four
+moves), and a settlement that actually completes — that needs a second
+account and a real bid.
+
+**A purchase can be lost if you leave immediately.** Buying a TM, then
+navigating away within a few seconds, lost it: the save had not autosaved and
+the reload adopted the cloud copy. Nothing to do with machines — the same is
+true of any purchase — but it is worth knowing that a $60,000 TM is only as
+safe as the next autosave.
 
 **Three level-up moves do nothing.** `lightScreen`, `reflect` and `rest`
 are in the level-up pool with no `effect` attached, so they cost a turn and

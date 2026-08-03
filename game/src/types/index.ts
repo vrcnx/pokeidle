@@ -550,8 +550,13 @@ export interface GameState {
   // overlay component itself after ~1.6s.
   whiteoutAnim: { key: number } | null;
   // The most recent successful catch, for anything outside the reducer that
-  // has to REACT to one rather than read the result of one. Today that is a
-  // single subscriber: the shiny announcement in global chat.
+  // has to REACT to one rather than read the result of one.
+  //
+  // NOTHING READS IT TODAY. Its only subscriber was the shiny announcement
+  // in global chat, which was removed for flooding the feed. Kept because it
+  // is transient, costs one object per catch, and is the correct shape for
+  // the next thing that needs to hear about a catch — but it is a hook with
+  // nothing on the end of it, not something in use.
   //
   // Transient — deliberately absent from PERSISTED_KEYS, so it never
   // survives a reload. If it did, every refresh would re-announce the last
