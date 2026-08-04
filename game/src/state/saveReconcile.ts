@@ -312,6 +312,91 @@ export function spendableSide(local: any, cloud: any): "local" | "cloud" {
   return playCount(local) > playCount(cloud) ? "local" : "cloud";
 }
 
+/** Enough of a lost Pokémon to name it to the player. */
+export interface LostMon {
+  id: string;
+  speciesKey: string;
+  name: string;
+  isShiny: boolean;
+  level: number;
+}
+
+/**
+ * The Pokémon the LOSING lineage held and the winning one does not.
+ *
+ * ── WHY THIS EXISTS ───────────────────────────────────────────────────────
+ * A player reported a shiny Scyther that was in their Pokédex but in neither
+ * their party nor their PC, and read it — reasonably — as the game having
+ * eaten it. It is not corruption. It is this merge, working exactly as
+ * designed: `pokedexCaught` and `shinyCaught` are MONOTONIC and unioned from
+ * both lineages, while party and box are SPENDABLE and taken whole from one.
+ * So a Pokémon caught on the lineage that loses leaves its dex entry behind
+ * and takes the Pokémon with it. Every alternative is worse — unioning the box
+ * resurrects mons the other lineage sold, which is the duplication exploit the
+ * comments above spend two screens explaining.
+ *
+ * What was genuinely wrong is that it happened SILENTLY. A designed rollback
+ * nobody is told about is indistinguishable from a bug, and the player's next
+ * move is a report we cannot act on. So the merge now says what it cost.
+ *
+ * Matched on id AND species: `nextPokemonId` is a shared counter, so two
+ * lineages that both kept playing can mint the same id for different Pokémon.
+ * Treating that as "still present" would hide the one case most worth naming.
+ */
+export function lineageCasualties(local: any, cloud: any): LostMon[] {
+  const side = spendableSide(local, cloud);
+  const winner = side === "cloud" ? cloud : local;
+  const loser = side === "cloud" ? local : cloud;
+
+  const key = (m: any) => `${m?.id}|${m?.speciesKey}`;
+  const kept = new Set<string>();
+  for (const m of [...arr(winner?.party), ...arr(winner?.box)]) kept.add(key(m));
+
+  const out: LostMon[] = [];
+  const seen = new Set<string>();
+  for (const m of [...arr(loser?.party), ...arr(loser?.box)] as any[]) {
+    if (!m || typeof m.speciesKey !== "string") continue;
+    const k = key(m);
+    if (kept.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    out.push({
+      id: String(m.id),
+      speciesKey: m.speciesKey,
+      name: m.nickname || m.name || m.speciesKey,
+      isShiny: !!m.isShiny,
+      level: num(m.level),
+    });
+  }
+  // Shinies first, then the highest level. If the list has to be truncated for
+  // a message, the entries a player would actually miss are the ones kept.
+  return out.sort((a, b) =>
+    (Number(b.isShiny) - Number(a.isShiny)) || (b.level - a.level));
+}
+
+/**
+ * What to tell the player, or null if the merge cost them nothing.
+ *
+ * Pure and here rather than at the call site so the wording is testable and so
+ * it stays one sentence in one place. It has to do three things: say a
+ * rollback happened, NAME what went (a count alone is worse than silence —
+ * the player still has to go hunting), and say what was kept, because the dex
+ * entry they can still see is the thing that makes this look like corruption.
+ */
+export function lostMonsMessage(lost: LostMon[]): string | null {
+  if (lost.length === 0) return null;
+  const SHOWN = 3;
+  const named = lost
+    .slice(0, SHOWN)
+    .map((m) => `${m.isShiny ? "✨ " : ""}${m.name} Lv${m.level}`)
+    .join(", ");
+  const rest = lost.length - SHOWN;
+  return (
+    `Another session's save was further ahead, so this browser's copy was rolled back. ` +
+    `${lost.length === 1 ? "This Pokémon was" : "These Pokémon were"} only on the copy that lost: ` +
+    `${named}${rest > 0 ? ` and ${rest} more` : ""}. Their Pokédex entries were kept.`
+  );
+}
+
 export function mergeCloudAdvance(local: any, cloud: any): any {
   const side = spendableSide(local, cloud);
   const base = side === "cloud" ? cloud : local;

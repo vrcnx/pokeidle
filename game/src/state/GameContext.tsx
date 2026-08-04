@@ -27,7 +27,9 @@ import { pushAuctionNotification } from "./auctions";
 import { settleAwayProgress } from "./awayProgress";
 import { captureBootGift } from "./welcomeBack";
 import { pendingRegionStarter } from "../utils/unlocks";
-import { adoptCloudWholesale, cloudShouldWin, mergeCloudAdvance } from "./saveReconcile";
+import {
+  adoptCloudWholesale, cloudShouldWin, lineageCasualties, lostMonsMessage, mergeCloudAdvance,
+} from "./saveReconcile";
 import { grandfatherShinyCharm } from "../utils/shinyCharm";
 import { repairLoadedSave } from "../utils/dexRepair";
 import { isStreamMode } from "./streamMode";
@@ -1067,6 +1069,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
           const nextState = stateFromCloud(base);
           const snapshot = pickPersistent(nextState);
           dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
+          // ── SAY WHAT THE MERGE COST ──────────────────────────────────
+          // The merge keeps one lineage's Pokémon and unions both lineages'
+          // dex entries, so a Pokémon caught on the losing side leaves its
+          // Pokédex entry behind and takes the Pokémon with it. That is the
+          // design (see saveReconcile — every alternative duplicates), but
+          // until now it happened in silence, and a player who finds a shiny
+          // in their dex with nothing in their PC has no way to read that as
+          // anything but the game losing their Pokémon. It is what the
+          // "shiny Scyther in my dex but not my PC" report actually was.
+          //
+          // The log line is the durable half — toasts self-dismiss in 2.5s,
+          // which is not long enough for news like this.
+          if (localOk) {
+            const notice = lostMonsMessage(lineageCasualties(local, cloudData));
+            if (notice) {
+              dispatch({ type: "ADD_LOG", payload: { text: notice } });
+              pushToast({ kind: "warn", icon: "☁️", text: notice });
+            }
+          }
           // The bytes we are switching to, written WITH the sync point that
           // describes them, in one setItem — before the upload, and without
           // waiting for React to commit. If the tab dies anywhere after this
