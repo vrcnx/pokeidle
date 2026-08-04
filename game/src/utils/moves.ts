@@ -1,4 +1,5 @@
 import { levelUpMoves } from "../data/levelUpMoves";
+import { moves as movesTable } from "../data/moves";
 import { evolutions } from "../data/evolutions";
 import { expForLevel } from "./stats";
 import { ownedMachinesForSpecies } from "./machines";
@@ -31,20 +32,67 @@ export interface LearnedMove {
   fromSpecies: string;
 }
 
+/**
+ * One id per move, whatever spelling the learnset used.
+ *
+ * ── THE BUG THIS EXISTS FOR ───────────────────────────────────────────────
+ * `levelUpMoves` spells the same move two ways. Gen 1 species use the
+ * hand-authored camelCase keys (`quickAttack`), Gen 2 species use the flat
+ * lowercase ones (`quickattack`) that the @pkmn/dex backfill inserts. Both
+ * resolve in the moves table, so nothing ever complained.
+ *
+ * Merging an evolution chain deduped on the raw string, so Scizor offered
+ * Quick Attack twice — once from Scyther's list and once from its own — and
+ * Steelix, Crobat and every other Gen 2 evolution of a Gen 1 Pokemon did the
+ * same. Reported by pani.
+ *
+ * The camelCase key WINS where both exist, and that matters: the authored
+ * entry is the one carrying the `effect` block and the crit ratio. Keeping
+ * the flat one would have quietly dropped Quick Attack's priority.
+ */
+const CANONICAL_MOVE_ID: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(movesTable)) {
+    const flat = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (flat !== key) out[flat] = key;
+  }
+  return out;
+})();
+
+export function canonicalMoveId(moveId: string): string {
+  const flat = moveId.toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Authored camelCase key wins where one exists...
+  const authored = CANONICAL_MOVE_ID[flat];
+  if (authored) return authored;
+  // ...otherwise the FLAT key, which is what the @pkmn backfill inserted.
+  // Returning the input unchanged here was wrong and silently so: a caller
+  // holding "falseSwipe" for a move the table only knows as "falseswipe" got
+  // its own string back, so the lookup missed, the move resolved to nothing
+  // and did zero damage. Always hand back a key the table actually has.
+  if (flat in movesTable) return flat;
+  return moveId;
+}
+
 export function learnableMovesUpToLevel(speciesKey: string, level: number): LearnedMove[] {
   const chain = evolutionChain(speciesKey);
   const seen = new Set<string>();
   const out: LearnedMove[] = [];
   for (const sp of chain) {
     const list = levelUpMoves[sp] || [];
-    for (const [lvl, moveId] of list) {
-      if (lvl <= level && !seen.has(moveId)) {
-        seen.add(moveId);
-        out.push({ moveId, learnLevel: lvl, fromSpecies: sp });
-      }
+    for (const [lvl, rawId] of list) {
+      if (lvl > level) continue;
+      // Deduped on the CANONICAL id, not the raw string — the two halves of
+      // an evolution chain spell the same move differently. See above.
+      const moveId = canonicalMoveId(rawId);
+      if (seen.has(moveId)) continue;
+      seen.add(moveId);
+      out.push({ moveId, learnLevel: lvl, fromSpecies: sp });
     }
   }
-  return out;
+  // ONE ascending list, not one per species concatenated. The chain is walked
+  // species by species, so without this Scizor's moves ran to Lv 21 and then
+  // started again from Lv 1 — the second half of the same report.
+  return out.sort((a, b) => a.learnLevel - b.learnLevel);
 }
 
 /**

@@ -3,6 +3,7 @@
 // supporting helpers in the production bundle.
 
 import { moves as movesTable } from "../data/moves";
+import { canonicalMoveId } from "./moves";
 import type {
   BattleEvent,
   MoveDef,
@@ -487,6 +488,16 @@ function applyStatChange(
     });
   }
 }
+
+/**
+ * Moves that leave the target on at least 1 HP.
+ *
+ * Canonical ids — `levelUpMoves` spells the same move two ways (see
+ * canonicalMoveId), and Scizor learns this one under the flat spelling while
+ * a Gen 1 species would use the camelCase one. Keyed on the canonical form so
+ * both reach the same rule.
+ */
+const NON_LETHAL_MOVES: ReadonlySet<string> = new Set(["falseSwipe", "falsESwipe", "falseswipe"].map(canonicalMoveId));
 
 export function executeTurn(
   player: BattleSide,
@@ -1032,6 +1043,18 @@ export function executeTurn(
       focusSashMessage = `${step.defender.name} hung on with its Focus Sash!`;
     }
 
+    // ── MOVES THAT CANNOT KNOCK OUT ──────────────────────────────────
+    // False Swipe "prevents the target from fainting — the target is left
+    // with at least 1 HP", and it did full damage and killed things.
+    // Reported by pani.
+    //
+    // Capped at the defender's HP MINUS ONE rather than clamped after the
+    // fact, so the damage EVENT reports what was actually dealt: a Pokemon
+    // on 1 HP takes 0, exactly as the games describe, instead of the log
+    // claiming a hit that moved nothing.
+    if (NON_LETHAL_MOVES.has(canonicalMoveId(step.moveId))) {
+      appliedDamage = Math.max(0, Math.min(appliedDamage, step.defender.currentHp - 1));
+    }
     step.defender.currentHp = Math.max(0, step.defender.currentHp - appliedDamage);
     events.push({
       type: "damage",
