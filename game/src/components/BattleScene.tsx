@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useGame } from "../state/GameContext";
 import { useT } from "../i18n/useT";
 import { itemSpriteUrl } from "../utils/sprites";
@@ -12,7 +12,7 @@ import { MoveAnimation } from "./MoveAnimation";
 import { HealOverlay } from "./HealOverlay";
 import { BattleJuice } from "./BattleJuice";
 import { displayName } from "../utils/pokemon";
-import { trainerIntroMs, trainerIntroPokemonDelayMs } from "../utils/battleTiming";
+import { flashMs, remainingMs, trainerIntroMs, trainerIntroPokemonDelayMs, typewriterCharMs } from "../utils/battleTiming";
 import { linesSince } from "../utils/battleLogCursor";
 import type { Pokemon, RouteType } from "../types";
 
@@ -215,13 +215,46 @@ export function BattleScene() {
 // in green. Decoupled from the battle log so it triggers regardless
 // of whether the log line was emitted (covers passive damage like
 // Leftovers / Toxic / hail). Scales to game speed like ExpGainFlash.
+/**
+ * A floating flash that clears itself after a speed-scaled window.
+ *
+ * ── THE BUG THIS HOOK EXISTS FOR ──────────────────────────────────────
+ * All three flashes below used to arm their own expiry timer INSIDE the effect
+ * that detects the thing to show, with `state.speed` in the dep list. Changing
+ * speed re-ran that effect; the cleanup killed the pending timer; and then the
+ * detection guard at the top (`delta === 0`, `fresh.length === 0` — the
+ * detection had already consumed its input on the previous run) returned early
+ * without arming a replacement. The result: change speed while a damage
+ * number, an EXP pop or a "Super effective!" banner is up, and it stays on
+ * screen for the rest of the battle. Part of pani's speed-switching report.
+ *
+ * Detecting and expiring are separate concerns, so they are separate effects.
+ * The expiry keys on the pop itself and schedules against elapsed time, which
+ * makes re-running it harmless — and makes a speed change retime the window
+ * that is already open rather than restart or strand it.
+ */
+function useFlashPop<T extends { key: number }>(speed: number) {
+  const [pop, setPop] = useState<T | null>(null);
+  const shownAt = useRef(0);
+  const show = useCallback((next: T) => {
+    shownAt.current = Date.now();
+    setPop(next);
+  }, []);
+  useEffect(() => {
+    if (!pop) return;
+    const t = setTimeout(() => setPop(null), remainingMs(shownAt.current, flashMs(speed), Date.now()));
+    return () => clearTimeout(t);
+  }, [pop, speed]);
+  return [pop, show] as const;
+}
+
 function DamageFlash({ side }: { side: "player" | "enemy" }) {
   const { state } = useGame();
   const mon = side === "player" ? state.playerPokemon : state.enemyPokemon;
   const id = mon?.id ?? null;
   const hp = mon?.currentHp ?? null;
   const prev = useRef<{ id: string | null; hp: number | null }>({ id: null, hp: null });
-  const [pop, setPop] = useState<{ key: number; delta: number } | null>(null);
+  const [pop, show] = useFlashPop<{ key: number; delta: number }>(state.speed);
   useEffect(() => {
     const last = prev.current;
     prev.current = { id, hp };
@@ -230,13 +263,10 @@ function DamageFlash({ side }: { side: "player" | "enemy" }) {
     if (last.hp == null || hp == null) return;
     const delta = hp - last.hp;
     if (delta === 0) return;
-    setPop({ key: Date.now() + (side === "player" ? 0 : 1), delta });
-    const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
-    const t = setTimeout(() => setPop(null), ms);
-    return () => clearTimeout(t);
-  }, [id, hp, side, state.speed]);
+    show({ key: Date.now() + (side === "player" ? 0 : 1), delta });
+  }, [id, hp, side, show]);
   if (!pop) return null;
-  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+  const animMs = flashMs(state.speed);
   const isHeal = pop.delta > 0;
   const sign = isHeal ? "+" : "";
   return (
@@ -261,7 +291,7 @@ function ExpGainFlash() {
   const { state } = useGame();
   const t = useT();
   const seenSeq = useRef(state.battleLogSeq);
-  const [pop, setPop] = useState<{ key: number; amount: number; share: boolean } | null>(null);
+  const [pop, show] = useFlashPop<{ key: number; amount: number; share: boolean }>(state.speed);
   useEffect(() => {
     const fresh = linesSince(state.battleLog, state.battleLogSeq, seenSeq.current);
     seenSeq.current = state.battleLogSeq;
@@ -283,19 +313,15 @@ function ExpGainFlash() {
     }
     const chosen = active ?? share;
     if (!chosen) return;
-    setPop({ key: Date.now(), amount: chosen.amount, share: !active });
-    const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
-    const t = setTimeout(() => setPop(null), ms);
-    return () => clearTimeout(t);
-  }, [state.battleLog, state.battleLogSeq, state.speed]);
+    show({ key: Date.now(), amount: chosen.amount, share: !active });
+  }, [state.battleLog, state.battleLogSeq, show]);
   if (!pop) return null;
-  // Scale the CSS animation duration to the game's speed so the
-  // pop's keyframes finish in the same window the JS unmount timer
-  // is using. Otherwise at 5× speed the element is removed at 700ms
-  // while the (fixed-1400ms) animation has only completed half its
-  // travel — looked broken / out of sync. Match the JS timing
-  // exactly: ×1 → 1400ms, ×2 → 1000ms, ×5 → 700ms.
-  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+  // Scale the CSS animation duration to the game's speed so the pop's
+  // keyframes finish in the same window the JS unmount timer is using.
+  // Otherwise at 5× speed the element is removed at 700ms while the
+  // (fixed-1400ms) animation has only completed half its travel — looked
+  // broken / out of sync. Same function on both sides so they cannot drift.
+  const animMs = flashMs(state.speed);
   return (
     <div
       key={pop.key}
@@ -324,7 +350,7 @@ function EffectivenessFlash() {
   const { state } = useGame();
   const t = useT();
   const seenSeq = useRef(state.battleLogSeq);
-  const [pop, setPop] = useState<EffPop | null>(null);
+  const [pop, show] = useFlashPop<EffPop>(state.speed);
   useEffect(() => {
     const fresh = linesSince(state.battleLog, state.battleLogSeq, seenSeq.current);
     seenSeq.current = state.battleLogSeq;
@@ -343,13 +369,10 @@ function EffectivenessFlash() {
     const next: EffPop = crit
       ? { key: Date.now(), kind: "crit", text: t("Critical hit!") }
       : { key: Date.now(), kind: eff!.kind, text: eff!.text };
-    setPop(next);
-    const ms = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
-    const timer = setTimeout(() => setPop(null), ms);
-    return () => clearTimeout(timer);
-  }, [state.battleLog, state.battleLogSeq, state.speed]);
+    show(next);
+  }, [state.battleLog, state.battleLogSeq, show]);
   if (!pop) return null;
-  const animMs = state.speed >= 5 ? 700 : state.speed >= 2 ? 1000 : 1400;
+  const animMs = flashMs(state.speed);
   return (
     <div
       key={pop.key}
@@ -433,14 +456,28 @@ function CatchAnimation() {
 // restarts on a `text` change, so the element only has to stay mounted;
 // resetting `shown` during render (rather than in the effect) keeps the swap
 // frame-perfect, which is the one thing remounting was actually buying.
+//
+// ── AND IT MUST NOT RETYPE WHEN THE SPEED CHANGES ─────────────────────
+// `charMs` was in the dep list and the cursor was an effect-local `let i`, so
+// changing game speed re-ran the effect and threw the cursor away: whatever
+// line was on screen jumped back to its first character and typed itself out
+// again. That is the "changing game speed reloads the scene status text" half
+// of pani's report — the text was not reloading, it was being retyped.
+//
+// The cursor lives in a ref now, so restarting the interval at a new pace
+// picks up exactly where the old one stopped. Which is the whole point of the
+// speed control: the line you are reading should finish faster, not start over.
 function Typewriter({ text }: { text: string }) {
   const { state } = useGame();
   const [shown, setShown] = useState("");
-  const charMs = state.speed >= 5 ? 7 : state.speed >= 2 ? 16 : 30;
+  const charMs = typewriterCharMs(state.speed);
 
+  // Index of the LAST character shown, so `shown === text.slice(0, i + 1)`.
+  const iRef = useRef(0);
   const lastTextRef = useRef<string | null>(null);
   if (lastTextRef.current !== text) {
     lastTextRef.current = text;
+    iRef.current = 0;
     setShown(text.slice(0, 1));
   }
 
@@ -449,15 +486,19 @@ function Typewriter({ text }: { text: string }) {
       setShown("");
       return;
     }
-    let i = 0;
-    setShown(text.slice(0, 1));
+    // Already finished — nothing to resume. Without this, a speed change
+    // after the line had settled would arm a pointless interval.
+    if (iRef.current >= text.length - 1) {
+      setShown(text);
+      return;
+    }
     const id = window.setInterval(() => {
-      i++;
-      if (i >= text.length) {
+      iRef.current++;
+      if (iRef.current >= text.length - 1) {
         setShown(text);
         clearInterval(id);
       } else {
-        setShown(text.slice(0, i + 1));
+        setShown(text.slice(0, iRef.current + 1));
       }
     }, charMs);
     return () => clearInterval(id);

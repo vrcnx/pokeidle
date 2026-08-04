@@ -64,7 +64,9 @@ import {
   holdForKind,
   paceHolds,
 } from "../src/utils/pvpNarrationPacer";
-import { battleSpeedScale, tickIntervalFor, trainerIntroMs } from "../src/utils/battleTiming";
+import {
+  battleSpeedScale, moveAnimMs, tickIntervalFor, trainerIntroMs, typewriterCharMs,
+} from "../src/utils/battleTiming";
 import type { NarrationLine } from "../src/state/pvpBattleView";
 
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -91,15 +93,21 @@ describe("the idle game's speed setting still means something", () => {
     expect(intros[1]).toBeGreaterThan(intros[2]);
   });
 
-  it("still drives the idle battle scene's own two speed ternaries", () => {
-    // Asserted against the source because these are inline expressions with no
-    // export to import. If either ever stops referencing `state.speed`, the
-    // idle game silently stopped scaling — the opposite failure to the one this
-    // file is mainly about, and just as much a regression.
+  it("still drives the idle battle scene's typewriter and move effects", () => {
+    // These were inline `state.speed >= 5 ? … : …` ternaries, asserted here as
+    // raw source because they had no export to import. They are functions in
+    // battleTiming.ts now (the same ladders, moved so the JS timer and the CSS
+    // duration for one element stop being written out twice) — so the values
+    // are checked directly, and the source check is only that the components
+    // still feed them the live speed.
+    expect(SPEEDS.map(typewriterCharMs)).toEqual([30, 16, 7]);
+    expect(SPEEDS.map(moveAnimMs)).toEqual([600, 420, 280]);
     const scene = stripComments(read("components", "BattleScene.tsx"));
-    expect(scene).toMatch(/charMs\s*=\s*state\.speed\s*>=\s*5\s*\?\s*7\s*:\s*state\.speed\s*>=\s*2\s*\?\s*16\s*:\s*30/);
+    expect(scene).toMatch(/typewriterCharMs\(state\.speed\)/);
     const anim = stripComments(read("components", "MoveAnimation.tsx"));
-    expect(anim).toMatch(/speed\s*>=\s*5\s*\?\s*280\s*:\s*speed\s*>=\s*2\s*\?\s*420\s*:\s*600/);
+    expect(anim).toMatch(/moveAnimMs\(state\.speed\)/);
+    // And the keyframes now scale too, which is what the ternary never did.
+    expect(anim).toMatch(/moveAnimRate\(state\.speed\)/);
   });
 });
 

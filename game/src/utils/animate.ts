@@ -228,6 +228,48 @@ export function CountUp({
   return createElement("span", { ref }, format ? format(0) : "0");
 }
 
+/**
+ * Play the CSS animations on these elements at `rate`× their authored speed.
+ *
+ * ── WHY A PLAYBACK RATE AND NOT FORTY `calc()`s ───────────────────────
+ * Everything else in this module is anime.js driving properties we own. This
+ * one reaches for the Web Animations API instead, because the thing being
+ * scaled is a stylesheet: the move-effect rules are ~40 deep, each with a
+ * literal duration AND a literal delay, and the delays are what carry the
+ * stagger that makes a particle stream read as a stream rather than as a
+ * clump. Scaling that by hand means editing every duration and re-deriving
+ * every stagger, and the next archetype somebody writes silently misses it.
+ *
+ * `Animation.playbackRate` is a time-scale knob for exactly this. It scales
+ * duration and delay together, applies to animations that have not started
+ * yet, and — the part that matters most — covers rules written after this
+ * code without being told they exist.
+ *
+ * Returns how many animations it touched. Nothing depends on the number, but
+ * a zero is the signature of being called before the element is in the DOM,
+ * which is the one way this can silently do nothing.
+ */
+export function setCssAnimationRate(
+  els: (Element | null | undefined)[],
+  rate: number,
+  opts: { subtree?: boolean } = {},
+): number {
+  // rate === 1 is the authored speed, so there is nothing to do; a zero or
+  // negative rate would freeze or reverse the effect, which is never wanted.
+  if (!(rate > 0) || rate === 1) return 0;
+  let touched = 0;
+  for (const el of els) {
+    // Chrome 84 / Firefox 75 / Safari 13.1. An engine without it keeps the
+    // un-scaled animation, which is exactly what it does today.
+    if (!el || typeof el.getAnimations !== "function") continue;
+    for (const a of el.getAnimations({ subtree: opts.subtree ?? false })) {
+      a.playbackRate = rate;
+      touched++;
+    }
+  }
+  return touched;
+}
+
 /** Read at call time, not once at module load: the OS setting can change
  *  while a session is open, and a cached answer would keep animating for
  *  someone who just asked it to stop. */

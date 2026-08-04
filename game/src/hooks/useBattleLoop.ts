@@ -321,7 +321,15 @@ export function useBattleLoop(suspended = false): void {
   }, [
     state.phase,
     state.paused,
-    state.speed,
+    // state.speed is DELIBERATELY ABSENT. `schedule()` reads the current speed
+    // off stateRef every time it arms a timer, so a change is picked up on the
+    // next tick with no dep needed — and listing it did active harm: every
+    // change tore the effect down, cancelled the in-flight timer and started a
+    // fresh full interval. Clicking between the speed buttons therefore meant
+    // the loop never reached a tick at all, and the game sat there doing
+    // nothing for as long as you kept clicking (pani: "you can stall the game
+    // by switching speed repeatedly"). Speed is not a gate on scheduling —
+    // only `paused` and `phase` are, and those are still here.
     state.playerPokemon?.id,
     state.enemyPokemon?.id,
     state.awaitingSwitch,

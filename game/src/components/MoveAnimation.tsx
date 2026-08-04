@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
+import { moveAnimMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
+import { setCssAnimationRate } from "../utils/animate";
 import type { BattleEvent, PokemonType } from "../types";
 
 // Particle/keyframe layer mounted inside .battle-scene. When an "attack"
@@ -27,9 +29,18 @@ export function MoveAnimation() {
   // re-fire when other state changes cause a re-render.
   const lastAnimatedEventRef = useRef<BattleEvent | null>(null);
   const counterRef = useRef(0);
+  const shownAtRef = useRef(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const head = state.pendingEvents[0];
 
+  // ── DETECTION. Deliberately does NOT depend on state.speed ──────────
+  // It used to, and the expiry timer was armed down here inside it. Changing
+  // speed re-ran the effect, the cleanup killed the pending timer, and then
+  // the `head === lastAnimatedEventRef.current` guard returned early before
+  // arming a replacement — so the effect layer stayed on screen indefinitely.
+  // Detecting a move and expiring it are separate concerns and are now
+  // separate effects.
   useEffect(() => {
     if (!head || head.type !== "attack") return;
     if (head === lastAnimatedEventRef.current) return;
@@ -44,15 +55,40 @@ export function MoveAnimation() {
     const shake = SHAKE_MOVES.has(moveId);
 
     counterRef.current++;
+    shownAtRef.current = Date.now();
     setActive({ key: counterRef.current, archetype, target, shake, moveType: m.type });
+  }, [head]);
 
-    // Auto-clear after the animation finishes. Scales with battle speed
-    // so the visual lifetime stays in sync with the typewriter pacing.
-    const speed = state.speed;
-    const dur = speed >= 5 ? 280 : speed >= 2 ? 420 : 600;
-    const t = window.setTimeout(() => setActive(null), dur);
+  // ── EXPIRY. Re-running this is harmless: it keys on the pop itself and
+  // schedules against elapsed time, so switching speed mid-effect retimes
+  // the remaining window instead of restarting it.
+  useEffect(() => {
+    if (!active) return;
+    const left = remainingMs(shownAtRef.current, moveAnimMs(state.speed), Date.now());
+    const t = window.setTimeout(() => setActive(null), left);
     return () => clearTimeout(t);
-  }, [head, state.speed]);
+  }, [active, state.speed]);
+
+  // ── THE KEYFRAMES OBEY THE SPEED SETTING ────────────────────────────
+  // The timer above always scaled; the stylesheet never did, so at ×5 the
+  // effect was truncated rather than sped up (pani's report). Applied as a
+  // playback rate in a LAYOUT effect so it lands before the first painted
+  // frame — a rate set a frame late is a visible stutter at the start of
+  // every attack.
+  useLayoutEffect(() => {
+    if (!active) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const rate = moveAnimRate(state.speed);
+    setCssAnimationRate([el], rate, { subtree: true });
+    // The Earthquake rattle is attached by CSS to an ANCESTOR via :has(), so
+    // it is not in this element's subtree and would otherwise keep rattling
+    // at ×1 long after the effect that triggered it had finished.
+    if (active.shake) {
+      const scene = el.closest(".battle-scene, .pvp2-scene");
+      setCssAnimationRate([scene?.querySelector(".scene-content")], rate);
+    }
+  }, [active, state.speed]);
 
   if (!active) return null;
   // Type color is injected as a CSS variable so generic effects (impact,
@@ -61,6 +97,7 @@ export function MoveAnimation() {
   return (
     <div
       key={active.key}
+      ref={rootRef}
       className={`move-anim move-anim-${active.archetype} target-${active.target}${active.shake ? " shake-screen" : ""}`}
       style={{ ["--type-color" as string]: typeColor }}
       aria-hidden
