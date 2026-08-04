@@ -256,11 +256,34 @@ function auraOn(scene: FxScene, target: FxActor, sprite: string): void {
 }
 
 /**
+ * Will the FX engine animate this move?
+ *
+ * ── WHY THIS IS SEPARATE FROM buildMoveFx ────────────────────────────────
+ * The caller has to know the answer BEFORE it renders, because the old CSS
+ * archetype layer and this engine draw the same move two different ways, and
+ * showing both at once is a visible double image — two sets of particles on
+ * one attack. `buildMoveFx` cannot answer it early: it needs measured actors,
+ * which need the DOM, which means the CSS layer has already painted a frame.
+ *
+ * So the decision lives here and `buildMoveFx` defers to it, rather than the
+ * two being written out twice and drifting into disagreement — which would
+ * show up as either a double image or a move with no animation at all.
+ */
+export function hasFxAnim(moveId: string): boolean {
+  const id = canonicalMoveId(moveId);
+  if (MOVE_ANIMS[id]) return true;
+  const move = movesTable[id];
+  if (!move) return false;
+  if (move.category === "physical") return isContactMove(id);
+  return !!TYPE_SPRITE[move.type];
+}
+
+/**
  * Build the whole animation for a move: actor motion AND effect sprites.
  *
- * Returns whether anything was queued. False means the move keeps only its
- * existing CSS effect, unchanged — which is what makes this portable a move
- * at a time instead of as one 900-move landing.
+ * Returns whether anything was queued. False means the move falls back to its
+ * CSS archetype, which is what keeps the fourteen unported moves — and the PvP
+ * arena, which still draws the archetypes — looking exactly as they do today.
  */
 export function buildMoveFx(
   moveId: string,
@@ -270,7 +293,7 @@ export function buildMoveFx(
 ): boolean {
   const id = canonicalMoveId(moveId);
   const move = movesTable[id];
-  if (!move) return false;
+  if (!move || !hasFxAnim(id)) return false;
 
   // ── THE REAL ANIMATION, IF WE HAVE ONE ──────────────────────────────
   // 163 of our 173 moves have Showdown's actual choreography ported into

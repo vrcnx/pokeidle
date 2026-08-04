@@ -5,7 +5,7 @@ import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../
 import { moveAnimMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
 import { setCssAnimationRate } from "../utils/animate";
 import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
-import { buildMoveFx } from "../utils/battleFxMoves";
+import { buildMoveFx, hasFxAnim } from "../utils/battleFxMoves";
 import type { BattleEvent, PokemonType } from "../types";
 
 // Particle/keyframe layer mounted inside .battle-scene. When an "attack"
@@ -23,6 +23,8 @@ interface ActiveAnim {
   shake: boolean;
   moveType: PokemonType;
   moveId: string;
+  /** Does the ported FX engine own this move's visuals? See `css` below. */
+  fx: boolean;
 }
 
 export function MoveAnimation() {
@@ -59,7 +61,12 @@ export function MoveAnimation() {
 
     counterRef.current++;
     shownAtRef.current = Date.now();
-    setActive({ key: counterRef.current, archetype, target, shake, moveType: m.type, moveId });
+    setActive({
+      key: counterRef.current, archetype, target, shake, moveType: m.type, moveId,
+      // Decided HERE, before the first paint. Deciding it in the layout effect
+      // below would be one frame too late and the CSS effect would flash.
+      fx: hasFxAnim(moveId),
+    });
   }, [head]);
 
   // ── EXPIRY. Re-running this is harmless: it keys on the pop itself and
@@ -134,14 +141,31 @@ export function MoveAnimation() {
   // Type color is injected as a CSS variable so generic effects (impact,
   // aura) can pick it up without hard-coded per-type rules.
   const typeColor = TYPE_COLOR[active.moveType];
+
+  // ── ONE ANIMATION PER MOVE, NOT TWO ──────────────────────────────────
+  // The CSS archetypes and the ported engine are two different renderings of
+  // the same attack. While only a handful of moves were ported, running both
+  // was the safe default — a ported move gained real choreography and an
+  // unported one was untouched. Now that 234 of 248 are ported it is just a
+  // double image: two sets of particles on every hit.
+  //
+  // The archetype class and its children are dropped for a move the engine
+  // owns. The element itself stays: it is what the layout effect above walks
+  // up from to find the arena, and it still carries `.shake-screen`, which is
+  // OURS — Showdown's animations have no screen rattle and Earthquake needs
+  // one. The remaining fourteen moves, and the whole PvP arena, keep drawing
+  // the archetypes exactly as before.
+  const cssLayer = !active.fx;
   return (
     <div
       key={active.key}
       ref={rootRef}
-      className={`move-anim move-anim-${active.archetype} target-${active.target}${active.shake ? " shake-screen" : ""}`}
+      className={`move-anim${cssLayer ? ` move-anim-${active.archetype}` : ""} target-${active.target}${active.shake ? " shake-screen" : ""}`}
       style={{ ["--type-color" as string]: typeColor }}
       aria-hidden
     >
+      {cssLayer && (
+      <>
       {active.archetype === "fire-special"     && <ParticleStream className="fire-particle"    count={6} />}
       {active.archetype === "water-special"    && <ParticleStream className="water-particle"   count={7} />}
       {active.archetype === "grass-special"    && <ParticleStream className="grass-particle"   count={5} />}
@@ -163,6 +187,8 @@ export function MoveAnimation() {
       {active.archetype === "hyper-beam"       && <HyperBeam />}
       {active.archetype === "solar-beam"       && <SolarBeam />}
       {active.archetype === "explosion"        && <Explosion />}
+      </>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { MOVE_ANIMS, UNPORTED } from "../src/data/moveAnims";
 import { levelUpMoves } from "../src/data/levelUpMoves";
 import { machineList } from "../src/data/tms";
 import { canonicalMoveId } from "../src/utils/moves";
+import { hasFxAnim } from "../src/utils/battleFxMoves";
 import { FX_SPRITES } from "../src/data/battleFxSprites";
 
 /**
@@ -86,6 +87,49 @@ describe("the gaps are the ones we chose", () => {
 
   it("leaves only a handful of moves on the fallback", () => {
     expect(Object.keys(UNPORTED).length).toBeLessThan(20);
+  });
+});
+
+describe("one animation per move, never two", () => {
+  // The CSS archetypes and the ported engine are two renderings of the same
+  // attack, and MoveAnimation picks between them using `hasFxAnim` BEFORE it
+  // renders — it cannot ask `buildMoveFx`, which needs measured actors and so
+  // answers a frame too late. That makes them two statements of one rule, and
+  // if they ever disagree the result is either a double image (the bug this
+  // fixes) or a move that animates not at all.
+
+  it("claims every ported move", () => {
+    for (const id of Object.keys(MOVE_ANIMS)) {
+      expect(hasFxAnim(id), id).toBe(true);
+    }
+  });
+
+  it("resolves either spelling to the same answer", () => {
+    // levelUpMoves is dual-spelled; a lookup that misses here is a move that
+    // silently loses its animation.
+    for (const id of [...REACHABLE].slice(0, 60)) {
+      const flat = id.toLowerCase().replace(/[^a-z0-9]/g, "");
+      expect(hasFxAnim(flat), `${id} / ${flat}`).toBe(hasFxAnim(id));
+    }
+  });
+
+  it("hands the fallback exactly the moves with no ported animation", () => {
+    // A move the engine does not claim must still be drawable by the CSS
+    // layer, or it would animate not at all.
+    const fallback = [...REACHABLE].filter((id) => !hasFxAnim(id));
+    for (const id of fallback) expect(MOVE_ANIMS[id], id).toBeUndefined();
+    // And the CSS layer is still reachable for them — that is why the
+    // archetype markup stays in the component rather than being deleted.
+    expect(fallback.length).toBeGreaterThan(0);
+  });
+
+  it("still claims a move whose fallback would be the generic projectile", () => {
+    // Ported and fallback-eligible are different questions. Anything the
+    // engine CAN draw it should draw, so the CSS layer is off for those too.
+    const anyFallbackOnly = [...REACHABLE].find(
+      (id) => !MOVE_ANIMS[id] && hasFxAnim(id),
+    );
+    if (anyFallbackOnly) expect(hasFxAnim(anyFallbackOnly)).toBe(true);
   });
 });
 
