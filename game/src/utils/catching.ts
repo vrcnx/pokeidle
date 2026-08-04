@@ -22,16 +22,29 @@ export function hpCatchFactor(hpFraction: number): number {
   return 1 + (1 - f) * 1.5; // 1.0 at full HP → 2.5 at ~0 HP
 }
 
-export function catchProbability(speciesKey: string, ballId: string, hpFraction = 1): number {
+export function catchProbability(
+  speciesKey: string,
+  ballId: string,
+  hpFraction = 1,
+  /** Standing bonus from cleared regions — see regionBonuses. Passed in
+   *  rather than derived so this module stays free of GameState, and so the
+   *  screens that PRINT a catch chance apply the identical multiplier. */
+  bonus = 1,
+): number {
   const rate = speciesCatchRate(speciesKey);
   const ball = pokeballs[ballId];
   if (!ball) return 0;
   const base = (rate * ball.ballModifier) / 255;
-  return Math.min(1, base * hpCatchFactor(hpFraction));
+  return Math.min(1, base * hpCatchFactor(hpFraction) * bonus);
 }
 
-export function rollCatch(speciesKey: string, ballId: string, hpFraction = 1): boolean {
-  return Math.random() < catchProbability(speciesKey, ballId, hpFraction);
+export function rollCatch(
+  speciesKey: string,
+  ballId: string,
+  hpFraction = 1,
+  bonus = 1,
+): boolean {
+  return Math.random() < catchProbability(speciesKey, ballId, hpFraction, bonus);
 }
 
 // Cheapest enabled ball that has a guaranteed catch (rate * mod / 255 >= 1).

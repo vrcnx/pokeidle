@@ -26,6 +26,7 @@ import {
 import { normalizeNickname } from "../utils/nickname";
 import { levelUpsForExp, learnableMovesUpToLevel } from "../utils/moves";
 import { ownedMachinesForSpecies, isMachineId, machines } from "../utils/machines";
+import { regionBonuses } from "../utils/regionJourney";
 import {
   routeMachineDrop,
   raidMachines,
@@ -459,7 +460,9 @@ function grantShinyCharmOnCompletion(state: GameState): GameState {
 function applyCatchExp(next: GameState, enemy: Pokemon): GameState {
   const species = pokemonTable[enemy.speciesKey];
   if (!species || !next.playerPokemon) return next;
-  const exp = expYield(species, enemy.level);
+  // Scaled here rather than inside applyExp so the figure the log prints is
+  // the figure granted. See regionBonuses.
+  const exp = Math.round(expYield(species, enemy.level) * regionBonuses(next).exp);
   if (exp <= 0) return next;
   const { state: afterExp, logs } = applyExp(next, exp, evYieldFor(enemy.speciesKey));
   return pushLog(afterExp, ...logs, `${afterExp.playerPokemon?.name ?? "Your Pokémon"} gained ${exp} EXP!`);
@@ -941,7 +944,7 @@ export function reducer(state: GameState, action: Action): GameState {
       inv[ballId] = inv[ballId] - 1;
       const catchHpFrac = state.enemyPokemon.maxHp > 0
         ? state.enemyPokemon.currentHp / state.enemyPokemon.maxHp : 1;
-      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, catchHpFrac);
+      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, catchHpFrac, regionBonuses(state).catch);
       if (!success) {
         return pushLog({ ...state, inventory: inv }, `Oh no! The ${state.enemyPokemon.name} broke free!`);
       }
@@ -968,7 +971,7 @@ export function reducer(state: GameState, action: Action): GameState {
       inv[ballId] = inv[ballId] - 1;
       const tryCatchHpFrac = state.enemyPokemon.maxHp > 0
         ? state.enemyPokemon.currentHp / state.enemyPokemon.maxHp : 1;
-      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, tryCatchHpFrac);
+      const success = ballId === "masterball" || rollCatch(state.enemyPokemon.speciesKey, ballId, tryCatchHpFrac, regionBonuses(state).catch);
       const ballName = pokeballs[ballId]?.name ?? itemsCatalog[ballId]?.name ?? ballId;
       return pushLog(
         {
@@ -2882,7 +2885,9 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
   const isBoss = !!state.bossBattle;
 
   if (enemy.currentHp <= 0 && player.currentHp > 0) {
-    const exp = expYield(pokemonTable[enemy.speciesKey], enemy.level);
+    const exp = Math.round(
+      expYield(pokemonTable[enemy.speciesKey], enemy.level) * regionBonuses(state).exp,
+    );
     const yld = evYieldFor(enemy.speciesKey);
     const { state: afterExp, logs } = applyExp(state, exp, yld);
     let next: GameState = pushLog(afterExp, ...logs, `${player.name} gained ${exp} EXP!`);
@@ -2933,7 +2938,7 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
           `${b.trainerName} sent out ${incoming.name}!`
         );
       }
-      return endBossBattle(next, true, trainerPrize(b.trainerClass, b.trainerTeam));
+      return endBossBattle(next, true, Math.round(trainerPrize(b.trainerClass, b.trainerTeam) * regionBonuses(next).money));
     }
     if (isTrainer && next.trainerBattle) {
       const t = next.trainerBattle;
@@ -2949,7 +2954,7 @@ function resolveTurnEnd(state: GameState, _preTurn: GameState): GameState {
           `${t.trainerName} sent out ${incoming.name}!`
         );
       }
-      return endTrainerBattle(next, true, trainerPrize(t.trainerClass, t.trainerTeam));
+      return endTrainerBattle(next, true, Math.round(trainerPrize(t.trainerClass, t.trainerTeam) * regionBonuses(next).money));
     }
 
     // Raid: when the legendary faints, spawn a stronger version (+5 levels)

@@ -19,7 +19,10 @@ import {
   LEGACY_REGIONS,
   journeyLevelOffset,
   applyJourneyOffset,
+  regionBonuses,
+  regionsCleared,
 } from "../src/utils/regionJourney";
+import { catchProbability } from "../src/utils/catching";
 import { encounters } from "../src/data/encounters";
 import { regions } from "../src/data/regions";
 import { makeMon, makeState } from "./helpers";
@@ -215,5 +218,45 @@ describe("journey levels", () => {
 
   it("leaves raids alone — they belong to no journey", () => {
     expect(journeyLevelOffset("raidIsland", makeState({ defeatedChampions: [] }))).toBe(0);
+  });
+});
+
+// ── THE OTHER SIDE OF THE LEDGER ──────────────────────────────────────────
+describe("clearing a region pays out", () => {
+  const KANTO = regions.kanto.champion!.id;
+  const JOHTO = regions.johto.champion!.id;
+
+  it("pays nothing before you have cleared anything", () => {
+    const b = regionBonuses(makeState({ defeatedChampions: [] }));
+    expect(b).toMatchObject({ cleared: 0, exp: 1, money: 1, catch: 1 });
+  });
+
+  it("is cumulative, and additive rather than multiplicative", () => {
+    // Three regions is +30% EXP, not triple. A reason to finish a region,
+    // not a reason to rush one.
+    const one = regionBonuses(makeState({ defeatedChampions: [KANTO] }));
+    const two = regionBonuses(makeState({ defeatedChampions: [KANTO, JOHTO] }));
+    expect(one.exp).toBeCloseTo(1.1);
+    expect(two.exp).toBeCloseTo(1.2);
+    expect(two.money).toBeCloseTo(1.2);
+  });
+
+  it("keeps the catch bonus smaller than the others, on purpose", () => {
+    // Catch rate compounds with every ball thrown, and a big number here
+    // trivialises the Pokédex the journey rules exist to protect.
+    const b = regionBonuses(makeState({ defeatedChampions: [KANTO, JOHTO] }));
+    expect(b.catch).toBeLessThan(b.exp);
+    expect(b.catch).toBeCloseTo(1.1);
+  });
+
+  it("counts regions, not champions beaten", () => {
+    // Beating the same champion twice must not pay twice.
+    const dup = makeState({ defeatedChampions: [KANTO, KANTO] });
+    expect(regionsCleared(dup)).toBe(1);
+  });
+
+  it("never lets the catch bonus push a probability past certainty", () => {
+    // A 100%-catch species with a big bonus must still be a probability.
+    expect(catchProbability("caterpie", "masterball", 1, 99)).toBeLessThanOrEqual(1);
   });
 });

@@ -3,6 +3,7 @@ import { pokemonTable } from "../data/pokemon";
 import { encounters as encounterTable } from "../data/encounters";
 import { PokemonSprite } from "./Sprite";
 import { calcAllStats, perfectIVs } from "../utils/stats";
+import { regionBonuses } from "../utils/regionJourney";
 import { catchProbability } from "../utils/catching";
 import { rarityFromRate, RARITY_LABEL, rateForSpecies } from "../utils/rarity";
 import { REPEL_TIERS } from "../utils/encounters";
@@ -115,7 +116,11 @@ export function WildPokemonDetail({ speciesKey, routeKey, onClose }: Props) {
   );
 
   // Catch chance with a Poké Ball (the cheapest reference point).
-  const catchPct = Math.round(catchProbability(speciesKey, "pokeball") * 100);
+  // Includes the cleared-region bonus, because the roll does — a panel
+  // quoting a chance the game does not use is worse than quoting none.
+  const catchPct = Math.round(
+    catchProbability(speciesKey, "pokeball", 1, regionBonuses(state).catch) * 100,
+  );
 
   return (
     <div className="wild-detail">

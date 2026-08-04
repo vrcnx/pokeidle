@@ -210,3 +210,54 @@ export function applyJourneyOffset<T extends { minLevel: number; maxLevel: numbe
     maxLevel: Math.max(MIN_JOURNEY_LEVEL, enc.maxLevel - offset),
   };
 }
+
+// ── WHAT CLEARING A REGION IS WORTH ───────────────────────────────────────
+//
+// Journeys take things away — a region you have not finished will not accept
+// an outside team, and its levels drop to the real curve. Without something
+// on the other side of the ledger the whole design reads as a nerf, which is
+// the objection the proposal itself raised.
+//
+// So every champion you have beaten pays out, permanently and account-wide.
+// Small per region and cumulative, so it is a reason to finish a region
+// rather than a reason to rush one: three regions is +30% EXP, not triple.
+export const REGION_CLEAR_BONUS = {
+  /** Extra EXP from every battle, per region cleared. */
+  exp: 0.10,
+  /** Extra prize money from every trainer, per region cleared. */
+  money: 0.10,
+  /** Extra catch chance, per region cleared. Half the others deliberately —
+   *  catch rate compounds with every ball thrown, and a big number here
+   *  trivialises the Pokédex the journey rules exist to protect. */
+  catch: 0.05,
+} as const;
+
+/** How many regions this player has finished. */
+export function regionsCleared(state: GameState): number {
+  return Object.keys(regions).filter((id) => regionCompleted(id, state)).length;
+}
+
+export interface RegionBonuses {
+  cleared: number;
+  /** Multipliers, 1 = no change. */
+  exp: number;
+  money: number;
+  catch: number;
+}
+
+/**
+ * The standing bonus from every region cleared.
+ *
+ * Read at the point of use rather than stored on the save: it is a pure
+ * function of `defeatedChampions`, and a stored copy is a second source of
+ * truth that can drift from the first.
+ */
+export function regionBonuses(state: GameState): RegionBonuses {
+  const cleared = regionsCleared(state);
+  return {
+    cleared,
+    exp: 1 + cleared * REGION_CLEAR_BONUS.exp,
+    money: 1 + cleared * REGION_CLEAR_BONUS.money,
+    catch: 1 + cleared * REGION_CLEAR_BONUS.catch,
+  };
+}
