@@ -911,7 +911,21 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       if (accepted.length === 0) return state; // never leave it moveless
 
-      const next = accepted.slice(0, 4).map(toMove);
+      // ── PP SURVIVES A REORDER ────────────────────────────────────────
+      // `toMove` mints a move at FULL PP, so mapping the whole set through it
+      // handed back a fully-restored moveset every time this action ran —
+      // and it runs on any change at all, including dragging two moves into a
+      // different order. Reported by pani: free full restore mid-Gym, as often
+      // as you like, by reordering and saving.
+      //
+      // A move the Pokemon already knows keeps its own PP. Only one it is
+      // learning for the first time arrives full, which is what learning a
+      // move has always meant.
+      const ppBefore = new Map(owner.moves.map((m) => [m.id, m]));
+      const next = accepted.slice(0, 4).map((id) => {
+        const had = ppBefore.get(id);
+        return had ? { ...had } : toMove(id);
+      });
       const updateMoves = (p: Pokemon) =>
         p.id === pokemonId ? { ...p, moves: next } : p;
       const updated = syncPlayerToParty({

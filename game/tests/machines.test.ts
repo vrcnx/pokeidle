@@ -523,3 +523,47 @@ describe("the screens have something to render", () => {
     }
   });
 });
+
+describe("saving a moveset does not restore PP", () => {
+  // Reported by pani: SET_MOVES rebuilt every slot through `toMove`, which
+  // mints a move at FULL PP — so any change that enabled Save, including
+  // dragging two moves into a different order, handed back a fully restored
+  // moveset. A free full restore mid-Gym, repeatable at will.
+  const spent = () => makeMon({
+    speciesKey: "pikachu",
+    level: 50,
+    moves: [
+      { id: "tackle", pp: 3, maxPp: 35 },
+      { id: "growl", pp: 0, maxPp: 40 },
+    ],
+  });
+
+  it("keeps the PP of moves it already knew, through a reorder", () => {
+    const lead = spent();
+    const state = makeState({ party: [lead], playerPokemon: lead });
+    const next = reducer(state, {
+      type: "SET_MOVES",
+      payload: { pokemonId: lead.id, moveIds: ["growl", "tackle"] },
+    } as never);
+    const byId = new Map(next.party[0].moves.map((m) => [m.id, m.pp]));
+    expect(byId.get("tackle")).toBe(3);
+    expect(byId.get("growl")).toBe(0);
+  });
+
+  it("still gives a NEWLY learned move its full PP", () => {
+    // Learning a move has always meant arriving with a full bar; only the
+    // moves it already had are preserved.
+    const lead = spent();
+    const state = makeState({ party: [lead], playerPokemon: lead });
+    const learnable = availableMovesFor("pikachu", 50, {})
+      .map((m) => m.moveId)
+      .find((id) => id !== "tackle" && id !== "growl")!;
+    const next = reducer(state, {
+      type: "SET_MOVES",
+      payload: { pokemonId: lead.id, moveIds: ["tackle", learnable] },
+    } as never);
+    const fresh = next.party[0].moves.find((m) => m.id === learnable)!;
+    expect(fresh.pp).toBe(fresh.maxPp);
+    expect(fresh.pp).toBeGreaterThan(0);
+  });
+});
