@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.6";
+export const CURRENT_VERSION = "0.9.7";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,60 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.7",
+      subtitle: "Johto is a journey again, a real auction house, and a pile of reported bugs",
+      date: "2026-08-03",
+      sections: [
+        {
+          heading: "🗺️ Johto is a region again, not a level-40 farm",
+          items: [
+            "Johto's wild levels are back to the real Gold/Silver curve WHILE you are working through it. Route 29 is Lv 2–4 again, Union Cave is 8–11, Mt. Silver is 37–42 — so arriving from Kanto is a new region rather than a wall you grind past",
+            "The moment you beat Johto's champion it reverts to exactly the levels it has today. Nothing about an established player's farm moves: if you have already finished Johto, you will not notice this change at all",
+            "CLEARING A REGION PAYS FOREVER. Every region you have beaten gives +10% EXP and +10% prize money from every battle, and +5% catch rate, for the rest of the game. Cumulative and additive — two regions is +20% EXP, not double — so it rewards finishing a region rather than rushing one",
+            "Where a Pokémon was caught is now recorded. Nothing restricts you yet; it is the groundwork for future regions being real journeys instead of somewhere your level 100 team walks in and flattens",
+          ],
+        },
+        {
+          heading: "💰 The auction house, rebuilt",
+          items: [
+            "A wall of cards you can actually compare. The Pokémon is the biggest thing on a card and the price is the second — the old page put a full bidding form on every listing, which made every lot look identical from a distance",
+            "Bidding moved to the side panel, so a card is for browsing and the panel is for committing. Closing lots get a warm edge and a countdown that moves while you watch",
+            "LISTING A POKÉMON is one flow now: pick it from your party or PC, set a price, done. Sell lives in the panel next to the lot you are looking at",
+            "TMs CAN BE AUCTIONED. Machines are reusable and route drops are fixed, so the auction house is how you get one you have not found — held in escrow like a Pokémon, returned if you cancel",
+            "The page would not scroll. With 23 lots that meant most of them were unreachable, which is worth its own line",
+          ],
+        },
+        {
+          heading: "💿 The TM Mart",
+          items: [
+            "TMs have their own counter, and the stock ROTATES. Six machines a day out of a pool that deals through itself over four weeks, so every TM comes round and no TM is simply purchasable on demand",
+            "Today's six are priced and buyable; the rest are listed as not-today with the day they return, so you can plan",
+            "Raid drops are named on the Raids page. All six HMs plus the heaviest TMs — Hyper Beam, Giga Impact, Solar Beam, Overheat, Explosion — come from raids and nowhere else, and there was no way to know that",
+          ],
+        },
+        {
+          heading: "🐛 From your reports",
+          items: [
+            "REORDERING YOUR MOVES REFILLED EVERY PP. Dragging a move and saving handed the whole moveset full PP, so the fix for a Pokémon that had run dry was to open Manage Moves and press Save. PP now travels with the move it belongs to",
+            "GEN 2 EVOLUTIONS HAD DUPLICATE, OUT-OF-ORDER MOVES. Scizor offered Quick Attack twice, and its move list ran to Lv 21 then started again from Lv 1. Steelix and Crobat had it too — the two halves of an evolution chain were spelling the same move two different ways. Thanks pani",
+            "FALSE SWIPE COULD KNOCK A POKÉMON OUT. The one move in the game designed to leave a Pokémon on 1 HP so you can catch it. It now always does",
+            "CHANGING GAME SPEED RESTARTED THE BATTLE INSTEAD OF RETIMING IT. The message box retyped the line you were reading from its first character, and clicking between speeds froze the game for as long as you kept clicking. Damage numbers and 'Super effective!' banners could also get stuck on screen permanently. Switching speed now retimes what is already running",
+            "ATTACK ANIMATIONS IGNORED GAME SPEED. They were not playing faster at 5×, they were being cut off part-way — you were seeing the first third of a Flamethrower. Every effect now plays at the speed you set and shows the same amount of itself at 1×, 2× and 5×",
+            "SHINY ANNOUNCEMENTS ARE GONE from global chat. They worked exactly as designed, and that was the problem: enough shinies are caught across the playerbase that real conversation was scrolling past behind a wall of them",
+            "If a save rollback ever costs you a Pokémon — two devices, or a tab that was offline — the game now TELLS you which ones and why, instead of leaving you to find a Pokédex entry with nothing behind it",
+          ],
+        },
+        {
+          heading: "⚙️ Smaller things",
+          items: [
+            "PvP: the 'choose your lead' screen is gone. Your lead is the first Pokémon in your team, set where you already set it — in Edit Team, before the match",
+            "The central dialog closes with an animation now, including when you click outside it",
+            "The Bag's active Repel/Honey list is bounded and scrolls. Repels are per-species AND per-route, so repelling five species across four routes made twenty entries that pushed the whole bag off the bottom of the screen",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.6",
       subtitle: "TMs — 59 machines, and a moveset that's finally a decision",
