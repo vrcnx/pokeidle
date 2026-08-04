@@ -5164,6 +5164,26 @@ body.dnd-active {
 }
 /* Player slot is bigger — shadow scales with it; enemy is smaller, slightly
    lighter shadow to suggest distance. */
+/* ── A lunging sprite comes forward ────────────────────────────────────
+   The player slot already sits above the effect layer (z 30) and the enemy
+   slot below it, so projectiles strike the opponent in front of its sprite.
+   That is right for projectiles and wrong for a contact move: an opponent
+   throwing itself at YOU would slide under its own impact effect and under
+   your Pokémon. Raised only while it is actually travelling.
+
+   `transform-origin` is the feet, not the centre — a Pokémon growing as it
+   comes toward the camera has to stay planted on the ground, and the whole
+   perspective illusion collapses if it grows about its middle. Matches how
+   utils/battleFx measures a slot's anchor. */
+.sprite-slot.fx-lunging {
+  z-index: 40;
+  /* Centre, to match where utils/battleFx measures the slot's anchor. A
+     bottom origin would pivot the scale at the feet while the translate was
+     computed for the middle, and the two would fight by half a sprite. */
+  transform-origin: center center;
+  will-change: transform;
+}
+
 .player-slot::after { width: 70%; height: 11%; }
 .enemy-slot::after { width: 60%; height: 9%; opacity: 0.8; }
 

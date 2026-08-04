@@ -4,6 +4,8 @@ import { moves as movesTable } from "../data/moves";
 import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
 import { moveAnimMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
 import { setCssAnimationRate } from "../utils/animate";
+import { actorFromSlot, runFx } from "../utils/battleFx";
+import { buildMoveMotion } from "../utils/battleFxMoves";
 import type { BattleEvent, PokemonType } from "../types";
 
 // Particle/keyframe layer mounted inside .battle-scene. When an "attack"
@@ -20,6 +22,7 @@ interface ActiveAnim {
   target: "enemy" | "player";
   shake: boolean;
   moveType: PokemonType;
+  moveId: string;
 }
 
 export function MoveAnimation() {
@@ -56,7 +59,7 @@ export function MoveAnimation() {
 
     counterRef.current++;
     shownAtRef.current = Date.now();
-    setActive({ key: counterRef.current, archetype, target, shake, moveType: m.type });
+    setActive({ key: counterRef.current, archetype, target, shake, moveType: m.type, moveId });
   }, [head]);
 
   // ── EXPIRY. Re-running this is harmless: it keys on the pop itself and
@@ -85,9 +88,36 @@ export function MoveAnimation() {
     // it is not in this element's subtree and would otherwise keep rattling
     // at ×1 long after the effect that triggered it had finished.
     if (active.shake) {
-      const scene = el.closest(".battle-scene, .pvp2-scene");
-      setCssAnimationRate([scene?.querySelector(".scene-content")], rate);
+      const shakeScene = el.closest(".battle-scene, .pvp2-scene");
+      setCssAnimationRate([shakeScene?.querySelector(".scene-content")], rate);
     }
+
+    // ── THE SPRITES THEMSELVES MOVE NOW ─────────────────────────────────
+    // Everything above animates a layer ON TOP of the battle. This moves the
+    // two Pokémon, which is what a contact move actually is — and what no
+    // physical move in this game has ever done. See utils/battleFxMoves.
+    //
+    // The effect layer still plays underneath for every move, so a move with
+    // no ported motion looks exactly as it does today rather than looking
+    // half-finished. That is what lets this be ported one move at a time.
+    const scene = el.closest<HTMLElement>(".battle-scene");
+    if (!scene) return;
+    const attackerEl = scene.querySelector<HTMLElement>(
+      active.target === "enemy" ? ".player-slot" : ".enemy-slot",
+    );
+    const defenderEl = scene.querySelector<HTMLElement>(
+      active.target === "enemy" ? ".enemy-slot" : ".player-slot",
+    );
+    if (!attackerEl || !defenderEl) return;
+    const attacker = actorFromSlot(attackerEl, scene, active.target !== "enemy");
+    const defender = actorFromSlot(defenderEl, scene, active.target === "enemy");
+    if (!attacker || !defender) return;
+    if (!buildMoveMotion(active.moveId, attacker, defender)) return;
+    const run = runFx([attacker, defender], scene, {
+      rate,
+      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    });
+    return () => run.cancel();
   }, [active, state.speed]);
 
   if (!active) return null;
