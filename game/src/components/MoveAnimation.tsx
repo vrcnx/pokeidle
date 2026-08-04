@@ -4,8 +4,8 @@ import { moves as movesTable } from "../data/moves";
 import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
 import { moveAnimMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
 import { setCssAnimationRate } from "../utils/animate";
-import { actorFromSlot, runFx } from "../utils/battleFx";
-import { buildMoveMotion } from "../utils/battleFxMoves";
+import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
+import { buildMoveFx } from "../utils/battleFxMoves";
 import type { BattleEvent, PokemonType } from "../types";
 
 // Particle/keyframe layer mounted inside .battle-scene. When an "attack"
@@ -100,20 +100,30 @@ export function MoveAnimation() {
     // The effect layer still plays underneath for every move, so a move with
     // no ported motion looks exactly as it does today rather than looking
     // half-finished. That is what lets this be ported one move at a time.
-    const scene = el.closest<HTMLElement>(".battle-scene");
-    if (!scene) return;
-    const attackerEl = scene.querySelector<HTMLElement>(
+    const sceneEl = el.closest<HTMLElement>(".battle-scene");
+    if (!sceneEl) return;
+    const attackerEl = sceneEl.querySelector<HTMLElement>(
       active.target === "enemy" ? ".player-slot" : ".enemy-slot",
     );
-    const defenderEl = scene.querySelector<HTMLElement>(
+    const defenderEl = sceneEl.querySelector<HTMLElement>(
       active.target === "enemy" ? ".enemy-slot" : ".player-slot",
     );
     if (!attackerEl || !defenderEl) return;
-    const attacker = actorFromSlot(attackerEl, scene, active.target !== "enemy");
-    const defender = actorFromSlot(defenderEl, scene, active.target === "enemy");
+    const attacker = actorFromSlot(attackerEl, sceneEl, active.target !== "enemy");
+    const defender = actorFromSlot(defenderEl, sceneEl, active.target === "enemy");
     if (!attacker || !defender) return;
-    if (!buildMoveMotion(active.moveId, attacker, defender)) return;
-    const run = runFx([attacker, defender], scene, {
+    const fx = new FxScene(sceneEl);
+    fx.add(attacker);
+    fx.add(defender);
+    // Built but not run leaks the effect layer — runFx is what tears it down.
+    // Nothing queues sprites before returning false today, so this is belt and
+    // braces, but the next move ported could and the leak would be a silent
+    // pile of stale <img> over the battle.
+    if (!buildMoveFx(active.moveId, fx, attacker, defender)) {
+      fx.teardown();
+      return;
+    }
+    const run = runFx(fx, {
       rate,
       reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     });

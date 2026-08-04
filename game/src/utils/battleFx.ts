@@ -34,6 +34,8 @@
  * is, which is what they mean anyway.
  */
 
+import { FX_SPRITES } from "../data/battleFxSprites";
+
 /** Showdown's stage. 16:9, same as `.battle-scene`. */
 export const FX_W = 640;
 export const FX_H = 360;
@@ -271,6 +273,163 @@ export function actorFromSlot(
   });
 }
 
+// ── EFFECT SPRITES ────────────────────────────────────────────────────────
+
+interface FxEffect {
+  el: HTMLImageElement;
+  t0: number;
+  t1: number;
+  from: Required<Pick<ScenePos, "x" | "y" | "z" | "scale" | "opacity">>;
+  to: Required<Pick<ScenePos, "x" | "y" | "z" | "scale" | "opacity">>;
+  w: number;
+  h: number;
+  ease: AxisEasing;
+  after?: "fade" | "explode";
+}
+
+const FADE_MS = 100;
+
+/**
+ * The stage a move animation is drawn on.
+ *
+ * Holds the two Pokémon and every effect sprite, so one runner drives them
+ * off one clock. A ported animation is written as a sequence of `showEffect`
+ * calls plus actor moves, and the two have to share a timeline or the impact
+ * lands on a sprite that has not arrived.
+ */
+export class FxScene {
+  readonly el: HTMLElement;
+  readonly actors: FxActor[] = [];
+  readonly effects: FxEffect[] = [];
+  private layer: HTMLElement | null = null;
+  /** Showdown's `scene.wait()` — shifts everything queued after it. */
+  private timeOffset = 0;
+
+  constructor(el: HTMLElement) {
+    this.el = el;
+  }
+
+  wait(ms: number): void {
+    this.timeOffset += ms;
+  }
+
+  add(actor: FxActor): FxActor {
+    this.actors.push(actor);
+    return actor;
+  }
+
+  /**
+   * The 640×360 stage, as a real element.
+   *
+   * Scaled as a whole rather than per-sprite, so every `pos()` result is used
+   * verbatim in px. That is what lets a ported coordinate be pasted in
+   * unchanged instead of being multiplied by something at each call site.
+   */
+  private ensureLayer(): HTMLElement {
+    if (this.layer) return this.layer;
+    const px = this.el.getBoundingClientRect().width / FX_W;
+    const layer = document.createElement("div");
+    layer.className = "fx-layer";
+    layer.style.cssText =
+      `position:absolute;left:0;top:0;width:${FX_W}px;height:${FX_H}px;` +
+      `transform:scale(${px});transform-origin:0 0;pointer-events:none;overflow:visible;`;
+    this.el.appendChild(layer);
+    this.layer = layer;
+    return layer;
+  }
+
+  /**
+   * Ported from Showdown's `showEffect` / `animateEffect`.
+   *
+   * `time` on start and end is ABSOLUTE within the animation, not a duration
+   * — that is the part most likely to be mis-read, and getting it wrong turns
+   * a choreographed sequence into everything firing at once. `end` inherits
+   * every field `start` set, so a ported call that only changes opacity does
+   * not silently reset the position to the origin.
+   */
+  showEffect(
+    name: string,
+    start: ScenePos,
+    end: ScenePos = {},
+    transition: Transition = "linear",
+    after?: "fade" | "explode",
+  ): void {
+    const sprite = FX_SPRITES[name];
+    // A name with no vendored file behind it. Some sprites are deliberately
+    // not shipped (GPL art — see public/fx/PROVENANCE.md), so this is an
+    // expected path, and it must skip the sprite rather than render a broken
+    // image over the battle.
+    if (!sprite) return;
+
+    const t0 = (start.time ?? 0) + this.timeOffset;
+    const t1 = (end.time ?? (start.time ?? 0) + 500) + this.timeOffset;
+    const merged: ScenePos = { ...start, ...end };
+
+    const el = document.createElement("img");
+    el.src = sprite.url;
+    el.alt = "";
+    el.setAttribute("aria-hidden", "true");
+    el.draggable = false;
+    el.style.cssText = "display:block;position:absolute;opacity:0";
+    this.ensureLayer().appendChild(el);
+
+    const norm = (p: ScenePos) => ({
+      x: p.x ?? 0, y: p.y ?? 0, z: p.z ?? 0,
+      scale: p.scale ?? 1, opacity: p.opacity ?? 1,
+    });
+    const from = norm(start);
+    const to = norm(merged);
+    this.effects.push({
+      el, t0, t1, from, to, w: sprite.w, h: sprite.h,
+      ease: easingsFor(transition, project(from).top, project(to).top, to.z),
+      after,
+    });
+  }
+
+  /** Total length of everything queued, ms. */
+  get duration(): number {
+    let d = 0;
+    for (const a of this.actors) d = Math.max(d, a.duration);
+    for (const e of this.effects) d = Math.max(d, e.t1 + (e.after ? FADE_MS : 0));
+    return d;
+  }
+
+  /** Paint every effect sprite at time `t`. */
+  paintEffects(t: number): void {
+    for (const e of this.effects) {
+      if (t < e.t0) { e.el.style.opacity = "0"; continue; }
+      const span = e.t1 - e.t0;
+      const raw = span > 0 ? Math.min(1, (t - e.t0) / span) : 1;
+      const p0 = project(e.from);
+      const p1 = project(e.to);
+      let scale = p0.scale + (p1.scale - p0.scale) * e.ease.scale(raw);
+      let opacity = e.from.opacity + (e.to.opacity - e.from.opacity) * raw;
+      // The tail, after the main move has landed.
+      if (t > e.t1 && e.after) {
+        const tail = Math.min(1, (t - e.t1) / FADE_MS);
+        opacity *= 1 - tail;
+        if (e.after === "explode") scale *= 1 + 2 * tail; // ×3 by the end
+      }
+      const left = p0.left + (p1.left - p0.left) * e.ease.left(raw);
+      const top = p0.top + (p1.top - p0.top) * e.ease.top(raw);
+      const w = e.w * scale;
+      const h = e.h * scale;
+      e.el.style.left = `${left - w / 2}px`;
+      e.el.style.top = `${top - h / 2}px`;
+      e.el.style.width = `${w}px`;
+      e.el.style.height = `${h}px`;
+      e.el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+    }
+  }
+
+  /** Remove the whole effect layer. Called on every exit path. */
+  teardown(): void {
+    this.layer?.remove();
+    this.layer = null;
+    this.effects.length = 0;
+  }
+}
+
 /**
  * Run a built animation.
  *
@@ -286,24 +445,25 @@ export function actorFromSlot(
  * scaled has to be cut off instead.
  */
 export function runFx(
-  actors: FxActor[],
-  scene: HTMLElement,
+  scene: FxScene,
   opts: { rate?: number; reducedMotion?: boolean } = {},
 ): { cancel: () => void } {
+  const actors = scene.actors;
   const clear = () => {
     for (const a of actors) {
       a.el.style.transform = "";
       a.el.classList.remove("fx-lunging");
     }
+    scene.teardown();
   };
-  if (opts.reducedMotion || actors.length === 0) {
+  const total = scene.duration;
+  if (opts.reducedMotion || total === 0) {
     clear();
     return { cancel: clear };
   }
 
-  const pxPerUnit = scene.getBoundingClientRect().width / FX_W;
+  const pxPerUnit = scene.el.getBoundingClientRect().width / FX_W;
   const rate = opts.rate && opts.rate > 0 ? opts.rate : 1;
-  const total = Math.max(...actors.map((a) => a.duration));
   // The lunging sprite has to come forward. Our own slot already sits above
   // the effect layer; the opponent's sits below it, so without this the
   // enemy attacking you slides UNDER its own impact effect.
@@ -335,6 +495,7 @@ export function runFx(
       const tr = a.transformAt(Math.min(t, a.duration), pxPerUnit);
       if (tr) a.el.style.transform = tr;
     }
+    scene.paintEffects(t);
     if (t >= total) { window.clearTimeout(guard); clear(); return; }
     raf = requestAnimationFrame(frame);
   };
