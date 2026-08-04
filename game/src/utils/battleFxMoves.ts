@@ -20,6 +20,7 @@
 import { FxActor, FxScene } from "./battleFx";
 import { canonicalMoveId } from "./moves";
 import { moves as movesTable } from "../data/moves";
+import { MOVE_ANIMS } from "../data/moveAnims";
 import type { PokemonType } from "../types";
 
 /**
@@ -270,6 +271,16 @@ export function buildMoveFx(
   const id = canonicalMoveId(moveId);
   const move = movesTable[id];
   if (!move) return false;
+
+  // ── THE REAL ANIMATION, IF WE HAVE ONE ──────────────────────────────
+  // 163 of our 173 moves have Showdown's actual choreography ported into
+  // data/moveAnims.ts. Everything below this line is the fallback for the
+  // remaining handful, and for anything added later before it is ported.
+  const ported = MOVE_ANIMS[id];
+  if (ported) {
+    ported(scene, attacker, defender);
+    return true;
+  }
 
   if (move.category === "physical") {
     return buildMoveMotion(id, attacker, defender);

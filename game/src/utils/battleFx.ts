@@ -34,7 +34,7 @@
  * is, which is what they mean anyway.
  */
 
-import { FX_SPRITES } from "../data/battleFxSprites";
+import { FX_SPRITES, type FxSprite } from "../data/battleFxSprites";
 
 /** Showdown's stage. 16:9, same as `.battle-scene`. */
 export const FX_W = 640;
@@ -49,6 +49,11 @@ export interface ScenePos {
   y?: number;
   z?: number;
   scale?: number;
+  /** Axis scales. Ported animations use these to stretch a sprite into a
+   *  beam or flatten it into a shockwave, so they are not optional extras —
+   *  without them Hyper Beam is a small circle. Default to `scale`. */
+  xscale?: number;
+  yscale?: number;
   opacity?: number;
   /** Duration of the move INTO this position, ms. Showdown defaults to 500. */
   time?: number;
@@ -109,8 +114,8 @@ interface AxisEasing {
 
 export type Transition =
   | "linear" | "swing" | "accel" | "decel"
-  | "ballistic" | "ballisticUnder"
-  | "ballistic2" | "ballistic2Back" | "ballistic2Under";
+  | "ballistic" | "ballisticUp" | "ballisticUnder"
+  | "ballistic2" | "ballistic2Back" | "ballistic2back" | "ballistic2Under";
 
 function easingsFor(
   transition: Transition,
@@ -122,6 +127,9 @@ function easingsFor(
   const rising = toTop < fromTop;
   switch (transition) {
     case "ballistic":       e.top = rising ? ballisticUp : ballisticDown; break;
+    // Named explicitly rather than chosen by direction — a few of their
+    // animations want the arc up whichever way the sprite is travelling.
+    case "ballisticUp":     e.top = ballisticUp; break;
     case "ballisticUnder":  e.top = rising ? ballisticDown : ballisticUp; break;
     case "ballistic2":      e.top = rising ? quadUp : quadDown; break;
     // Showdown's own comment: this SHOULD be the same as ballistic2, but
@@ -129,7 +137,11 @@ function easingsFor(
     // position, the direction has to be inferred from the destination
     // instead. Reproduced rather than "fixed" — every animation using it was
     // authored against this behaviour.
-    case "ballistic2Back":  e.top = toZ > 0 ? quadUp : quadDown; break;
+    // `ballistic2back` is their own typo, used in a handful of animations.
+    // Honoured rather than corrected: the alternative is those moves falling
+    // through to linear, which is silently worse than reproducing the spelling.
+    case "ballistic2Back":
+    case "ballistic2back":  e.top = toZ > 0 ? quadUp : quadDown; break;
     case "ballistic2Under": e.top = rising ? quadDown : quadUp; break;
     case "swing":           e.left = e.top = e.scale = swing; break;
     case "accel":           e.left = e.top = e.scale = quadDown; break;
@@ -175,6 +187,19 @@ export class FxActor {
   get x() { return this.base.x; }
   get y() { return this.base.y; }
   get z() { return this.base.z; }
+
+  /**
+   * This Pokémon's own sprite, as something `showEffect` can draw.
+   *
+   * Named `sp` because that is what the ported animations call it, and they
+   * use it two ways: to size an effect against how big the Pokémon is, and —
+   * the good one — to draw a COPY of the Pokémon itself. That is how Quick
+   * Attack ghosts and Double Team splits: the after-image is the sprite,
+   * shown again at a lower opacity somewhere else on the field.
+   *
+   * Measured from the slot, so it needs no sprite-sheet data of its own.
+   */
+  sp: FxSprite = { url: "", w: 96, h: 96 };
 
   // Showdown's relative helpers. Each flips sign for the far side so that
   // "behind" means away from the camera for both Pokémon rather than
@@ -267,20 +292,33 @@ export function actorFromSlot(
   const z = isFar ? Z_FAR : Z_NEAR;
   const scale = fxScale(z);
   const anchor = project({ z });
-  return new FxActor(el, isFar, {
+  const actor = new FxActor(el, isFar, {
     x: (cx - anchor.left) / scale,
     y: (anchor.top - cy) / scale,
   });
+  // In stage units, undoing the perspective scale so `sp.w` means the same
+  // thing for both Pokémon regardless of which slot they are standing in.
+  // The url is the slot's own <img>, which is what makes an after-image an
+  // image of the Pokémon rather than a generic blob.
+  const img = el.querySelector("img");
+  actor.sp = {
+    url: img?.getAttribute("src") ?? "",
+    w: r.width / pxPerUnit / scale,
+    h: r.height / pxPerUnit / scale,
+  };
+  return actor;
 }
 
 // ── EFFECT SPRITES ────────────────────────────────────────────────────────
 
+type FxPos = Required<Pick<ScenePos, "x" | "y" | "z" | "scale" | "xscale" | "yscale" | "opacity">>;
+
 interface FxEffect {
-  el: HTMLImageElement;
+  el: HTMLElement;
   t0: number;
   t1: number;
-  from: Required<Pick<ScenePos, "x" | "y" | "z" | "scale" | "opacity">>;
-  to: Required<Pick<ScenePos, "x" | "y" | "z" | "scale" | "opacity">>;
+  from: FxPos;
+  to: FxPos;
   w: number;
   h: number;
   ease: AxisEasing;
@@ -348,18 +386,21 @@ export class FxScene {
    * not silently reset the position to the origin.
    */
   showEffect(
-    name: string,
+    effect: string | FxSprite,
     start: ScenePos,
     end: ScenePos = {},
     transition: Transition = "linear",
     after?: "fade" | "explode",
   ): void {
-    const sprite = FX_SPRITES[name];
+    // A sprite object rather than a name is an actor's own `sp` — the
+    // after-image trick. Nothing to look up; it already knows its art.
+    const sprite = typeof effect === "string" ? FX_SPRITES[effect] : effect;
     // A name with no vendored file behind it. Some sprites are deliberately
     // not shipped (GPL art — see public/fx/PROVENANCE.md), so this is an
     // expected path, and it must skip the sprite rather than render a broken
-    // image over the battle.
-    if (!sprite) return;
+    // image over the battle. An actor with no resolvable sprite url is the
+    // same case.
+    if (!sprite || !sprite.url) return;
 
     const t0 = (start.time ?? 0) + this.timeOffset;
     const t1 = (end.time ?? (start.time ?? 0) + 500) + this.timeOffset;
@@ -373,9 +414,12 @@ export class FxScene {
     el.style.cssText = "display:block;position:absolute;opacity:0";
     this.ensureLayer().appendChild(el);
 
-    const norm = (p: ScenePos) => ({
+    const norm = (p: ScenePos): FxPos => ({
       x: p.x ?? 0, y: p.y ?? 0, z: p.z ?? 0,
-      scale: p.scale ?? 1, opacity: p.opacity ?? 1,
+      scale: p.scale ?? 1,
+      xscale: p.xscale ?? p.scale ?? 1,
+      yscale: p.yscale ?? p.scale ?? 1,
+      opacity: p.opacity ?? 1,
     });
     const from = norm(start);
     const to = norm(merged);
@@ -386,16 +430,55 @@ export class FxScene {
     });
   }
 
+  /**
+   * A full-stage colour wash — ported from Showdown's `backgroundEffect`.
+   *
+   * This is what makes a big move feel big: Blizzard whitens the arena,
+   * Dark Pulse blackens it, Solar Beam floods it yellow. 218 of their move
+   * animations call it, so without it a fifth of the library either could
+   * not be ported or would arrive missing its most visible half.
+   *
+   * Fades in over 250ms, holds, fades out over 250ms — their timing.
+   */
+  backgroundEffect(background: string, duration: number, opacity = 1, delay = 0): void {
+    const el = document.createElement("div");
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText =
+      `position:absolute;inset:0;pointer-events:none;opacity:0;background:${background};`;
+    this.ensureLayer().appendChild(el);
+    this.backgrounds.push({
+      el,
+      t0: delay + this.timeOffset,
+      t1: delay + duration + this.timeOffset,
+      opacity,
+    });
+  }
+
+  private readonly backgrounds: {
+    el: HTMLElement; t0: number; t1: number; opacity: number;
+  }[] = [];
+
   /** Total length of everything queued, ms. */
   get duration(): number {
     let d = 0;
     for (const a of this.actors) d = Math.max(d, a.duration);
     for (const e of this.effects) d = Math.max(d, e.t1 + (e.after ? FADE_MS : 0));
+    for (const b of this.backgrounds) d = Math.max(d, b.t1);
     return d;
   }
 
   /** Paint every effect sprite at time `t`. */
   paintEffects(t: number): void {
+    const RAMP = 250; // Showdown's fade in/out, both ends.
+    for (const b of this.backgrounds) {
+      let o = 0;
+      if (t >= b.t0 && t <= b.t1) {
+        const inT = Math.min(1, (t - b.t0) / RAMP);
+        const outT = Math.min(1, Math.max(0, (b.t1 - t) / RAMP));
+        o = b.opacity * Math.min(inT, outT);
+      }
+      b.el.style.opacity = String(o);
+    }
     for (const e of this.effects) {
       if (t < e.t0) { e.el.style.opacity = "0"; continue; }
       const span = e.t1 - e.t0;
@@ -412,8 +495,14 @@ export class FxScene {
       }
       const left = p0.left + (p1.left - p0.left) * e.ease.left(raw);
       const top = p0.top + (p1.top - p0.top) * e.ease.top(raw);
-      const w = e.w * scale;
-      const h = e.h * scale;
+      // Axis scales ride on top of the perspective scale, which is what lets
+      // a ported animation stretch one sprite into a beam.
+      const es = e.ease.scale(raw);
+      const xs = e.from.xscale + (e.to.xscale - e.from.xscale) * es;
+      const ys = e.from.yscale + (e.to.yscale - e.from.yscale) * es;
+      const base = scale / (e.from.scale + (e.to.scale - e.from.scale) * es || 1);
+      const w = e.w * base * xs;
+      const h = e.h * base * ys;
       e.el.style.left = `${left - w / 2}px`;
       e.el.style.top = `${top - h / 2}px`;
       e.el.style.width = `${w}px`;
@@ -427,6 +516,7 @@ export class FxScene {
     this.layer?.remove();
     this.layer = null;
     this.effects.length = 0;
+    this.backgrounds.length = 0;
   }
 }
 

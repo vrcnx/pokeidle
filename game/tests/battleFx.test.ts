@@ -29,6 +29,9 @@ const box = (left: number, top: number, width: number, height: number) =>
     }),
     style: {} as CSSStyleDeclaration,
     classList: { add() {}, remove() {} },
+    // actorFromSlot reads the slot's <img> so an after-image can be a picture
+    // of the Pokémon. A slot with no sprite yet is a real state (mid-swap).
+    querySelector: () => null,
   }) as unknown as HTMLElement;
 
 describe("the stage matches Showdown's", () => {
