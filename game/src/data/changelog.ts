@@ -118,7 +118,7 @@ export const changelog: ChangelogEntry[] = [
             "Minimum raises now scale with the price and with how contested a lot is. Before this, 87% of every bid ever placed was a raise of $10 or less, and most auctions were decided by a $5 click",
             "Minimum starting bid is $500. Pokémon were being listed for $1 by accident",
             "A GIVEAWAY BUTTON in the sidebar, plus a history of past giveaways and their winners. Only 67 players had ever entered one — because unless you were online the moment it was announced, there was no way to find it",
-            "5× speed is retired. The game runs at 1× or 2× now",
+            "5× speed was restricted for a few hours on 30 July and then given back to everyone — 36% of accounts were playing on it, which turned out to be the argument for keeping it. It is still there. If your game reset itself to 2× that day, that was this, and clicking 5× again sticks",
           ],
         },
       ],
