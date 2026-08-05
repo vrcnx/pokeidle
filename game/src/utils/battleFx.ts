@@ -364,30 +364,21 @@ const FADE_MS = 100;
  */
 const OPACITY_BOOST = 2.1;
 
-/**
- * Effects that are LIGHT, and so must be composited additively.
- *
- * ── THE BIGGEST SINGLE THING WRONG WITH THESE ANIMATIONS ─────────────────
- * Fire, lightning and energy emit light. Drawn with ordinary alpha they are
- * pasted ON TOP of the arena — a semi-transparent orange PNG sitting over the
- * background, which is exactly what "looks like a sticker" means. Composited
- * with `screen`, the dark parts of the sprite drop out and the bright parts
- * add to what is behind them, so a fireball lights the scene instead of
- * covering it.
- *
- * It is per-sprite and not a blanket rule on the layer, because half of these
- * are the opposite: Shadow Ball, the dark wisps and the poison clouds are
- * DARK effects, and `screen` would erase them completely — a black sprite
- * screened over anything is invisible. Those keep normal compositing, which
- * is what makes them read as a void rather than a glow.
- */
-const LUMINOUS: ReadonlySet<string> = new Set([
-  "fireball", "bluefireball", "flareball", "electroball", "energyball",
-  "iceball", "mistball", "wisp", "waterwisp", "moon", "shine", "rainbow",
-  "hitmark", "impact", "gear", "greenmetal1", "greenmetal2",
-  "leftslash", "rightslash", "leftclaw", "rightclaw", "leftchop", "rightchop",
-  "fist", "fist1", "foot", "sword", "stare", "petal", "feather",
-]);
+// ── NO ADDITIVE BLENDING. THIS IS PIXEL ART ─────────────────────────────
+// Luminous effects were briefly composited with `mix-blend-mode: screen`, on
+// the theory that fire and lightning emit light and should brighten the scene
+// rather than sit on it. That is right for a modern particle renderer and
+// wrong here for a reason the theory missed: screen makes a sprite
+// TRANSLUCENT. The background reads straight through the flame, so the effect
+// stops being an object in the scene and becomes a tint over it.
+//
+// The Gen 5 games this is imitating draw move effects as solid pixels. So do
+// the sprites themselves. An opaque sprite in front of another opaque sprite
+// is the whole visual language, and the blend was the one thing in the FX
+// layer not speaking it.
+//
+// What actually made the effects visible was the opacity boost below, not the
+// blending — they were being drawn at 10–33% alpha. That stays.
 
 /**
  * The stage a move animation is drawn on.
@@ -484,10 +475,7 @@ export class FxScene {
     el.alt = "";
     el.setAttribute("aria-hidden", "true");
     el.draggable = false;
-    const lit = typeof effect === "string" && LUMINOUS.has(effect);
-    el.style.cssText =
-      "display:block;position:absolute;opacity:0" +
-      (lit ? ";mix-blend-mode:screen" : "");
+    el.style.cssText = "display:block;position:absolute;opacity:0";
     this.ensureLayer().appendChild(el);
 
     const norm = (p: ScenePos): FxPos => ({

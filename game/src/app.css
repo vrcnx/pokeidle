@@ -5164,16 +5164,6 @@ body.dnd-active {
 }
 /* Player slot is bigger — shadow scales with it; enemy is smaller, slightly
    lighter shadow to suggest distance. */
-/* ── THE ARENA IS ITS OWN BLENDING WORLD ───────────────────────────────
-   Luminous move effects composite with `mix-blend-mode: screen` so fire and
-   lightning light the scene rather than sitting on top of it. Blending reads
-   the backdrop of the nearest stacking context, and without this that was the
-   BODY — so an effect would have been screening against the page behind the
-   arena, and anything that overflowed would have lit up the chat. Isolating
-   makes the backdrop exactly what it should be: the background art and the
-   two Pokémon. */
-.battle-scene { isolation: isolate; }
-
 /* ── A lunging sprite comes forward ────────────────────────────────────
    The player slot already sits above the effect layer (z 30) and the enemy
    slot below it, so projectiles strike the opponent in front of its sprite.
