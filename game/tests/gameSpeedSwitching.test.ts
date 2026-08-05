@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   MOVE_ANIM_BASE_MS,
+  animLifetimeMs,
   eventDurationMs,
   flashMs,
   moveAnimMs,
@@ -165,6 +166,30 @@ describe("the move effect's keyframes obey the speed setting", () => {
   it("speeds up rather than slows down as the game gets faster", () => {
     expect(moveAnimRate(5)).toBeGreaterThan(moveAnimRate(2));
     expect(moveAnimRate(2)).toBeGreaterThan(moveAnimRate(1));
+  });
+
+  it("gives a ported animation the whole time it needs", () => {
+    // THE "lacking animations" BUG. The archetype budget is a flat 600ms at
+    // ×1 and every CSS effect fitted inside it; the ported animations run
+    // 650–1400ms and did not, so their endings were being thrown away —
+    // Shadow Ball played 43% of itself. The lifetime is now whichever is
+    // longer, so the tail always lands.
+    for (const speed of SPEEDS) {
+      for (const fxMs of [0, 300, 650, 800, 1400]) {
+        const life = animLifetimeMs(speed, fxMs);
+        expect(life, `${speed}× / ${fxMs}ms`).toBeGreaterThanOrEqual(fxMs);
+        // ...and never shorter than the effect it replaced.
+        expect(life).toBeGreaterThanOrEqual(moveAnimMs(speed));
+      }
+    }
+  });
+
+  it("leaves a move with no ported animation exactly as it was", () => {
+    // fxMs is 0 for the three moves still on the CSS archetypes. They must
+    // keep the old ladder to the millisecond.
+    for (const speed of SPEEDS) {
+      expect(animLifetimeMs(speed, 0)).toBe(moveAnimMs(speed));
+    }
   });
 
   it("stays legible — it compresses far less than the tick does", () => {

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
 import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
-import { moveAnimMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
+import { animLifetimeMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
 import { setCssAnimationRate } from "../utils/animate";
 import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
 import { buildMoveFx, hasFxAnim } from "../utils/battleFxMoves";
@@ -36,6 +36,9 @@ export function MoveAnimation() {
   const counterRef = useRef(0);
   const shownAtRef = useRef(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /** Wall-clock ms the ported animation needs. 0 until the layout effect
+   *  below has built the scene and can measure it. */
+  const fxMsRef = useRef(0);
 
   const head = state.pendingEvents[0];
 
@@ -61,6 +64,7 @@ export function MoveAnimation() {
 
     counterRef.current++;
     shownAtRef.current = Date.now();
+    fxMsRef.current = 0; // re-measured by the layout effect for this move
     setActive({
       key: counterRef.current, archetype, target, shake, moveType: m.type, moveId,
       // Decided HERE, before the first paint. Deciding it in the layout effect
@@ -74,7 +78,20 @@ export function MoveAnimation() {
   // the remaining window instead of restarting it.
   useEffect(() => {
     if (!active) return;
-    const left = remainingMs(shownAtRef.current, moveAnimMs(state.speed), Date.now());
+    // ── THE ANIMATION DECIDES HOW LONG IT NEEDS ────────────────────────
+    // `moveAnimMs` is the lifetime of the old CSS archetypes: a flat 600ms at
+    // ×1, which every one of them fitted inside. The ported animations do
+    // not — they run 650–1400ms — so holding them to that budget cut the end
+    // off nearly all of them. Shadow Ball was showing 43% of itself, Surf
+    // 67%: the impact, the burst and the recovery all landed after the
+    // component had already unmounted. That is what "lacking animations"
+    // was; the animation was there, it was being thrown away.
+    //
+    // The CSS ladder stays as a FLOOR, so the three moves still on the
+    // archetypes are unaffected and a ported animation can never be shorter
+    // than the effect it replaced.
+    const life = animLifetimeMs(state.speed, fxMsRef.current);
+    const left = remainingMs(shownAtRef.current, life, Date.now());
     const t = window.setTimeout(() => setActive(null), left);
     return () => clearTimeout(t);
   }, [active, state.speed]);
@@ -130,6 +147,10 @@ export function MoveAnimation() {
       fx.teardown();
       return;
     }
+    // Measured here, before the expiry effect for this same commit runs —
+    // React flushes layout effects ahead of passive ones, which is the whole
+    // reason this is a useLayoutEffect and the expiry is a useEffect.
+    fxMsRef.current = Math.ceil(fx.duration / rate);
     const run = runFx(fx, {
       rate,
       reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,

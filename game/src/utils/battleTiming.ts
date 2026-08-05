@@ -187,3 +187,24 @@ export function moveAnimMs(speed: number): number {
 export function moveAnimRate(speed: number): number {
   return MOVE_ANIM_BASE_MS / moveAnimMs(speed);
 }
+
+/**
+ * How long to keep a move's effect layer on screen.
+ *
+ * ── WHY THIS IS NOT JUST `moveAnimMs` ─────────────────────────────────
+ * `moveAnimMs` is the lifetime of the CSS archetypes, and every one of them
+ * fitted inside it. The animations ported from Showdown do not: they run
+ * 650–1400ms of scene time, so holding them to the archetype budget cut the
+ * end off nearly all of them — Shadow Ball played 43% of itself, Surf 67%.
+ * The impact, the burst and the recovery all happened after the layer had
+ * been removed, which reads as the move barely animating at all.
+ *
+ * `fxMs` is the ported animation's own wall-clock length (its scene duration
+ * already divided by the playback rate), or 0 for a move still on the CSS
+ * archetypes. The archetype budget stays as a FLOOR: a ported animation can
+ * never be shorter than the effect it replaced, and a move with no ported
+ * animation is completely unaffected.
+ */
+export function animLifetimeMs(speed: number, fxMs: number): number {
+  return Math.max(moveAnimMs(speed), Math.ceil(fxMs));
+}

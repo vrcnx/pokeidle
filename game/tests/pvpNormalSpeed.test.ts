@@ -105,7 +105,11 @@ describe("the idle game's speed setting still means something", () => {
     const scene = stripComments(read("components", "BattleScene.tsx"));
     expect(scene).toMatch(/typewriterCharMs\(state\.speed\)/);
     const anim = stripComments(read("components", "MoveAnimation.tsx"));
-    expect(anim).toMatch(/moveAnimMs\(state\.speed\)/);
+    // The lifetime is `animLifetimeMs(speed, fxMs)` now — the archetype
+    // ladder as a floor, and the ported animation's own length above it, so a
+    // 1400ms Shadow Ball is not cut off at 600ms. Still fed the live speed,
+    // which is what this file is guarding.
+    expect(anim).toMatch(/animLifetimeMs\(state\.speed,/);
     // And the keyframes now scale too, which is what the ternary never did.
     expect(anim).toMatch(/moveAnimRate\(state\.speed\)/);
   });
