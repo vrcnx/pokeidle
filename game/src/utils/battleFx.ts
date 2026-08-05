@@ -44,6 +44,23 @@ export const FX_H = 360;
 export const Z_NEAR = 0;
 export const Z_FAR = 200;
 
+/**
+ * HIT STOP — the world freezes for a moment when something connects.
+ *
+ * The oldest trick in action games and the single cheapest thing that makes a
+ * hit feel like a hit: at the frame of contact, stop advancing time for a few
+ * dozen milliseconds. The eye reads the pause as force. Without it an attack
+ * is a smooth interpolation from A to B and lands with no weight at all,
+ * which is most of what "the animations seem kinda bad" is describing.
+ *
+ * Deliberately short. Past about 90ms it stops reading as impact and starts
+ * reading as the game stuttering, and this fires on every single attack.
+ *
+ * In REAL milliseconds, not scene time: a freeze that scaled with game speed
+ * would vanish at ×5, which is exactly when the battle most needs punctuation.
+ */
+export const HIT_STOP_MS = 70;
+
 export interface ScenePos {
   x?: number;
   y?: number;
@@ -323,9 +340,36 @@ interface FxEffect {
   h: number;
   ease: AxisEasing;
   after?: "fade" | "explode";
+  /** Drawn only at the moment of contact — used to locate the hit. */
+  isImpact: boolean;
 }
 
 const FADE_MS = 100;
+
+/**
+ * Effects that are LIGHT, and so must be composited additively.
+ *
+ * ── THE BIGGEST SINGLE THING WRONG WITH THESE ANIMATIONS ─────────────────
+ * Fire, lightning and energy emit light. Drawn with ordinary alpha they are
+ * pasted ON TOP of the arena — a semi-transparent orange PNG sitting over the
+ * background, which is exactly what "looks like a sticker" means. Composited
+ * with `screen`, the dark parts of the sprite drop out and the bright parts
+ * add to what is behind them, so a fireball lights the scene instead of
+ * covering it.
+ *
+ * It is per-sprite and not a blanket rule on the layer, because half of these
+ * are the opposite: Shadow Ball, the dark wisps and the poison clouds are
+ * DARK effects, and `screen` would erase them completely — a black sprite
+ * screened over anything is invisible. Those keep normal compositing, which
+ * is what makes them read as a void rather than a glow.
+ */
+const LUMINOUS: ReadonlySet<string> = new Set([
+  "fireball", "bluefireball", "flareball", "electroball", "energyball",
+  "iceball", "mistball", "wisp", "waterwisp", "moon", "shine", "rainbow",
+  "hitmark", "impact", "gear", "greenmetal1", "greenmetal2",
+  "leftslash", "rightslash", "leftclaw", "rightclaw", "leftchop", "rightchop",
+  "fist", "fist1", "foot", "sword", "stare", "petal", "feather",
+]);
 
 /**
  * The stage a move animation is drawn on.
@@ -356,21 +400,32 @@ export class FxScene {
     return actor;
   }
 
+  /** Arena pixels per stage unit. Measured once, when the layer is created. */
+  private px = 1;
+
   /**
-   * The 640×360 stage, as a real element.
+   * The stage, as a real element.
    *
-   * Scaled as a whole rather than per-sprite, so every `pos()` result is used
-   * verbatim in px. That is what lets a ported coordinate be pasted in
-   * unchanged instead of being multiplied by something at each call site.
+   * ── DELIBERATELY NOT `transform: scale()` ────────────────────────────
+   * Scaling the whole layer was the obvious way to keep every `pos()` result
+   * usable verbatim in px, and it silently broke additive blending:
+   * `mix-blend-mode` composites against the backdrop WITHIN the current
+   * stacking context, and a `transform` creates one. So every luminous
+   * effect would have been screening against an empty transparent layer —
+   * blending with nothing, which looks identical to not blending at all.
+   *
+   * The layer therefore has no transform, no z-index and no opacity, so it
+   * forms no stacking context of its own and a fireball composites against
+   * the arena behind it. The stage-to-pixel scale moved into `paintEffects`,
+   * which costs one multiply per property per frame.
    */
   private ensureLayer(): HTMLElement {
     if (this.layer) return this.layer;
-    const px = this.el.getBoundingClientRect().width / FX_W;
+    this.px = this.el.getBoundingClientRect().width / FX_W || 1;
     const layer = document.createElement("div");
     layer.className = "fx-layer";
     layer.style.cssText =
-      `position:absolute;left:0;top:0;width:${FX_W}px;height:${FX_H}px;` +
-      `transform:scale(${px});transform-origin:0 0;pointer-events:none;overflow:visible;`;
+      "position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;";
     this.el.appendChild(layer);
     this.layer = layer;
     return layer;
@@ -411,7 +466,10 @@ export class FxScene {
     el.alt = "";
     el.setAttribute("aria-hidden", "true");
     el.draggable = false;
-    el.style.cssText = "display:block;position:absolute;opacity:0";
+    const lit = typeof effect === "string" && LUMINOUS.has(effect);
+    el.style.cssText =
+      "display:block;position:absolute;opacity:0" +
+      (lit ? ";mix-blend-mode:screen" : "");
     this.ensureLayer().appendChild(el);
 
     const norm = (p: ScenePos): FxPos => ({
@@ -427,6 +485,7 @@ export class FxScene {
       el, t0, t1, from, to, w: sprite.w, h: sprite.h,
       ease: easingsFor(transition, project(from).top, project(to).top, to.z),
       after,
+      isImpact: effect === "impact" || effect === "hitmark",
     });
   }
 
@@ -457,6 +516,61 @@ export class FxScene {
   private readonly backgrounds: {
     el: HTMLElement; t0: number; t1: number; opacity: number;
   }[] = [];
+
+  /**
+   * When the hit lands, in scene time — or null if this animation has no
+   * moment of contact (a self-buff, a weather change).
+   *
+   * ── WHY THE ENGINE HAS TO GUESS THIS ─────────────────────────────────
+   * Showdown's animations do not mark their impact frame; there is no field
+   * for it, because their renderer never needed one. Ours does, for hit-stop.
+   * So it is inferred, in falling order of reliability:
+   *
+   *   1. The defender's first movement. If a Pokémon is knocked backwards,
+   *      that IS the impact — it is what the animation's author timed the
+   *      recoil to.
+   *   2. The first `impact` or `hitmark` sprite, drawn for exactly this
+   *      purpose and nothing else.
+   *   3. The first moment something ARRIVES at the defender. Most special
+   *      moves have neither of the above — Showdown's Flamethrower does not
+   *      move the target and draws no impact mark — so without this the hit
+   *      stop only fired on contact attacks, which is most of the value
+   *      missing. A projectile whose destination is the defender has landed
+   *      when it gets there.
+   *   4. Nothing. A move that never reaches the other Pokémon is a self-buff
+   *      or a weather change, and freezing the world for it would be wrong.
+   */
+  impactAt(defender: FxActor): number | null {
+    const recoil = defender.steps[0];
+    if (recoil) return recoil.at;
+
+    let mark = Infinity;
+    let arrival = Infinity;
+    // Generous, because "at the defender" is judged in stage units and a
+    // projectile is allowed to land slightly short or wide of dead centre.
+    const NEAR = 45;
+    for (const e of this.effects) {
+      if (e.isImpact) mark = Math.min(mark, e.t0);
+      const near =
+        Math.abs(e.to.x - defender.x) < NEAR &&
+        Math.abs(e.to.y - defender.y) < NEAR &&
+        Math.abs(e.to.z - defender.z) < NEAR;
+      // Only count something that actually TRAVELLED there. An effect that
+      // starts and ends on the defender is an aura, not a hit.
+      //
+      // `y` counts as travel, and has to: Thunderbolt and Ice Beam come DOWN
+      // onto the target rather than across at it, so their start and end share
+      // an x and a z. Testing only the horizontal plane silently excluded
+      // every falling move.
+      const travelled =
+        Math.abs(e.from.x - e.to.x) > NEAR ||
+        Math.abs(e.from.z - e.to.z) > NEAR ||
+        Math.abs(e.from.y - e.to.y) > NEAR;
+      if (near && travelled) arrival = Math.min(arrival, e.t1);
+    }
+    const best = Math.min(mark, arrival);
+    return Number.isFinite(best) ? best : null;
+  }
 
   /** Total length of everything queued, ms. */
   get duration(): number {
@@ -503,10 +617,13 @@ export class FxScene {
       const base = scale / (e.from.scale + (e.to.scale - e.from.scale) * es || 1);
       const w = e.w * base * xs;
       const h = e.h * base * ys;
-      e.el.style.left = `${left - w / 2}px`;
-      e.el.style.top = `${top - h / 2}px`;
-      e.el.style.width = `${w}px`;
-      e.el.style.height = `${h}px`;
+      // Stage units -> arena pixels here, because the layer cannot carry a
+      // transform without isolating the blend. See ensureLayer.
+      const k = this.px;
+      e.el.style.left = `${(left - w / 2) * k}px`;
+      e.el.style.top = `${(top - h / 2) * k}px`;
+      e.el.style.width = `${w * k}px`;
+      e.el.style.height = `${h * k}px`;
       e.el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
     }
   }
@@ -536,7 +653,7 @@ export class FxScene {
  */
 export function runFx(
   scene: FxScene,
-  opts: { rate?: number; reducedMotion?: boolean } = {},
+  opts: { rate?: number; reducedMotion?: boolean; impactAt?: number | null } = {},
 ): { cancel: () => void } {
   const actors = scene.actors;
   const clear = () => {
@@ -576,17 +693,34 @@ export function runFx(
   // Same resolution as animateModalExit: a wall-clock timer owns the ending,
   // the animation only owns the in-between. `rate` scales game time, so the
   // real elapsed time is total/rate.
-  const guard = window.setTimeout(clear, total / rate + 60);
+  const impactAt = opts.impactAt ?? null;
+  const stopMs = impactAt == null || opts.reducedMotion ? 0 : HIT_STOP_MS;
+  const guard = window.setTimeout(clear, total / rate + stopMs + 60);
+
+  // Scene time is ACCUMULATED rather than derived from (now - start), because
+  // the hit stop has to remove a slice of real time from it. Deriving it
+  // would make the animation jump forward the instant the freeze ended,
+  // skipping exactly the frames the freeze was meant to draw attention to.
+  let sceneT = 0;
+  let last = start;
+  let frozenUntil = 0;
+  let hasFrozen = false;
 
   const frame = (now: number) => {
     if (cancelled) return;
-    const t = (now - start) * rate;
+    const dt = now - last;
+    last = now;
+    if (now >= frozenUntil) sceneT += dt * rate;
+    if (!hasFrozen && impactAt != null && sceneT >= impactAt && stopMs > 0) {
+      hasFrozen = true;
+      frozenUntil = now + stopMs;
+    }
     for (const a of actors) {
-      const tr = a.transformAt(Math.min(t, a.duration), pxPerUnit);
+      const tr = a.transformAt(Math.min(sceneT, a.duration), pxPerUnit);
       if (tr) a.el.style.transform = tr;
     }
-    scene.paintEffects(t);
-    if (t >= total) { window.clearTimeout(guard); clear(); return; }
+    scene.paintEffects(sceneT);
+    if (sceneT >= total) { window.clearTimeout(guard); clear(); return; }
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);

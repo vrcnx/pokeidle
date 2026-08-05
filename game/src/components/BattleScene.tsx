@@ -14,7 +14,7 @@ import { BattleJuice } from "./BattleJuice";
 import { displayName } from "../utils/pokemon";
 import { flashMs, remainingMs, trainerIntroMs, trainerIntroPokemonDelayMs, typewriterCharMs } from "../utils/battleTiming";
 import { linesSince } from "../utils/battleLogCursor";
-import type { Pokemon, RouteType } from "../types";
+import type { GameState, Pokemon, RouteType } from "../types";
 
 // Aspect-ratio-locked battle arena that always shows the current scene.
 // Both Pokémon are visible with floating HP cards; status text overlays
@@ -65,9 +65,12 @@ export function BattleScene() {
   // Damage flash counters re-trigger when HP drops; reset on Pokemon switch.
   const playerBump = useDamageFlash(player?.id, player?.currentHp);
   const enemyBump = useDamageFlash(enemy?.id, enemy?.currentHp);
+  const sceneRef = useRef<HTMLDivElement | null>(null);
+  useHitShake(sceneRef, state);
 
   return (
     <div
+      ref={sceneRef}
       className={`battle-scene speed-${state.speed}`}
       /* The trainer intro's timings, published to CSS so the stylesheet stops
          hardcoding them (br_7362030de4444c8da8 — the slide-in ignored game
@@ -246,6 +249,50 @@ function useFlashPop<T extends { key: number }>(speed: number) {
     return () => clearTimeout(t);
   }, [pop, speed]);
   return [pop, show] as const;
+}
+
+/**
+ * Rattle the arena in proportion to how hard the hit landed.
+ *
+ * ── WHY DAMAGE AND NOT THE MOVE ──────────────────────────────────────────
+ * The screen shake used to fire for four hardcoded moves and nothing else, so
+ * a Hyper Beam that missed most of its damage shook the arena and a critical
+ * hit taking half your HP did not move it at all. The number the player is
+ * actually reacting to is how much HP just vanished, so that is what drives
+ * it. The move list still exists and still wins on top — Earthquake should
+ * rattle whether or not it did much.
+ *
+ * Watches HP rather than the battle log for the same reason DamageFlash does:
+ * it catches passive damage (Leftovers, Toxic, hail, recoil) that never
+ * produces an attack animation to hang off.
+ */
+function useHitShake(ref: React.RefObject<HTMLElement | null>, state: GameState): void {
+  const prev = useRef<Record<string, number>>({});
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let worst = 0;
+    for (const mon of [state.playerPokemon, state.enemyPokemon]) {
+      if (!mon) continue;
+      const before = prev.current[mon.id];
+      prev.current[mon.id] = mon.currentHp;
+      if (before === undefined || mon.currentHp >= before) continue;
+      worst = Math.max(worst, (before - mon.currentHp) / Math.max(1, mon.maxHp));
+    }
+    if (worst <= 0) return;
+    // A chip hit still registers, a huge one does not throw the screen off
+    // its axis. Square-rooted so the low end — where most hits live — is
+    // where the range actually spreads out.
+    const intensity = Math.min(1.6, 0.35 + Math.sqrt(worst) * 1.25);
+    el.style.setProperty("--shake", intensity.toFixed(2));
+    // Remove, force a reflow, re-add: consecutive hits must restart the
+    // animation, and re-adding a class the element already has does nothing.
+    el.classList.remove("hit-shake");
+    void el.offsetWidth;
+    el.classList.add("hit-shake");
+    const t = setTimeout(() => el.classList.remove("hit-shake"), 300);
+    return () => clearTimeout(t);
+  }, [ref, state.playerPokemon, state.enemyPokemon]);
 }
 
 function DamageFlash({ side }: { side: "player" | "enemy" }) {

@@ -5164,6 +5164,16 @@ body.dnd-active {
 }
 /* Player slot is bigger — shadow scales with it; enemy is smaller, slightly
    lighter shadow to suggest distance. */
+/* ── THE ARENA IS ITS OWN BLENDING WORLD ───────────────────────────────
+   Luminous move effects composite with `mix-blend-mode: screen` so fire and
+   lightning light the scene rather than sitting on top of it. Blending reads
+   the backdrop of the nearest stacking context, and without this that was the
+   BODY — so an effect would have been screening against the page behind the
+   arena, and anything that overflowed would have lit up the chat. Isolating
+   makes the backdrop exactly what it should be: the background art and the
+   two Pokémon. */
+.battle-scene { isolation: isolate; }
+
 /* ── A lunging sprite comes forward ────────────────────────────────────
    The player slot already sits above the effect layer (z 30) and the enemy
    slot below it, so projectiles strike the opponent in front of its sprite.
@@ -7297,17 +7307,38 @@ body.dnd-active {
 .battle-scene:has(.move-anim.shake-screen) .scene-content {
   animation: scene-shake 500ms ease-out;
 }
+/* Scaled by --shake, so one keyframe set covers everything from a Tackle to
+   an Earthquake. It defaults to 1, which reproduces the original amplitudes
+   exactly for the `.shake-screen` moves that set nothing. */
 @keyframes scene-shake {
   0%   { transform: translate(0, 0); }
-  10%  { transform: translate(-5px, 3px); }
-  20%  { transform: translate(5px, -3px); }
-  30%  { transform: translate(-4px, 4px); }
-  40%  { transform: translate(4px, -4px); }
-  50%  { transform: translate(-3px, 2px); }
-  60%  { transform: translate(3px, -2px); }
-  70%  { transform: translate(-2px, 1px); }
-  80%  { transform: translate(2px, -1px); }
+  10%  { transform: translate(calc(-5px * var(--shake, 1)), calc(3px * var(--shake, 1))); }
+  20%  { transform: translate(calc(5px * var(--shake, 1)), calc(-3px * var(--shake, 1))); }
+  30%  { transform: translate(calc(-4px * var(--shake, 1)), calc(4px * var(--shake, 1))); }
+  40%  { transform: translate(calc(4px * var(--shake, 1)), calc(-4px * var(--shake, 1))); }
+  50%  { transform: translate(calc(-3px * var(--shake, 1)), calc(2px * var(--shake, 1))); }
+  60%  { transform: translate(calc(3px * var(--shake, 1)), calc(-2px * var(--shake, 1))); }
+  70%  { transform: translate(calc(-2px * var(--shake, 1)), calc(1px * var(--shake, 1))); }
+  80%  { transform: translate(calc(2px * var(--shake, 1)), calc(-1px * var(--shake, 1))); }
   100% { transform: translate(0, 0); }
+}
+
+/* ── EVERY HIT SHAKES, BY HOW HARD IT LANDED ───────────────────────────
+   The rattle used to fire for four hardcoded moves — Earthquake, Magnitude,
+   Self-Destruct, Hyper Beam — and for nothing else, so a hit that took half
+   your HP moved the screen exactly as much as one that took 2%: not at all.
+   Damage is the thing the player actually cares about, so it is what drives
+   this now. The move list still exists and still wins, because Earthquake
+   should rattle the arena whether or not it did much.
+
+   Shorter than the move-triggered shake (280ms vs 500ms) — this fires on
+   every single attack, and at that frequency a long rattle is nausea. */
+.battle-scene.hit-shake .scene-content {
+  animation: scene-shake 280ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-scene.hit-shake .scene-content,
+  .battle-scene:has(.move-anim.shake-screen) .scene-content { animation: none; }
 }
 
 /* ---------- Move animations (particle layer) ---------- */

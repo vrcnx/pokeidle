@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
 import { moves as movesTable } from "../data/moves";
+import { canonicalMoveId } from "../utils/moves";
 import { archetypeFor, SHAKE_MOVES, TYPE_COLOR, type EffectArchetype } from "../utils/moveEffects";
 import { animLifetimeMs, moveAnimRate, remainingMs } from "../utils/battleTiming";
 import { setCssAnimationRate } from "../utils/animate";
-import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
+import { FxScene, HIT_STOP_MS, actorFromSlot, runFx } from "../utils/battleFx";
 import { buildMoveFx, hasFxAnim } from "../utils/battleFxMoves";
 import type { BattleEvent, PokemonType } from "../types";
 
@@ -150,11 +151,29 @@ export function MoveAnimation() {
     // Measured here, before the expiry effect for this same commit runs —
     // React flushes layout effects ahead of passive ones, which is the whole
     // reason this is a useLayoutEffect and the expiry is a useEffect.
-    fxMsRef.current = Math.ceil(fx.duration / rate);
-    const run = runFx(fx, {
-      rate,
-      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    });
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Status moves never freeze the world. Thirteen of them throw something at
+    // the target — Leech Seed, Toxic, Sand Attack — so the geometry alone
+    // reads them as a hit, and they would punch like a Body Slam. Nothing
+    // landed; the category is the only thing that actually knows that.
+    const isStatus =
+      movesTable[canonicalMoveId(active.moveId)]?.category === "status";
+    // A damaging move ALWAYS punctuates. The geometry finds the moment for
+    // 140 of the 160, but twenty are genuinely ambiguous — a drain travels
+    // toward the attacker, Explosion is centred on the attacker, Sonic Boom
+    // is a wave with no destination — and leaving those unpunctuated would
+    // make them feel weaker than everything around them for a reason the
+    // player cannot see. Consistency matters more here than precision, so
+    // they freeze at roughly where the payoff lands.
+    const impactAt = isStatus
+      ? null
+      : fx.impactAt(defender) ?? Math.round(fx.duration * 0.6);
+    // The hit stop is real time added to the run, so the lifetime has to
+    // include it — otherwise freezing on impact would push the tail back off
+    // the end again, which is the bug this file just fixed.
+    fxMsRef.current =
+      Math.ceil(fx.duration / rate) + (impactAt != null && !reducedMotion ? HIT_STOP_MS : 0);
+    const run = runFx(fx, { rate, reducedMotion, impactAt });
     return () => run.cancel();
   }, [active, state.speed]);
 
