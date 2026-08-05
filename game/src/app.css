@@ -3678,6 +3678,65 @@ body.dnd-active {
    location info that already lives on the Here tab. */
 .mobile-shell.tab-party .context-panel { display: none !important; }
 
+/* ── SECTIONS TAKE THE WHOLE SCREEN ────────────────────────────────────
+   Mart, Bag, PC and Party are VIEWS on a phone, not panels sharing the
+   screen with a running battle. The arena is hidden rather than unmounted:
+   BattleScene owns WhiteoutOverlay and HealOverlay, the only components that
+   can dispatch out of `phase: "healing"`, so unmounting it can strand the
+   game there — the same reason the PvP takeover hides it too.
+
+   Measured on a 412x818 viewport: this returns 223px of arena and 32px of
+   status strip to the section, taking it from 456px to 711px — from 56% of
+   the screen to 87%.
+
+   Written as an explicit list of the section tabs rather than
+   `:not(.tab-world)`. Two reasons, both load-bearing: a PvP shell carries NO
+   `tab-*` class at all, so the negation would have hidden the PvP stage —
+   which lives in this same row — for the whole battle; and naming `pvp-live`
+   here would make app.css claim a class pvpArena.css owns, which
+   tests/cssCollisions.test.ts refuses on purpose. */
+.mobile-shell.tab-party .mobile-arena,
+.mobile-shell.tab-mart  .mobile-arena,
+.mobile-shell.tab-bag   .mobile-arena,
+.mobile-shell.tab-pc    .mobile-arena,
+.mobile-shell.tab-chat  .mobile-arena { display: none; }
+
+/* The bar that names the section and gets you out of it. Sticky so the
+   title and the way back survive scrolling a long Mart. */
+.mobile-viewbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel, #12161f);
+  border-bottom: 1px solid var(--border-strong);
+}
+.mobile-viewbar h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.mobile-viewback {
+  display: grid;
+  place-items: center;
+  /* 40px, not the 28px the glyph needs: this is the only way back out of a
+     full-screen section and it is the first thing a thumb reaches for. */
+  width: 40px;
+  height: 40px;
+  margin-left: -6px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.mobile-viewback:active { opacity: 0.6; }
+
 /* World tab — internal sub-tab strip toggling Here vs Map. The body
    below grows to fill the tab pane so TownMap can size itself to the
    available area like it does elsewhere. */

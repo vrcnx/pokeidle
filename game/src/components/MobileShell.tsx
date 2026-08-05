@@ -18,7 +18,7 @@ import { usePvpState } from "../state/pvp";
 import { nextPvpMobileView, type PvpMobileView } from "../utils/pvpMobileNav";
 import {
   IconPin, IconBag, IconMap, IconChat, IconBackpack, IconMonitor, IconCart, IconBook,
-  IconSwords,
+  IconSwords, IconChevronLeft,
 } from "./Icon";
 import { useT } from "../i18n/useT";
 
@@ -196,6 +196,34 @@ export function MobileShell() {
         <MovesToolbar />
         <MovesPanel />
       </div>
+
+      {/* ── A SECTION IS A VIEW, NOT A PANEL UNDER THE BATTLE ──────────
+          Mart, Bag, PC and Party used to open in the bottom two thirds while
+          the arena carried on fighting above them. Three things were wrong
+          with that on a phone: the battle competed for attention with the
+          shop you were reading, the arena's status strip ("Kingdra took 129
+          damage!") ended up wedged between two unrelated surfaces acting as a
+          divider, and the section had no title or way back — you had to know
+          that World was the exit.
+
+          They take the whole screen now, with a bar that names the section
+          and a control that leaves it. The arena is hidden by CSS rather than
+          unmounted, for exactly the reason the PvP takeover above does the
+          same: BattleScene owns WhiteoutOverlay and HealOverlay, the only two
+          components that can dispatch out of `phase: "healing"`. */}
+      {!pvpLive && tab !== "world" && (
+        <div className="mobile-viewbar">
+          <button
+            type="button"
+            className="mobile-viewback"
+            onClick={() => setTab("world")}
+            aria-label={t("Back to the battle")}
+          >
+            <IconChevronLeft size={16} />
+          </button>
+          <h2>{TABS.find((x) => x.id === tab)?.label}</h2>
+        </div>
+      )}
 
       <div className="mobile-content">
         {pvpLive && (

@@ -132,6 +132,14 @@ export function IconChevronUp({ size = 16, strokeWidth = 2, className }: IconPro
   );
 }
 
+export function IconChevronLeft({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
 export function IconHospital({ size = 16, strokeWidth = 2, className }: IconProps) {
   return (
     <svg {...baseProps(size, strokeWidth, className)}>
