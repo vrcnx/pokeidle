@@ -69,8 +69,13 @@ const ALLOWED_AFTER = new Set(["fade", "explode"]);
  * far bigger loss than a differently-drawn icicle.
  */
 const SUBSTITUTE = {
-  icicle: "iceball",
-  pinkicicle: "iceball",
+  // `iceball` was the obvious swap by name and it was the wrong one. The
+  // sprite it replaces is a SHAPE — a sharp icicle — and `iceball` is a soft
+  // pale-blue radial blob. Screened over a lit background it is invisible:
+  // Ice Beam's densest frame rendered as a faint haze and nothing else.
+  // `shine` is a hard four-point crystal, which is what an icicle reads as.
+  icicle: "shine",
+  pinkicicle: "shine",
   lightning: "electroball",
   rocks: "rock3",
   rock1: "rock3",

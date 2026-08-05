@@ -3605,7 +3605,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       opacity: 0,
       time: 1000,
     }, 'linear');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x,
       y: defender.y,
       z: defender.z,
@@ -4883,7 +4883,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         time: 700,
       }, 'linear', 'explode');
 
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,
@@ -4896,7 +4896,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         opacity: 0.6,
         time: 400,
       }, 'linear', 'fade');
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,
@@ -4910,7 +4910,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         opacity: 0.6,
         time: 600,
       }, 'linear', 'fade');
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,
@@ -4932,7 +4932,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
     let zstep = (defender.z - attacker.z) / 5;
 
     for (let i = 0; i < 4; i++) {
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x + xstep * (i + 1),
         y: attacker.y + ystep * (i + 1),
         z: attacker.z + zstep * (i + 1),
@@ -5018,7 +5018,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
     let zstep = (defender.z - attacker.z) / 5;
 
     for (let i = 0; i < 4; i++) {
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x + xstep * (i + 1),
         y: attacker.y + ystep * (i + 1),
         z: attacker.z + zstep * (i + 1),
@@ -5099,7 +5099,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
     }, 'linear', 'fade');
   },
   icicleCrash(scene, attacker, defender) {
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x + 15,
       y: defender.y + 70,
       z: defender.z,
@@ -5111,7 +5111,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       xscale: 2,
       time: 300,
     }, 'linear', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x + 30,
       y: defender.y + 70,
       z: defender.z,
@@ -5124,7 +5124,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       xscale: 2,
       time: 400,
     }, 'linear', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x - 30,
       y: defender.y + 70,
       z: defender.z,
@@ -5137,7 +5137,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       xscale: 2,
       time: 500,
     }, 'linear', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x,
       y: defender.y + 70,
       z: defender.z,
@@ -5150,7 +5150,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       xscale: 2,
       time: 600,
     }, 'linear', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x - 15,
       y: defender.y + 70,
       z: defender.z,
@@ -5646,7 +5646,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
   },
   blizzard(scene, attacker, defender) {
     scene.backgroundEffect('#009AA4', 700, 0.5);
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: attacker.x,
       y: attacker.y,
       z: attacker.z,
@@ -5659,7 +5659,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       scale: 2,
       opacity: 0.3,
     }, 'accel', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: attacker.x,
       y: attacker.y,
       z: attacker.z,
@@ -5673,7 +5673,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       scale: 2,
       opacity: 0.3,
     }, 'accel', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: attacker.x,
       y: attacker.y,
       z: attacker.z,
@@ -5687,7 +5687,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       scale: 2,
       opacity: 0.3,
     }, 'accel', 'explode');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: attacker.x,
       y: attacker.y,
       z: attacker.z,
@@ -5703,7 +5703,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
     }, 'accel', 'explode');
   },
   icePunch(scene, attacker, defender) {
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x,
       y: defender.y,
       z: defender.z,
@@ -5718,7 +5718,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
       opacity: 0,
       time: 700,
     }, 'linear');
-    scene.showEffect('iceball', {
+    scene.showEffect('shine', {
       x: defender.x,
       y: defender.y,
       z: defender.z,
@@ -11983,7 +11983,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         time: 700,
       }, 'linear', 'explode');
 
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,
@@ -11996,7 +11996,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         opacity: 0.6,
         time: 400,
       }, 'linear', 'fade');
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,
@@ -12010,7 +12010,7 @@ export const MOVE_ANIMS: Record<string, MoveAnim> = {
         opacity: 0.6,
         time: 600,
       }, 'linear', 'fade');
-      scene.showEffect('iceball', {
+      scene.showEffect('shine', {
         x: attacker.x,
         y: attacker.y,
         z: attacker.z,

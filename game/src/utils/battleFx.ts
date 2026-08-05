@@ -347,6 +347,24 @@ interface FxEffect {
 const FADE_MS = 100;
 
 /**
+ * Every effect sprite is drawn this much more opaque than authored.
+ *
+ * ── WHY THE ANIMATIONS LOOKED FAINT ──────────────────────────────────────
+ * Showdown's move bodies specify opacities between about 0.1 and 0.4. That is
+ * correct FOR SHOWDOWN: their stage is small, flat and dark, they layer a lot
+ * of particles, and screen blending accumulates. Ours is a detailed, often
+ * brightly-lit painted background — and at 10–33% a soft coloured blob over a
+ * lit cave wall is invisible. Measured on Ice Beam's densest frame: eight
+ * sprites on screen, every one between 0.10 and 0.33, and the result was a
+ * faint haze with no readable ice in it at all.
+ *
+ * Applied at paint time rather than by editing 234 generated bodies, so the
+ * ports stay a faithful copy of the source and this stays one number to tune.
+ * Clamped to 1, so an effect authored at full opacity is unchanged.
+ */
+const OPACITY_BOOST = 2.1;
+
+/**
  * Effects that are LIGHT, and so must be composited additively.
  *
  * ── THE BIGGEST SINGLE THING WRONG WITH THESE ANIMATIONS ─────────────────
@@ -624,7 +642,7 @@ export class FxScene {
       e.el.style.top = `${(top - h / 2) * k}px`;
       e.el.style.width = `${w * k}px`;
       e.el.style.height = `${h * k}px`;
-      e.el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+      e.el.style.opacity = String(Math.max(0, Math.min(1, opacity * OPACITY_BOOST)));
     }
   }
 
