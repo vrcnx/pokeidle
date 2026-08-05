@@ -200,6 +200,45 @@
 }
 .pc-filters::-webkit-scrollbar { display: none; height: 0; }
 
+/* ── ...AND ON A PHONE NOTHING SAID IT SCROLLED ────────────────────────
+   Measured in a 412px viewport: this row is 730px wide. The Shiny and Held
+   toggles and the entire IV group are painted off-screen, and
+   `scrollbar-width: none` hides the only thing that would say so. There is
+   no hover on a phone either, so those filters were not awkward to reach —
+   they were undiscoverable. You had to guess the row drags sideways.
+
+   Wrapping was tried first and measured: 146px tall, a third of the 456px
+   content area, and still 146px with the group labels removed. That buys
+   visibility by taking the box grid it exists to filter.
+
+   And the `overflow-x: auto` above was doing NOTHING, which is the actual
+   bug. The row had no width constraint, so it laid out at its full 730px and
+   `scrollWidth === clientWidth` — nothing to scroll. What was really
+   scrolling was `.pc-tab`, the whole pane: 742px wide on a 396px phone, so
+   dragging sideways to reach a filter dragged the Pokémon grid with it.
+
+   Constraining the row is what makes it a scroller in its own right, and
+   that in turn lets the pane stop being one. Then the fade at its right edge
+   means something — the conventional signal for a chip row with more in it,
+   costing no height. `mask-image` rather than an overlay element so it
+   cannot swallow the drag it is advertising.
+
+   Verified at 412px: row 372 wide over 754 of content, pane no longer
+   scrolls horizontally at all, and the IV chips reach the screen. */
+@media (max-width: 720px) {
+  .pc-tab { overflow-x: hidden; }
+  .hub-views--stack { min-width: 0; max-width: 100%; }
+  .pc-filters {
+    min-width: 0;
+    max-width: 100%;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    /* Trailing room so the last chip is not sitting permanently under the
+       fade once you have scrolled to the end. */
+    padding-right: 24px;
+  }
+}
+
 .pc-filter-group {
   display: inline-flex;
   align-items: center;
