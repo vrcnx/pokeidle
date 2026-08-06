@@ -44,6 +44,47 @@
   gap: 8px;
 }
 
+/* ── ON A PHONE THE STEPPER AND THE BUTTON SHARE A ROW ─────────────────
+   Stacked, a card is 136px: a 36px head, then a 26px stepper, then a 32px
+   button, and only four fit an 818px screen. The waste is the quantity
+   field, which was 183px wide — for a number that is almost always one
+   digit.
+
+   Side by side the card is 106px and five fit, and the 30px saved per card
+   is most of a sixth. Nothing is hidden or moved behind anything.
+
+   The controls also go to 36px here, up from 26px. That is a pre-existing
+   miss against the touch floor this codebase enforces elsewhere ("way under
+   the 44px iOS / 48dp Android guideline"), and it costs 4px of the 34 the
+   row layout just saved, so there is no reason to keep it. */
+@media (max-width: 720px) {
+  .mart-card-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .mart-card-actions > .mart-qty { flex: 0 1 auto; min-width: 0; }
+  .mart-qty-input {
+    width: 42px;
+    flex: 0 0 42px;
+    min-width: 0;
+  }
+  .mart-card-actions > .mart-buy-btn-v2 { flex: 1 1 auto; min-width: 92px; }
+  .mart-qty-btn,
+  .mart-qty-preset,
+  .mart-qty-input,
+  .mart-buy-btn-v2 { height: 36px; min-height: 36px; }
+
+  /* An item that can be BOTH used and sold has two buttons, and three
+     controls plus a stepper do not fit 318px. Those keep the stacked
+     layout — measured rather than assumed: the widest single-button row
+     lands at 318px with nothing to spare. */
+  .mart-card-actions:has(.mart-buy-btn-v2 ~ .mart-buy-btn-v2) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .mart-card-head {
   display: flex;
   align-items: center;
