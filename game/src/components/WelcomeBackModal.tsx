@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { openHub } from "./HubModal";
+import { openHub, closeHub } from "./HubModal";
 import { useGame } from "../state/GameContext";
 import { api } from "../net/api";
 import { setDailyStatus } from "../state/dailies";
@@ -119,9 +119,26 @@ export function WelcomeBackModal({ inline = false }: { inline?: boolean } = {}) 
 
   const canClaim = !!data.daily && !data.daily.claimedToday;
 
+  /**
+   * Dismiss the welcome AND leave the hub.
+   *
+   * ── THE BUTTON SAYS "LET'S PLAY" ──────────────────────────────────────
+   * WelcomeBackRouter opens the hub on Rewards so this can render at the top
+   * of it. Closing only the welcome therefore left the player standing in a
+   * shop — the one screen the button promised to take them away from. The
+   * hub was opened to show this; dismissing this should close it again.
+   *
+   * Only on the primary action. The rail, the × and the backdrop are the
+   * player navigating the hub on purpose and must not be hijacked.
+   */
+  const leave = () => {
+    closeWelcomeBack();
+    closeHub();
+  };
+
   const finish = async () => {
-    if (claiming.current) { closeWelcomeBack(); return; }
-    if (!canClaim) { closeWelcomeBack(); return; }
+    if (claiming.current) { leave(); return; }
+    if (!canClaim) { leave(); return; }
     claiming.current = true;
     setBusy(true);
     try {
@@ -130,7 +147,8 @@ export function WelcomeBackModal({ inline = false }: { inline?: boolean } = {}) 
       setDailyStatus(res.status);
       updateWelcomeDaily(res.status);
       pushToast({ kind: "success", icon: "🎁", text: `${res.reward.label} claimed` });
-      closeWelcomeBack();
+      // "Claim & play" is the same promise as "Let's play", so it exits too.
+      leave();
     } catch (e: any) {
       // 409 = already claimed, typically on another device. Correct the UI
       // rather than leaving a button that will keep failing, and do not close

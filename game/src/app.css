@@ -4856,6 +4856,16 @@ body.dnd-active {
   image-rendering: crisp-edges;
   display: block;
 }
+/* So `cqw` inside the arena means "per cent of the arena". Used by the
+   message box, which has to read the same on a 953px desktop stage and a
+   396px phone — the same reasoning as `--hp-card-w` above, which solves the
+   same problem for widths with a plain percentage. Safe here specifically
+   because the arena is already `position: relative` and `overflow: hidden`,
+   so the containment this implies changes nothing that was not already true.
+   @supports-guarded to match the sprite-scale block further down. */
+@supports (container-type: inline-size) {
+  .battle-scene { container-type: inline-size; }
+}
 /* Battle layout — diagonal: enemy top-right, player bottom-left.
    Sprites sit in a positioned slot so we can apply per-side flash + shake
    animations on damage without disturbing the sprite's own scaling. */
@@ -5277,13 +5287,27 @@ body.dnd-active {
   transition: width 380ms ease-out;
 }
 
+/* ── THE MESSAGE BOX ───────────────────────────────────────────────────
+   This is the single most-read element in the game — every turn produces a
+   line here and nothing else narrates the battle — and it was set at 11px in
+   a pixel face, the smallest type anywhere in the app. In the games it is
+   imitating the message box is the largest text on screen and owns the
+   bottom fifth of it.
+
+   Sized against the ARENA rather than in fixed pixels, because the arena is
+   fluid: `cqw` makes the line scale with the box it narrates, so it reads
+   the same on a 953px desktop stage and a 396px phone instead of being
+   tuned for one and wrong on the other. Clamped at both ends — Press Start
+   2P stops being legible below about 12px, and past 17px a long line wraps
+   to three rows and covers the Pokémon. */
 .scene-status {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   background: var(--parchment);
   color: var(--ink);
-  padding: 6px 12px;
-  font-size: 11px;
+  padding: 8px 12px;
+  font-size: clamp(12px, 2.35cqw, 17px);
+  line-height: 1.45;
   border-top: 2px solid var(--ink-soft);
   /* Sits above sprites (2-35) and the move-animation layer (30) so the
      typewriter text never gets clipped or covered by particles or sprites. */
