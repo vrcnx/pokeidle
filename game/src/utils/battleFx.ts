@@ -423,10 +423,30 @@ export class FxScene {
    * effect would have been screening against an empty transparent layer —
    * blending with nothing, which looks identical to not blending at all.
    *
-   * The layer therefore has no transform, no z-index and no opacity, so it
-   * forms no stacking context of its own and a fireball composites against
-   * the arena behind it. The stage-to-pixel scale moved into `paintEffects`,
-   * which costs one multiply per property per frame.
+   * The layer therefore has no transform and no opacity. The stage-to-pixel
+   * scale moved into `paintEffects`, which costs one multiply per property
+   * per frame.
+   *
+   * ── Z-INDEX 30, THE SLOT THE OLD LAYER HELD ──────────────────────────
+   * It also had no z-index, for the same blending reason, and that WAS a
+   * bug: every effect drew behind the opponent. `z-index: auto` paints at
+   * the 0 level, and `.enemy-slot` inherits `.sprite-slot`'s z-index 2, so
+   * the foe's sprite covered the fireball aimed at it. `.scene-content` in
+   * between sets no z-index and no transform, so it forms no stacking
+   * context and the two compete directly — the layer simply lost.
+   *
+   * 30 is not a new number. It is what `.move-anim` — the CSS archetype
+   * layer this engine replaced — has always been, and the whole scene is
+   * already built around it: `.player-slot` sits at 35 and says so in its
+   * comment ("above the move-animation layer (z 30)"), which is how a
+   * projectile passes BEHIND our own sprite while striking the foe in
+   * front of theirs, and `.fx-lunging` at 40 lifts a contact attacker over
+   * the effect it is delivering. Taking 30 restores the arrangement the
+   * rest of app.css was already written for rather than inventing one.
+   *
+   * Safe to set now: the screen blending this originally protected was
+   * removed outright (see the note above `OPACITY_BOOST`), so a stacking
+   * context here costs nothing.
    */
   private ensureLayer(): HTMLElement {
     if (this.layer) return this.layer;
@@ -434,7 +454,7 @@ export class FxScene {
     const layer = document.createElement("div");
     layer.className = "fx-layer";
     layer.style.cssText =
-      "position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;";
+      "position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:30;";
     this.el.appendChild(layer);
     this.layer = layer;
     return layer;

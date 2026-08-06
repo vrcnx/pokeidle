@@ -14,6 +14,7 @@
 // battle.
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   FX_W, FX_H, Z_NEAR, Z_FAR,
   FxActor, actorFromSlot, fxScale, project,
@@ -264,5 +265,94 @@ describe("which moves get motion", () => {
     // levelUpMoves spells the same move camelCase for gen 1 species and flat
     // lowercase for gen 2 ones — see canonicalMoveId.
     expect(isContactMove("quickAttack")).toBe(isContactMove("quickattack"));
+  });
+});
+
+// ── WHERE THE EFFECT LAYER SITS IN THE SCENE ────────────────────────────
+//
+// Every ported animation drew BEHIND the opponent. Nothing was wrong with
+// the animations: `.fx-layer` was created with no z-index, so it painted at
+// the 0 level, and `.enemy-slot` inherits `.sprite-slot`'s z-index 2. The
+// foe's sprite covered the fireball aimed at it. (`.scene-content` sits
+// between them but sets no z-index and no transform, so it forms no stacking
+// context and the two compete directly.)
+//
+// The layer originally omitted z-index on purpose — a stacking context would
+// have broken the `mix-blend-mode: screen` compositing. That blending was
+// later removed outright, and the omission outlived the reason for it.
+//
+// This is a source-level check because the game suite is node-env with no
+// DOM: the two facts live in different files and neither is wrong alone, so
+// what has to be pinned is the RELATIONSHIP between them.
+describe("the effect layer sits between the two sprites", () => {
+  const fxSource = readFileSync(
+    new URL("../src/utils/battleFx.ts", import.meta.url), "utf8",
+  );
+  const appCss = readFileSync(
+    new URL("../src/app.css", import.meta.url), "utf8",
+  );
+
+  /**
+   * The z-index the cascade lands on for a selector, read from app.css.
+   *
+   * Split into blocks and matched on the whole selector rather than built
+   * into a regex: `.sprite-slot` is a prefix of `.sprite-slot.fx-lunging`,
+   * and a pattern loose enough to find the first would happily return the
+   * second's value. Last declaration wins, which is what the cascade does
+   * for two rules of equal specificity — the property this whole exercise
+   * is about.
+   */
+  // Comments come out FIRST, whole-file. Stripping them per-fragment after
+  // splitting does not work: app.css comments are prose and full of commas,
+  // so the split tears one comment into several pieces and neither half
+  // still looks like a comment to a regex.
+  const cssNoComments = appCss.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  const cssZ = (selector: string): number => {
+    let found: number | null = null;
+    for (const block of cssNoComments.split("}")) {
+      const brace = block.indexOf("{");
+      if (brace === -1) continue;
+      const selectors = block
+        .slice(0, brace)
+        .split(",")
+        .map((s) => s.trim());
+      if (!selectors.includes(selector)) continue;
+      const z = /(?:^|[\s;])z-index:\s*(\d+)/.exec(block.slice(brace));
+      if (z) found = Number(z[1]);
+    }
+    if (found === null) throw new Error(`no z-index found for ${selector} in app.css`);
+    return found;
+  };
+
+  const layerZ = (() => {
+    const m = /className = "fx-layer"[\s\S]{0,400}?z-index:(\d+)/.exec(fxSource);
+    if (!m) throw new Error("the fx layer declares no z-index");
+    return Number(m[1]);
+  })();
+
+  it("draws in front of the opponent, which is the bug that started this", () => {
+    // .enemy-slot never overrides .sprite-slot's z-index, so this IS the foe.
+    expect(layerZ).toBeGreaterThan(cssZ(".sprite-slot"));
+  });
+
+  it("draws behind our own sprite, so a projectile passes in front of us", () => {
+    // The near sprite is the foreground of the scene. An effect crossing the
+    // arena should go behind it on the way out and in front of the foe on
+    // arrival — that difference is the only depth cue a 2D stage has.
+    expect(layerZ).toBeLessThan(cssZ(".player-slot"));
+  });
+
+  it("draws behind a lunging attacker, who is delivering it", () => {
+    // A contact move raises the attacker to .fx-lunging. The Pokémon has to
+    // be over the impact it is causing, not buried in it.
+    expect(layerZ).toBeLessThan(cssZ(".sprite-slot.fx-lunging"));
+  });
+
+  it("takes the same layer the CSS archetypes it replaced were on", () => {
+    // .move-anim is the retired CSS effect layer. The rest of app.css was
+    // written around its value — .player-slot's own comment cites it — so
+    // matching it restores an arrangement rather than inventing one.
+    expect(layerZ).toBe(cssZ(".move-anim"));
   });
 });
