@@ -476,6 +476,16 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "championDefeated",
   "defeatedChampions",
   "claimedRegionStarters",
+  // Reported by Gshow within hours of Route Mastery shipping: "it delivers
+  // the prize every time one refreshes (F5) the page". Correct, and the cause
+  // was this list. The reducer guarded the claim, the merge unioned it, and
+  // 17 tests covered both — but the record of WHICH tiers had been paid was
+  // never written to the save, so every reload started from an empty list and
+  // re-offered the lot. An infinite Silver Bottle Cap tap.
+  //
+  // A guard that is not persisted is not a guard. See tests/saveKeys.test.ts,
+  // which now fails if anything in MONOTONIC_KEYS is missing from here.
+  "claimedMastery",
   "victoryTokens",
   "autoProceed",
   "autoEvolve",
