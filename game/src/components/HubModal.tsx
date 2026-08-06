@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   IconMap, IconCart, IconBackpack, IconMonitor, IconBook,
   IconSwords, IconTicket, IconChat, IconSettings, IconMedal, IconCoin, IconDisc,
+  IconMenu,
 } from "./Icon";
 import { useModalEnter, animateModalExit, animateSectionEnter, animateSectionStagger, type ModalExit } from "../utils/animate";
 // Imported, not written as "/hub/map.jpg". Vite emits these with a
@@ -23,6 +24,7 @@ import artSocial from "../assets/hub/social.jpg";
 import artSettings from "../assets/hub/settings.jpg";
 import artTrainer from "../assets/hub/trainer.jpg";
 import { useT } from "../i18n/useT";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useGiveaways, seenWins } from "../utils/giveawayStore";
 import { railState } from "../utils/giveawayRail";
@@ -303,6 +305,21 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
     });
   }, []);
 
+  // ── THE PHONE OPENS TO A MENU, NOT TO A PAGE ───────────────────────
+  // On a phone the rail is a strip across the top showing five of eleven
+  // destinations, with the other six behind a sideways drag nothing
+  // advertises. A hamburger that opens a LIST is what that button already
+  // looks like it does.
+  //
+  // Set only when the hub is opened with no section named — that is the
+  // hamburger, and "take me somewhere" is a question. `openHub("rewards")`
+  // from the dock is an answer, and goes straight there.
+  //
+  // Held here rather than in HubFrame because `_open` has to be able to set
+  // it, and consumed only on mobile — see HubFrame, which gates it on the
+  // media query so a desktop hub can never land on a menu it has no use for.
+  const [menu, setMenu] = useState(false);
+
   useEffect(() => {
     _open = (s) => {
       // Re-opening mid-exit CANCELS it, restoring the styles the animation
@@ -312,6 +329,7 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
       exitRef.current?.cancel();
       exitRef.current = null;
       setActive(s ?? landingRef.current);
+      setMenu(s === undefined);
     };
     _close = () => requestClose();
     return () => { _open = null; _close = null; };
@@ -351,8 +369,10 @@ export function HubModal({ sections, disabled, identity, identitySection }: HubM
   return (
     <HubFrame
       active={active}
-      onSelect={setActive}
+      onSelect={(s) => { setActive(s); setMenu(false); }}
       onClose={requestClose}
+      menu={menu}
+      onOpenMenu={() => setMenu(true)}
       sections={sections}
       disabled={disabled}
       badges={badges}
@@ -395,6 +415,7 @@ export function pickLanding(
  */
 export function HubFrame({
   active, onSelect, onClose, sections, disabled, badges, identity, identitySection, title,
+  menu = false, onOpenMenu,
 }: {
   active: HubSection;
   onSelect: (s: HubSection) => void;
@@ -405,8 +426,20 @@ export function HubFrame({
   identity?: ReactNode;
   identitySection?: HubSection;
   title: string;
+  /** Show the section picker instead of a pane. Phone only — see below. */
+  menu?: boolean;
+  onOpenMenu?: () => void;
 }) {
   const t = useT();
+  // The picker exists ONLY on a phone. On a desktop every destination is
+  // already on screen in the rail, so a menu would be a click in front of a
+  // list to reach the same list. Gating in JS rather than CSS because the
+  // picker should not be in the accessibility tree or the tab order at all
+  // when it does not apply — `display: none` would hide it, but the state
+  // behind it would still be live and a rotation into desktop would leave
+  // the hub sitting on a page it had decided not to draw.
+  const isPhone = useMediaQuery("(max-width: 760px)");
+  const showMenu = isPhone && menu;
   const dialogRef = useModalEnter(".hub-pane");
   const navRef = useRef<HTMLDivElement | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
@@ -604,6 +637,19 @@ export function HubFrame({
                 own and no two of them can disagree about where a title sits.
                 Sections contribute only the right-hand slot. */}
             <header className="hub-head">
+              {/* The way back to the picker, and the only one — the rail is
+                  gone at this width. Sits before the title because it is a
+                  parent, not an action on this page. */}
+              {isPhone && onOpenMenu && (
+                <button
+                  type="button"
+                  className="hub-menu-btn"
+                  onClick={onOpenMenu}
+                  aria-label={t("All sections")}
+                >
+                  <IconMenu size={18} />
+                </button>
+              )}
               <div className="hub-head-text">
                 <h2>{t(def.label)}</h2>
                 {content.note && <p className="hub-head-note">{content.note}</p>}
@@ -668,6 +714,63 @@ export function HubFrame({
           </aside>
           )}
         </div>
+
+        {/* ── The phone's section picker ──────────────────────────────
+            Over the shell rather than instead of it: the pane underneath
+            keeps its state and its scroll position, so backing out to the
+            menu and returning lands you where you were rather than at the
+            top of a remounted page.
+
+            Every section is here, including the Trainer Card — which is
+            `rail: false` because on a desktop it opens from the identity
+            block in the rail, and that block is hidden at this width. Until
+            this menu existed, a phone had no way to reach it at all. */}
+        {showMenu && (
+          <div className="hub-menu" role="dialog" aria-label={t("All sections")}>
+            <header className="hub-menu-head">
+              <h2>{title}</h2>
+              <button
+                className="g-modal-close hub-close"
+                onClick={onClose}
+                aria-label={t("Close")}
+              >×</button>
+            </header>
+            <div className="hub-menu-scroll">
+              {GROUPS.map((grp) => {
+                const items = SECTIONS.filter((s) => s.group === grp.id);
+                if (items.length === 0) return null;
+                return (
+                  <nav key={grp.id} className="hub-menu-group" aria-label={t(grp.label)}>
+                    <span className="hub-menu-group-head">{t(grp.label)}</span>
+                    {items.map((s) => {
+                      const why = disabled?.[s.id];
+                      const n = badges?.[s.id] ?? 0;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className={`hub-menu-item${active === s.id ? " is-active" : ""}`}
+                          disabled={!!why}
+                          title={why}
+                          onClick={() => onSelect(s.id)}
+                        >
+                          <s.Icon size={18} className="hub-menu-icon" />
+                          <span className="hub-menu-label">{t(s.label)}</span>
+                          {/* The reason a section is closed, where the
+                              player is choosing — a disabled row with no
+                              explanation is just a broken one. */}
+                          {why && <span className="hub-menu-why">{why}</span>}
+                          {n > 0 && <span className="hub-tab-badge">{n > 99 ? "99+" : n}</span>}
+                          <span className="hub-menu-go" aria-hidden>›</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

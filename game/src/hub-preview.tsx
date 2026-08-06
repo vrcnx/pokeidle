@@ -203,10 +203,21 @@ const CASES: Case[] = [
 ];
 
 function Harness() {
-  const [i, setI] = useState(0);
+  // `?case=1` picks a case on load. Worth the three lines: the default case
+  // starts on Rewards, and RewardsPane reaches for the WelcomeBack context
+  // that only the real app provides — so the harness cannot currently be
+  // opened at all without naming a different one. That is its own bug; this
+  // is the way past it in the meantime.
+  const [i, setI] = useState(() => {
+    const n = Number(new URLSearchParams(location.search).get("case"));
+    return Number.isInteger(n) && n >= 0 && n < CASES.length ? n : 0;
+  });
   const c = CASES[i];
   const [active, setActive] = useState<HubSection>(c.start ?? "pvp");
   const [closed, setClosed] = useState(false);
+  // Opens on the picker, the way the hamburger does — this harness is a
+  // phone-sized window more often than not.
+  const [menu, setMenu] = useState(true);
   const [entering, setEntering] = useState<string | null>(null);
 
   const filler = (label: string) => ({ Body: () => <Filler label={label} rows={10} /> });
@@ -500,8 +511,14 @@ function Harness() {
               </div>
             }
             active={active}
-            onSelect={setActive}
+            onSelect={(s) => { setActive(s); setMenu(false); }}
             onClose={() => setClosed(true)}
+            // The phone's section picker. Wired here because this harness is
+            // the only place it can be looked at without a session — and
+            // because it only mounts below 760px, so narrow the window (or
+            // use devtools' device mode) or nothing will appear.
+            menu={menu}
+            onOpenMenu={() => setMenu(true)}
             sections={sections}
             disabled={c.disabled}
             badges={c.badges}
