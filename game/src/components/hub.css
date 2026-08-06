@@ -515,8 +515,30 @@
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .hub-me, .hub-brand { display: none; }
-  .hub-nav-scroll { flex-direction: row; gap: 6px; overflow-x: auto; overflow-y: hidden; }
+  /* `.hub-me-btn` is the BUTTON that wraps the identity block; `.hub-me` is
+     the block inside it. Hiding only the inner one left the button in the
+     row at its full 382px with zero height — invisible, but still a flex
+     item — so `.hub-nav-scroll` next to it resolved to 0px wide and every
+     rail tab laid out at negative x, entirely off-screen.
+     The rail was therefore present, correct and completely unreachable. It
+     went unnoticed because until the mobile header became a single
+     hamburger, MetaDock's three buttons opened their sections directly and
+     nobody had to use the rail to get anywhere. The moment it became the
+     only way to navigate the hub, the hub "didn't work at all". */
+  .hub-me, .hub-me-btn, .hub-brand { display: none; }
+  /* Eleven sections in 380px shows about three, and since the header became
+     one hamburger this strip is the ONLY way to reach any of them. A scroller
+     that does not look like one is the same trap the PC filter row was in, so
+     it gets the same edge fade. `mask-image` rather than an overlay so it
+     cannot swallow the drag it exists to advertise. */
+  .hub-nav-scroll {
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 24px), transparent);
+  }
   .hub-nav { flex-direction: row; gap: 4px; }
   .hub-nav-head { display: none; }
   .hub-tab { width: auto; min-height: 44px; padding: 0 13px; white-space: nowrap; }
