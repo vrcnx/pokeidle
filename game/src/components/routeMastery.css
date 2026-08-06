@@ -1,0 +1,143 @@
+/* Route Mastery.
+ *
+ * Scoped sheet — every class starts `mastery-`, checked against app.css by
+ * tests/cssCollisions.test.ts.
+ *
+ * ── THE ONE IDEA ──────────────────────────────────────────────────
+ * A reward you have EARNED and a reward you are working TOWARD are different
+ * things and are not allowed to look alike. What is claimable is a row with a
+ * button on it, at the top, in the accent colour. What is coming is a bar and
+ * a sentence, underneath, in the muted one. Nothing else about the card is
+ * loud, because it sits next to the Goal card and two things shouting is the
+ * same as neither.
+ */
+
+.mastery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 6px);
+  background: var(--panel-2);
+}
+
+.mastery-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mastery-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* The running total. Deliberately the only large number here: it is the one
+   that never goes down, so it is the one worth watching. */
+.mastery-score {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Earned, not yet taken ─────────────────────────────────────────
+   Listed for EVERY route, not just the one underfoot: a payout you have to
+   travel back to collect is an errand. */
+.mastery-ready {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mastery-ready li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.mastery-ready-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.mastery-claim {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  /* 32px, and 36 on a phone below: this is the only button on the card and
+     it is the whole point of it. */
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mastery-claim:hover { filter: brightness(1.08); }
+.mastery-claim img { image-rendering: pixelated; }
+
+/* ── Progress on the route underfoot ───────────────────────────────── */
+.mastery-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+.mastery-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width 400ms ease-out;
+}
+.mastery-line {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.mastery-line strong { color: var(--text); }
+.mastery-next-prize { color: var(--text-muted); }
+
+/* Three pips, one per tier, so "how far through the whole route am I" is
+   readable without doing arithmetic on the numbers above. */
+.mastery-pips {
+  display: flex;
+  gap: 4px;
+}
+.mastery-pips > span {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+/* `mastery-on`, not a bare `on` — app.css already owns that name, and
+   tests/cssCollisions.test.ts refuses the overlap. */
+.mastery-pips > span.mastery-on { background: var(--gold); }
+
+.mastery-here {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 720px) {
+  .mastery-claim { height: 36px; }
+}

@@ -10,6 +10,7 @@ import { expForLevel } from "../utils/stats";
 import { openPokemonDetail } from "./PokemonDetailModal";
 import { openHub } from "./HubModal";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
+import { RouteMasteryCard } from "./RouteMasteryCard";
 import { animatePop } from "../utils/animate";
 import { openContextMenu } from "./ContextMenu";
 import { evolutions } from "../data/evolutions";
@@ -149,6 +150,7 @@ export function PartyColumn({ showProfileStrip = true, wide = false }: { showPro
           party — the thing you are working towards, over the six Pokémon
           you are working towards it with. */}
       <UnlockHint />
+      <RouteMasteryCard />
       <section className="ctx-section party-card">
         {/* Heal moved here from the moves toolbar at the bottom of the centre
             column (br_27cfd612ddd30485fc). It is a PARTY action — it restores

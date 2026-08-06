@@ -8,6 +8,7 @@ import { MovesPanel, MovesToolbar } from "./MovesPanel";
 import { RouteCardList } from "./RouteCardList";
 import { PartyColumn } from "./PartyColumn";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
+import { RouteMasteryCard } from "./RouteMasteryCard";
 import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
 import { MetaDock } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
@@ -268,6 +269,7 @@ export function MobileShell() {
                       previously desktop-only; player feedback was
                       "lost on what to do after Elite 4". */}
                   <UnlockHint />
+                  <RouteMasteryCard />
                   <ContextPanel />
                 </>
               ) : (

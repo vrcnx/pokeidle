@@ -27,6 +27,7 @@ import { normalizeNickname } from "../utils/nickname";
 import { levelUpsForExp, learnableMovesUpToLevel } from "../utils/moves";
 import { ownedMachinesForSpecies, isMachineId, machines } from "../utils/machines";
 import { regionBonuses } from "../utils/regionJourney";
+import { claimable } from "../data/routeMastery";
 import {
   routeMachineDrop,
   raidMachines,
@@ -1010,6 +1011,38 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       const money = Math.min(999_999_999, state.money + Math.max(0, action.payload.money));
       return { ...state, inventory, money };
+    }
+
+    case "CLAIM_MASTERY": {
+      // ── EVERY GUARD HERE IS THE SAME GUARD ────────────────────────────
+      // The key names a payout, so the only thing that matters is that it is
+      // EARNED and NOT ALREADY TAKEN. Both are re-derived from state rather
+      // than trusted from the payload: the UI computes the same list, but a
+      // stale render (a claim that landed on another tab, a button pressed
+      // twice before re-render) would otherwise pay twice.
+      const { key } = action.payload;
+      const claimed = state.claimedMastery ?? [];
+      if (claimed.includes(key)) return state;
+      const hit = claimable(state).find((c) => c.key === key);
+      if (!hit) return state;
+
+      let next: GameState = { ...state, claimedMastery: [...claimed, key] };
+      const r = hit.tier.reward;
+      if (r.kind === "item") {
+        next = {
+          ...next,
+          inventory: {
+            ...next.inventory,
+            [r.itemId]: Math.min(999_999, (next.inventory[r.itemId] ?? 0) + r.quantity),
+          },
+        };
+      } else {
+        next = { ...next, victoryTokens: next.victoryTokens + r.amount };
+      }
+      return pushLog(
+        next,
+        `${hit.routeName} — ${hit.tier.label} (Mastery ${hit.tier.level}) reached!`,
+      );
     }
 
     case "CATCH_RESOLVE": {

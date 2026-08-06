@@ -52,6 +52,7 @@ export const initialState: GameState = {
   championDefeated: false,
   defeatedChampions: [],
   claimedRegionStarters: [],
+  claimedMastery: [],
   victoryTokens: 0,
   autoProceed: false,
   // ON by default, and — because absent keys fall through this object on both

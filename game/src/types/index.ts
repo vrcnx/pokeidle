@@ -487,6 +487,13 @@ export interface GameState {
    *  the pre-game starterSelect phase, not this flow. Drives whether
    *  arriving at a new region's starting town re-offers the choice. */
   claimedRegionStarters: string[];
+  /** Route-mastery tiers already taken, as `${routeId}:${level}`.
+   *
+   *  APPEND-ONLY, and listed in saveReconcile's MONOTONIC_KEYS for the same
+   *  reason `claimedRegionStarters` is: it is the record of a one-off payout,
+   *  so a save merge has to UNION it. Taking one lineage's copy wholesale
+   *  would let a tier claimed on the other be claimed a second time. */
+  claimedMastery: string[];
   victoryTokens: number;
   autoProceed: boolean;
   /**
@@ -625,6 +632,8 @@ export type Action =
   | { type: "TRY_CATCH"; payload: { ballId: string } }
   | { type: "CATCH_RESOLVE" }
   | { type: "APPLY_DAILY_REWARD"; payload: { money: number; items: { itemId: string; quantity: number }[] } }
+  /** Take one earned route-mastery tier. `key` is `${routeId}:${level}`. */
+  | { type: "CLAIM_MASTERY"; payload: { key: string } }
   | { type: "CLEAR_WHITEOUT_ANIM" }
   | { type: "CONSUME_EVENT" }
   | { type: "APPLY_EXP"; payload: { exp: number } }

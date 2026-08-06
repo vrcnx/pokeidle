@@ -183,6 +183,11 @@ const MONOTONIC_KEYS = [
   "unlockedLocations",
   "claimedRegionStarters",
   "defeatedTrainers",
+  // Route-mastery tiers already paid out. Unioned in the ANTI-duplication
+  // direction, exactly like claimedRegionStarters: a claim recorded on
+  // EITHER lineage has to survive the merge, or a tier taken on the copy
+  // that loses becomes claimable again and pays a second time.
+  "claimedMastery",
 ];
 
 // ── The spendable unit ───────────────────────────────────────────────
