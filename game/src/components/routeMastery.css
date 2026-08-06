@@ -92,6 +92,37 @@
   cursor: pointer;
 }
 .mastery-claim:hover { filter: brightness(1.08); }
+
+/* ── When the backlog is real ──────────────────────────────────────
+   This shipped reading a counter the game has kept since launch, so an
+   established save opens it owed dozens of tiers. Three rows and a fold,
+   with one button that takes the lot — every row pays out and none can be
+   declined, so a hundred taps would be ceremony rather than consent. */
+.mastery-claim-all {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--gold);
+  border-radius: var(--ctl-r, 6px);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  color: var(--gold);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.mastery-claim-all:hover { background: color-mix(in srgb, var(--gold) 22%, transparent); }
+
+.mastery-more { justify-content: center; }
+.mastery-more button {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.mastery-more button:hover { color: var(--text); }
 .mastery-claim img { image-rendering: pixelated; }
 
 /* ── Progress on the route underfoot ───────────────────────────────── */

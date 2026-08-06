@@ -15,7 +15,7 @@ import { openDailyReward } from "../state/dailies";
 import { useDailyStatus } from "../state/dailies";
 import { openHub, closeHub, useHubSection, HubViews } from "./HubModal";
 import { CURRENT_VERSION } from "../data/changelog";
-import { IconSettings, IconChat, IconSwords } from "./Icon";
+import { IconSettings, IconChat, IconSwords, IconMenu } from "./Icon";
 import { usePvpState } from "../state/pvp";
 import { useIncomingRequestCount } from "../state/friendRequests";
 import { useLayoutMode, setLayoutMode, type LayoutMode } from "../state/layoutMode";
@@ -79,6 +79,43 @@ export function MetaDock() {
         onClick={() => (active === "social" ? closeHub() : openHub("social"))}
       />
     </div>
+  );
+}
+
+/**
+ * The mobile header's single control: one hamburger that opens the hub.
+ *
+ * ── WHY NOT THE THREE-BUTTON DOCK ────────────────────────────────────────
+ * MetaDock's three buttons all did the same thing — open the central dialog,
+ * each at a different section. On a phone that spent 144px of a 396px header
+ * on three doors into one room, next to a strip of stats that had no space
+ * for the trainer's own level. The hub has eleven sections; picking three of
+ * them to promote is a choice the bottom tab bar already makes, and makes
+ * differently.
+ *
+ * ── THE ONE THING THAT MUST SURVIVE ──────────────────────────────────────
+ * The Social button lit up when a friend request was waiting, and it exists
+ * because a player reported exactly its absence: "socials tab does not light
+ * up if a request is there unless you hit it". Folding three buttons into one
+ * must not fold that signal away with them, so the count rides on the
+ * hamburger. It is the same promise — something in here wants you — just
+ * attached to the only door that is left.
+ */
+export function MobileHubButton() {
+  const t = useT();
+  const { count: incomingRequests } = useIncomingRequestCount();
+  return (
+    <button
+      type="button"
+      className="mobile-hub-btn"
+      onClick={() => openHub()}
+      aria-label={incomingRequests > 0
+        ? `${t("Menu")} · ${incomingRequests} ${incomingRequests === 1 ? t("pending request") : t("pending requests")}`
+        : t("Menu")}
+    >
+      <IconMenu size={20} />
+      {incomingRequests > 0 && <span className="mobile-hub-dot" aria-hidden />}
+    </button>
   );
 }
 

@@ -132,6 +132,16 @@ export function IconChevronUp({ size = 16, strokeWidth = 2, className }: IconPro
   );
 }
 
+export function IconMenu({ size = 16, strokeWidth = 2, className }: IconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, className)}>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
 export function IconChevronLeft({ size = 16, strokeWidth = 2, className }: IconProps) {
   return (
     <svg {...baseProps(size, strokeWidth, className)}>

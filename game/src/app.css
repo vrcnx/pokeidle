@@ -7034,6 +7034,33 @@ body.dnd-active {
   line-height: 1;
 }
 .mobile-stat-icon { font-size: 12px; line-height: 1; margin-right: 2px; }
+
+/* The header's one control. 44px, the iOS floor — it replaced three buttons
+   and is now the only way into the hub from a phone. */
+.mobile-hub-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.mobile-hub-btn:active { filter: brightness(1.2); }
+/* Carries the friend-request signal the Social button used to. Not a count —
+   the number never mattered, only that something is waiting. */
+.mobile-hub-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
 /* Level reads as progression, not currency, so it does not take the gold the
    rest of the strip uses — it is the one number here that only goes up. */
 .mobile-stat-level {

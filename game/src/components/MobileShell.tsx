@@ -10,7 +10,7 @@ import { PartyColumn } from "./PartyColumn";
 import { ContextPanel, UnlockHint } from "./ContextPanel";
 import { RouteMasteryCard } from "./RouteMasteryCard";
 import { BagTab, PCTab, MartTab, DexTab } from "./BottomTabs";
-import { MetaDock } from "./GlobalDock";
+import { MobileHubButton } from "./GlobalDock";
 import { MiniChat } from "./MiniChat";
 import { GiveawayRail } from "./GiveawayRail";
 import { useGiveaways, seenWins } from "../utils/giveawayStore";
@@ -192,7 +192,7 @@ export function MobileShell() {
           {state.championDefeated && <span title={t("Champion")}>👑</span>}
         </div>
         <div className="mobile-meta-buttons">
-          <MetaDock />
+          <MobileHubButton />
         </div>
       </header>
 
