@@ -117,6 +117,13 @@ export interface PvpMoveEffect {
   typeColor: string;
   moveName: string;
   moveType: PokemonType;
+  /** The idle game's canonical move key.
+   *
+   *  Was computed here from the start and thrown away, because the only
+   *  consumer was the archetype bucket. The ported animation library is keyed
+   *  on it, so it is what lets PvP draw the same 234 real animations as the
+   *  idle battle instead of the twenty generic archetypes. */
+  moveId: string;
 }
 
 /**
@@ -157,6 +164,7 @@ export function effectForNarration(
     typeColor: TYPE_COLOR[def.type] ?? "#888",
     moveName: def.name ?? name,
     moveType: def.type,
+    moveId: idleKey,
   };
 }
 

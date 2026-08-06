@@ -377,6 +377,7 @@ function PvpScene({ room }: { room: BattleRoom }) {
             shake={stage.effect.shake}
             typeColor={stage.effect.typeColor}
             animKey={stage.seq}
+            moveId={stage.effect.moveId}
           />
         )}
         {stage.banner && (

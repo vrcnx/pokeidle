@@ -18,7 +18,13 @@
 // the task report) — a change to the live idle battle, so proposed rather than
 // made here.
 
+import { useLayoutEffect, useRef } from "react";
 import type { EffectArchetype } from "../utils/moveEffects";
+import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
+import { buildMoveFx, hasFxAnim } from "../utils/battleFxMoves";
+import { setCssAnimationRate } from "../utils/animate";
+import { moves as movesTable } from "../data/moves";
+import { canonicalMoveId } from "../utils/moves";
 
 export function MoveEffectVisual({
   archetype,
@@ -26,8 +32,12 @@ export function MoveEffectVisual({
   shake,
   typeColor,
   animKey,
+  moveId,
 }: {
   archetype: EffectArchetype;
+  /** The canonical move key. When the ported animation library has one, it
+   *  draws that instead of the archetype below — see the note in the body. */
+  moveId?: string;
   /** "player" is the LOCAL player's slot. app.css reads `.target-*` to pick
    *  the projectile's direction, and both slots' anchor coordinates are baked
    *  from `.player-slot` / `.enemy-slot` — the exact classes the arena's
@@ -39,13 +49,68 @@ export function MoveEffectVisual({
    *  keyframes instead of the second being a no-op on a live element. */
   animKey: number;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  // ── PvP DRAWS THE SAME ANIMATIONS AS THE IDLE BATTLE ─────────────────
+  // The arena used these archetypes because they were all there was: twenty
+  // generic buckets covering every move in the game. The idle side has had
+  // 234 of Showdown's real per-move animations since they were ported, plus
+  // the hit stop and the new art, and the only thing keeping PvP on the old
+  // path was that nothing threaded the move id this far.
+  //
+  // It works with no coordinate changes because the arena already renders its
+  // sprites into `.sprite-slot.player-slot` / `.enemy-slot` — the exact
+  // classes `actorFromSlot` measures. It was written that way deliberately
+  // (see the note at the top of PvpArena) and this is the payoff.
+  //
+  // Rate is a flat 1: PvP has no game-speed setting, and the narration pacer
+  // deliberately runs in absolute milliseconds so both players see the same
+  // battle at the same tempo.
+  const fx = !!moveId && hasFxAnim(moveId);
+  useLayoutEffect(() => {
+    if (!fx || !moveId) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const scene = el.closest<HTMLElement>(".pvp2-scene, .battle-scene");
+    if (!scene) return;
+    const attackerEl = scene.querySelector<HTMLElement>(
+      target === "enemy" ? ".player-slot" : ".enemy-slot",
+    );
+    const defenderEl = scene.querySelector<HTMLElement>(
+      target === "enemy" ? ".enemy-slot" : ".player-slot",
+    );
+    if (!attackerEl || !defenderEl) return;
+    const attacker = actorFromSlot(attackerEl, scene, target !== "enemy");
+    const defender = actorFromSlot(defenderEl, scene, target === "enemy");
+    if (!attacker || !defender) return;
+
+    const scene2 = new FxScene(scene);
+    scene2.add(attacker);
+    scene2.add(defender);
+    if (!buildMoveFx(moveId, scene2, attacker, defender)) { scene2.teardown(); return; }
+
+    setCssAnimationRate([el], 1, { subtree: true });
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isStatus = movesTable[canonicalMoveId(moveId)]?.category === "status";
+    const impactAt = isStatus
+      ? null
+      : scene2.impactAt(defender) ?? Math.round(scene2.duration * 0.6);
+    const run = runFx(scene2, { rate: 1, reducedMotion, impactAt });
+    return () => run.cancel();
+    // `animKey` is the trigger: the same move used twice in a row must replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animKey, fx, moveId, target]);
+
   return (
     <div
+      ref={rootRef}
       key={animKey}
-      className={`move-anim move-anim-${archetype} target-${target}${shake ? " shake-screen" : ""}`}
+      className={`move-anim${fx ? "" : ` move-anim-${archetype}`} target-${target}${shake ? " shake-screen" : ""}`}
       style={{ ["--type-color" as string]: typeColor }}
       aria-hidden
     >
+      {!fx && (
+      <>
       {archetype === "fire-special" && <ParticleStream className="fire-particle" count={6} />}
       {archetype === "water-special" && <ParticleStream className="water-particle" count={7} />}
       {archetype === "grass-special" && <ParticleStream className="grass-particle" count={5} />}
@@ -133,6 +198,8 @@ export function MoveEffectVisual({
           <span className="explosion-debris d5" />
           <span className="explosion-debris d6" />
         </>
+      )}
+      </>
       )}
     </div>
   );
