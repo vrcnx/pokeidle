@@ -64,16 +64,29 @@
     gap: 6px;
   }
   .mart-card-actions > .mart-qty { flex: 0 1 auto; min-width: 0; }
-  .mart-qty-input {
+  /* Every selector in this block is scoped through `.mart-card-actions`, and
+     the two that already were are why they worked while these did not. A
+     media query adds no specificity, so a bare `.mart-qty-input` here tied
+     with the base rule further down the file and lost on source order.
+
+     What that actually cost, measured rather than assumed — most of it was
+     hidden by luck. The `height: 26px` base rules DID win, but nothing below
+     sets `min-height` on the steppers, so the 36px floor here survived
+     unopposed and they rendered at 36 regardless. The two that had no such
+     cover were real: `.mart-buy-btn-v2` lost its min-height to the base
+     `var(--ctl-h, 32px)` and sat 4px short of its neighbours, and the qty
+     input lost `width: 42px; flex: 0 0 42px` to the base `flex: 1 1 auto`
+     and stretched instead of staying pinned. Scoped, all four land. */
+  .mart-card-actions .mart-qty-input {
     width: 42px;
     flex: 0 0 42px;
     min-width: 0;
   }
   .mart-card-actions > .mart-buy-btn-v2 { flex: 1 1 auto; min-width: 92px; }
-  .mart-qty-btn,
-  .mart-qty-preset,
-  .mart-qty-input,
-  .mart-buy-btn-v2 { height: 36px; min-height: 36px; }
+  .mart-card-actions .mart-qty-btn,
+  .mart-card-actions .mart-qty-preset,
+  .mart-card-actions .mart-qty-input,
+  .mart-card-actions .mart-buy-btn-v2 { height: 36px; min-height: 36px; }
 
   /* An item that can be BOTH used and sold has two buttons, and three
      controls plus a stepper do not fit 318px. Those keep the stacked

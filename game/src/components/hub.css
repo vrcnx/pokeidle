@@ -524,8 +524,18 @@
      went unnoticed because until the mobile header became a single
      hamburger, MetaDock's three buttons opened their sections directly and
      nobody had to use the rail to get anywhere. The moment it became the
-     only way to navigate the hub, the hub "didn't work at all". */
-  .hub-me, .hub-me-btn, .hub-brand { display: none; }
+     only way to navigate the hub, the hub "didn't work at all".
+
+     SCOPED THROUGH `.hub-side` FOR SPECIFICITY, NOT FOR REACH. A media query
+     contributes nothing to specificity, so the first version of this rule —
+     a bare `.hub-me-btn` — tied with the `.hub-me-btn { display: block }`
+     that sets the button up a thousand lines further down, and lost on
+     source order alone. It read as correct in review and was dead on the
+     device. Two classes beat one at any distance, so this cannot be undone
+     by a rule appended below it. */
+  .hub-side .hub-me,
+  .hub-side .hub-me-btn,
+  .hub-side .hub-brand { display: none; }
   /* Eleven sections in 380px shows about three, and since the header became
      one hamburger this strip is the ONLY way to reach any of them. A scroller
      that does not look like one is the same trap the PC filter row was in, so
@@ -543,8 +553,30 @@
   .hub-nav-head { display: none; }
   .hub-tab { width: auto; min-height: 44px; padding: 0 13px; white-space: nowrap; }
 
-  .hub-head { padding: 12px 12px 10px 16px; gap: 10px; }
-  .hub-head h2 { font-size: 16px; }
+  /* THE HEADER WRAPS HERE, AND ONLY HERE.
+     Four items share this row: the title, the section's own controls, the
+     right-hand extras and the close button. On desktop the slot takes the
+     slack and the title gives it up, which is right when there are 900px to
+     share. At 356px it crushed "Rewards" into 39px of box — the text spilled
+     out from under a 40px-tall pill row and the section had no readable name
+     at all, while the rail that would otherwise name it had scrolled the
+     current tab off-screen.
+     So the controls drop to their own line: `order` puts them last and a
+     100% basis forces the break, leaving title + close on the line above.
+     The slot's no-wrap rule upstairs is about not changing the header's
+     height on desktop; here the height was already going to change, and an
+     unreadable title costs more than the row does. */
+  .hub-head { padding: 12px 12px 10px 16px; gap: 10px 8px; flex-wrap: wrap; }
+  .hub-head .hub-head-text { flex: 1 1 auto; }
+  .hub-head .hub-head-slot { order: 3; flex: 1 0 100%; }
+  /* Belt and braces: whatever the flexing does, the title truncates rather
+     than painting over its neighbour. */
+  .hub-head h2 {
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .hub-head-note { display: none; }
   .hub-pane { padding: 14px 14px 20px; }
   .hub-pane--fill .hub-views { padding: 12px 14px 10px; }
@@ -1660,7 +1692,12 @@
    the game screen behind the dialog, and in the party tab on mobile. */
 @media (max-width: 1024px) {
   .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr); }
-  .hub-extra { display: none; }
+  /* Scoped through the shell so it outranks the `.hub-extra { display: flex }`
+     six lines below, which a bare selector here would tie with and lose to on
+     source order alone — the column has never actually hidden. The grid above
+     had already dropped its track, so the Aside was being painted into a
+     column the grid no longer allocated. */
+  .hub-shell--aside .hub-extra { display: none; }
 }
 
 /* ── A section's own third column ──────────────────────────────────
