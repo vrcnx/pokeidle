@@ -501,6 +501,24 @@
     border: 0;
   }
   .hub-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  /* A SECTION WITH AN ASIDE IS STILL ONE COLUMN HERE.
+     `.hub-shell--aside` is a second class on the same element, so the rule
+     above does not cover it — and the tablet rule that gives it a 232px rail
+     lives further down the file at equal specificity, which meant it won at
+     EVERY width. The PC and the Auction house were laid out as a 232px
+     sidebar beside a 158px pane on a 390px phone: two of eleven sections
+     rendered at 40% width with the rail drawn twice, once as the strip above
+     and once as a column that should not exist below 760px.
+     Scoped through `.hub-modal` so this holds regardless of where the tablet
+     rule sits — the same reason `.hub-side .hub-me-btn` is scoped above. */
+  .hub-modal .hub-shell--aside {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  /* And the Aside itself stays hidden: at one column it would otherwise land
+     in an implicit row under the pane, which is not where a summary of the
+     pane belongs. */
+  .hub-modal .hub-extra { display: none; }
 
   /* The rail becomes a strip, and the identity block goes with it: a
      name and a level are worth a line in a column, not a third of a
@@ -1689,8 +1707,14 @@
 /* An Aside column is content, so it holds on 256px longer than the art.
    Below this the pane needs every pixel it has, and the PC pane is no
    worse off than it was before the column existed: the party is still on
-   the game screen behind the dialog, and in the party tab on mobile. */
-@media (max-width: 1024px) {
+   the game screen behind the dialog, and in the party tab on mobile.
+
+   FLOORED AT 761px — this is the TABLET rule. Unbounded, it also matched
+   every phone, where it gave an Aside-bearing section a 232px rail beside
+   its pane and cost the PC and the Auction house 60% of their width. The
+   mobile block up top now states its own single-column answer, and this one
+   stops where that one starts. */
+@media (max-width: 1024px) and (min-width: 761px) {
   .hub-shell--aside { grid-template-columns: 232px minmax(0, 1fr); }
   /* Scoped through the shell so it outranks the `.hub-extra { display: flex }`
      six lines below, which a bare selector here would tie with and lose to on

@@ -15074,10 +15074,70 @@ header.tab-pane-head.v2 .route-region-tabs .route-region-tab.active {
      .g-chat-messages own the scroll instead of the shell overflowing. */
   min-height: 0;
 }
-@media (max-width: 560px) {
-  /* Narrow the channel rail on phones so the message column isn't squeezed
-     to a sliver (was a fixed 200px against a ~360px-wide modal). */
-  .g-chat-shell { grid-template-columns: 128px 1fr; }
+/* ── Chat on a phone: the channel list goes on TOP, not beside ──────
+   The rail used to be narrowed to 128px here, which is the same move the
+   hub rail lost with: a column too thin to read but still wide enough to
+   cost you the content. Measured on a 390px phone it left 228px for the
+   messages — 33% of the screen spent on a list that, for most players,
+   holds TWO entries: Global and whichever DM is open.
+
+   So it becomes a strip, scrolling sideways, exactly like the hub's own
+   section rail. Messages get the full width, which is the thing anyone
+   opened this page to read.
+
+   Children are scoped through `.g-chat-shell` for specificity rather than
+   this block being parked at the end of app.css: the base `.g-chat-*`
+   rules run on to line ~16850, and a bare selector here would tie with
+   every one of them and lose on source order. `.g-chat-shell` is on both
+   mount contexts (the hub pane and `.social-modal`), so one scope covers
+   both. tests/cssCascadeOrder.test.ts holds this. */
+@media (max-width: 760px) {
+  .g-chat-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .g-chat-shell .g-chat-sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .g-chat-shell .g-chat-sidebar::-webkit-scrollbar { display: none; }
+  /* "CHANNELS" over a row of channels is the label naming itself. */
+  .g-chat-shell .g-chat-sidebar-head { display: none; }
+  .g-chat-shell .g-chat-channel {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 13px;
+    border-left: 0;
+    border-radius: var(--ctl-r, 6px);
+    white-space: nowrap;
+  }
+  /* The active marker was a left border, which means nothing on a row. */
+  .g-chat-shell .g-chat-channel.active {
+    border-left-color: transparent;
+    background: var(--ctl-on-bg);
+    color: var(--ctl-on-fg);
+  }
+  /* 27px is not a tap target. The field beside it is the only thing that
+     should be flexible in this row. */
+  .g-chat-input .emoji-picker-btn { min-width: 44px; min-height: 44px; }
+  .g-chat-input input { min-height: 44px; }
+  /* A sender's name opens their trainer card, and at 17px tall it was the
+     hardest thing on the page to hit. Expanding the BOX would space the
+     messages out; expanding the hit area with a pseudo-element costs no
+     layout at all. */
+  .g-chat-shell .g-chat-msg-name-btn { position: relative; }
+  .g-chat-shell .g-chat-msg-name-btn::after {
+    content: "";
+    position: absolute;
+    inset: -12px -8px;
+  }
 }
 .g-chat-sidebar {
   border-right: 1px solid var(--border);
@@ -20887,4 +20947,41 @@ strong, b { font-variant-numeric: tabular-nums; }
   letter-spacing: 0;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE TYPE FLOOR
+   ══════════════════════════════════════════════════════════════════
+   Measured across all eleven hub sections at 390px, twenty-odd labels
+   render between 8px and 10px. They were sized for a desktop dialog where
+   they sit beside 14px body copy as deliberate small print; on a phone,
+   held at arm's length, 8px is not small print, it is decoration.
+
+   The worst were the ones carrying actual data: a Pokedex cell's national
+   number at 8px and its species name at 9px, a PC cell's level, a route's
+   caught-count, a chat message's sender level. Those are the reason to
+   open the page.
+
+   Only the sub-10px ones move, and only to 10.5-11px — enough to be read,
+   small enough that nothing reflows. The 10-10.5px labels are left alone:
+   they are legible, and raising everything would just rebuild the same
+   hierarchy one size up.
+
+   LAST IN THE FILE, DELIBERATELY. Every selector here is a bare class that
+   app.css itself declares earlier, so load order is what carries it. That
+   is the fragile pattern this codebase has been bitten by twice, which is
+   why tests/cssCascadeOrder.test.ts now fails the build if anything is
+   ever appended below that would outrank it. */
+@media (max-width: 760px) {
+  /* Pokedex cells — the id and the name are the content of the grid. */
+  .dex3-id { font-size: 10.5px; }
+  .dex3-name { font-size: 11px; }
+  /* PC cells. */
+  .pc-cell-lv,
+  .pc-cell-label { font-size: 10.5px; }
+  /* "5/5 Caught" on a route card. */
+  .route-card-progress { font-size: 10.5px; }
+  /* Chat: the level chip and the ADMIN tag beside a sender's name. */
+  .g-chat-msg-lv { font-size: 10.5px; }
+  .g-chat-msg-admin { font-size: 10px; }
 }

@@ -303,4 +303,11 @@
 @media (max-width: 760px) {
   .tmmart-grid { grid-template-columns: minmax(0, 1fr); }
   .tmmart-search { max-width: none; }
+  /* Both of these inherited desktop control heights — 32px for the buy
+     button, 24px for the disclosure — against the 44px floor the rest of
+     the mobile pass holds to. The buy button is the only action on a TM
+     card and the toggle is the only way to see what is coming next week,
+     so they are not places to save eight pixels. */
+  .tmmart-buy { height: auto; min-height: 44px; }
+  .tmmart-upcoming-toggle { min-height: 44px; padding: 4px 2px; }
 }

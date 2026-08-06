@@ -593,3 +593,11 @@
   .ah-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
   .ah-search, .ah-sort { max-width: none; }
 }
+
+/* Part of the mobile type floor — see the block at the end of app.css for
+   the reasoning. It lives HERE rather than there because `ah-price-label`
+   is this sheet's name, and tests/cssCollisions.test.ts refuses to let
+   app.css reach across and claim it. */
+@media (max-width: 760px) {
+  .ah-price-label { font-size: 10.5px; }
+}

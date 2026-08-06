@@ -88,6 +88,24 @@
   .mart-card-actions .mart-qty-input,
   .mart-card-actions .mart-buy-btn-v2 { height: 36px; min-height: 36px; }
 
+  /* The description toggle is a 13px circle — the smallest control in the
+     whole hub, and on a phone it is the ONLY way to read what an item does
+     (it opens on tap as well as hover, so the text is reachable; hitting it
+     is the problem). The circle grows a little, and an invisible pad takes
+     the actual target to 44px without moving the name it sits beside.
+     Scoped through `.mart-card` because the 13px comes from app.css, which
+     a bare selector here would tie with and lose to on load order. */
+  .mart-card .mart-info {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+  .mart-card .mart-info::after {
+    content: "";
+    position: absolute;
+    inset: -13px;
+  }
+
   /* An item that can be BOTH used and sold has two buttons, and three
      controls plus a stepper do not fit 318px. Those keep the stacked
      layout — measured rather than assumed: the widest single-button row
