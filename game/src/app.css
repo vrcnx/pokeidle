@@ -7010,6 +7010,14 @@ body.dnd-active {
   line-height: 1;
 }
 .mobile-stat-icon { font-size: 12px; line-height: 1; margin-right: 2px; }
+/* Level reads as progression, not currency, so it does not take the gold the
+   rest of the strip uses — it is the one number here that only goes up. */
+.mobile-stat-level {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
 .reset-button.mini {
   padding: 4px 8px;
   font-size: 10px;
@@ -7275,25 +7283,35 @@ body.dnd-active {
      center-column wrappers that don't apply here. */
   .mobile-content .center-column { width: 100%; }
 
-  /* Mobile toolbar: stack into two equal-width rows. Speed picker
-     spans full width on row 1; the four action buttons (Heal /
-     Manage / Catch / Controls) split row 2 evenly. Avoids the awkward
-     half-empty rows we had when the toolbar relied on flex-wrap. */
+  /* ── ONE ROW, NOT TWO ───────────────────────────────────────────────
+     This used to stack: the speed picker spanning a full 40px row of its
+     own, then the actions on a second. Two rows plus the gap is ~86px of a
+     818px phone spent on a control you set once and three buttons — while
+     the arena, which is the game, was getting 27%.
+     Speed collapses to three auto-width chips on the left and the actions
+     take the rest, which returns ~46px to the battle. Measured at 412px:
+     the row still fits without overflowing, with the labels restored. */
   .mobile-shell .moves-toolbar {
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: stretch !important;
     gap: 6px !important;
+    flex-wrap: nowrap;
   }
-  .mobile-shell .moves-toolbar > .moves-toolbar-group,
   .mobile-shell .moves-toolbar > .speed-segment {
-    width: 100%;
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+  }
+  .mobile-shell .moves-toolbar > .moves-toolbar-group:not(.speed-segment) {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     gap: 4px;
   }
   .mobile-shell .moves-toolbar .speed-segment .speed-btn {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-width: 0;
-    padding: 0 !important;
+    padding: 0 8px !important;
   }
   /* The 36px segment height above was tuned for the old inline toolbar;
      stacked full-width in the mobile shell there's room for the 40px
@@ -7318,24 +7336,36 @@ body.dnd-active {
   .move-slot { font-size: 8px; padding: 3px 5px; }
   .move-slot-stats { font-size: 6px; gap: 4px; }
   .tab-icon { font-size: 16px; }
-  /* Even tighter on phones — drop the label to keep four square icon
-     buttons at comfortable tap size. The action is still surfaced via
-     the title attribute for long-press. */
+  /* ── THE LABELS STAY ────────────────────────────────────────────────
+     These used to be stripped to bare icons here, on the grounds that "the
+     action is still surfaced via the title attribute for long-press". It is
+     not: a phone has no hover, and long-press raises the selection or context
+     menu, never a tooltip. So Manage, Catch and Controls were three
+     unlabelled glyphs — a pencil, a target and some sliders — with no way at
+     all to find out what they did.
+     There is room, but not much: measured at 412px, these are the largest
+     values where the row still fits and no label ellipsises. "Controls" is
+     the binding constraint — at 9.5px with 6px padding it clipped, and the
+     icons had to come down from 18px to make space for words at all. */
   .moves-toolbar .toolbar-btn,
   .moves-toolbar .more-actions-trigger {
-    font-size: 0;
-    padding: 0 !important;
-    gap: 0;
+    font-size: 9px;
+    padding: 0 5px !important;
+    gap: 4px;
     min-width: 0;
     overflow: hidden;
     justify-content: center;
   }
   .moves-toolbar .toolbar-btn span,
-  .moves-toolbar .more-actions-trigger span { display: none; }
+  .moves-toolbar .more-actions-trigger span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .moves-toolbar .toolbar-btn svg,
   .moves-toolbar .more-actions-trigger svg {
-    width: 18px !important;
-    height: 18px !important;
+    width: 14px !important;
+    height: 14px !important;
     flex-shrink: 0;
   }
   .moves-toolbar .speed-btn { font-size: 11px; padding: 0 7px; }

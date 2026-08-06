@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "../state/GameContext";
+import { useAuth } from "../auth/AuthContext";
 import { regions, regionForLocation, DEFAULT_REGION } from "../data/regions";
 import { regionBadgeCount } from "../utils/unlocks";
 import { BattleScene } from "./BattleScene";
@@ -70,6 +71,7 @@ function pvpTabIcon(id: PvpMobileView) {
 
 export function MobileShell() {
   const { state } = useGame();
+  const { me } = useAuth();
   const t = useT();
   const region = regions[regionForLocation(state.currentLocation) ?? DEFAULT_REGION] ?? regions[DEFAULT_REGION];
   const badgeCount = regionBadgeCount(state, region);
@@ -167,6 +169,14 @@ export function MobileShell() {
     <div className={pvpLive ? `mobile-shell pvp-live pvp-view-${pvpView}` : `mobile-shell tab-${tab}`}>
       <header className="mobile-header">
         <div className="mobile-stats">
+          {/* Trainer level. The desktop header has carried it forever and the
+              mobile one never did, so the phone showed four numbers about
+              what you OWN and none about how far you have come — which is the
+              one an idle player checks. It fits: the row had 106px spare at
+              412px and this needs about 45. */}
+          <span className="mobile-stat-level" title={t("Trainer level")}>
+            {t("Lv")}&nbsp;{me?.accountLevel ?? 1}
+          </span>
           <span title={`$${state.money.toLocaleString()}`}>
             <span className="mobile-stat-icon">💰</span>{compactMoney(state.money)}
           </span>
