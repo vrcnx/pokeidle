@@ -2226,8 +2226,19 @@ export function DexTab() {
 
   const metrics = DEX_DENSITY_METRICS[density];
   const gap = metrics.gap;
-  const cols = Math.max(1, Math.floor((size.w + gap) / (metrics.min + gap)));
-  const cellW = size.w > 0 ? (size.w - gap * (cols - 1)) / cols : metrics.min;
+  // ── A PHONE GETS FOUR BIG CELLS, NOT FIVE SMALL ONES ───────────────
+  // `min` is a floor on the column width, so it decides the column count.
+  // 64 was tuned against the desktop pane; on a 352px phone it yields five
+  // 67px cells, and at that size the sprite plate is smaller than the
+  // sprite deserves and "#001 Bulbasaur" has nowhere to sit.
+  //
+  // Keyed off the MEASURED container, not a media query: this grid also
+  // renders in the old mobile shell and in a desktop pane that the Aside
+  // column can narrow, and what matters in every one of those is how much
+  // room this box actually has — not what kind of device is holding it.
+  const min = size.w > 0 && size.w < 420 ? 80 : metrics.min;
+  const cols = Math.max(1, Math.floor((size.w + gap) / (min + gap)));
+  const cellW = size.w > 0 ? (size.w - gap * (cols - 1)) / cols : min;
   const rowH = Math.round(cellW) + metrics.name;
   const pitch = rowH + gap;
 

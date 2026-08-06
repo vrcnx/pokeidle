@@ -568,6 +568,26 @@
   }
   .hub-head-note { display: none; }
   .hub-pane { padding: 14px 14px 20px; }
+  /* ONE GUTTER, NOT TWO.
+     Every section that is a `.tab-pane` brings its own horizontal padding,
+     tuned for the desktop pane. It was never overridden on phones because
+     the rule that does that (`.mobile-shell .dex-tab`) is scoped to the OLD
+     bottom-tab layout, which is not an ancestor inside this dialog. So the
+     pane paid for a gutter twice, and by different amounts: measured at
+     390px, Map lost 40px, the PC 52, and the Mart, Bag and Pokedex 68 each
+     — up to 17% of the screen on nesting. Worse, because the inner figure
+     varied per section, no two pages lined their content up with each
+     other.
+
+     A CUSTOM PROPERTY, NOT A DESCENDANT SELECTOR. `.hub-pane .tab-pane`
+     would be the obvious rule and it cannot live anywhere: written here it
+     makes hub.css style `.tab-pane`, written in app.css it makes app.css
+     style `.hub-pane`, and tests/cssCollisions.test.ts rejects both —
+     correctly, because the whole point of the split is that these two
+     sheets do not share a vocabulary. A variable is the seam that is
+     allowed to cross it. This file sets a value on its own element;
+     app.css reads it on its own, and neither names the other's class. */
+  .hub-pane { --tab-gutter: 0px; }
   .hub-pane--fill .hub-views { padding: 12px 14px 10px; }
   /* One column, and the split's aside drops UNDER its main rather than
      beside it — it is a summary of what is above, so that is the order

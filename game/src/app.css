@@ -819,10 +819,18 @@ a:focus-visible {
 }
 
 /* Tab pane wrapper for non-map tabs. */
+/* `--tab-gutter` is the horizontal inset every tab-pane variant reads, so a
+   container that already provides one can zero it rather than have the tab
+   pay a second time. The hub's pane does exactly that on phones — see
+   `.hub-pane { --tab-gutter: 0px }` in components/hub.css. A variable and
+   not a `.hub-pane .tab-pane` rule because that selector would force one of
+   the two sheets to style the other's class, which cssCollisions.test.ts
+   refuses in both directions. The fallback is the desktop value, so
+   anything that does not set it is unchanged. */
 .tab-pane {
   display: flex;
   flex-direction: column;
-  padding: 10px 12px;
+  padding: 10px var(--tab-gutter, 12px);
   flex: 1;
   min-height: 0;
 }
@@ -1141,6 +1149,34 @@ header.tab-pane-head.v2 .mart-wallet {
   border-radius: 8px;
   overscroll-behavior: contain;
 }
+/* ── The Pokedex toolbar, on a phone ────────────────────────────────
+   Three boxes share this row and they were three different heights: the
+   progress chip 40, the filter button 40, and the search field — the
+   control the row exists for — 32. Eight pixels of misalignment between
+   adjacent boxes is small enough to look like a mistake rather than a
+   choice, and it is most of what reads as "off" here.
+
+   All three go to 44, which squares the row and puts the input and the
+   filter button on the touch floor the rest of the mobile pass holds to.
+
+   16px on the input is not a type choice: below 16px, iOS Safari zooms the
+   whole page when the field takes focus, and the player then has to pinch
+   back out to see the grid they were searching.
+
+   Scoped through `.dex-toolbar` because `.dex-search` and `.dex-tool` are
+   declared bare further down; two classes beat one wherever this sits. */
+@media (max-width: 760px) {
+  .dex-toolbar { min-height: 44px; gap: 8px; }
+  .dex-toolbar .dex-search {
+    height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 16px;
+  }
+  .dex-toolbar .dex-progress-chip { height: 44px; }
+  .dex-toolbar .dex-tool { height: 44px; min-width: 44px; }
+}
+
 .dex-grid {
   display: grid;
   /* grid-template-columns / grid-auto-rows / gap come from DexTab. */
@@ -4154,6 +4190,7 @@ body.dnd-active {
    inside a menu, so the whole toolbar fits one row on a 390px phone. */
 .mobile-shell .pc-tab,
 .mobile-shell .dex-tab { padding: 10px 12px; }
+
 /* The box grid is a scroll WINDOW — it renders the rows in view plus a
    little overscan and needs a real viewport height to measure against.
    Every other mobile tab body is `min-height: 100%` and free to grow with
@@ -12963,7 +13000,7 @@ input:focus, textarea:focus, select:focus {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px 22px;
+  padding: 18px var(--tab-gutter, 22px);
   overflow-y: auto;
   color: #ffffff;
   gap: 10px;
@@ -12999,7 +13036,7 @@ input:focus, textarea:focus, select:focus {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px 22px;
+  padding: 18px var(--tab-gutter, 22px);
   overflow-y: auto;
   color: #ffffff;
   gap: 10px;
@@ -13089,7 +13126,7 @@ input:focus, textarea:focus, select:focus {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px 22px;
+  padding: 18px var(--tab-gutter, 22px);
   overflow-y: auto;
   color: #ffffff;
   gap: 10px;
