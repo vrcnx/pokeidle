@@ -47,15 +47,29 @@ export function PromoCard({ promo }: { promo: Promo }) {
         {promo.note && <p className="promo-note">{promo.note}</p>}
       </div>
 
-      {promo.cta && (
-        // A real link, not a button with an onClick. It navigates to a page
-        // that exists at its own URL, so it should be shareable, openable in
-        // a new tab, and visible in the status bar before it is clicked.
-        <a className="promo-cta" href={promo.cta.href}>
-          {promo.cta.label}
-          <span className="promo-cta-arrow" aria-hidden>→</span>
-        </a>
-      )}
+      {promo.cta && (() => {
+        // A promo's destination can be off-site now — the Discord card leads
+        // to the invite itself. An absolute URL opens in a new tab: the game
+        // is a running session with a save behind it, and navigating the
+        // only tab away from it to reach a chat server is not a trade
+        // anybody meant to make. `noopener noreferrer` because a bare
+        // `target="_blank"` hands the opened page a live handle on this one.
+        const external = /^https?:\/\//i.test(promo.cta.href);
+        return (
+          // A real link, not a button with an onClick. It navigates to a page
+          // that exists at its own URL, so it should be shareable, openable in
+          // a new tab, and visible in the status bar before it is clicked.
+          <a
+            className="promo-cta"
+            href={promo.cta.href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
+          >
+            {promo.cta.label}
+            <span className="promo-cta-arrow" aria-hidden>→</span>
+          </a>
+        );
+      })()}
     </article>
   );
 }

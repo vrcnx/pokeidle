@@ -365,7 +365,7 @@ function promo(over: Partial<Promo> = {}): Promo {
     icon: "discord",
     prizes: [{ kind: "item", itemId: "masterball", quantity: 1 }],
     state: "available",
-    cta: { label: "Get the code", href: "/link-discord" },
+    cta: { label: "Join the Discord", href: "https://discord.gg/6QjHaDxY4c" },
     note: null,
     ...over,
   };

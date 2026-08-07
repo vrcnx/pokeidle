@@ -59,7 +59,14 @@ describe("listPromos — the Discord link reward", () => {
     // The prize comes from the config row, parsed by the same parser the
     // grant path uses — not from a hardcoded string in the client.
     expect(p.prizes).toEqual([{ kind: "item", itemId: "masterball", quantity: 1 }]);
-    expect(p.cta).toEqual({ label: "Get the code", href: "/link-discord" });
+    // THE BUTTON LEAVES THE SITE, and that is the fix it encodes. It used to
+    // read "Get the code" and lead to /link-discord — a page that does not
+    // give you a code, it asks for one. The code is DM'd by the bot, which
+    // cannot DM anyone who is not in the server, and nothing in the client,
+    // the server or the deployed bundle was a link to that server. A card
+    // whose whole proposition is joining offered every step except joining.
+    expect(p.cta?.label).toBe("Join the Discord");
+    expect(p.cta?.href).toMatch(/^https:\/\/discord\.gg\//);
   });
 
   it("reads 'already had it' from the grant ledger, not from a flag", async () => {

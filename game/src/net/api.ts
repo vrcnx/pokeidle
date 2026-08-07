@@ -89,8 +89,14 @@ export const api = {
   // player; this half of the flow is the player proving, from a signed-in
   // session, that the game account is theirs. See server/src/lib/discordLink.ts
   // for why the code travels Discord → player → site and not the other way.
+  // `inviteUrl` rides along so the link screen can offer a way INTO the
+  // server it tells you to run /link in. Optional in the type because a
+  // server older than that change answers without it, and a missing invite
+  // must degrade to "no join button" rather than to a broken page.
   discordLinkStatus: () =>
-    request<{ linked: boolean; discordId: string | null }>("GET", "/api/discord/link/me"),
+    request<{ linked: boolean; discordId: string | null; inviteUrl?: string }>(
+      "GET", "/api/discord/link/me",
+    ),
   // Preview only — does NOT consume the code. Lets the confirm button name the
   // Discord account before the player commits to binding it.
   discordLinkPeek: (code: string) =>

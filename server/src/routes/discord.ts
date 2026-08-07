@@ -16,6 +16,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { blockStream, requireUser } from "../lib/middleware.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
+import { DISCORD_INVITE_URL } from "../lib/discordInvite.js";
 import {
   discordIdForUser,
   peekLinkCode,
@@ -66,7 +67,16 @@ async function jsonObject(c: Context): Promise<Record<string, unknown>> {
 app.get("/link/me", requireUser, async (c) => {
   const user = c.get("user");
   const discordId = await discordIdForUser(user.id);
-  return c.json({ linked: !!discordId, discordId: discordId ?? null });
+  // The invite rides along because the page that calls this is the one that
+  // tells you to "run /link in the Pokémon Idle Discord", and until now it
+  // said that without ever saying where. Served rather than hardcoded in the
+  // client so the invite has exactly one source (lib/discordInvite.ts) and
+  // rotating it does not need a client rebuild.
+  return c.json({
+    linked: !!discordId,
+    discordId: discordId ?? null,
+    inviteUrl: DISCORD_INVITE_URL,
+  });
 });
 
 // ── GET /api/discord/link/peek?code=ABC234 ──────────────────────────

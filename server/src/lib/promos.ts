@@ -1,6 +1,7 @@
 import { prisma } from "../db.js";
 import { parsePrizesStrict, type Prize } from "./giveaway.js";
 import { LINK_REWARD_SOURCE } from "./discordLinkReward.js";
+import { DISCORD_INVITE_URL } from "./discordInvite.js";
 
 // Free rewards a player can pick up once, for doing something outside the
 // game — joining the community, and whatever comes after it.
@@ -86,11 +87,25 @@ async function discordLinkPromo(userId: string): Promise<Promo | null> {
     // saying HOW, and the how is a slash command in a different application —
     // there is no way to guess `/link` from inside the game. Player-facing
     // copy for a two-app flow has to name both ends of it.
-    blurb: "Get your code here, then run /link in the Discord server and the reward is yours.",
+    //
+    // It now also names them in the order they happen. The old wording put
+    // the code first ("Get your code here, then run /link"), which matched
+    // the old button and matched nothing else: the code does not exist until
+    // the bot DMs it, and the bot cannot DM anyone who is not in the server.
+    blurb: "Join the server, run /link, and the reward is yours.",
     icon: "discord",
     prizes: parsed.prizes,
     state,
-    cta: state === "claimed" ? null : { label: "Get the code", href: "/link-discord" },
+    // STRAIGHT TO DISCORD, not to /link-discord.
+    //
+    // This card's proposition is joining, and it used to lead to a page that
+    // asks for a code — the last step of the flow offered as the first, with
+    // the actual first step (be in the server) having no door at all. The
+    // return trip needs no button from us: the bot's DM carries the link
+    // back, code and all (`Open ${linkUrl}, sign in, and enter that code` —
+    // see bot/src/handlers.ts), so the loop closes without the game having
+    // to guess when the player is ready for it.
+    cta: state === "claimed" ? null : { label: "Join the Discord", href: DISCORD_INVITE_URL },
     note:
       state === "claimed"
         ? "Already collected — thanks for joining."

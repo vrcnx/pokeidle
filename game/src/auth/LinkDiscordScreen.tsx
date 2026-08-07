@@ -34,6 +34,12 @@ export function LinkDiscordScreen() {
   const [linkedTo, setLinkedTo] = useState<string | null>(null);
   const [reward, setReward] = useState<string | null>(null);
   const [already, setAlready] = useState(false);
+  // Where the server actually is. This screen told the player to run /link
+  // "in the Pokémon Idle Discord" and gave no way to get there — for anyone
+  // not already a member that was the end of the road, on the one page whose
+  // job is to bring them in. Served by the API rather than hardcoded so the
+  // invite has one source and can be rotated without a client build.
+  const [invite, setInvite] = useState<string | null>(null);
 
   // Is this account already linked? Answered before the form renders so
   // somebody who has already done this is told so, rather than being handed a
@@ -42,7 +48,11 @@ export function LinkDiscordScreen() {
     if (status !== "authenticated") return;
     let cancelled = false;
     api.discordLinkStatus()
-      .then((r) => { if (!cancelled) setAlready(r.linked); })
+      .then((r) => {
+        if (cancelled) return;
+        setAlready(r.linked);
+        setInvite(r.inviteUrl ?? null);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [status]);
@@ -176,6 +186,22 @@ export function LinkDiscordScreen() {
         six-character code. Type it here to connect it to{" "}
         <strong>{me?.username ?? "this account"}</strong>.
       </p>
+      {/* Above the field, because it is the step before it. Someone who
+          arrived from the bot's DM already has a code and skips straight
+          past; someone who found this page on their own needs the server
+          first, and previously had no way to find it. */}
+      {invite && (
+        <a
+          className="g-btn-secondary auth-submit"
+          href={invite}
+          // A different application, so a new tab: coming back to a
+          // half-filled link form by pressing Back is worse than leaving the
+          // page open behind Discord. `noopener` because `target=_blank`
+          // otherwise hands the opened tab a handle on this one.
+          target="_blank"
+          rel="noopener noreferrer"
+        >Join the Discord server →</a>
+      )}
       <form onSubmit={submit} className="auth-form">
         <label className="auth-label">
           <span>Link code</span>
