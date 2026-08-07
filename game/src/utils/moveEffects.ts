@@ -95,6 +95,31 @@ export const SHAKE_MOVES: ReadonlySet<string> = new Set([
   "magnitude",
   "selfDestruct",
   "hyperBeam",
+  // ── Added after auditing the list against the move table ──────────
+  // The three the original set plainly should have had. Each was found by
+  // asking the same question of every move rather than by remembering:
+  //
+  //   explosion   250 power — the single hardest hit in the game, and the
+  //               only one named after the thing this list is FOR. Its
+  //               weaker twin selfDestruct (200) was already here, which is
+  //               how the omission stayed invisible: the pair looked
+  //               covered because one of them was.
+  //   gigaImpact  150 power, and the physical mirror of hyperBeam — same
+  //               power, same recharge, same "everything you have in one
+  //               blow". One shaking and not the other is an inconsistency
+  //               a player feels without being able to name.
+  //   bulldoze    Ground, and its entire flavour is shaking the ground. Low
+  //               power (60), which is exactly why the rule below is an
+  //               opt-in list and not `power >= N`.
+  //
+  // Deliberately NOT added: Fire Blast, Hydro Pump, Blizzard, Thunder,
+  // Focus Blast and the rest of the 110-120 club. They hit hard, but a
+  // screen that lurches on every strong special is a screen that lurches
+  // constantly, and the shake stops meaning anything. The bar is what the
+  // move IS, not what it rolls for.
+  "explosion",
+  "gigaImpact",
+  "bulldoze",
 ]);
 
 // Per-move signature overrides — iconic moves with custom visuals that

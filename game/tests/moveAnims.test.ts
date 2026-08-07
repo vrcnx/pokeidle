@@ -15,6 +15,8 @@ import { levelUpMoves } from "../src/data/levelUpMoves";
 import { machineList } from "../src/data/tms";
 import { canonicalMoveId } from "../src/utils/moves";
 import { hasFxAnim } from "../src/utils/battleFxMoves";
+import { SHAKE_MOVES } from "../src/utils/moveEffects";
+import { moves } from "../src/data/moves";
 import { FX_SPRITES } from "../src/data/battleFxSprites";
 
 /**
@@ -152,5 +154,62 @@ describe("the substituted sprites are real", () => {
     expect(MOVE_ANIMS.iceBeam).toBeTypeOf("function");
     expect(MOVE_ANIMS.thunderbolt).toBeTypeOf("function");
     expect(MOVE_ANIMS.rockSlide).toBeTypeOf("function");
+  });
+});
+
+// ── WHICH MOVES RATTLE THE SCREEN ───────────────────────────────────
+//
+// SHAKE_MOVES is a hand-kept opt-in list, and it is right that it is one: the
+// rule is what a move IS, not what it rolls for, so `power >= N` would shake
+// on every strong special and the shake would stop meaning anything.
+//
+// The cost of hand-keeping it is that a move can be forgotten, silently, for
+// as long as nobody attacks with it while paying attention. Auditing the list
+// against the move table turned up three: Explosion — 250 power, the hardest
+// hit in the game and the move this list is named after — plus Giga Impact
+// and Bulldoze.
+//
+// Explosion is the instructive one. Its weaker twin Self-Destruct was already
+// in the list, so the pair LOOKED covered; you had to check both to see that
+// only one was there. These tests encode that lesson rather than the answer.
+describe("the screen shakes for the right moves", () => {
+  it("only names moves that exist", () => {
+    // A typo here is invisible: the id simply never matches, and the move
+    // quietly never shakes. Nothing else in the codebase would notice.
+    for (const id of SHAKE_MOVES) {
+      expect(moves[id], `SHAKE_MOVES has "${id}", which is not a move`).toBeDefined();
+    }
+  });
+
+  it("shakes for both halves of a twinned move, never one", () => {
+    // The bug that was actually there. Each pair is the same act at the same
+    // power — one physical, one special — so a player who feels the screen
+    // move for one and not the other is noticing a real inconsistency they
+    // cannot name.
+    const TWINS: Array<[string, string]> = [
+      ["hyperBeam", "gigaImpact"],   // 150, recharge, all-out
+      ["selfDestruct", "explosion"], // the user faints; explosion just hits harder
+    ];
+    for (const [a, b] of TWINS) {
+      expect(
+        SHAKE_MOVES.has(a) === SHAKE_MOVES.has(b),
+        `${a} shakes=${SHAKE_MOVES.has(a)} but ${b} shakes=${SHAKE_MOVES.has(b)} — same move, different half`,
+      ).toBe(true);
+    }
+  });
+
+  it("shakes for the hardest hits in the game", () => {
+    // Not a `power >= N` RULE — see the header — but the very top of the
+    // table is where an omission is most obvious to a player, so the top few
+    // are worth asserting outright.
+    for (const id of ["explosion", "selfDestruct"]) {
+      expect(SHAKE_MOVES.has(id), `${id} is 200+ power and does not shake`).toBe(true);
+    }
+  });
+
+  it("stays short, because a screen that always lurches never lurches", () => {
+    // The restraint IS the feature. If this ever fails, the list has started
+    // collecting "strong" moves rather than earth-shaking ones.
+    expect(SHAKE_MOVES.size).toBeLessThan(12);
   });
 });
