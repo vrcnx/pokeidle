@@ -18,7 +18,7 @@
 // the task report) — a change to the live idle battle, so proposed rather than
 // made here.
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { EffectArchetype } from "../utils/moveEffects";
 import { FxScene, actorFromSlot, runFx } from "../utils/battleFx";
 import { buildMoveFx, hasFxAnim } from "../utils/battleFxMoves";
@@ -33,6 +33,7 @@ export function MoveEffectVisual({
   typeColor,
   animKey,
   moveId,
+  onDone,
 }: {
   archetype: EffectArchetype;
   /** The canonical move key. When the ported animation library has one, it
@@ -48,6 +49,15 @@ export function MoveEffectVisual({
   /** Bumped per effect so identical consecutive moves both replay their
    *  keyframes instead of the second being a no-op on a live element. */
   animKey: number;
+  /**
+   * Fired when THIS effect's own animation has finished.
+   *
+   * The owner keeps the component mounted until it hears this, rather than
+   * unmounting when the narration moves on — see the note at the call site.
+   * A ported animation can run 1300ms and the move beat holds 900, so tying
+   * the effect's life to the beat cut the longer ones off partway.
+   */
+  onDone?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -96,10 +106,29 @@ export function MoveEffectVisual({
       ? null
       : scene2.impactAt(defender) ?? Math.round(scene2.duration * 0.6);
     const run = runFx(scene2, { rate: 1, reducedMotion, impactAt });
-    return () => run.cancel();
+    // The scene knows exactly how long it runs, so the owner can be told
+    // rather than made to guess. A little slack past the end: `duration` is
+    // the last keyframe's time, and a sprite fading out on its final frame
+    // should be allowed to land.
+    const done = window.setTimeout(() => onDone?.(), scene2.duration + 120);
+    return () => { window.clearTimeout(done); run.cancel(); };
     // `animKey` is the trigger: the same move used twice in a row must replay.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey, fx, moveId, target]);
+
+  // The CSS-archetype path has no FxScene to ask, so it reports done on a
+  // constant. Without this the owner would hold an archetype effect mounted
+  // forever, waiting for a signal that never comes — the leak the ported path
+  // avoids by knowing its own length.
+  //
+  // 720ms clears every archetype keyframe in app.css (the longest is the
+  // 600ms physical-impact ring) with room for the slowest to settle.
+  useEffect(() => {
+    if (fx) return;
+    const done = window.setTimeout(() => onDone?.(), 720);
+    return () => window.clearTimeout(done);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animKey, fx]);
 
   return (
     <div

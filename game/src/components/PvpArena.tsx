@@ -285,6 +285,18 @@ function PvpScene({ room }: { room: BattleRoom }) {
   const you = stage.view.you;
   const foe = stage.view.foe;
 
+  // The effect currently playing, which is NOT the same thing as the effect
+  // the current beat carries — see the note at the render site. Keyed on the
+  // beat's seq so the same move used twice in a row replays rather than being
+  // a no-op on a live element.
+  const [liveEffect, setLiveEffect] = useState<
+    { fx: NonNullable<NarrationStage["effect"]>; key: number } | null
+  >(null);
+  useEffect(() => {
+    if (!stage.effect) return;
+    setLiveEffect({ fx: stage.effect, key: stage.seq });
+  }, [stage.seq, stage.effect]);
+
   return (
     <div className={`pvp2-scene${previewing ? " is-preview" : ""}`}>
       {/* Everything that should rattle on an Earthquake-class move goes
@@ -374,14 +386,28 @@ function PvpScene({ room }: { room: BattleRoom }) {
         {foe.active && <PvpHpFloat mon={foe.active} side="enemy" />}
         {you.active && <PvpHpFloat mon={you.active} side="player" />}
 
-        {stage.effect && (
+        {/* ── THE EFFECT OUTLIVES THE SENTENCE THAT STARTED IT ─────
+            This rendered `stage.effect` directly, so the moment the narration
+            advanced off the move line the component unmounted and `runFx`
+            cancelled a half-finished animation. The move beat holds 900ms and
+            ported animations run up to 1300 — which is why it was Shadow Ball
+            and its longer cousins that visibly stopped partway while shorter
+            moves looked fine.
+
+            An animation's lifetime is its own duration, not the reading time
+            of the line that triggered it. `liveEffect` holds it until it
+            reports finished; the scene knows exactly how long it runs, so
+            nothing here has to guess. */}
+        {liveEffect && (
           <MoveEffectVisual
-            archetype={stage.effect.archetype}
-            target={stage.effect.target}
-            shake={stage.effect.shake}
-            typeColor={stage.effect.typeColor}
-            animKey={stage.seq}
-            moveId={stage.effect.moveId}
+            key={liveEffect.key}
+            archetype={liveEffect.fx.archetype}
+            target={liveEffect.fx.target}
+            shake={liveEffect.fx.shake}
+            typeColor={liveEffect.fx.typeColor}
+            animKey={liveEffect.key}
+            moveId={liveEffect.fx.moveId}
+            onDone={() => setLiveEffect((cur) => (cur?.key === liveEffect.key ? null : cur))}
           />
         )}
         {stage.banner && (
