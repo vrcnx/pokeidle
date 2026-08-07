@@ -3,6 +3,7 @@ import { api, type Analytics } from "../api";
 import { navigateTo, type Page } from "../App";
 import { PageActions, PageNote } from "../components/PageChrome";
 import { AcquisitionPanel } from "../components/AcquisitionPanel";
+import { ReferralAnalyticsPanel } from "../components/ReferralAnalyticsPanel";
 import { Kpi, SectionHead } from "../components/Section";
 
 // "Cadence" layout — design panel winner.
@@ -210,6 +211,12 @@ export function AnalyticsPage() {
         blurb="Where new players come from — referring sites, campaigns and landing pages."
       />
       <AcquisitionPanel days={30} />
+
+      {/* Directly under acquisition, because a referral IS an acquisition
+          channel — the one where the game pays for the signup, which is
+          exactly why it gets its own panel rather than a row in the table
+          above. */}
+      <ReferralAnalyticsPanel days={30} />
 
       <SectionHead
         title="Engagement"

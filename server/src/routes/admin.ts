@@ -40,6 +40,7 @@ import { roleThresholds } from "../lib/discordRoles.js";
 import { LINK_REWARD_SOURCE } from "../lib/discordLinkReward.js";
 import { XP_DEFAULTS, levelFromXp } from "../lib/discordXp.js";
 import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
+import { REFERRAL_SOURCE, REFERRAL_MILESTONE_SOURCE } from "../lib/referrals.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
@@ -1949,6 +1950,114 @@ app.post("/chat/bulk-delete", async (c) => {
 // eligibility gate (a deliberate choice — see lib/referrals.ts), so the
 // control against farming is noticing and switching it off, which means the
 // switch has to be one click from the numbers that would show it.
+
+// ── GET /api/admin/referral-analytics ───────────────────────────────
+//
+// The programme pays a tradeable item on SIGNUP with no eligibility gate, so
+// the question this page has to answer is not "how many referrals" — it is
+// "are these players, or are they empty accounts made to farm Master Balls".
+//
+// Volume alone cannot answer that; a farm and a good week look identical in a
+// bar chart. What separates them is whether the referred accounts PLAY. So the
+// centrepiece here is the share of referred accounts that got past the first
+// few levels, stated NEXT TO the same share for everybody else — a referred
+// cohort that plays like the rest of the playerbase is growth, and one sitting
+// at level 0 while the site-wide number is healthy is a farm, and neither
+// number means anything without the other.
+app.get("/referral-analytics", async (c) => {
+  const days = Math.min(365, Math.max(1, Number(c.req.query("days") ?? 30)));
+  const since = new Date(Date.now() - days * 86_400_000);
+
+  /** Past this, an account has actually played rather than merely existed. */
+  const PLAYED_LEVEL = 5;
+
+  try {
+    const [rows, grants, milestones, referredIds, playedReferred, everyoneTotal, everyonePlayed] =
+      await Promise.all([
+        prisma.referral.findMany({
+          where: { createdAt: { gte: since } },
+          select: { referrerUserId: true, referredUserId: true, createdAt: true },
+        }),
+        prisma.pendingGrant.count({ where: { source: REFERRAL_SOURCE } }),
+        prisma.pendingGrant.count({ where: { source: REFERRAL_MILESTONE_SOURCE } }),
+        prisma.referral.findMany({ select: { referredUserId: true } }),
+        // Counted over ALL referrals, not the window: "do referred accounts
+        // play" is a question about the cohort, and a 30-day window would
+        // judge accounts that are a day old.
+        prisma.user.count({
+          where: {
+            accountLevel: { gte: PLAYED_LEVEL },
+            referredBy: { isNot: null },
+          },
+        }),
+        prisma.user.count(),
+        prisma.user.count({ where: { accountLevel: { gte: PLAYED_LEVEL } } }),
+      ]);
+
+    // Per-day counts, zero-filled — a sparse series drawn as a line invents a
+    // trend across the gaps.
+    const perDay: Record<string, number> = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since.getTime() + i * 86_400_000);
+      perDay[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const r of rows) {
+      const key = r.createdAt.toISOString().slice(0, 10);
+      if (key in perDay) perDay[key] += 1;
+    }
+
+    // Top referrers, with the two numbers that tell them apart: how many they
+    // brought, and how many of those play.
+    const byReferrer = new Map<string, string[]>();
+    for (const r of rows) {
+      const list = byReferrer.get(r.referrerUserId) ?? [];
+      list.push(r.referredUserId);
+      byReferrer.set(r.referrerUserId, list);
+    }
+    const topIds = [...byReferrer.entries()]
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 15);
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...new Set([...topIds.map(([id]) => id), ...topIds.flatMap(([, v]) => v)])] } },
+      select: { id: true, username: true, accountLevel: true },
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    const top = topIds.map(([id, referred]) => ({
+      userId: id,
+      username: byId.get(id)?.username ?? "(deleted)",
+      count: referred.length,
+      played: referred.filter((r) => (byId.get(r)?.accountLevel ?? 0) >= PLAYED_LEVEL).length,
+    }));
+
+    const referredTotal = referredIds.length;
+
+    return c.json({
+      days,
+      playedLevel: PLAYED_LEVEL,
+      total: rows.length,
+      totalAllTime: referredTotal,
+      grants,
+      milestones,
+      perDay,
+      top,
+      // The comparison that makes the rest of the panel mean something.
+      quality: {
+        referredTotal,
+        referredPlayed: playedReferred,
+        everyoneTotal,
+        everyonePlayed,
+      },
+    });
+  } catch (e) {
+    // A missing table (deploy ordering) must not 500 the whole Analytics page.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021") {
+      return c.json({ notReady: true });
+    }
+    throw e;
+  }
+});
 
 app.get("/referral-config", async (c) => {
   const [row, referrals, grants] = await Promise.all([

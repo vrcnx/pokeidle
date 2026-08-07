@@ -3690,3 +3690,24 @@
   .acq-row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .acq-row__badge, .acq-row__bar { display: none; }
 }
+
+/* ── Referral per-day bars ──────────────────────────────────────────
+   A farm is a SPIKE, not a trend, so these are read against the window's
+   peak rather than smoothed — the shape worth seeing is the one a rolling
+   average would remove. */
+.ref-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 48px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.12));
+}
+.ref-spark-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: #a78bfa;
+}
+/* A referrer with several signups and none of them playing. */
+.row-warn td { background: rgba(248, 113, 113, 0.08); }

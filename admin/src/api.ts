@@ -323,6 +323,30 @@ export interface DiscordLinkRow {
   banned: boolean;
 }
 
+export interface ReferralAnalytics {
+  /** Set when the tables are not deployed yet — the panel says so rather
+   *  than rendering zeros that look like a dead programme. */
+  notReady?: boolean;
+  days: number;
+  /** accountLevel at or above which an account counts as having PLAYED. */
+  playedLevel: number;
+  /** Referrals inside the window. */
+  total: number;
+  totalAllTime: number;
+  grants: number;
+  milestones: number;
+  perDay: Record<string, number>;
+  top: Array<{ userId: string; username: string; count: number; played: number }>;
+  /** The comparison the panel is built around: do referred accounts play
+   *  like everybody else, or are they empty accounts made to farm? */
+  quality: {
+    referredTotal: number;
+    referredPlayed: number;
+    everyoneTotal: number;
+    everyonePlayed: number;
+  };
+}
+
 export interface ReferralConfig {
   /** The stop button. Off keeps recording where accounts came from and stops
    *  paying for it. */
@@ -567,6 +591,8 @@ export const api = {
   // ride along with the GET so the numbers that would reveal a farm sit next
   // to the switch that stops it.
   getReferralConfig: () => req<ReferralConfig>("GET", "/api/admin/referral-config"),
+  referralAnalytics: (days = 30) =>
+    req<ReferralAnalytics>("GET", `/api/admin/referral-analytics?days=${days}`),
   putReferralConfig: (body: {
     enabled: boolean;
     perReferral?: GiveawayPrizeInput[];
