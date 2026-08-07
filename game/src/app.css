@@ -21039,3 +21039,28 @@ strong, b { font-variant-numeric: tabular-nums; }
   image-rendering: pixelated;
   flex: 0 0 auto;
 }
+
+/* ── "/link is a Discord command" ───────────────────────────────────
+   The signpost shown when somebody runs the Discord bot's command in the
+   game's chat box. Small, and above the hub: chat lives inside the hub
+   dialog, so an overlay at the shared modal level would render UNDERNEATH
+   the thing it was opened from. */
+.link-help-overlay { z-index: 120; }
+.link-help-modal {
+  width: min(420px, 92vw);
+  /* Content-sized. `.g-modal` is built for panels with their own scroll;
+     this is three lines and a button, and a fixed height would leave it
+     mostly empty. */
+  max-height: none;
+}
+.link-help-modal .g-modal-body p { margin: 0 0 12px; line-height: 1.5; }
+.link-help-modal .g-modal-body p:last-child { margin-bottom: 0; }
+.link-help-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px, because this is the one thing the popup exists to offer. */
+  min-height: 44px;
+  padding: 0 16px;
+  text-decoration: none;
+}

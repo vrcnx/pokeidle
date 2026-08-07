@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HubViews } from "./HubModal";
 import { api, type ChatMessage, type FriendEntry, type FriendList, type MeProfile } from "../net/api";
 import { getSocket } from "../net/socket";
+import { isDiscordLinkCommand } from "../utils/chatCommands";
 import { useAuth } from "../auth/AuthContext";
 import { useModalEnter } from "../utils/animate";
 import { openPublicTrainerCard } from "./TrainerCardModal";
@@ -257,6 +258,11 @@ function ChatTab({
   unreadFor: (key: ChannelKey) => number;
 }) {
   const [draft, setDraft] = useState("");
+  /** The "/link belongs in Discord" signpost: null = closed, "loading" while
+   *  we ask whether this account is already linked. */
+  const [linkHelp, setLinkHelp] = useState<
+    null | "loading" | { linked: boolean; inviteUrl: string | null }
+  >(null);
   const [sending, setSending] = useState(false);
   const mute = useMuteList();
   void mute.version; // re-renders when mute list changes
@@ -293,6 +299,27 @@ function ChatTab({
   const send = async () => {
     const content = draft.trim();
     if (!content || sending) return;
+
+    // ── "/link" IS A DISCORD COMMAND, NOT A CHAT ONE ────────────────
+    // The Rewards card tells players to run /link, and it does not say
+    // WHERE loudly enough — so some of them run it here, in the only place
+    // in this game that has a text box. Broadcasting that to global chat
+    // helps nobody: the player is told nothing, and everyone else sees a
+    // command they cannot answer.
+    //
+    // Caught before the socket rather than handled server-side because the
+    // answer is entirely local — it is a signpost, not a message.
+    if (isDiscordLinkCommand(content)) {
+      setDraft("");
+      setLinkHelp("loading");
+      api.discordLinkStatus()
+        .then((r) => setLinkHelp({ linked: r.linked, inviteUrl: r.inviteUrl ?? null }))
+        // A failed status check should still answer the question that was
+        // asked, so fall back to "here is the server, go run it there".
+        .catch(() => setLinkHelp({ linked: false, inviteUrl: null }));
+      return;
+    }
+
     setSending(true);
     const sock = getSocket();
     sock.emit("chat:send", { channelId: activeChannel, content }, (_res: any) => {
@@ -443,6 +470,84 @@ function ChatTab({
           <button type="submit" className="g-btn-primary" disabled={!draft.trim() || sending}>{t("Send")}</button>
         </form>
       </main>
+
+      {linkHelp && <LinkCommandHelp state={linkHelp} onClose={() => setLinkHelp(null)} />}
+    </div>
+  );
+}
+
+/**
+ * What happens when somebody types `/link` in the game's chat box.
+ *
+ * They are reaching for the Discord bot command — the Rewards card tells
+ * them to run it, and this is the only text box in the game, so some of them
+ * run it here. The message is intercepted rather than sent: broadcasting it
+ * tells the player nothing and shows everyone else a command they cannot
+ * answer.
+ *
+ * Closable three ways, because it is a signpost the player did not ask for
+ * and getting rid of it must never be a puzzle: the button, the backdrop and
+ * Escape.
+ */
+function LinkCommandHelp({
+  state, onClose,
+}: {
+  state: "loading" | { linked: boolean; inviteUrl: string | null };
+  onClose: () => void;
+}) {
+  const t = useT();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const linked = state !== "loading" && state.linked;
+  const invite = state !== "loading" ? state.inviteUrl : null;
+
+  return (
+    <div className="modal-overlay link-help-overlay" onClick={onClose}>
+      <div
+        className="g-modal link-help-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("About /link")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="g-modal-head">
+          <strong>{t("/link is a Discord command")}</strong>
+          <button className="g-modal-close" onClick={onClose} aria-label={t("Close")}>×</button>
+        </header>
+        <div className="g-modal-body">
+          {state === "loading" ? (
+            <p className="dim">{t("One moment…")}</p>
+          ) : linked ? (
+            // Answering the question they actually have. Telling somebody who
+            // is already linked to go and link is how a help popup becomes
+            // noise.
+            <p>
+              {t("Your Discord is already linked to this account — there's nothing left to do. Run ")}
+              <code>/profile</code>{t(" in the server to see your trainer card.")}
+            </p>
+          ) : (
+            <>
+              <p>
+                {t("It doesn't run here — it runs in the Pokémon Idle Discord, where the bot DMs you a code. Enter that code back here and you're linked.")}
+              </p>
+              {invite && (
+                <a
+                  className="g-btn-primary link-help-cta"
+                  href={invite}
+                  // Another application, so a new tab: the game is a running
+                  // session with a save behind it.
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >{t("Open the Discord server →")}</a>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
