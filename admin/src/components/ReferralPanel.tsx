@@ -60,7 +60,12 @@ export function ReferralPanel({ onSaved }: { onSaved?: () => void } = {}) {
         ...(shinyPool.length > 0 ? { shinyPool } : {}),
       });
       adopt(d);
-      void notify(d.enabled ? "Referrals are ON." : "Referrals are OFF — signups are still recorded.");
+      void notify(d.enabled
+        ? "Referrals are ON."
+        // Worth saying, because the player-facing card disappears entirely
+        // when this is off — an operator who does not know that will read the
+        // empty Rewards page as a bug.
+        : "Referrals are OFF — signups are still recorded, and the invite card is hidden from players.");
       onSaved?.();
     } catch (e) {
       // Reset the toggle to what the SERVER believes, not what was clicked.
@@ -84,9 +89,15 @@ export function ReferralPanel({ onSaved }: { onSaved?: () => void } = {}) {
           </p>
         </div>
         <div className="gv-dr-state">
-          <span className={`tag ${enabled ? "gv-status--open" : ""}`}>
-            {enabled ? "ON" : "OFF"}
-          </span>
+          {/* Nothing until the server has answered. Rendering a default here
+              means the tag reads OFF for a moment on a programme that is on,
+              which is the same "is this broken or just paused?" confusion the
+              whole default change exists to end. */}
+          {cfg && (
+            <span className={`tag ${enabled ? "gv-status--open" : ""}`}>
+              {enabled ? "ON" : "OFF"}
+            </span>
+          )}
         </div>
       </header>
 
@@ -114,11 +125,11 @@ export function ReferralPanel({ onSaved }: { onSaved?: () => void } = {}) {
           />
           <span>
             Pay for referrals
-            {/* Unlike the Discord reward, this is tickable with nothing
-                configured: the server falls back to a documented default (one
-                Master Ball, $1,000,000 at ten), so "on with no prizes set" is
-                a working programme here rather than one that pays nothing. */}
-            <em className="dim"> — defaults to 1x masterball each, $1,000,000 at {cap}</em>
+            {/* ON unless somebody turned it off. Unlike the Discord reward this
+                needs no prizes configured first — the server falls back to a
+                documented default, so "running with nothing set" is a working
+                programme rather than one that silently pays nothing. */}
+            <em className="dim"> — running by default: 1x masterball each, $1,000,000 at {cap}</em>
           </span>
         </label>
       </div>

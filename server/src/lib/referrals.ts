@@ -131,9 +131,16 @@ const DEFAULT_MILESTONE: Prize[] = [{ kind: "money", amount: 1_000_000 }];
 /**
  * The programme's configuration, with the defaults folded in.
  *
- * A missing row means "never configured", which reads as disabled with the
- * default prizes — so an operator opening the admin panel sees the programme
- * as described rather than an empty form they have to guess at.
+ * ── A MISSING ROW MEANS RUNNING, NOT PAUSED ────────────────────────
+ * Nothing is seeded, so "never configured" is the state every deployment
+ * starts in — and it now resolves to ON with the documented default prizes.
+ *
+ * It resolved to OFF first, which meant the feature was built, deployed,
+ * correct, and invisible: the card hides itself when the programme is off, so
+ * there was no way to tell "paused" from "broken" without reading the source.
+ * A default an operator has to undo before the thing works is the wrong
+ * default. `enabled: false` still does exactly what it says — it is just no
+ * longer where everyone starts.
  */
 export async function getReferralConfig(): Promise<ReferralConfigResolved> {
   const row = await prisma.referralConfig.findUnique({ where: { id: "singleton" } });
@@ -147,7 +154,7 @@ export async function getReferralConfig(): Promise<ReferralConfigResolved> {
     return parsed.prizes.length > 0 ? parsed.prizes : fallback;
   };
   return {
-    enabled: row?.enabled ?? false,
+    enabled: row?.enabled ?? true,
     perReferral: parse(row?.perReferral, DEFAULT_PER_REFERRAL),
     milestone: parse(row?.milestone, DEFAULT_MILESTONE),
     shinyPool: parse(row?.shinyPool, []),

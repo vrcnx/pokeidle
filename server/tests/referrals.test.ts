@@ -240,6 +240,27 @@ describe("the cap and the milestone", () => {
   });
 });
 
+describe("an untouched deployment", () => {
+  // Nothing seeds ReferralConfig, so "no row" is the state every deployment
+  // starts in — and it has to mean RUNNING. It meant paused first, which,
+  // combined with a card that hides itself when the programme is off, shipped
+  // a feature that was built, correct, deployed and invisible. This is the
+  // test that would have caught that being true.
+  beforeEach(() => { state.config = null; });
+
+  it("is running, with the prizes the programme was asked for", async () => {
+    const res = await attributeSignup("newbie", "ABCD2345");
+    expect(res).toMatchObject({ ok: true, paid: true });
+    const prizes = state.grants[0].prizes as Array<{ kind: string; itemId?: string }>;
+    expect(prizes).toEqual([{ kind: "item", itemId: "masterball", quantity: 1 }]);
+  });
+
+  it("shows the card, because the card is hidden only when it is off", async () => {
+    const summary = await getReferralSummary("alice");
+    expect(summary.enabled).toBe(true);
+  });
+});
+
 describe("when the programme is switched off", () => {
   beforeEach(() => { state.config = { ...ON, enabled: false }; });
 

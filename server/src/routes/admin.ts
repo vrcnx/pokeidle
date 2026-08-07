@@ -1957,7 +1957,10 @@ app.get("/referral-config", async (c) => {
     prisma.pendingGrant.count({ where: { source: { startsWith: "referral" } } }),
   ]);
   return c.json({
-    enabled: row?.enabled ?? false,
+    // Unconfigured means RUNNING — see getReferralConfig. The panel has to
+    // agree with the payout path about that, or an operator reads "off" here
+    // while friends are being paid for.
+    enabled: row?.enabled ?? true,
     perReferral: row?.perReferral ? parsePrizes(row.perReferral) : [],
     milestone: row?.milestone ? parsePrizes(row.milestone) : [],
     shinyPool: row?.shinyPool ? parsePrizes(row.shinyPool) : [],

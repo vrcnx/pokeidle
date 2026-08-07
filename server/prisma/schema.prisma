@@ -1585,10 +1585,22 @@ model ReferralConfig {
   /// be PAUSED without losing its configuration. Clearing the prizes to turn
   /// it off is how an operator ends up giving away the wrong thing later.
   ///
-  /// It is also the stop button: the programme pays on signup with no
-  /// eligibility gate (see lib/referrals.ts), so switching it off is the
-  /// control against farming.
-  enabled Boolean @default(false)
+  /// It is the stop button: the programme pays on signup with no eligibility
+  /// gate (see lib/referrals.ts), so switching it off is the control against
+  /// farming.
+  ///
+  /// ON BY DEFAULT. It shipped off, on the reasoning that a promotion minting
+  /// tradeable items should not start itself at deploy — which sounds prudent
+  /// and was wrong in this case. The programme was ASKED for; "off" was a
+  /// condition nobody requested, and because the card hides itself when the
+  /// programme is off, the result was a feature that was built, deployed,
+  /// working, and invisible. That is the exact failure the Discord link
+  /// reward had, described at length in this same file, and reintroducing it
+  /// out of caution is not caution.
+  ///
+  /// A default that has to be undone before the feature works is a default
+  /// that is wrong. The kill switch remains, for the day it is needed.
+  enabled Boolean @default(true)
 
   /// JSON array of Prize — paid to the referrer for EACH signup, up to
   /// `perReferralCap`. Unset falls back to one Master Ball.
