@@ -540,21 +540,28 @@ function usePvpNarrationStage(room: BattleRoom): NarrationStage {
   const seq = beat?.seq ?? 0;
   const line = beat?.line ?? null;
 
-  // ── THE BOARD SNAPS FORWARD WHEN IT IS YOUR TURN ────────────────
-  // Narrating at a readable pace is right while the turn plays out, and
-  // wrong the instant the player has to decide something: choosing a switch
-  // against a board that still shows the Pokemon that already fainted is a
-  // worse bug than the one this whole change fixes.
+  // ── NO HURRY WHEN A REQUEST ARRIVES ─────────────────────────────
+  // There was one here and it was wrong. The reasoning — "don't let the
+  // player choose against a stale board" — sounds right and is not, because
+  // the request arrives at the END of the turn's protocol. Hurrying on it
+  // collapsed the narration of the turn the player had just watched, EVERY
+  // turn rather than occasionally, and `hurry()` floors every beat at
+  // MIN_HOLD_MS (110ms). The move effect runs 400-900ms and the faint drop
+  // 600ms, so both were cut off partway through.
   //
-  // `rqid` is the simulator's own id for "here is a new decision", so it
-  // moves exactly once per request and not on the re-renders in between.
-  const rqid = room.request?.rqid ?? null;
-  const lastRqid = useRef<number | null>(null);
-  useEffect(() => {
-    if (rqid == null || rqid === lastRqid.current) return;
-    lastRqid.current = rqid;
-    if (pacer.hurry(Date.now())) bump((n) => n + 1);
-  }, [rqid, pacer]);
+  // That is the reported "attack animations sometimes don't finish" and
+  // "there should be a faint animation": the animations were always there,
+  // and this was chopping them. Without it the beats keep their tuned
+  // lengths — move 900ms, faint 1100ms — which is more than either needs.
+  //
+  // The hazard it was guarding against is covered twice over already. The
+  // move grid and the switch grid read the LIVE room (see battleControls),
+  // so what the player may DO is never stale, and the scene's lag is bounded
+  // by LAG_BUDGET_MS regardless. A board a beat behind while you read your
+  // own turn is what the mainline games do.
+  //
+  // `hurry()` keeps its real job: a battle ENDING mid-burst, where nobody
+  // wants four seconds of narration about a battle that is already over.
 
   // Recomputed only when the beat changes — `effectForNarration` does a dex
   // lookup, and a re-render caused by anything else must not repeat it.
