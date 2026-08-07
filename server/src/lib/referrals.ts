@@ -3,6 +3,10 @@ import { Prisma } from "@prisma/client";
 import { parsePrizesStrict, describePrizes, type Prize } from "./giveaway.js";
 import { enqueuePrizeGrant } from "./prizeGrant.js";
 import { recordError } from "./errorReporting.js";
+// Built once by scripts/gen-shiny-pool.mjs from the admin's REAL createPokemon
+// — see that file. Imported rather than fetched so the milestone can pay a
+// shiny on a server nobody has configured.
+import defaultShinyPool from "../data/defaultShinyPool.json" with { type: "json" };
 
 // The referral programme.
 //
@@ -124,9 +128,27 @@ export interface ReferralConfigResolved {
 /** One Master Ball per friend — the programme as asked for, before any
  *  operator edits it. */
 const DEFAULT_PER_REFERRAL: Prize[] = [{ kind: "item", itemId: "masterball", quantity: 1 }];
-/** The money half of the tenth-friend bonus. The shiny half comes from the
- *  pool, because the server cannot build a Pokémon. */
+/** The money half of the tenth-friend bonus. */
 const DEFAULT_MILESTONE: Prize[] = [{ kind: "money", amount: 1_000_000 }];
+
+/**
+ * The shiny half, and the reason it is a committed file.
+ *
+ * This server cannot build a Pokémon — no species table, no stat formula — so
+ * for a while the pool shipped empty and the milestone paid its money half
+ * only, with an admin button to stock it. That was a feature that did not do
+ * what it said until somebody remembered to press something, which is the
+ * second time in this programme the same mistake was made (see `enabled`).
+ *
+ * So the mons are built ONCE, offline, by the real createPokemon, and
+ * committed: scripts/gen-shiny-pool.mjs. Nothing raids exist to award is in
+ * here — raids are the content that makes those species worth chasing, and a
+ * referral link paying one out is that content undercut by a promotion.
+ *
+ * An operator who curates their own pool overrides this completely; this is
+ * what everyone gets until they do.
+ */
+const DEFAULT_SHINY_POOL = defaultShinyPool as unknown as Prize[];
 
 /**
  * The programme's configuration, with the defaults folded in.
@@ -157,7 +179,7 @@ export async function getReferralConfig(): Promise<ReferralConfigResolved> {
     enabled: row?.enabled ?? true,
     perReferral: parse(row?.perReferral, DEFAULT_PER_REFERRAL),
     milestone: parse(row?.milestone, DEFAULT_MILESTONE),
-    shinyPool: parse(row?.shinyPool, []),
+    shinyPool: parse(row?.shinyPool, DEFAULT_SHINY_POOL),
     cap: row?.perReferralCap ?? 10,
   };
 }

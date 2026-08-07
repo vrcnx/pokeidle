@@ -225,18 +225,42 @@ describe("the cap and the milestone", () => {
     expect(state.grants.filter((g) => g.source === REFERRAL_MILESTONE_SOURCE)).toHaveLength(1);
   });
 
-  it("still pays the money when no shiny pool is configured", async () => {
-    // A milestone is earned once and cannot be earned again. Paying nothing
-    // because an operator has not filled the pool would take it away for good;
-    // inventing a mon would give it wrong stats. So: money, and a logged
-    // misconfiguration.
+  it("pays a shiny on a server nobody has configured", async () => {
+    // The property the committed default pool exists for. `shinyPool: null`
+    // is what every fresh deployment has, and it used to mean the milestone
+    // paid its money half and nothing else — a bonus that advertised a shiny
+    // and delivered cash until an operator remembered to stock it.
     state.config = { ...ON, shinyPool: null };
     await refer(10);
     const milestone = state.grants.filter((g) => g.source === REFERRAL_MILESTONE_SOURCE);
     expect(milestone).toHaveLength(1);
-    const prizes = milestone[0].prizes as Array<{ kind: string }>;
+    const prizes = milestone[0].prizes as Array<{ kind: string; label?: string }>;
     expect(prizes.some((p) => p.kind === "money")).toBe(true);
-    expect(prizes.some((p) => p.kind === "pokemon")).toBe(false);
+    const mon = prizes.find((p) => p.kind === "pokemon");
+    expect(mon, "no shiny in the milestone on an unconfigured server").toBeDefined();
+    expect(mon?.label).toMatch(/^Shiny /);
+  });
+
+  it("draws from the pool, so two milestones are not always the same mon", async () => {
+    // A "random" shiny that is the same species every time is a fixed prize
+    // wearing the word random. The pool is drawn from per payout, so across
+    // enough referrers more than one species should appear.
+    const seen = new Set<string>();
+    // The DEFAULT pool (24 mons), not the fixture's one-mon pool — drawing
+    // repeatedly from a pool of one proves nothing.
+    state.config = { ...ON, shinyPool: null };
+    for (let r = 0; r < 25; r++) {
+      state.codes = [{ userId: `ref${r}`, code: `CODE${String(r).padStart(4, "0")}` }];
+      state.referrals = [];
+      state.grants = [];
+      await Promise.all(
+        Array.from({ length: 10 }, (_, i) => attributeSignup(`f${r}_${i}`, `CODE${String(r).padStart(4, "0")}`)),
+      );
+      const m = state.grants.find((g) => g.source === REFERRAL_MILESTONE_SOURCE);
+      const mon = (m?.prizes as Array<{ kind: string; label?: string }>)?.find((p) => p.kind === "pokemon");
+      if (mon?.label) seen.add(mon.label);
+    }
+    expect(seen.size, `every milestone drew the same shiny: ${[...seen]}`).toBeGreaterThan(1);
   });
 });
 

@@ -1,0 +1,890 @@
+[
+  {
+    "kind": "pokemon",
+    "label": "Shiny Bulbasaur Lv5",
+    "mon": {
+      "id": "1000000",
+      "speciesKey": "bulbasaur",
+      "name": "Bulbasaur",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 21,
+      "maxHp": 21,
+      "attack": 11,
+      "defense": 11,
+      "spAttack": 13,
+      "spDefense": 13,
+      "speed": 11,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Caterpie Lv5",
+    "mon": {
+      "id": "1000001",
+      "speciesKey": "caterpie",
+      "name": "Caterpie",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 21,
+      "maxHp": 21,
+      "attack": 9,
+      "defense": 10,
+      "spAttack": 8,
+      "spDefense": 8,
+      "speed": 11,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Rattata Lv5",
+    "mon": {
+      "id": "1000002",
+      "speciesKey": "rattata",
+      "name": "Rattata",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 19,
+      "maxHp": 19,
+      "attack": 12,
+      "defense": 10,
+      "spAttack": 9,
+      "spDefense": 10,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Sandslash Lv5",
+    "mon": {
+      "id": "1000003",
+      "speciesKey": "sandslash",
+      "name": "Sandslash",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 24,
+      "maxHp": 24,
+      "attack": 16,
+      "defense": 17,
+      "spAttack": 11,
+      "spDefense": 12,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Vulpix Lv5",
+    "mon": {
+      "id": "1000004",
+      "speciesKey": "vulpix",
+      "name": "Vulpix",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 20,
+      "maxHp": 20,
+      "attack": 10,
+      "defense": 10,
+      "spAttack": 11,
+      "spDefense": 13,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Paras Lv5",
+    "mon": {
+      "id": "1000005",
+      "speciesKey": "paras",
+      "name": "Paras",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 20,
+      "maxHp": 20,
+      "attack": 13,
+      "defense": 12,
+      "spAttack": 11,
+      "spDefense": 12,
+      "speed": 9,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Golduck Lv5",
+    "mon": {
+      "id": "1000006",
+      "speciesKey": "golduck",
+      "name": "Golduck",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 24,
+      "maxHp": 24,
+      "attack": 14,
+      "defense": 14,
+      "spAttack": 16,
+      "spDefense": 14,
+      "speed": 15,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Kadabra Lv5",
+    "mon": {
+      "id": "1000007",
+      "speciesKey": "kadabra",
+      "name": "Kadabra",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 20,
+      "maxHp": 20,
+      "attack": 10,
+      "defense": 9,
+      "spAttack": 18,
+      "spDefense": 13,
+      "speed": 17,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Tentacruel Lv5",
+    "mon": {
+      "id": "1000008",
+      "speciesKey": "tentacruel",
+      "name": "Tentacruel",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 24,
+      "maxHp": 24,
+      "attack": 13,
+      "defense": 13,
+      "spAttack": 14,
+      "spDefense": 18,
+      "speed": 16,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Magneton Lv5",
+    "mon": {
+      "id": "1000009",
+      "speciesKey": "magneton",
+      "name": "Magneton",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 21,
+      "maxHp": 21,
+      "attack": 12,
+      "defense": 16,
+      "spAttack": 18,
+      "spDefense": 13,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Cloyster Lv5",
+    "mon": {
+      "id": "1000010",
+      "speciesKey": "cloyster",
+      "name": "Cloyster",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 21,
+      "maxHp": 21,
+      "attack": 16,
+      "defense": 24,
+      "spAttack": 15,
+      "spDefense": 11,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Voltorb Lv5",
+    "mon": {
+      "id": "1000011",
+      "speciesKey": "voltorb",
+      "name": "Voltorb",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 20,
+      "maxHp": 20,
+      "attack": 9,
+      "defense": 11,
+      "spAttack": 12,
+      "spDefense": 12,
+      "speed": 16,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Koffing Lv5",
+    "mon": {
+      "id": "1000012",
+      "speciesKey": "koffing",
+      "name": "Koffing",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 20,
+      "maxHp": 20,
+      "attack": 13,
+      "defense": 16,
+      "spAttack": 12,
+      "spDefense": 11,
+      "speed": 10,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Goldeen Lv5",
+    "mon": {
+      "id": "1000013",
+      "speciesKey": "goldeen",
+      "name": "Goldeen",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 21,
+      "maxHp": 21,
+      "attack": 13,
+      "defense": 12,
+      "spAttack": 10,
+      "spDefense": 11,
+      "speed": 12,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Pinsir Lv5",
+    "mon": {
+      "id": "1000014",
+      "speciesKey": "pinsir",
+      "name": "Pinsir",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 23,
+      "maxHp": 23,
+      "attack": 19,
+      "defense": 16,
+      "spAttack": 12,
+      "spDefense": 13,
+      "speed": 15,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Flareon Lv5",
+    "mon": {
+      "id": "1000015",
+      "speciesKey": "flareon",
+      "name": "Flareon",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 23,
+      "maxHp": 23,
+      "attack": 19,
+      "defense": 12,
+      "spAttack": 16,
+      "spDefense": 17,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Dragonair Lv5",
+    "mon": {
+      "id": "1000016",
+      "speciesKey": "dragonair",
+      "name": "Dragonair",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 156,
+      "moves": [],
+      "currentHp": 22,
+      "maxHp": 22,
+      "attack": 14,
+      "defense": 13,
+      "spAttack": 13,
+      "spDefense": 13,
+      "speed": 13,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Croconaw Lv5",
+    "mon": {
+      "id": "1000017",
+      "speciesKey": "croconaw",
+      "name": "Croconaw",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 23,
+      "maxHp": 23,
+      "attack": 14,
+      "defense": 14,
+      "spAttack": 12,
+      "spDefense": 12,
+      "speed": 12,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Ariados Lv5",
+    "mon": {
+      "id": "1000018",
+      "speciesKey": "ariados",
+      "name": "Ariados",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 100,
+      "moves": [],
+      "currentHp": 23,
+      "maxHp": 23,
+      "attack": 15,
+      "defense": 13,
+      "spAttack": 12,
+      "spDefense": 13,
+      "speed": 10,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Ampharos Lv5",
+    "mon": {
+      "id": "1000019",
+      "speciesKey": "ampharos",
+      "name": "Ampharos",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 135,
+      "moves": [],
+      "currentHp": 25,
+      "maxHp": 25,
+      "attack": 14,
+      "defense": 15,
+      "spAttack": 18,
+      "spDefense": 15,
+      "speed": 12,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Aipom Lv5",
+    "mon": {
+      "id": "1000020",
+      "speciesKey": "aipom",
+      "name": "Aipom",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 100,
+      "moves": [],
+      "currentHp": 22,
+      "maxHp": 22,
+      "attack": 13,
+      "defense": 12,
+      "spAttack": 10,
+      "spDefense": 12,
+      "speed": 15,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Slowking Lv5",
+    "mon": {
+      "id": "1000021",
+      "speciesKey": "slowking",
+      "name": "Slowking",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 26,
+      "maxHp": 26,
+      "attack": 14,
+      "defense": 14,
+      "spAttack": 16,
+      "spDefense": 17,
+      "speed": 9,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Steelix Lv5",
+    "mon": {
+      "id": "1000022",
+      "speciesKey": "steelix",
+      "name": "Steelix",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 24,
+      "maxHp": 24,
+      "attack": 15,
+      "defense": 26,
+      "spAttack": 12,
+      "spDefense": 13,
+      "speed": 9,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  },
+  {
+    "kind": "pokemon",
+    "label": "Shiny Ursaring Lv5",
+    "mon": {
+      "id": "1000023",
+      "speciesKey": "ursaring",
+      "name": "Ursaring",
+      "nature": "Hardy",
+      "level": 5,
+      "totalExp": 125,
+      "moves": [],
+      "currentHp": 25,
+      "maxHp": 25,
+      "attack": 19,
+      "defense": 14,
+      "spAttack": 14,
+      "spDefense": 14,
+      "speed": 12,
+      "ivs": {
+        "hp": 31,
+        "attack": 31,
+        "defense": 31,
+        "spAttack": 31,
+        "spDefense": 31,
+        "speed": 31
+      },
+      "evs": {
+        "hp": 0,
+        "attack": 0,
+        "defense": 0,
+        "spAttack": 0,
+        "spDefense": 0,
+        "speed": 0
+      },
+      "isShiny": true
+    }
+  }
+]
