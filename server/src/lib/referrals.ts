@@ -330,7 +330,23 @@ export interface ReferralSummary {
   cap: number;
   enabled: boolean;
   milestoneReached: boolean;
-  /** What each friend is worth right now, for the card to describe. */
+  /**
+   * The actual prize descriptors, not a sentence about them.
+   *
+   * The card first shipped with only `describePrizes` strings and rendered
+   * "1x masterball" as text, beside a Discord card showing a Master Ball
+   * chip with its sprite. Same page, same kind of information, two different
+   * treatments, and the worse one was ours. Sending the Prize[] lets the card
+   * use the same PrizeChips component everything else does — which also
+   * resolves the item NAME, so no player has to read a catalog id.
+   */
+  perReferral: Prize[];
+  milestone: Prize[];
+  /** Whether the milestone will also draw a shiny. The pool holds many mons
+   *  and the draw has not happened, so the card can promise the fact of one
+   *  without naming a species it might not hand over. */
+  milestoneHasShiny: boolean;
+  /** Kept for anything that wants one line rather than chips. */
   perReferralSummary: string;
   milestoneSummary: string;
 }
@@ -354,6 +370,9 @@ export async function getReferralSummary(userId: string): Promise<ReferralSummar
     cap: cfg.cap,
     enabled: cfg.enabled,
     milestoneReached: milestone > 0,
+    perReferral: cfg.perReferral,
+    milestone: cfg.milestone,
+    milestoneHasShiny: cfg.shinyPool.length > 0,
     perReferralSummary: describePrizes(cfg.perReferral),
     // Describes the money half plus the fact of a shiny. The pool holds many
     // mons and the draw has not happened, so naming one would be a lie.

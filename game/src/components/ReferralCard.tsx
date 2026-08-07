@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type ReferralSummary } from "../net/api";
 import { useT } from "../i18n/useT";
+import { PrizeChips } from "./PrizeChips";
 
 // "Invite a friend" — the one reward on this page you earn by bringing
 // somebody else rather than by doing something yourself.
@@ -82,11 +83,30 @@ export function ReferralCard({ data }: { data: ReferralSummary }) {
       <div className="promo-card-body">
         <h3 className="promo-title">{t("Invite your friends")}</h3>
         <p className="promo-blurb">
-          {t("Every friend who starts playing from your link gets you")}{" "}
-          <strong>{data.perReferralSummary}</strong>
-          {t(". Get to")} <strong>{data.cap}</strong>{t(" and you also get")}{" "}
-          <strong>{data.milestoneSummary}</strong>.
+          {t("Every friend who starts playing from your link gets you:")}
         </p>
+        {/* The SAME chips every other reward on this page uses. The card first
+            shipped printing describePrizes() as text, which put "1x
+            masterball" — a catalog id — directly above a Discord card showing
+            a Master Ball with its sprite. */}
+        <PrizeChips prizes={data.perReferral} />
+
+        <p className="promo-blurb referral-milestone-line">
+          {t("Reach")} <strong>{data.cap}</strong>{t(" friends and you also get:")}
+        </p>
+        <span className="referral-milestone-prizes">
+          <PrizeChips prizes={data.milestone} />
+          {/* A chip for the shiny, in the same row, because it IS one of the
+              prizes. Not a PrizeChip proper: the pool holds several mons and
+              the draw has not happened, so there is no species to name yet
+              and naming one would be a promise we might not keep. */}
+          {data.milestoneHasShiny && (
+            <span className="gw-chip referral-shiny-chip">
+              <span aria-hidden>✨</span>
+              {t("a random shiny")}
+            </span>
+          )}
+        </span>
 
         <div className="referral-link-row">
           <input

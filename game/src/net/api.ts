@@ -49,6 +49,14 @@ export interface ReferralSummary {
   cap: number;
   enabled: boolean;
   milestoneReached: boolean;
+  /** The real prize descriptors, so the card can render the same PrizeChips
+   *  every other reward on the page uses — with sprites and resolved item
+   *  names, rather than "1x masterball" as text. */
+  perReferral: GiveawayPrize[];
+  milestone: GiveawayPrize[];
+  /** Whether the milestone also draws a shiny. A fact, not a species: the
+   *  pool holds several and the draw has not happened. */
+  milestoneHasShiny: boolean;
   /** Described by the server from its own config, so the card cannot
    *  advertise a prize the grant path would not actually pay. */
   perReferralSummary: string;

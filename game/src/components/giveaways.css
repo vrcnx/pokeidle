@@ -954,3 +954,21 @@
   .referral-link-field,
   .referral-copy { width: 100%; min-height: 44px; height: 44px; }
 }
+
+/* The milestone's prize row: the money chips and the shiny sit on one line,
+   because they are one prize handed over together. */
+.referral-milestone-line { margin-top: 10px; }
+.referral-milestone-prizes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* Not a real PrizeChip — there is no species to name until the draw happens,
+   so it carries a sparkle and a promise rather than a sprite and an id. The
+   dashed edge is the tell that it is a category, not a specific thing. */
+.referral-shiny-chip {
+  border-style: dashed !important;
+  border-color: var(--gold) !important;
+  color: var(--gold);
+}

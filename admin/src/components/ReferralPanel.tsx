@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type ReferralConfig, type GiveawayPrizeInput } from "../api";
 import { PrizeBuilder } from "./PrizeBuilder";
+import { createPokemon, POKEMON_LIST } from "../data/gameCatalog";
 import { notify } from "./Confirm";
 
 // The referral programme, configured here rather than in the environment
@@ -77,6 +78,45 @@ export function ReferralPanel({ onSaved }: { onSaved?: () => void } = {}) {
   };
 
   const cap = cfg?.perReferralCap ?? 10;
+
+  /**
+   * Stock the pool with real, randomly-chosen shinies.
+   *
+   * The bonus is meant to hand over "a random shiny", and until the pool has
+   * something in it the card correctly refuses to promise one — which reads
+   * as the feature being half-built. Picking twelve by hand through the
+   * builder is the kind of chore nobody does, so the button does it.
+   *
+   * It goes through the SAME createPokemon the prize builder uses, with the
+   * real stat formula. That is the whole reason this lives in the admin
+   * client and not on the server: a mon with invented stats is the bug that
+   * once handed out a Lv50 Charizard with 24 HP.
+   *
+   * Level 5 so the prize is a Pokémon to raise rather than a finished one —
+   * a shiny is the reward here, not a shortcut past the game.
+   */
+  const fillPool = (count: number) => {
+    const pool = [...shinyPool];
+    const taken = new Set(pool.map((p) => (p as { label?: string }).label));
+    let guard = 0;
+    while (pool.length < shinyPool.length + count && guard++ < count * 40) {
+      const sp = POKEMON_LIST[Math.floor(Math.random() * POKEMON_LIST.length)];
+      if (!sp) continue;
+      const label = `Shiny ${sp.name} Lv5`;
+      // No duplicates: a pool of twelve that is really four species repeated
+      // makes "random" mean much less than it says.
+      if (taken.has(label)) continue;
+      taken.add(label);
+      try {
+        const mon = createPokemon(sp.speciesKey, 5, Date.now() % 1_000_000 + pool.length, true);
+        pool.push({ kind: "pokemon", label, mon: mon as unknown as Record<string, unknown> });
+      } catch {
+        // An entry the catalog cannot build (missing base stats) is skipped
+        // rather than allowed to abort the whole fill.
+      }
+    }
+    setShinyPool(pool);
+  };
 
   return (
     <section className="card gv-discord-reward">
@@ -156,10 +196,20 @@ export function ReferralPanel({ onSaved }: { onSaved?: () => void } = {}) {
         <>
           <p className="dim small">
             Pokémon only, and the {cap}th-referral bonus draws <strong>one at random</strong>.
-            Build a few shinies here — an empty pool means the bonus pays its money
-            half and nothing else, because the server cannot invent a Pokémon with
-            correct stats.
+            An empty pool means the bonus pays its money half and nothing else — the
+            server cannot invent a Pokémon, because it has no stat formula, so every
+            mon in here has to be built with the real one.
           </p>
+          <div className="gv-dr-actions">
+            <button className="btn-ghost btn-small" disabled={busy} onClick={() => fillPool(12)}>
+              Add 12 random shinies
+            </button>
+            {shinyPool.length > 0 && (
+              <button className="btn-ghost btn-small" disabled={busy} onClick={() => setShinyPool([])}>
+                Clear pool
+              </button>
+            )}
+          </div>
           <PrizeBuilder prizes={shinyPool} setPrizes={setShinyPool} title="Shiny pool" />
         </>
       )}
