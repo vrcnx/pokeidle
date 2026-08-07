@@ -41,6 +41,20 @@ export class ApiError extends Error {
   }
 }
 
+export interface ReferralSummary {
+  code: string;
+  /** Friends recorded, whether or not they paid — these differ past the cap. */
+  total: number;
+  paid: number;
+  cap: number;
+  enabled: boolean;
+  milestoneReached: boolean;
+  /** Described by the server from its own config, so the card cannot
+   *  advertise a prize the grant path would not actually pay. */
+  perReferralSummary: string;
+  milestoneSummary: string;
+}
+
 export const api = {
   // Auth (Better Auth endpoints — JSON-bodied)
   signUp: (input: { email: string; password: string; name: string; username: string }) =>
@@ -117,6 +131,14 @@ export const api = {
     }>("POST", "/api/discord/link/redeem", input),
   discordUnlink: () =>
     request<{ ok: true; removed: boolean }>("DELETE", "/api/discord/link/me"),
+
+  // The player's own referral card, and the only referral endpoint there is.
+  // Nothing resolves a code back to a player or lists who somebody referred:
+  // a referral link gets posted in public channels, and either of those would
+  // turn that into a way to name whoever posted it. Attribution — crediting a
+  // NEW account to a code — rides on POST /api/attribution instead, because it
+  // is the same fact at the same moment under the same account-age guard.
+  referralSummary: () => request<ReferralSummary>("GET", "/api/referrals/me"),
 
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),

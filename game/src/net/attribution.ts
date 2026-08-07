@@ -25,6 +25,22 @@ import { SERVER_BASE } from "./api";
 
 const KEY = "pokeidle-first-touch";
 const SENT_KEY = "pokeidle-first-touch-sent";
+/**
+ * A friend's referral code, held until there is an account to credit it to.
+ *
+ * ── ITS OWN KEY, NOT A FIELD ON FirstTouch ──────────────────────────
+ * First touch is written once and never overwritten, which is right for
+ * "where did this player come from" and wrong for this. The common case is
+ * someone who finds the game on their own, plays as a guest, and only later
+ * gets a link from a friend who wants the referral — under first-touch rules
+ * that code would be dropped, because a touch was already recorded on the
+ * visit before it.
+ *
+ * So the code is captured independently: the FIRST code seen before signup
+ * wins, whenever it arrives. First rather than last so a code cannot be
+ * displaced by a stray link the visitor clicks on the way to registering.
+ */
+const REF_KEY = "pokeidle-referral-code";
 
 export interface FirstTouch {
   referrer: string;
@@ -75,6 +91,29 @@ export function captureFirstTouch(): void {
 }
 
 /**
+ * Remembers `?ref=CODE` from the current URL.
+ *
+ * Called on every load, not just the first, and a no-op once a code is held —
+ * see REF_KEY for why this does not ride on the first-touch record.
+ *
+ * The code is NOT validated here. Whether it resolves to a player is the
+ * server's answer and it needs the database to give it; a client-side guess
+ * would only ever be a second, weaker copy of that rule. All this does is
+ * refuse to store something absurd, so a junk URL cannot fill storage.
+ */
+export function captureReferralCode(): void {
+  if (typeof window === "undefined") return;
+  const raw = new URLSearchParams(window.location.search).get("ref");
+  if (!raw) return;
+  const code = raw.trim().slice(0, 32);
+  if (!code) return;
+  try {
+    if (localStorage.getItem(REF_KEY)) return; // first code wins
+    localStorage.setItem(REF_KEY, code);
+  } catch { /* private mode — the referral is lost, the signup is not */ }
+}
+
+/**
  * Sends the stored first touch. Safe to call on every authenticated boot.
  *
  * Two layers of "only once": a local flag so an existing player costs at most
@@ -109,6 +148,11 @@ export async function sendFirstTouch(): Promise<void> {
         utmCampaign: touch.utmCampaign,
         utmTerm: touch.utmTerm,
         utmContent: touch.utmContent,
+        // Read at send time rather than captured with the touch: the code may
+        // have arrived on a later visit than the one that set the touch.
+        ref: (() => {
+          try { return localStorage.getItem(REF_KEY); } catch { return null; }
+        })(),
       }),
     });
     // Marked on ANY response, including the no-op reasons. "Too late" and

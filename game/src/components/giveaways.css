@@ -859,3 +859,98 @@
 .giveaway-card .giveaway-enter {
   background: linear-gradient(180deg, #9333ea, #6d28d9);
 }
+
+/* ── The invite card ────────────────────────────────────────────────
+   Wears `.promo-card` so it sits in the same family as the rewards beside
+   it, plus the three things none of those need: a link to copy, a progress
+   bar, and enough room for both. Full width rather than in the `.hub-cols`
+   grid — the link is a long string and a half-width card would either
+   ellipsis it or wrap it, and a referral link you cannot read is one you
+   cannot check before you send it. */
+.referral-card {
+  margin-bottom: 14px;
+}
+
+.referral-link-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.referral-link-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  /* Read-only, not disabled: a disabled input cannot be focused, and focusing
+     it is how the manual copy path works when the clipboard API is blocked
+     (plain http, or a browser that refuses the permission). */
+  cursor: text;
+}
+.referral-link-field:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.referral-copy {
+  flex: 0 0 auto;
+  min-width: 84px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-on-bg);
+  color: var(--ctl-on-fg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.referral-copy:hover { filter: brightness(1.08); }
+/* A fixed min-width so the button does not resize when the label flips to
+   "Copied" — a control that changes shape under the cursor reads as a
+   mis-click even when it worked. */
+
+.referral-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.referral-progress-text {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.referral-progress-text strong { color: var(--text); }
+.referral-progress-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.referral-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold);
+  transition: width 240ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .referral-progress-fill { transition: none; }
+}
+
+@media (max-width: 760px) {
+  /* The link and its button stack: side by side at this width the field is
+     ~180px, which shows about a third of the URL. */
+  .referral-link-row { flex-direction: column; }
+  .referral-link-field,
+  .referral-copy { width: 100%; min-height: 44px; height: 44px; }
+}

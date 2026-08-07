@@ -2,6 +2,7 @@ import { navigateTo } from "../App";
 import { PageActions } from "../components/PageChrome";
 import { GiveawaysPage } from "./GiveawaysPage";
 import { MassGiftPage } from "./MassGiftPage";
+import { ReferralPanel } from "../components/ReferralPanel";
 
 // Giving players things, on one page.
 //
@@ -13,13 +14,19 @@ import { MassGiftPage } from "./MassGiftPage";
 // or should everyone get it?" was having to pick a NAV ITEM before they could
 // see either tool.
 //
-// ── WHY THEY ARE STILL TWO TABS ─────────────────────────────────────
+// Referrals is the third: same act again, with the selection rule handed to
+// the players themselves — they choose who gets invited, and the prize is
+// paid for bringing somebody rather than for being chosen. It is a standing
+// programme rather than a one-off act, which is why it is a settings panel
+// where the other two are forms.
+//
+// ── WHY THEY ARE STILL SEPARATE TABS ────────────────────────────────
 // The difference that remains is the one that matters: a giveaway is opt-in
 // and drawn once from a stored seed, a mass gift lands in every targeted save
 // immediately. Merging the forms would mean one screen where a checkbox
 // changes whether the thing you are about to do is reversible.
 
-export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" }) {
+export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" | "referrals" }) {
   return (
     <div className="page rewards-page">
       <PageActions>
@@ -30,9 +37,14 @@ export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" }) {
           <button role="tab" aria-selected={tab === "massgift"}
                   className={`seg-tab ${tab === "massgift" ? "active" : ""}`}
                   onClick={() => navigateTo("massgift")}>Mass gift</button>
+          <button role="tab" aria-selected={tab === "referrals"}
+                  className={`seg-tab ${tab === "referrals" ? "active" : ""}`}
+                  onClick={() => navigateTo("referrals")}>Referrals</button>
         </div>
       </PageActions>
-      {tab === "giveaways" ? <GiveawaysPage /> : <MassGiftPage />}
+      {tab === "giveaways" ? <GiveawaysPage />
+        : tab === "massgift" ? <MassGiftPage />
+        : <ReferralPanel />}
     </div>
   );
 }

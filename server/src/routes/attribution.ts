@@ -22,6 +22,7 @@ import { prisma } from "../db.js";
 import { requireUser } from "../lib/middleware.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 import { ATTRIBUTION_WINDOW_MS, normalizeAttribution } from "../lib/acquisition.js";
+import { attributeSignup } from "../lib/referrals.js";
 
 const app = new Hono();
 
@@ -75,6 +76,23 @@ app.post("/", requireUser, async (c) => {
     catch { return null; }
   })();
 
+  // ── The referral code, if this visitor arrived through someone's link ──
+  // Handled here rather than on its own endpoint because it is the same fact,
+  // captured at the same moment, under the same guard: the client stashed
+  // `?ref=` on the first page load, the account now exists, and it is minutes
+  // old. A second endpoint would need its own copy of every one of those
+  // conditions.
+  //
+  // Done BEFORE the attribution insert, and its own outcome reported
+  // separately, so an account that already has attribution — a retry, a
+  // second tab — can still have its referral recorded.
+  let referral: string | null = null;
+  const refCode = str(body.ref);
+  if (refCode) {
+    const res = await attributeSignup(user.id, refCode);
+    referral = res.ok ? (res.paid ? "paid" : "recorded") : res.reason;
+  }
+
   const norm = normalizeAttribution({
     referrer: str(body.referrer),
     landingPath: str(body.landingPath),
@@ -92,17 +110,17 @@ app.post("/", requireUser, async (c) => {
     await prisma.signupAttribution.create({ data: { userId: user.id, ...norm } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return c.json({ recorded: false, reason: "already_attributed" });
+      return c.json({ recorded: false, reason: "already_attributed", referral });
     }
     // A missing table (deploy ordering) must not break signup for anyone.
     // Attribution is a reporting nicety; the account is what matters.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021") {
-      return c.json({ recorded: false, reason: "not_ready" });
+      return c.json({ recorded: false, reason: "not_ready", referral });
     }
     throw e;
   }
 
-  return c.json({ recorded: true, channel: norm.channel });
+  return c.json({ recorded: true, channel: norm.channel, referral });
 });
 
 export default app;

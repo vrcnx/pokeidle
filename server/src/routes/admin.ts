@@ -1939,6 +1939,111 @@ app.post("/chat/bulk-delete", async (c) => {
 // is promotion CONTENT, which an operator changes as a judgement call and
 // needs to be able to see.
 
+// ── Referral programme ──────────────────────────────────────────────
+//
+// Same reasoning as the link reward directly below: the prizes are promotion
+// CONTENT, so they live in the database where the dashboard can show them,
+// while nothing about deployment moves here.
+//
+// `enabled` is the stop button. The programme pays on signup with no
+// eligibility gate (a deliberate choice — see lib/referrals.ts), so the
+// control against farming is noticing and switching it off, which means the
+// switch has to be one click from the numbers that would show it.
+
+app.get("/referral-config", async (c) => {
+  const [row, referrals, grants] = await Promise.all([
+    prisma.referralConfig.findUnique({ where: { id: "singleton" } }),
+    prisma.referral.count(),
+    prisma.pendingGrant.count({ where: { source: { startsWith: "referral" } } }),
+  ]);
+  return c.json({
+    enabled: row?.enabled ?? false,
+    perReferral: row?.perReferral ? parsePrizes(row.perReferral) : [],
+    milestone: row?.milestone ? parsePrizes(row.milestone) : [],
+    shinyPool: row?.shinyPool ? parsePrizes(row.shinyPool) : [],
+    perReferralCap: row?.perReferralCap ?? 10,
+    // What it has actually done, next to the switch that stops it.
+    totalReferrals: referrals,
+    totalGrants: grants,
+    updatedAt: row?.updatedAt?.toISOString() ?? null,
+    updatedBy: row?.updatedBy ?? null,
+  });
+});
+
+const ReferralConfigBody = z.object({
+  enabled: z.boolean(),
+  perReferral: PrizeListSchema.optional(),
+  milestone: PrizeListSchema.optional(),
+  shinyPool: PrizeListSchema.optional(),
+  perReferralCap: z.number().int().min(1).max(1000).optional(),
+});
+
+app.put("/referral-config", async (c) => {
+  const me = c.get("user");
+  const parsed = ReferralConfigBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const d = parsed.data;
+
+  // Refuse an undeliverable prize HERE, while an operator is looking at the
+  // form — not on the first player who refers somebody, where it becomes a
+  // grant silently refused on every save upload forever and invisible to
+  // everyone. Same guard, same reason, as giveaway create.
+  for (const [name, list] of [
+    ["perReferral", d.perReferral], ["milestone", d.milestone], ["shinyPool", d.shinyPool],
+  ] as const) {
+    if (!list?.length) continue;
+    const bad = checkPrizesDeliverable(list);
+    if (bad) return c.json({ error: "prize rejected", field: name, reason: bad }, 400);
+  }
+
+  // The pool is drawn from as "a random shiny", so anything in it that is not
+  // a Pokémon would make that description a lie.
+  const notAMon = d.shinyPool?.find((p) => p.kind !== "pokemon");
+  if (notAMon) {
+    return c.json(
+      { error: "bad pool", reason: "The shiny pool holds Pokémon only — money and items belong in the milestone prize." },
+      400,
+    );
+  }
+
+  const existing = await prisma.referralConfig.findUnique({ where: { id: "singleton" } });
+  const json = (next: Prize[] | undefined, prev: string | null | undefined) =>
+    next ? JSON.stringify(next) : prev ?? null;
+
+  const row = await prisma.referralConfig.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      enabled: d.enabled,
+      perReferral: json(d.perReferral, null),
+      milestone: json(d.milestone, null),
+      shinyPool: json(d.shinyPool, null),
+      ...(d.perReferralCap !== undefined ? { perReferralCap: d.perReferralCap } : {}),
+      updatedBy: me.username,
+    },
+    update: {
+      enabled: d.enabled,
+      perReferral: json(d.perReferral, existing?.perReferral),
+      milestone: json(d.milestone, existing?.milestone),
+      shinyPool: json(d.shinyPool, existing?.shinyPool),
+      ...(d.perReferralCap !== undefined ? { perReferralCap: d.perReferralCap } : {}),
+      updatedBy: me.username,
+    },
+  });
+
+  return c.json({
+    enabled: row.enabled,
+    perReferral: row.perReferral ? parsePrizes(row.perReferral) : [],
+    milestone: row.milestone ? parsePrizes(row.milestone) : [],
+    shinyPool: row.shinyPool ? parsePrizes(row.shinyPool) : [],
+    perReferralCap: row.perReferralCap,
+    updatedAt: row.updatedAt.toISOString(),
+    updatedBy: row.updatedBy,
+  });
+});
+
 app.get("/discord-config", async (c) => {
   const row = await prisma.discordConfig.findUnique({ where: { id: "singleton" } });
   return c.json({

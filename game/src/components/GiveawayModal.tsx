@@ -5,6 +5,7 @@ import { useT } from "../i18n/useT";
 import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
 import { PromoCard } from "./PromoCard";
+import { ReferralCard, useReferralSummary } from "./ReferralCard";
 import { openHub, HubViews } from "./HubModal";
 import { WelcomeBackModal } from "./WelcomeBackModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
@@ -448,7 +449,12 @@ interface Tab {
  */
 function FreePane({ promos }: { promos: Promo[] }) {
   const t = useT();
-  if (promos.length === 0) {
+  // The invite card is a free reward like any other, but it comes from its own
+  // endpoint (it carries the player's own link and progress), so the pane asks
+  // for it separately. Null while loading, and null when an operator has the
+  // programme paused.
+  const referral = useReferralSummary();
+  if (promos.length === 0 && !referral) {
     return (
       <div className="gw-empty">
         <strong>{t("Nothing free right now")}</strong>
@@ -459,23 +465,32 @@ function FreePane({ promos }: { promos: Promo[] }) {
   const done = promos.filter((p) => p.state === "claimed").length;
   return (
     <>
-      <div className="rw-pane-head">
-        <p className="rw-pane-note">{t("Do the thing, keep the prize. No draw, no entry.")}</p>
-        <span className="rw-progress">
-          <span className="rw-progress-text">
-            <strong>{done}</strong>/{promos.length} {t("collected")}
-          </span>
-          <span className="rw-progress-bar">
-            <span
-              className="rw-progress-fill"
-              style={{ width: `${Math.round((done / promos.length) * 100)}%` }}
-            />
-          </span>
-        </span>
-      </div>
-      <div className="hub-cols">
-        {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
-      </div>
+      {/* Above the collected-counter, because that counter counts PROMOS and
+          the invite card is not one of them — it has no claimed state, it has
+          a running total. Putting it inside the grid would have it silently
+          excluded from the "3/4 collected" beside it. */}
+      {referral && <ReferralCard data={referral} />}
+      {promos.length > 0 && (
+        <>
+          <div className="rw-pane-head">
+            <p className="rw-pane-note">{t("Do the thing, keep the prize. No draw, no entry.")}</p>
+            <span className="rw-progress">
+              <span className="rw-progress-text">
+                <strong>{done}</strong>/{promos.length} {t("collected")}
+              </span>
+              <span className="rw-progress-bar">
+                <span
+                  className="rw-progress-fill"
+                  style={{ width: `${Math.round((done / promos.length) * 100)}%` }}
+                />
+              </span>
+            </span>
+          </div>
+          <div className="hub-cols">
+            {promos.map((p) => <PromoCard key={p.id} promo={p} />)}
+          </div>
+        </>
+      )}
     </>
   );
 }

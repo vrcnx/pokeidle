@@ -11,7 +11,7 @@ import { api } from "./net/api";
 import { applyMapPositionOverrides } from "./data/regions";
 import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
 import { installGlobalErrorReporters } from "./net/errorReporter";
-import { captureFirstTouch } from "./net/attribution";
+import { captureFirstTouch, captureReferralCode } from "./net/attribution";
 import "./app.css";
 
 // Wire window.onerror + unhandledrejection capture before the React
@@ -26,6 +26,11 @@ installGlobalErrorReporters();
 // credit for the signup they make a week later. Sent to the server only once
 // there is an account to attach it to (see net/attribution.ts).
 captureFirstTouch();
+// A friend's `?ref=` code, held until there is an account to credit. Kept
+// separate from the touch above because it is NOT first-touch: a player who
+// arrived on their own and only later got a link from a friend should still
+// credit that friend. See REF_KEY in net/attribution.ts.
+captureReferralCode();
 
 // Pull admin-edited map positions before the first render. We don't
 // block on this — if the network fails (offline, server down) the

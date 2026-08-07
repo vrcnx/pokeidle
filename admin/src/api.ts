@@ -323,6 +323,25 @@ export interface DiscordLinkRow {
   banned: boolean;
 }
 
+export interface ReferralConfig {
+  /** The stop button. Off keeps recording where accounts came from and stops
+   *  paying for it. */
+  enabled: boolean;
+  /** Paid to the referrer for each signup, up to the cap. */
+  perReferral: GiveawayPrizeInput[];
+  /** Paid once, when the cap-th signup lands. The money half. */
+  milestone: GiveawayPrizeInput[];
+  /** Pokemon only — the milestone draws ONE at random. A pool rather than a
+   *  single prize because the server cannot build a mon (no stat formula), so
+   *  every one of these is built here with the real one. */
+  shinyPool: GiveawayPrizeInput[];
+  perReferralCap: number;
+  totalReferrals?: number;
+  totalGrants?: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 export interface DiscordConfig {
   /** Master switch, separate from the prize being set, so a promotion can be
    *  paused without losing its configuration. */
@@ -542,6 +561,19 @@ export const api = {
 
   // Discord settings. The link-reward prize lives in the database rather than
   // the environment so it can be changed here, without a redeploy.
+  // ── The referral programme ──────────────────────────────────────
+  // It pays on SIGNUP with no eligibility gate, so `enabled` is the control
+  // against farming rather than a convenience. `totalReferrals`/`totalGrants`
+  // ride along with the GET so the numbers that would reveal a farm sit next
+  // to the switch that stops it.
+  getReferralConfig: () => req<ReferralConfig>("GET", "/api/admin/referral-config"),
+  putReferralConfig: (body: {
+    enabled: boolean;
+    perReferral?: GiveawayPrizeInput[];
+    milestone?: GiveawayPrizeInput[];
+    shinyPool?: GiveawayPrizeInput[];
+    perReferralCap?: number;
+  }) => req<ReferralConfig>("PUT", "/api/admin/referral-config", body),
   getDiscordConfig: () => req<DiscordConfig>("GET", "/api/admin/discord-config"),
   putDiscordConfig: (body: {
     linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[];

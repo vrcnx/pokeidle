@@ -16,7 +16,7 @@ import { CommandPalette, type PaletteTarget } from "./components/CommandPalette"
 import { useScrollbarWidthVar } from "./useScrollbarWidth";
 
 type Status = "loading" | "anon" | "forbidden" | "ok" | "unreachable";
-export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "polls" | "audit" | "announcements" | "broadcast" | "discord";
+export type Page = "analytics" | "liveops" | "users" | "map" | "chat" | "bugs" | "errors" | "tournaments" | "giveaways" | "massgift" | "referrals" | "polls" | "audit" | "announcements" | "broadcast" | "discord";
 
 // What a page can be asked to focus on when navigated to. The bus used
 // to carry a page name and nothing else, which meant every cross-page
@@ -33,7 +33,7 @@ export interface NavParams {
 
 const PAGES: Page[] = [
   "analytics", "liveops", "users", "map", "chat",
-  "bugs", "errors", "tournaments", "giveaways", "massgift", "polls", "audit", "announcements", "broadcast", "discord",
+  "bugs", "errors", "tournaments", "giveaways", "massgift", "referrals", "polls", "audit", "announcements", "broadcast", "discord",
 ];
 
 // ── Hash routing ──────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ const NAV_GROUPS: NavGroupDef[] = [
     { page: "tournaments", label: "Tournaments", icon: <IconTrophy /> },
     // A giveaway and a mass gift are the same act with a different
     // selection rule — same prize builder, same delivery path.
-    { page: "giveaways", label: "Rewards", icon: <IconGift />, covers: ["massgift"] },
+    { page: "giveaways", label: "Rewards", icon: <IconGift />, covers: ["massgift", "referrals"] },
   ] },
   { label: "Tools", items: [
     { page: "discord",   label: "Discord",       icon: <IconChat /> },
@@ -164,6 +164,7 @@ const PALETTE_TARGETS: PaletteTarget[] = [
   { page: "audit",    label: "Audit log", group: "Moderation" },
   { page: "errors",   label: "Error log", group: "Moderation" },
   { page: "massgift",      label: "Mass gift",     group: "Events" },
+  { page: "referrals",     label: "Referrals",     group: "Events" },
   { page: "polls",         label: "Polls",         group: "Moderation" },
   { page: "announcements", label: "Announcements", group: "Moderation" },
 ];
@@ -275,7 +276,7 @@ export function App() {
   const PAGE_TITLES: Record<Page, string> = {
     analytics: "Analytics", liveops: "Live ops", users: "Users", map: "Map editor",
     chat: "Chat", bugs: "Bug reports", errors: "Error log", tournaments: "Tournaments",
-    giveaways: "Giveaways", massgift: "Mass gift", polls: "Polls", audit: "Audit log",
+    giveaways: "Giveaways", massgift: "Mass gift", referrals: "Referrals", polls: "Polls", audit: "Audit log",
     announcements: "Announcements", broadcast: "Broadcast", discord: "Discord",
   };
   // Production is anything not served from localhost. An operations console
@@ -378,7 +379,7 @@ export function App() {
         {(page === "bugs" || page === "audit" || page === "errors") && (
           <ReportsPage tab={page} initialQuery={navParams.query} />
         )}
-        {(page === "giveaways" || page === "massgift") && (
+        {(page === "giveaways" || page === "massgift" || page === "referrals") && (
           <RewardsPage tab={page} />
         )}
         {page === "tournaments" && <TournamentsPage />}

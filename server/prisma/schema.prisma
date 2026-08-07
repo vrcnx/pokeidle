@@ -172,6 +172,15 @@ model User {
   /// which is why the dashboard reports coverage rather than assuming the
   /// rows it has are the whole picture.
   signupAttribution  SignupAttribution?
+  /// This account's own shareable referral code. Issued lazily, the first
+  /// time the player opens the Rewards page, so the table holds codes people
+  /// actually asked for rather than one per account forever.
+  referralCode       ReferralCode?
+  /// The referral that BROUGHT this account here, if any. At most one, ever
+  /// — see Referral, where referredUserId is the primary key.
+  referredBy         Referral?  @relation("ReferralReferred")
+  /// Accounts this player brought in.
+  referrals          Referral[] @relation("ReferralReferrer")
 }
 
 /// How one account arrived: the referring site, the campaign tags on the
@@ -1507,4 +1516,106 @@ model PvpLadderBaseline {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// ── THE REFERRAL PROGRAMME ─────────────────────────────────────────
+///
+/// A player shares a link, someone signs up through it, and the referrer is
+/// paid a Master Ball — up to ten, with $1,000,000 and a shiny at the tenth.
+///
+/// ── WHY A CODE AND NOT THE USERNAME ────────────────────────────────
+/// The obvious link is `?ref=<username>`: no table, human-readable, already
+/// public. It is wrong here because usernames are MUTABLE (lib/nameChange.ts).
+/// A rename would silently break every link the player had already shared,
+/// and worse, the freed username can be taken by somebody else — who would
+/// then start collecting the first player's referrals. A code is issued once
+/// and never changes hands.
+model ReferralCode {
+  /// One code per account, and the account is the key: there is no such
+  /// thing as a second code for the same player.
+  userId    String   @id
+  /// The value in `?ref=`. Upper-cased on the way in and out, so a link
+  /// retyped from a screenshot still resolves.
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One row per REFERRED account.
+///
+/// ── WHY referredUserId IS THE PRIMARY KEY ──────────────────────────
+/// An account has exactly one referrer, decided at signup, forever. Making
+/// that the primary key means double-attribution is not a rule the code has
+/// to remember — it is a constraint the database will not let it break. A
+/// second write for the same account fails loudly instead of quietly paying
+/// a second referrer for the same person.
+model Referral {
+  referredUserId String   @id
+  referrerUserId String
+  createdAt      DateTime @default(now())
+
+  /// This referral's 1-based position in the referrer's list, assigned at
+  /// insert.
+  ///
+  /// It exists so the cap is race-safe. `COUNT(*) + 1` read before an insert
+  /// is a time-of-check/time-of-use bug: two signups landing together both
+  /// read 9, both write 10, and the referrer is paid the milestone twice.
+  /// With the unique constraint below the second insert loses and retries,
+  /// so the tenth slot can be occupied exactly once however many requests
+  /// race for it.
+  ordinal        Int
+
+  referrer User @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred User @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerUserId, ordinal])
+  @@index([referrerUserId])
+  @@index([createdAt])
+}
+
+/// Programme configuration, in the database for the same reason the Discord
+/// link reward is: it is promotion CONTENT an operator changes as a judgement
+/// call, and env would put it behind a redeploy where the dashboard cannot
+/// show it.
+model ReferralConfig {
+  id String @id @default("singleton")
+
+  /// Master switch, separate from the prizes being set, so the programme can
+  /// be PAUSED without losing its configuration. Clearing the prizes to turn
+  /// it off is how an operator ends up giving away the wrong thing later.
+  ///
+  /// It is also the stop button: the programme pays on signup with no
+  /// eligibility gate (see lib/referrals.ts), so switching it off is the
+  /// control against farming.
+  enabled Boolean @default(false)
+
+  /// JSON array of Prize — paid to the referrer for EACH signup, up to
+  /// `perReferralCap`. Unset falls back to one Master Ball.
+  perReferral String?
+
+  /// JSON array of Prize — paid ONCE, when the cap-th referral lands. The
+  /// money half. Unset falls back to $1,000,000.
+  milestone String?
+
+  /// JSON array of Prize, every entry a `pokemon` — the shiny pool the
+  /// milestone draws one from at random.
+  ///
+  /// A POOL, because the server cannot build a Pokémon. It has no species
+  /// table and no stat formula (see lib/giveaway.ts), so a mon it invented
+  /// would have invented stats — the bug that once handed out a Lv50
+  /// Charizard with 24 HP. The admin builds real mons with the real formula
+  /// in the existing PrizeBuilder; the server only picks an index.
+  ///
+  /// Empty means the milestone pays its money half and records that the pool
+  /// is unset, rather than silently paying nothing or inventing a mon.
+  shinyPool String?
+
+  /// How many referrals each account can be paid for. The milestone lands on
+  /// this one. Configurable because "ten" is a promotion decision.
+  perReferralCap Int @default(10)
+
+  updatedAt DateTime @updatedAt
+  /// The admin who last saved. Display only — AdminAudit is the real ledger.
+  updatedBy String?
 }
