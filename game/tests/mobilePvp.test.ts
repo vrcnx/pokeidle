@@ -281,13 +281,26 @@ describe("touch targets and the surfaces that had to grow for a thumb", () => {
     expect(body!).toMatch(/min-height:\s*40px/);
   });
 
-  it("stacks the result dialog's four actions on a phone", () => {
-    // MEASURED: all four on one 378px row at 77px each, with "Find another
-    // opponent" overflowing its own 40px box (scrollHeight 50). A dialog whose
-    // buttons you cannot read is not reachable.
-    const foot = ruleBody(arenaCss, ".g-modal.pvp2-result-dialog .pvp2-result-foot");
+  it("keeps the result dialog's actions readable on a phone", () => {
+    // MEASURED, on the design this replaces: all four actions on one 378px row
+    // at 77px each, "Find another opponent" overflowing its own 40px box
+    // (scrollHeight 50), and on a narrower desktop window the leftmost clipped
+    // off the dialog entirely.
+    //
+    // The old answer was `column-reverse` on the footer — four full-width rows
+    // with the primary lifted to the top. The footer is now a column BY
+    // DEFAULT with one real button and a row of exit links, so the phone only
+    // has to stack the exits; reversing would just invert them.
+    //
+    // The property is what survives, not the mechanism: on a phone every
+    // action is full width and none shares a row.
+    const exits = ruleBody(arenaCss, ".g-modal.pvp2-result-dialog .pvp2-result-exits");
+    expect(exits, "no phone rule for the result dialog's exit links").not.toBeNull();
+    expect(exits!).toMatch(/flex-direction:\s*column/);
+
+    const foot = ruleBody(arenaCss, ".pvp2-result-foot");
     expect(foot).not.toBeNull();
-    expect(foot!).toMatch(/flex-direction:\s*column-reverse/);
+    expect(foot!).toMatch(/flex-direction:\s*column/);
   });
 
   it("does NOT declare a wrap rule that would reach desktop", () => {
@@ -308,10 +321,13 @@ describe("touch targets and the surfaces that had to grow for a thumb", () => {
     // Nothing compressed, nothing clipped — so the wrap bought nothing and cost
     // 46px of dialog nobody asked for.
     expect(arenaCss).not.toMatch(/flex-wrap:\s*wrap-reverse/);
-    // The phone's own answer is still there and is still the stronger one.
-    expect(arenaCss).toMatch(
-      /\.g-modal\.pvp2-result-dialog\s+\.pvp2-result-foot\s*\{[^}]*flex-direction:\s*column-reverse/,
-    );
+    // And the reason it is still not needed: the footer stacks by default, so
+    // there is no row for anything to wrap OFF. The primary is full width at
+    // every viewport, which is what made the clipping impossible rather than
+    // merely unlikely.
+    const primary = ruleBody(arenaCss, ".pvp2-result-primary");
+    expect(primary, "the rematch button has no width rule").not.toBeNull();
+    expect(primary!).toMatch(/width:\s*100%/);
   });
 
   it("gives the PvP bar four columns, not the idle bar's six", () => {

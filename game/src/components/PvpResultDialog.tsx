@@ -264,66 +264,62 @@ export function PvpResultDialog({ room }: { room: BattleRoom }) {
           aria-label={t("Battle result")}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* ONE verdict. This carried both "You lose." and a DEFEAT chip —
+              the same fact twice, competing for the same glance, with the chip
+              shouting it in a register the sentence had already covered. The
+              sentence wins: it is the human phrasing, and the outcome colour
+              carries the rest without a second element saying it again. */}
           <header className="g-modal-head pvp2-result-head">
             <h2>{t(summary.headline)}</h2>
-            <span className={`pvp2-result-badge ${cls}`}>
-              {summary.outcome === "win" ? t("VICTORY")
-                : summary.outcome === "loss" ? t("DEFEAT")
-                : summary.outcome === "draw" ? t("DRAW")
-                : t("NO RESULT")}
-            </span>
+            <p className="pvp2-result-reason">{t(summary.reasonText)}</p>
           </header>
 
           <div className="g-modal-body pvp2-result-body">
-            <p className="pvp2-result-reason">{t(summary.reasonText)}</p>
+            {/* The rating, and only when there IS one. A rated result gets
+                the number at full size, because it is the thing the player
+                came for. An unrated one gets a single quiet line — it used to
+                get a bordered panel of its own, a caveat with a hero's
+                treatment, sitting louder than the result above it. */}
+            {summary.rated && summary.delta != null ? (
+              <div className="pvp2-result-rating is-rated">
+                <span className={`pvp2-result-delta big ${summary.delta >= 0 ? "up" : "down"}`}>
+                  {summary.delta >= 0 ? "+" : ""}{summary.delta}
+                </span>
+                <span className="pvp2-result-rating-now">
+                  {t("Rating")} <strong>{summary.rating}</strong>
+                </span>
+                <small className="dim">{t(summary.ratedNote)}</small>
+              </div>
+            ) : (
+              // Still said. An unrated result with nothing stated reads as
+              // "the rating update failed", which is the bug this line exists
+              // to prevent — it just does not need a box around it.
+              <p className="pvp2-result-unrated dim small">{t(summary.ratedNote)}</p>
+            )}
 
-            {/* The rating line is stated in BOTH directions. An unrated win
-                with no number next to it otherwise reads as "the rating update
-                failed", and a bot win that looked rated would be worse still. */}
-            <div className={`pvp2-result-rating ${summary.rated ? "is-rated" : "not-rated"}`}>
-              {summary.rated && summary.delta != null ? (
-                <>
-                  <span className={`pvp2-result-delta big ${summary.delta >= 0 ? "up" : "down"}`}>
-                    {summary.delta >= 0 ? "+" : ""}{summary.delta}
-                  </span>
-                  <span className="pvp2-result-rating-now">
-                    {t("Rating")} <strong>{summary.rating}</strong>
-                  </span>
-                </>
-              ) : (
-                <span className="pvp2-result-unrated">{t(summary.ratedNote)}</span>
-              )}
-              {summary.rated && <small className="dim">{t(summary.ratedNote)}</small>}
+            {/* ONE row of facts, not four tiles. As a grid these wrapped 3+1
+                at dialog width and read as four separate findings; they are
+                one sentence about how the battle went. The two standings sit
+                together because the comparison IS the meaning — "3/6" on its
+                own says nothing. */}
+            <div className="pvp2-result-facts">
+              <span className="pvp2-fact">
+                <span className="dim">{t("vs")}</span>
+                <strong>{room.opponent.username}</strong>
+                {bot && <span className="pvp2-ai-chip">{t("AI")}</span>}
+              </span>
+              <span className="pvp2-fact">
+                <strong>{room.view.turn > 0 ? room.view.turn : "—"}</strong>
+                <span className="dim">{t("turns")}</span>
+              </span>
+              <span className="pvp2-fact">
+                <strong>{standing(room.view.you)}</strong>
+                <span className="dim">{t("left, to their")}</span>
+                <strong>{standing(room.view.foe)}</strong>
+              </span>
             </div>
 
-            <dl className="pvp2-result-stats">
-              <div>
-                <dt>{t("Opponent")}</dt>
-                <dd>
-                  {room.opponent.username}
-                  {bot && <span className="pvp2-ai-chip">{t("AI")}</span>}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("Turns")}</dt>
-                <dd>{room.view.turn > 0 ? room.view.turn : "—"}</dd>
-              </div>
-              <div>
-                <dt>{t("Your team standing")}</dt>
-                <dd>{standing(room.view.you)}</dd>
-              </div>
-              <div>
-                <dt>{t("Their team standing")}</dt>
-                <dd>{standing(room.view.foe)}</dd>
-              </div>
-            </dl>
-
-            {lastLine && (
-              <p className="pvp2-result-last">
-                <span className="dim small">{t("Final moment")}</span>
-                <span>{lastLine}</span>
-              </p>
-            )}
+            {lastLine && <p className="pvp2-result-last">{lastLine}</p>}
 
             <RematchNotice
               state={rematch}
@@ -332,25 +328,23 @@ export function PvpResultDialog({ room }: { room: BattleRoom }) {
               disconnected={opponentDisconnected}
             />
 
-            <p className="pvp2-result-idle dim small">
-              {t("Your idle game is paused while this is open — leaving resumes it.")}
-            </p>
           </div>
 
+          {/* ── ONE PRIMARY, THEN THE WAYS OUT ────────────────────────
+              This was four ghost buttons on a single row, styled identically,
+              and at dialog width the leftmost was clipped off the edge. Four
+              equal-weight choices is no choice at all: the player wants to go
+              again, and everything else is a way out.
+
+              So the rematch is the only thing that looks like a button, on its
+              own row where nothing can crop it, and the three exits are a row
+              of quiet links beneath — still one tap each, no longer competing
+              with the action or with one another. */}
           <footer className="g-modal-foot pvp2-result-foot">
-            <button className="g-btn-ghost" onClick={() => setShowDialog(false)}>
-              {t("View final board")}
-            </button>
-            <button className="g-btn-ghost" onClick={onFindOpponent}>
-              {t("Find another opponent")}
-            </button>
-            <button className="g-btn-ghost" onClick={exit}>
-              {t("Back to the game")}
-            </button>
             {canRematch && (
               <button
                 ref={primaryRef}
-                className="g-btn-primary"
+                className="g-btn-primary pvp2-result-primary"
                 disabled={
                   rematch.kind === "sending"
                   || rematch.kind === "pending"
@@ -365,6 +359,22 @@ export function PvpResultDialog({ room }: { room: BattleRoom }) {
                   : t("Ask for a rematch")}
               </button>
             )}
+            <div className="pvp2-result-exits">
+              <button className="pvp2-result-exit" onClick={onFindOpponent}>
+                {t("Find another opponent")}
+              </button>
+              <button className="pvp2-result-exit" onClick={() => setShowDialog(false)}>
+                {t("View final board")}
+              </button>
+              <button className="pvp2-result-exit" onClick={exit}>
+                {t("Back to the game")}
+              </button>
+            </div>
+            {/* Housekeeping, as small print under the actions — it was a
+                paragraph in the body, competing with the result itself. */}
+            <p className="pvp2-result-idle dim small">
+              {t("Your idle game is paused while this is open — leaving resumes it.")}
+            </p>
           </footer>
         </div>
       </div>
