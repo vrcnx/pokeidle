@@ -146,6 +146,22 @@ export interface Pokemon {
    *  for those, which is close to the truth: the box is append-only, so a
    *  Pokemon's position in it already IS roughly its catch order. */
   caughtAt?: number;
+  /**
+   * The ball this was caught in — an item id from data/itemsCatalog.ts.
+   *
+   * Optional, and absent on two quite different things: every Pokemon caught
+   * before this field existed, and everything that was never CAUGHT at all —
+   * a starter, a gift, a trade, a giveaway prize.
+   *
+   * Both display as a Poké Ball (see `caughtBallOf`), which is the answer the
+   * mainline games give too: a gift Pokemon arrives in a Poké Ball. That is a
+   * display default and nothing more — NOTHING writes "pokeball" into a save
+   * to make it true. Stamping the guess into the data would turn "we don't
+   * know" into "we know it was a Poké Ball", and the player who remembers
+   * spending a Master Ball on a legendary would be looking at a record that
+   * says otherwise, with no way to tell it had been invented.
+   */
+  caughtBall?: string;
   ability?: string;    // canonical ability id (rolled at creation; see data/speciesAbilities.ts)
   status?: StatusCondition;  // major status condition; null/undefined = healthy
   sleepTurns?: number;       // remaining sleep turns (decremented at turn start)

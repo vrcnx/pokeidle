@@ -59,6 +59,7 @@ interface PokemonShape {
   moves?: unknown;
   nickname?: unknown;
   heldItem?: unknown;
+  caughtBall?: unknown;
   isShiny?: unknown;
   nature?: unknown;
   ability?: unknown;
@@ -152,6 +153,15 @@ function validatePokemon(p: PokemonShape, where: string): string | null {
   if (p.heldItem !== undefined && p.heldItem !== null) {
     if (typeof p.heldItem !== "string" || !ITEM_KEY_RE.test(p.heldItem))
       return `${where}: bad heldItem`;
+  }
+  // Bounded like heldItem, and for the same reason: it is a client-written
+  // item id, and an unbounded string here is a save-bloat vector on a field
+  // nothing else would ever look at. Not checked against the item catalog —
+  // this file deliberately validates SHAPE, not content, so a save is never
+  // rejected because the server's catalog is a deploy behind the client's.
+  if (p.caughtBall !== undefined && p.caughtBall !== null) {
+    if (typeof p.caughtBall !== "string" || !ITEM_KEY_RE.test(p.caughtBall))
+      return `${where}: bad caughtBall`;
   }
   if (p.nature !== undefined && (typeof p.nature !== "string" || p.nature.length > 20))
     return `${where}: bad nature`;

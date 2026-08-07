@@ -591,17 +591,30 @@ function spawnNextRaidWave(state: GameState, clearedLevel: number): GameState | 
 // In a raid the catch clears the wave exactly like a KO does and the next
 // legendary comes straight in; outside a raid the encounter ends and the
 // player drops to idle, unchanged.
-function applyCatchSuccess(state: GameState, enemy: Pokemon, wasInRaid: boolean): GameState {
+function applyCatchSuccess(
+  state: GameState,
+  enemy: Pokemon,
+  wasInRaid: boolean,
+  ballId: string,
+): GameState {
   // Stamped here rather than in createPokemon: an ENEMY is created the moment
   // an encounter starts, and the interesting date is when you caught it, not
   // when it appeared in the grass. `caughtIn` rides along for the same
   // reason — where you caught it, not where it spawned — and because this is
   // the single funnel both the instant and the animated catch pass through.
+  //
+  // `caughtBall` is a PARAMETER rather than something read off the state here,
+  // because the two callers hold it in different places: the instant path has
+  // it in the action, the animated path parked it on `catchAnim` at throw time
+  // and clears that before it gets here. Passing it in is what stops this
+  // funnel from having to know which path it is on — the exact drift this
+  // function exists to prevent.
   const caught: Pokemon = {
     ...enemy,
     id: String(state.nextPokemonId),
     caughtAt: Date.now(),
     caughtIn: regionForLocation(state.currentLocation),
+    caughtBall: ballId,
   };
   let next: GameState = { ...state, nextPokemonId: state.nextPokemonId + 1 };
   if (next.party.length < 6) {
@@ -965,7 +978,7 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       // Shared with CATCH_RESOLVE — party/box, dex, EXP, counters, and (in a
       // raid) the next wave.
-      return applyCatchSuccess({ ...state, inventory: inv }, state.enemyPokemon, state.inRaid);
+      return applyCatchSuccess({ ...state, inventory: inv }, state.enemyPokemon, state.inRaid, ballId);
     }
 
     case "TRY_CATCH": {
@@ -1097,7 +1110,10 @@ export function reducer(state: GameState, action: Action): GameState {
       }
       // Shared with CATCH_POKEMON — party/box, dex, EXP, counters, and (in a
       // raid) the next wave.
-      return applyCatchSuccess({ ...state, catchAnim: null }, state.enemyPokemon, state.inRaid);
+      // Read BEFORE catchAnim is cleared on the line below — that object is
+      // the only place the animated path still knows which ball was thrown.
+      const thrownBall = state.catchAnim?.ballId ?? "pokeball";
+      return applyCatchSuccess({ ...state, catchAnim: null }, state.enemyPokemon, state.inRaid, thrownBall);
     }
 
     case "TOGGLE_AUTO_CATCH":

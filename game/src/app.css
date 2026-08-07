@@ -21022,3 +21022,20 @@ strong, b { font-variant-numeric: tabular-nums; }
   .g-chat-msg-lv { font-size: 10.5px; }
   .g-chat-msg-admin { font-size: 10px; }
 }
+
+/* The ball a Pokemon was caught in, in the detail sheet's meta row. The
+   sprite is decorative — the name beside it is the actual information, so
+   the image is aria-hidden and the row reads correctly without it. */
+.pokemon-meta-ball {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pokemon-meta-ball-img {
+  width: 16px;
+  height: 16px;
+  /* Ball sprites are small pixel art; smoothing them turns a crisp 16px ball
+     into a smear at this size. */
+  image-rendering: pixelated;
+  flex: 0 0 auto;
+}

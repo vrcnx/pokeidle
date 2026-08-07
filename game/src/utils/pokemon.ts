@@ -104,6 +104,30 @@ export function displayName(p: { nickname?: string | null; name: string }): stri
   return nick ? nick : p.name;
 }
 
+/**
+ * The ball a Pokemon was caught in, for display.
+ *
+ * ── WHY THE DEFAULT LIVES HERE AND NOT IN THE SAVE ──────────────────
+ * `caughtBall` is absent on everything caught before the field existed, and
+ * on everything that was never caught at all — starters, gifts, trades,
+ * giveaway prizes. Both show a Poké Ball, which is the answer the mainline
+ * games give as well: a gift Pokemon arrives in one.
+ *
+ * It is resolved on READ, every time, and nothing ever writes the guess into
+ * a save. A migration stamping "pokeball" onto a few hundred thousand existing
+ * Pokemon would be quick and would be a lie told permanently: it turns "we do
+ * not know" into "we know it was a Poké Ball", with no way afterwards to tell
+ * a recorded ball from an invented one. Someone who spent a Master Ball on a
+ * legendary before today would be reading a record that contradicts them.
+ *
+ * Resolving on read costs one `??` at the one place that displays it, keeps
+ * the save honest, and means changing this decision later is changing this
+ * function.
+ */
+export function caughtBallOf(p: { caughtBall?: string }): string {
+  return p.caughtBall ?? "pokeball";
+}
+
 // Base shiny rate is 1/8192 (Gen V). With the Shiny Charm — granted for
 // completing the Pokédex — the rate doubles to 1/4096.
 //

@@ -16,9 +16,10 @@ import { findNature } from "../data/natures";
 import { abilityInfo } from "../data/abilities";
 import { itemsCatalog } from "../data/itemsCatalog";
 import { itemSpriteUrl } from "../utils/sprites";
+import { itemSpriteSlug } from "../utils/items";
 import { PokemonSprite } from "./Sprite";
 import { expForLevel } from "../utils/stats";
-import { displayName } from "../utils/pokemon";
+import { displayName, caughtBallOf } from "../utils/pokemon";
 import { resolveAnchoredIndex } from "../utils/pokemonAnchor";
 import { duplicateIdSet, releaseBlockedReason, releaseConfirmMessage } from "../utils/releaseConfirm";
 import { NICKNAME_MAX_LENGTH, normalizeNickname } from "../utils/nickname";
@@ -634,6 +635,22 @@ function PokemonDetailDialog({
                 <strong>{abilityInfo[p.ability].name}</strong>
               </div>
             )}
+            {/* Where it came from. Always shown — unlike Nature and Ability
+                above, which are genuinely absent on old saves, this one always
+                resolves (see caughtBallOf), so a conditional would only ever
+                mean "hide it from the Pokemon that need it explained most". */}
+            <div className="pokemon-meta-item">
+              <span className="dim">{t("Caught in")}</span>
+              <strong className="pokemon-meta-ball">
+                <img
+                  className="pokemon-meta-ball-img"
+                  src={itemSpriteUrl(caughtBallOf(p), itemSpriteSlug(caughtBallOf(p)))}
+                  alt=""
+                  aria-hidden
+                />
+                {itemsCatalog[caughtBallOf(p)]?.name ?? t("Poké Ball")}
+              </strong>
+            </div>
             <div className="pokemon-meta-item pokemon-meta-held">
               <HeldItemRow pokemon={p} />
             </div>
