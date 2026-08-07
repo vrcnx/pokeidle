@@ -5294,9 +5294,35 @@ body.dnd-active {
 .enemy-slot::after { width: 60%; height: 9%; opacity: 0.8; }
 
 /* Faint: when HP hits 0 the slot dims + drops slightly. Driven by `.fainted`
-   class which is added by JS when currentHp === 0. */
+   class which is added by JS when currentHp === 0.
+
+   ── WHY THE BUMP CLASSES ARE SPELLED OUT HERE ──────────────────────
+   This rule existed and never ran, and the reason is a specificity tie it
+   was always going to lose.
+
+   `.sprite-slot.bump-0 .player-sprite` (below) sets `animation: damageFlash0`
+   and scores 0-3-0. `.sprite-slot.fainted .player-sprite` scores 0-3-0 too,
+   and sits EARLIER in this file — so the cascade fell through to source
+   order and the damage flash won every time.
+
+   Which would be a rare collision, except that it is not a collision at all:
+   a Pokemon that faints has just taken damage, so `bump-N` is present at
+   exactly the moment `.fainted` arrives. The one event that triggers the
+   faint is the one that suppresses its animation. Measured on the live site:
+   with both classes on the slot, computed `animation-name` was
+   `damageFlash0`, and the sprite simply stood there under "Your Gengar
+   fainted!".
+
+   Naming both bump variants takes this to 0-4-0, which beats the flash on
+   specificity rather than on position — so it cannot be undone by anything
+   appended below, the way the original was. It is also the correct reading:
+   a Pokemon that has fainted is not flinching from a hit any more. */
 .sprite-slot.fainted .enemy-sprite,
-.sprite-slot.fainted .player-sprite {
+.sprite-slot.fainted .player-sprite,
+.sprite-slot.fainted.bump-0 .enemy-sprite,
+.sprite-slot.fainted.bump-0 .player-sprite,
+.sprite-slot.fainted.bump-1 .enemy-sprite,
+.sprite-slot.fainted.bump-1 .player-sprite {
   animation: spriteFaint 0.6s ease-out forwards;
 }
 @keyframes spriteFaint {

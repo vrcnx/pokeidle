@@ -489,27 +489,48 @@
  * than half the width, which is the only geometric hint that it is the half to
  * act on — the loud signals are the console's gold tint, its title and the fact
  * that the bench cards are the only enabled controls on screen. */
+/* ── ONE COLUMN WHEN YOU ARE FORCED TO SWITCH ──────────────────────
+   The comment above argues for keeping two tracks so the surface never
+   reflows between fighting, waiting and switching. That is a good instinct
+   and it bought the wrong thing here: the notice cannot fill half a console,
+   so what shipped was a 46%-wide dashed box with two lines of text floating
+   in the middle of it, next to a bench squeezed into the other half — where
+   six Pokemon wrapped 5+1 and left the last one alone on its own row.
+
+   A forced switch is also the one moment the player SHOULD notice the
+   surface has changed. It is not a mode they chose; a layout that is
+   deliberately indistinguishable from the previous one is hiding the very
+   thing it needs to announce.
+
+   So: the notice becomes a banner across the top and the bench gets the
+   whole width, which is what the cards needed to stop wrapping badly. */
 .pvp2-console.mode-forced .pvp2-console-body {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: auto minmax(0, 1fr);
 }
 
+/* A banner, not a panel. It was a centred column stretched to fill half the
+   console (`flex: 1 1 auto` inside a 1fr track), which is how two short
+   sentences ended up adrift in a large empty box. */
 .pvp2-forced-notice {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  flex: 0 0 auto;
   margin: 0;
-  padding: 12px;
-  text-align: center;
+  padding: 8px 12px;
+  text-align: left;
   border: 1px dashed var(--warn);
   border-radius: 8px;
   color: var(--warn);
 }
 .pvp2-forced-notice strong { font: 700 13px/1.4 var(--font-body); }
-.pvp2-forced-notice span { color: var(--text-muted); font-size: 11px; }
+/* Was --text-muted at 11px on a tinted panel, which measured as barely
+   legible in the screenshot that prompted this. It is the sentence that
+   explains WHY the console changed, so it gets read. */
+.pvp2-forced-notice span { color: var(--text-dim); font-size: 12px; }
 
 /* "Waiting for opponent's choice…" is not a transient — it is half of every
    turn — so it takes the space the move grid would have had rather than
@@ -657,8 +678,11 @@
    decision the player was forced into and did not get to prepare for — but they
    still STRETCH to fill the column, so there is no slack here either. */
 .pvp2-console.mode-forced .pvp2-switch-grid.as-wide {
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  grid-auto-rows: minmax(96px, 150px);
+  /* auto-FIT, not auto-fill: with the full width now available, auto-fill
+     leaves empty phantom tracks when the bench is small, and the six real
+     cards shrink to make room for slots holding nothing. */
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-auto-rows: minmax(96px, 132px);
   /* Centred rather than top-aligned: this is a chooser, not a list, and with a
      small bench the cards sitting in the middle of the column reads as balanced
      where the same cards pinned to the top read as a broken layout. */

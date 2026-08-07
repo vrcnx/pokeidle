@@ -1148,9 +1148,27 @@ function SwitchGrid({
   if (pokemon.length === 0) {
     return <p className="dim small pvp2-bench-empty">{t("No bench Pokémon.")}</p>;
   }
+  // ── PICKABLE FIRST, IN THE FORCED CHOOSER ────────────────────────
+  // Party order is the right order for the rail, where the bench is
+  // reference. It is the wrong one here: after a faint the Pokemon that
+  // just died sits in the FIRST slot of "Send out", greyed and unclickable,
+  // and the six real choices scroll around it. The one card that cannot be
+  // the answer should not be the first thing read.
+  //
+  // The original index travels WITH the entry rather than being recomputed
+  // from the sorted position, because it is the protocol's slot number —
+  // `switch 3` means the third Pokemon the SERVER listed, and a sort that
+  // renumbered them would send the player out with the wrong Pokemon. That
+  // is a far worse bug than the layout one being fixed.
+  const ordered = pokemon.map((p, slot) => ({ p, slot }));
+  if (variant === "wide") {
+    const dead = (e: { p: SidePokemon }) => e.p.condition.includes("fnt") || e.p.active;
+    ordered.sort((a, b) => Number(dead(a)) - Number(dead(b)));
+  }
+
   return (
     <div className={`pvp2-switch-grid as-${variant}`}>
-      {pokemon.map((p, idx) => {
+      {ordered.map(({ p, slot: idx }) => {
         const fainted = p.condition.includes("fnt");
         const speciesKey = (p.details.split(",")[0] ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const name = p.ident.includes(":") ? p.ident.slice(p.ident.indexOf(":") + 1).trim() : p.ident;
