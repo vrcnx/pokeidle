@@ -169,6 +169,28 @@ export interface NarrationLine {
   side?: "a" | "b";
   /** Effectiveness/crit annotations attached to a move line. */
   tags?: string[];
+  /**
+   * The board AS IT WAS when this line was decoded.
+   *
+   * ── WHY A LINE CARRIES A BOARD ──────────────────────────────────
+   * One socket chunk can be a whole turn. A measured burst produced 13
+   * narration lines and a two-turn board jump in ONE React commit — the foe
+   * fainted, the replacement switched in, weather started. The board was
+   * applied instantly and the text queued behind it, so the player watched
+   * the outcome and then read about it, and the faint animation had no beat
+   * to play in because the replacement was already standing there.
+   *
+   * Pairing each line with the board at that instant is what lets the arena
+   * advance the two together. It is a snapshot of an immutable structure, so
+   * this is a POINTER, not a copy: the decoder already allocates a fresh view
+   * per line and they share most of their children, and `narration` is
+   * trimmed to 300.
+   *
+   * Optional, because a rejoin REBUILD and the neutral spectator decode both
+   * produce lines through other paths — anything reading this falls back to
+   * the live view rather than assuming it is here.
+   */
+  view?: BattleView;
 }
 
 // ── Static protocol vocabulary ──────────────────────────────────────
@@ -1026,7 +1048,14 @@ export function applyChunk(
     if (!raw) continue;
     const r = applyLine(v, raw, mySide, scratch, neutral);
     v = r.view;
-    lines.push(...r.lines);
+    // Stamp the board this line describes. Taken AFTER applyLine, so the
+    // snapshot includes this line's own effect — "Pidgey fainted!" pairs with
+    // the board in which Pidgey HAS fainted, not the one before it did.
+    //
+    // A line that already carries a view keeps it: `scratch.pendingMove` is
+    // held across chunks and flushed later, and re-stamping it here would
+    // pair a move line with a board from several lines after it.
+    for (const l of r.lines) lines.push(l.view ? l : { ...l, view: v });
   }
   return { view: v, lines };
 }

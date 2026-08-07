@@ -75,7 +75,7 @@ import {
   isBotBattle,
   type BattleRoom,
 } from "../state/pvp";
-import type { ActiveMon, BenchMon, NarrationLine, PreviewMon, SideView } from "../state/pvpBattleView";
+import type { ActiveMon, BattleView, BenchMon, NarrationLine, PreviewMon, SideView } from "../state/pvpBattleView";
 import { PokemonSprite } from "./Sprite";
 import { pokemonTable } from "../data/pokemon";
 import { moves as movesTable } from "../data/moves";
@@ -276,10 +276,14 @@ function PvpScene({ room }: { room: BattleRoom }) {
   // arenaFor. battleId is the value both sides already agree on.
   const arenaBg = arenaFor(room.battleId);
   const t = useT();
-  const you = room.view.you;
-  const foe = room.view.foe;
   const { isWaiting, forceSwitch, over, previewing } = battleControls(room);
   const stage = usePvpNarrationStage(room);
+  // The board the CURRENT LINE describes, so the sprites, the HP bars and the
+  // turn chip move in step with the sentence explaining them. `battleControls`
+  // above deliberately still reads the live room — it decides what the player
+  // may DO, and that must never lag.
+  const you = stage.view.you;
+  const foe = stage.view.foe;
 
   return (
     <div className={`pvp2-scene${previewing ? " is-preview" : ""}`}>
@@ -358,8 +362,8 @@ function PvpScene({ room }: { room: BattleRoom }) {
             in. */}
         {previewing && <PvpPreviewStage room={room} />}
 
-        {room.view.turn > 0 && (
-          <div className="pvp2-turn-chip">{t("Turn")} {room.view.turn}</div>
+        {stage.view.turn > 0 && (
+          <div className="pvp2-turn-chip">{t("Turn")} {stage.view.turn}</div>
         )}
 
         {/* Floating "-42" / "+18" over the slot whose HP moved, and the
@@ -450,6 +454,20 @@ interface NarrationStage {
   seq: number;
   effect: PvpMoveEffect | null;
   banner: { kind: "crit" | "se" | "nve"; text: string } | null;
+  /**
+   * The board to DRAW — the one the current beat describes, not the latest
+   * one decoded.
+   *
+   * This is the whole fix for "the UI changes before the text ends". The
+   * board used to be applied instantly while the text queued behind it, so a
+   * single chunk could faint a Pokemon, switch its replacement in and start
+   * the weather in one commit, and the player read about it afterwards.
+   *
+   * Only the SCENE reads this. Everything on the input path — the move grid,
+   * the switch grid, the forced-switch state — keeps reading the live view
+   * and the live request, so nothing here can delay or block a choice.
+   */
+  view: BattleView;
 }
 
 /**
@@ -522,6 +540,22 @@ function usePvpNarrationStage(room: BattleRoom): NarrationStage {
   const seq = beat?.seq ?? 0;
   const line = beat?.line ?? null;
 
+  // ── THE BOARD SNAPS FORWARD WHEN IT IS YOUR TURN ────────────────
+  // Narrating at a readable pace is right while the turn plays out, and
+  // wrong the instant the player has to decide something: choosing a switch
+  // against a board that still shows the Pokemon that already fainted is a
+  // worse bug than the one this whole change fixes.
+  //
+  // `rqid` is the simulator's own id for "here is a new decision", so it
+  // moves exactly once per request and not on the re-renders in between.
+  const rqid = room.request?.rqid ?? null;
+  const lastRqid = useRef<number | null>(null);
+  useEffect(() => {
+    if (rqid == null || rqid === lastRqid.current) return;
+    lastRqid.current = rqid;
+    if (pacer.hurry(Date.now())) bump((n) => n + 1);
+  }, [rqid, pacer]);
+
   // Recomputed only when the beat changes — `effectForNarration` does a dex
   // lookup, and a re-render caused by anything else must not repeat it.
   const derived = useMemo(() => {
@@ -536,7 +570,13 @@ function usePvpNarrationStage(room: BattleRoom): NarrationStage {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq, room.side]);
 
-  return { line, text: derived.text, seq, effect: derived.effect, banner: derived.banner };
+  // The beat's board, or the live one before the first beat and whenever a
+  // line arrived by a path that does not stamp one (a rejoin rebuild).
+  return {
+    line, text: derived.text, seq,
+    effect: derived.effect, banner: derived.banner,
+    view: beat?.line?.view ?? room.view,
+  };
 }
 
 /**

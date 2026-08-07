@@ -15,7 +15,7 @@
 // a player actually sees, and hand-writing it here would test a copy.
 
 import { describe, expect, it } from "vitest";
-import { applyLine, initialBattleView, type NarrationLine } from "../src/state/pvpBattleView";
+import { applyChunk, applyLine, initialBattleView, type NarrationLine } from "../src/state/pvpBattleView";
 
 function narrate(lines: string[], mySide: "a" | "b" = "a"): NarrationLine[] {
   let view = initialBattleView("You", "Rival");
@@ -88,5 +88,65 @@ describe("damage too small to round to a percent", () => {
   it("still gives a percentage when there is one worth giving", () => {
     const out = texts(narrate([...OPENING, "|-damage|p2a: Pidgey|60/120"]));
     expect(out.some((t) => /lost 50% HP/.test(t)), out.join(" | ")).toBe(true);
+  });
+});
+
+// ── THE BOARD A LINE DESCRIBES ──────────────────────────────────────
+//
+// One socket chunk can be a whole turn. A measured burst produced 13
+// narration lines and a two-turn board jump in a single React commit — the
+// foe fainted, the replacement switched in, the weather started — and the
+// board was applied instantly while the text queued behind it. The player
+// watched the outcome, then read about it, and the faint animation had no
+// beat to play in because the replacement was already standing there.
+//
+// So every line now carries the board AS IT WAS when that line was decoded,
+// and the arena draws THAT rather than the newest one. These tests pin the
+// pairing, because a snapshot taken one line early or late is worse than no
+// snapshot: it would draw a board that contradicts the sentence under it.
+describe("each line carries the board it is talking about", () => {
+  // The REAL applyChunk, not a re-implementation of it. An earlier draft of
+  // this helper did the stamping itself, which would have passed whether or
+  // not the shipped code stamped anything at all.
+  const chunk = (raw: string[]) => {
+    const scratch: { pendingMove: NarrationLine | null } = { pendingMove: null };
+    return applyChunk(initialBattleView("You", "Rival"), raw.join("\n"), "a", scratch).lines;
+  };
+
+  it("pairs the faint line with the board in which it HAS fainted", () => {
+    // Taken after the line is applied, not before. A snapshot from before
+    // would render "Pidgey fainted!" over a Pidgey standing at full health.
+    const out = chunk([...OPENING, "|-damage|p2a: Pidgey|0 fnt", "|faint|p2a: Pidgey"]);
+    const faint = out.find((l) => l.kind === "faint");
+    expect(faint?.view?.foe.active?.fainted, "faint line shows a living Pokemon").toBe(true);
+  });
+
+  it("keeps the pre-faint board on the line BEFORE the faint", () => {
+    // The whole point of a per-line snapshot: consecutive lines must differ,
+    // or the board is still jumping and the snapshots are decorative.
+    const out = chunk([
+      ...OPENING,
+      "|-damage|p2a: Pidgey|60/120",
+      "|-damage|p2a: Pidgey|0 fnt",
+      "|faint|p2a: Pidgey",
+    ]);
+    const hurt = out.find((l) => l.kind === "damage");
+    expect(hurt?.view?.foe.active?.fainted).toBe(false);
+    expect(hurt?.view?.foe.active?.hpPct).toBe(50);
+  });
+
+  it("pairs a switch line with the board holding the NEW Pokemon", () => {
+    const out = chunk([
+      ...OPENING,
+      "|faint|p2a: Pidgey",
+      "|switch|p2a: Rattata|Rattata, L50, M|100/100",
+    ]);
+    const sw = out.filter((l) => l.kind === "switch").at(-1);
+    expect(sw?.view?.foe.active?.name).toBe("Rattata");
+    // And the faint before it still shows Pidgey — the two boards are
+    // genuinely different objects, which is what lets the arena animate
+    // between them.
+    const faint = out.find((l) => l.kind === "faint");
+    expect(faint?.view?.foe.active?.name).toBe("Pidgey");
   });
 });
