@@ -893,6 +893,7 @@ function PvpConsole({
   const [confirming, setConfirming] = useState(false);
 
   const mode = forceSwitch ? "forced" : isWaiting ? "waiting" : active ? "fight" : "loading";
+  const myName = room.view.you.active?.name ?? null;
   const switchDisabledReason =
     forceSwitch ? null
       : trapped ? t("You can't switch out right now.")
@@ -918,8 +919,17 @@ function PvpConsole({
         ) : (
           <>
             <h4 className="pvp2-console-title">
+              {/* "What will PIKACHU do?" — the line every mainline game has
+                  used for thirty years, and it does a job "Your move" does
+                  not: it names WHO is about to act. In a six-Pokemon battle
+                  after a forced switch, that is genuinely information, and
+                  it is the moment a player is most likely to have lost
+                  track. Falls back when the active slot has not arrived
+                  yet, because a prompt with a hole in it is worse than a
+                  generic one. */}
               {mode === "forced" ? t("Choose your next Pokémon")
                 : mode === "waiting" ? t("Opponent is choosing")
+                : myName ? `${t("What will")} ${myName.toUpperCase()} ${t("do?")}`
                 : t("Your move")}
             </h4>
             <button

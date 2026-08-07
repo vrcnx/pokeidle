@@ -688,10 +688,25 @@ export function applyLine(
       if (tag === "-sethp") {
         return { view: next, lines: [...out, { kind: "damage", side: s ?? undefined, text: `${who}'s HP was set.` }] };
       }
+      // ── A LETHAL HIT SAYS NOTHING HERE ───────────────────────────
+      // `|faint|` always follows, and "Foe's Pidgey lost 100% HP." directly
+      // above "Foe's Pidgey fainted!" is the same event reported twice, the
+      // first time in a register no Pokémon game has ever used. The faint
+      // line is the better of the two, so this one steps aside.
+      //
+      // Attributed damage still speaks — "was hurt by Spikes" then "fainted"
+      // reads correctly, because the first line carries the CAUSE and the
+      // second carries the outcome.
+      if (c.fainted && !from) {
+        return { view: next, lines: out };
+      }
+      // Rounding, not a no-op: sub-1% chip damage is real and the bar moves.
+      // "lost 0% HP" reads as a bug in a way "a little HP" does not.
+      const amount = pct > 0 ? `${pct}% HP` : "a little HP";
       return {
         view: next, lines: [...out, {
           kind: "damage", side: s ?? undefined,
-          text: from ? `${who} was hurt by ${from}.` : `${who} lost ${pct}% HP.`,
+          text: from ? `${who} was hurt by ${from}.` : `${who} lost ${amount}.`,
         }],
       };
     }
