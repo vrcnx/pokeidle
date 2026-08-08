@@ -183,6 +183,7 @@ model User {
   referrals          Referral[] @relation("ReferralReferrer")
   /// How far up the level-reward ladder this account has been paid.
   progressionClaim   ProgressionClaim?
+  discordRankClaim   DiscordRankClaim?
 }
 
 /// How one account arrived: the referring site, the campaign tags on the
@@ -1663,6 +1664,53 @@ model ProgressionClaim {
   /// account earned 53 tiers by playing" from "this account was paid 53 tiers
   /// the day the feature shipped" — the two look identical in PendingGrant.
   backfilled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// How far up the Discord rank ladder an account has been PAID.
+///
+/// ══ THE TWO KEYS ARE THE ENTIRE ANTI-FARM STORY ═══════════════════
+///
+/// Both constraints exist to stop the same trick — unlink, relink, get paid
+/// again — approached from its two directions:
+///
+///   discordId is the PRIMARY KEY, so one Discord account can hold at most one
+///   claim. Rebinding it to a fresh game account finds the row already there,
+///   already paid up to `paidTier`, and pays nothing.
+///
+///   userId is UNIQUE, so one game account can be claimed for by at most one
+///   Discord account, ever. Unlinking and relinking a second, higher-ranked
+///   Discord account hits this constraint rather than a second payout.
+///
+/// Neither is enforced in application code, because application code is where
+/// a race gets in. Both survive /unlink — nothing deletes this row — which is
+/// the property that matters, since unlink is the first half of every version
+/// of the exploit.
+///
+/// What this does NOT stop is N throwaway Discord accounts paired with N
+/// throwaway game accounts. Nothing short of an eligibility gate does. It is
+/// tolerable here only because the prizes are consumable items and never
+/// money — see lib/discordRankTiers.ts for that argument in full.
+model DiscordRankClaim {
+  /// The Discord account that earned it. NOT a foreign key: DiscordLink rows
+  /// are deleted on /unlink and this must outlive that.
+  discordId String @id
+
+  /// The game account it was paid to. Cascades, because a deleted account has
+  /// nothing left to double-pay.
+  userId String @unique
+
+  /// Highest tier index ever paid. Compare against `tiersReachedAtRank()`.
+  /// Only ever moves up — the update is a compare-and-swap on `paidTier <`.
+  paidTier Int @default(0)
+
+  /// The Discord rank that mark was set from. Display and ops only; the tier
+  /// index is the authority.
+  paidAtRank Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

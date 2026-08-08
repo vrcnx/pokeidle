@@ -978,6 +978,22 @@
    progress bar, and a bar in a half-width column reads as a fragment of one. */
 .progression-card { margin-bottom: 14px; }
 
+/* The Discord ladder, which is the same picture of a different number and so
+   borrows the level ladder's layout wholesale. The only thing it does not
+   share is the accent: two full-width cards stacked with identical trim read
+   as one card that has been rendered twice. */
+.discord-rank-card {
+  margin-bottom: 14px;
+  border-left: 3px solid #5865f2; /* Discord blurple, the one place it earns its keep */
+}
+
+/* The invite button on the unlinked card. Nothing else in this card is
+   interactive, so it needs the space to read as the single thing to do.
+   Its own class rather than `.discord-rank-card .btn`: `btn` is app.css's
+   name, and a scoped sheet reaching into it is what cssCollisions.test.ts
+   exists to refuse. */
+.discord-rank-join { margin-top: 10px; }
+
 .progression-now {
   display: flex;
   align-items: baseline;

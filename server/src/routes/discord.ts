@@ -25,6 +25,7 @@ import {
 } from "../lib/discordLink.js";
 import { grantLinkReward } from "../lib/discordLinkReward.js";
 import { awardEventXp } from "../lib/discordXp.js";
+import { getDiscordRankStatus } from "../lib/discordRankRewards.js";
 
 const app = new Hono();
 
@@ -47,6 +48,10 @@ const redeemLimiter = makeRateLimiter({ tokens: 10, windowMs: 10 * 60_000 });
  *  not an attempt. Still bounded so it cannot become a free oracle that tells
  *  you when you have guessed a code without spending a redeem token. */
 const peekLimiter = makeRateLimiter({ tokens: 30, windowMs: 10 * 60_000 });
+/** The rank read settles what is owed, so it is a write path wearing a GET's
+ *  clothes. Bounded accordingly — the Rewards page calls it once per open, and
+ *  40 a minute is far more than a human opening a card. */
+const rankLimiter = makeRateLimiter({ tokens: 40, windowMs: 60_000 });
 
 // A JSON body of literal `null` (or an array/scalar) survives
 // `.catch(() => ({}))` and then throws on property access — a 500 plus a bogus
@@ -153,6 +158,30 @@ app.post("/link/redeem", requireUser, blockStream, async (c) => {
     // to be told there was a prize they didn't get.
     reward: reward.granted ? { summary: reward.summary } : null,
   });
+});
+
+// ── GET /api/discord/rank/me ────────────────────────────────────────
+// Where the caller stands on the Discord rank ladder.
+//
+// Read-only from the player's side, and there is deliberately no claim
+// endpoint — same reasoning as routes/progression.ts. The read DOES settle
+// what is owed (getDiscordRankStatus calls settleDiscordRank), which is not
+// the same thing: settling is idempotent and guarded by the claim row's two
+// keys, so it can be run any number of times and pays at most once. A claim
+// endpoint would be a second PATH to a payout; this is the same path, run
+// again.
+//
+// The settle matters because the level-up hook in routes/bot.ts only fires for
+// someone who was linked at the moment they levelled. Chatting first and
+// linking afterwards is the ordinary order of events, and without this read
+// those ranks would never pay.
+app.get("/rank/me", requireUser, async (c) => {
+  const user = c.get("user");
+  // Tighter than the other read limiters here because this one can write.
+  if (!rankLimiter.consume(`drank:${user.id}`)) {
+    return c.json({ error: "rate_limited" }, 429);
+  }
+  return c.json(await getDiscordRankStatus(user.id));
 });
 
 // ── DELETE /api/discord/link/me ─────────────────────────────────────

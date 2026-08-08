@@ -68,6 +68,28 @@ export interface ProgressionStatus {
   track: ProgressionStop[];
 }
 
+export interface DiscordRankStatus {
+  /** False when the account has no Discord linked. The card shows an invite
+   *  rather than a ladder — an unlinked player cannot earn any of it. */
+  linked: boolean;
+  /** Current Discord rank (the level `/rank` reports in the server). */
+  rank: number;
+  paidTier: number;
+  reachedTier: number;
+  nextRank: number;
+  progress: number;
+  nextSummary: string;
+  /** This game account was already paid by a DIFFERENT Discord account, so
+   *  the ladder is closed to it. Saying so beats showing a track that will
+   *  never advance, which reads as a bug rather than as a rule. */
+  claimedByAnother: boolean;
+  /** The Discord invite, so the unlinked card can offer the door without a
+   *  second fetch. */
+  inviteUrl: string;
+  /** Same stop shape as the level ladder, so one component draws both. */
+  track: ProgressionStop[];
+}
+
 export interface ReferralSummary {
   code: string;
   /** Friends recorded, whether or not they paid — these differ past the cap. */
@@ -179,6 +201,10 @@ export const api = {
   // are paid by the save upload that observes the level, so a claim endpoint
   // would be a second way to pay the same tier.
   progressionStatus: () => request<ProgressionStatus>("GET", "/api/progression/me"),
+  // A GET that settles what is owed on the way past — see the route comment.
+  // It is still a read from the client's point of view: idempotent, and safe
+  // to call on every open of the Rewards page.
+  discordRankStatus: () => request<DiscordRankStatus>("GET", "/api/discord/rank/me"),
 
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),

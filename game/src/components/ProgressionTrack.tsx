@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ProgressionStatus } from "../net/api";
+import type { ProgressionStop } from "../net/api";
 import { PrizeChips } from "./PrizeChips";
 import { useT } from "../i18n/useT";
 
@@ -23,8 +23,23 @@ import { useT } from "../i18n/useT";
 // The server sends a few stops, never the ~4,007 that exist. Anything here
 // that assumed it had the whole ladder would be wrong at level 40 and
 // catastrophic at level 40,000.
+//
+// ── IT DRAWS ANY LADDER, NOT THE ACCOUNT-LEVEL ONE ──────────────────
+// The prop is the three fields a track needs rather than a whole
+// ProgressionStatus, because the Discord rank ladder is the same picture of a
+// different number. Both servers emit the same stop shape for exactly this
+// reason — see DiscordRankStop in server/src/lib/discordRankRewards.ts, whose
+// rank field is named `level` to keep one renderer instead of two.
 
-export function ProgressionTrack({ data }: { data: ProgressionStatus }) {
+export interface TrackData {
+  track: ProgressionStop[];
+  /** 0..1 across the gap to the next stop. */
+  progress: number;
+  /** Which tier the player has reached — the scroll anchor depends on it. */
+  reachedTier: number;
+}
+
+export function ProgressionTrack({ data }: { data: TrackData }) {
   const t = useT();
   const [filled, setFilled] = useState(false);
   const trackRef = useRef<HTMLDivElement | null>(null);

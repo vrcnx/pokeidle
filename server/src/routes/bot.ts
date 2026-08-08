@@ -82,6 +82,7 @@ import { drawGiveaway } from "../lib/giveawayDraw.js";
 import { parsePrizes, parsePrizesStrict, describePrizes } from "../lib/giveaway.js";
 import { checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { awardEventXp, awardMessageXp, xpFor, xpLeaderboard } from "../lib/discordXp.js";
+import { awardDiscordRank } from "../lib/discordRankRewards.js";
 
 const app = new Hono();
 
@@ -886,6 +887,23 @@ app.post("/xp/message", async (c) => {
   const label = sanitizeChatText(String(body.label ?? "")).slice(0, 60);
 
   const res = await awardMessageXp(discordId, channelId, label);
+
+  // A level-up is the moment a Discord rank reward can become owed, so it is
+  // the moment to pay it. Gated on `leveledUp` rather than run every message:
+  // this endpoint is the highest-traffic one in the file, and the ladder pays
+  // every fifth rank at best.
+  //
+  // Fire-and-forget, and not awaited, because the bot is waiting on this
+  // response to render a level-up card. The reward is not lost if it loses a
+  // race here — getDiscordRankStatus settles again on every read of the
+  // Rewards page, which is also what covers the far more common order of
+  // events: chatting to rank 20 first and linking afterwards.
+  if (res.leveledUp) {
+    void userIdForDiscord(discordId)
+      .then((userId) => (userId ? awardDiscordRank(userId, discordId, res.level) : null))
+      .catch(() => undefined);
+  }
+
   return c.json(res);
 });
 
