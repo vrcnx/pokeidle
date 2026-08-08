@@ -1036,28 +1036,83 @@
    the rail is ONE element behind them rather than a segment per stop —
    assembled segments never quite meet at the joins, and the seams are
    visible at exactly the moment the fill crosses one. */
-.prog-track-wrap { margin-top: 14px; }
+/* The card body is the grid item, and .promo-card is a three-column grid whose
+   first track is `auto` — which sizes to its content. A max-content-wide track
+   inside it therefore widened the COLUMN, and with it the whole card, which is
+   how the ladder ended up hanging off the right edge of its own panel.
+
+   Spanning every column and refusing an automatic minimum size fixes both
+   halves: the body owns the full width, and the scroller inside it is free to
+   be narrower than its contents instead of demanding room for all of them. */
+.promo-card-body {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.prog-track-wrap {
+  margin-top: 14px;
+  /* Belt to the body's braces. This is the element that would otherwise carry
+     the track's max-content width up the tree. */
+  min-width: 0;
+  max-width: 100%;
+}
 
 .prog-track {
   position: relative;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 2px 2px;
+  padding: 4px 0 2px;
   scrollbar-width: none;
-  /* The window can run past the card, and the fade is what says so — the
-     alternative is a track that looks like it simply ends. */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 28px), transparent);
+  /* Deliberately NOT scroll-behavior: smooth. The mount sets scrollLeft to park
+     the view on the player's own stop, and smooth would animate that sideways
+     slide at the same moment the rail is animating its fill — two motions
+     arguing over the same 900ms. */
+  /* The nodes are the thing to line up on, so a flick settles with one
+     centred rather than halfway between two. */
+  scroll-snap-type: x proximity;
 }
 .prog-track::-webkit-scrollbar { display: none; }
+
+/* The fades say "there is more this way", and each one is applied only when
+   there actually IS more that way — see ProgressionTrack.tsx.
+
+   The first version masked both edges unconditionally, which faded the very
+   first stop while the track sat at its starting position with nothing hidden
+   behind it. A permanent fade over content that is fully visible does not read
+   as "scroll for more"; it reads as a rendering fault. */
+.prog-track--more-left {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px);
+  mask-image: linear-gradient(to right, transparent, #000 28px);
+}
+.prog-track--more-right {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 28px);
+  mask-image: linear-gradient(to left, transparent, #000 28px);
+}
+.prog-track--more-left.prog-track--more-right {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
+/* Content width, inside the viewport width. The rail lives in HERE rather than
+   in the scroller, because an absolutely-positioned `left: 0; right: 0` child
+   of a scroll container resolves against the container's padding box — the
+   VISIBLE width — so the line stayed pinned to the window while the stops
+   scrolled underneath it, and simply stopped at the card edge. */
+.prog-track-inner {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
 
 .prog-rail {
   position: absolute;
   /* Aligned to the node row, not the stop's full height: the levels and the
      prize chips hang below it. */
   top: 16px;
-  left: 0;
-  right: 0;
+  /* Inset by half a stop so the line starts and ends UNDER the first and last
+     nodes instead of jutting out past them into empty space. */
+  left: 54px;
+  right: 54px;
   height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.10);
@@ -1090,6 +1145,12 @@
   align-items: center;
   gap: 4px;
   text-align: center;
+  /* Every stop the same height, whatever it pays. Milestone stops carry a
+     second chip (the Master Ball) and were growing taller than their
+     neighbours, which tilted the row and left a ragged bottom edge across
+     the whole track. */
+  align-self: stretch;
+  scroll-snap-align: center;
 }
 
 .prog-node {
@@ -1139,9 +1200,34 @@
 .prog-stop.prog-next .prog-stop-level,
 .prog-stop.prog-milestone .prog-stop-level { color: var(--text); }
 
-.prog-stop-prizes { display: flex; justify-content: center; }
+.prog-stop-prizes { display: flex; justify-content: center; width: 100%; }
+/* One prize per line, centred. Left to wrap, a stop paying money AND a ball
+   AND a Master Ball packed them two-up-then-one, so the same reward read as a
+   different shape at every stop along the row. A column is the same shape
+   every time, and it is the shape that stays legible at 108px. */
+.prog-stop-prizes .gw-chips {
+  flex-direction: column;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 3px;
+  width: 100%;
+}
+/* The chips are their own width inside that column rather than stretched to
+   it, so a "Poké Ball ×10" pill still looks like a pill. */
+.prog-stop-prizes .gw-chip { max-width: 100%; }
+.prog-stop-prizes .gw-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Future stops are legible but plainly not yours yet. */
 .prog-stop.prog-future { opacity: 0.55; }
+/* The one being worked toward carries a little more weight than the rest —
+   without it, "next" was a ring colour and nothing else, which is a thin
+   signal for the single most important stop on the track. */
+.prog-stop.prog-next { opacity: 1; }
+.prog-stop.prog-next .prog-stop-level { font-size: 13px; }
 
 .prog-legend { margin: 10px 0 0; }
 
@@ -1149,4 +1235,7 @@
   /* Narrower stops so three fit rather than two — a track showing two stops
      is a "before and after", not a ladder. */
   .prog-stop { width: 92px; }
+  /* The rail inset follows the stop width, or the line stops short of the
+     first node on a phone and past it on a laptop. */
+  .prog-rail { left: 46px; right: 46px; }
 }
