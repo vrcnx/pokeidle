@@ -10,6 +10,7 @@ import { pokemonTable } from "../data/pokemon";
 import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
 import { MoveCard, effChip } from "./MoveCard";
+import { moveDescriptions } from "../data/moveDescriptions";
 
 // Manual-mode predicate. When the player needs to pick a move to advance the
 // turn, every move slot becomes a clickable button. Anything else (recharge,
@@ -210,6 +211,7 @@ export function MovesPanel() {
             pp={m.pp}
             maxPp={m.maxPp}
             eff={eff}
+            description={moveDescriptions[m.id]}
             disabled={disabled}
             pickable={pickable}
             title={moveTooltip(def, m, pickable, hasPP)}

@@ -583,8 +583,12 @@ export const moves: Record<string, MoveDef> = {
       pp: 20,
       priority: 0,
     },
+    // 0.10, not 0.30. The row carried Gen 9's power (110) beside Gen 1's burn
+    // chance (30%) — every generation from 2 onward is 10%, and a deliberate
+    // buff would not have reached back to the Gen 1 number while keeping the
+    // modern power. One field that never moved when the rest of the row did.
     fireBlast: { name: "Fire Blast", type: "Fire", category: "special", power: 110, accuracy: 85, pp: 5, priority: 0,
-      effect: { type: "inflictStatus", status: "burned", chance: 0.30 } },
+      effect: { type: "inflictStatus", status: "burned", chance: 0.10 } },
     firePunch: {
       name: "Fire Punch",
       type: "Fire",
@@ -644,7 +648,9 @@ export const moves: Record<string, MoveDef> = {
       name: "High Jump Kick",
       type: "Fighting",
       category: "physical",
-      power: 100,
+      // 130 since Gen 5. 100 is the Gen 4 value, left behind the same way
+      // Fire Blast's burn chance was.
+      power: 130,
       accuracy: 90,
       pp: 10,
       priority: 0,

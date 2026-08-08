@@ -203,15 +203,12 @@ export function AuctionHousePane() {
             {t("Sell a Pokémon or TM")}
           </button>
         </div>
+        {/* No search box. Pulled for now — with the floor at this size the four
+            category tabs already cut it down to something you can read, and a
+            text field that mostly returns everything is a control that costs
+            header room without earning it. The filtering code below is left in
+            place and `q` stays empty, so putting it back is one element. */}
         <div className="ah-head-row ah-head-row--filters">
-          <input
-            className="ah-search"
-            type="search"
-            placeholder={t("Search lots")}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label={t("Search lots")}
-          />
           <select
             className="ah-sort"
             value={sort}

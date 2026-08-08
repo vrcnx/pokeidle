@@ -93,6 +93,7 @@ import { openPublicTrainerCard } from "./TrainerCardModal";
 import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
 import { MoveCard, effChip } from "./MoveCard";
+import { moveDescriptions } from "../data/moveDescriptions";
 import "../pvpArena.css";
 
 /**
@@ -1093,6 +1094,7 @@ function MoveGrid({
             pp={m.pp}
             maxPp={m.maxpp}
             eff={def ? effChip(def.type, def.category, foeTypes) : null}
+            description={moveDescriptions[m.id]}
             disabled={out}
             pickable
             onClick={() => onMove(i)}

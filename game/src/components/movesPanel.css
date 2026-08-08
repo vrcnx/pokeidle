@@ -247,3 +247,29 @@
   border-left-style: dashed;
 }
 .mv-card--struggle .mv-name { color: var(--text-muted); }
+
+/* ── The description ───────────────────────────────────────────────
+   Pani's roomier card carries a line on what the move actually does. It is
+   real data (src/data/moveDescriptions.ts, generated from @pkmn/dex at the
+   generation this game is), so it is never invented and never stale — see
+   tests/moveGeneration.test.ts.
+
+   Hidden by default and revealed only when the card is wide enough to hold
+   it. In the 2-up battle grid the cards are 135–210px, where a sentence
+   would push the numbers off the bottom of a panel the player is reading
+   mid-turn; anywhere with real width — a wide centre column, a detail sheet —
+   it appears. Two clamped lines, because a handful of moves have long ones
+   and a card that changes height with its text makes the grid jump. */
+.mv-desc { display: none; }
+
+@container (min-width: 250px) {
+  .mv-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+}

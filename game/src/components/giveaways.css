@@ -1058,10 +1058,16 @@
 }
 
 .prog-track {
+  /* The node's diameter and the track's own top padding, named, because the
+     rail has to be centred against them and three hardcoded numbers that must
+     agree is how they stop agreeing. */
+  --prog-node: 20px;
+  --prog-pad-top: 4px;
+
   position: relative;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 0 2px;
+  padding: var(--prog-pad-top) 0 2px;
   scrollbar-width: none;
   /* Deliberately NOT scroll-behavior: smooth. The mount sets scrollLeft to park
      the view on the player's own stop, and smooth would animate that sideways
@@ -1106,9 +1112,19 @@
 
 .prog-rail {
   position: absolute;
-  /* Aligned to the node row, not the stop's full height: the levels and the
-     prize chips hang below it. */
-  top: 16px;
+  /* Centred ON the node row, and measured rather than guessed.
+
+     It was `top: 16px`, which sat the line 3.5px below the circles' middles —
+     visible as the rail crossing each node low.
+
+     The containing block is `.prog-track-inner`, whose box already begins
+     AFTER the track's padding, so the padding must not appear here: a first
+     attempt at `calc(pad + node / 2)` counted it twice and left the rail 4px
+     low instead of 3.5. Half the node's height, shifted up by half the rail's
+     own, puts the two centres on the same line exactly — and keeps them there
+     if the node size changes. */
+  top: calc(var(--prog-node) / 2);
+  transform: translateY(-50%);
   /* Inset by half a stop so the line starts and ends UNDER the first and last
      nodes instead of jutting out past them into empty space. */
   left: 54px;
@@ -1157,8 +1173,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  /* Reads the same variable the rail centres against, so the two cannot
+     drift apart. */
+  width: var(--prog-node, 20px);
+  height: var(--prog-node, 20px);
+  flex: 0 0 auto;
   border-radius: 50%;
   /* Sits ON the rail, so it needs the card's own background behind it rather
      than letting the line run through the middle of the marker. */

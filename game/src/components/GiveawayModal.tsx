@@ -281,16 +281,19 @@ export function RewardsPane({
     ...(past.length ? [{ id: "past" as const, icon: "🏆", label: t("Results"), badge: null, tone: "past" as const }] : []),
   ];
 
-  // Land on the thing with something to DO, in the order it is worth doing:
-  // a free reward nobody has collected, then a giveaway nobody has entered,
-  // then whatever exists at all.
-  const fallback: TabId =
-    freeOpen > 0 ? "free"
-    : unentered > 0 ? "live"
-    : promos.length > 0 ? "free"
-    : live.length > 0 ? "live"
-    : past.length > 0 ? "past"
-    : "free";
+  // ALWAYS Free rewards.
+  //
+  // This used to pick a tab by what had something to do — an uncollected free
+  // reward, else an unentered giveaway, else whatever existed. Reasonable, and
+  // wrong in practice: it meant the page opened somewhere different depending
+  // on state the player cannot see, so "where is the thing I was just looking
+  // at" had no stable answer and the invite, level and Discord cards were
+  // sometimes simply not the page you landed on.
+  //
+  // Free rewards is also the tab that is never empty — the level ladder and
+  // the Discord card are there for every account, whereas a giveaway is only
+  // sometimes running. A fixed landing spot beats a clever one.
+  const fallback: TabId = "free";
   // Guard against a tab that has disappeared since it was picked (the last
   // live giveaway drew while the dialog was open).
   const active = picked && tabs.some((x) => x.id === picked) ? picked : fallback;
@@ -478,8 +481,13 @@ function FreePane({ promos }: { promos: Promo[] }) {
           the invite card is not one of them — it has no claimed state, it has
           a running total. Putting it inside the grid would have it silently
           excluded from the "3/4 collected" beside it. */}
-      {progression && <ProgressionCard data={progression} />}
+      {/* Discord FIRST. It is the only card here that asks the player to go
+          somewhere else and come back, so it is the one that loses most by
+          being scrolled past — the level ladder and the invite link still work
+          on whoever finds them later. Ordered by what a position costs, not by
+          what shipped first. */}
       {discordRank && <DiscordRankCard data={discordRank} inviteUrl={discordRank.inviteUrl} />}
+      {progression && <ProgressionCard data={progression} />}
       {referral && <ReferralCard data={referral} />}
       {promos.length > 0 && (
         <>

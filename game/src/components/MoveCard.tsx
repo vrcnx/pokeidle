@@ -95,6 +95,9 @@ export interface MoveCardProps {
   eff: { label: string; cls: string } | null;
   disabled?: boolean;
   pickable?: boolean;
+  /** One line on what the move does, from src/data/moveDescriptions.ts.
+   *  Shown only when the card is wide enough to hold it — see movesPanel.css. */
+  description?: string;
   /** The last-resort attack, not a move. Drawn colourless and dashed so it
    *  never reads as a fifth option worth choosing. */
   struggle?: boolean;
@@ -104,7 +107,7 @@ export interface MoveCardProps {
 
 export function MoveCard({
   name, type, category, power, accuracy, pp, maxPp,
-  eff, disabled, pickable, struggle, title, onClick,
+  eff, disabled, pickable, struggle, description, title, onClick,
 }: MoveCardProps) {
   const t = useT();
   const color = (type && TYPE_COLOR[type]) || "#888";
@@ -144,6 +147,8 @@ export function MoveCard({
           </span>
         )}
       </span>
+
+      {description && <span className="mv-desc">{description}</span>}
 
       <span className="mv-meta">
         <span className="mv-type">{type ?? "?"}</span>
