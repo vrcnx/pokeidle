@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type ProgressionStatus } from "../net/api";
 import { useT } from "../i18n/useT";
+import { ProgressionTrack } from "./ProgressionTrack";
 
 // "Keep playing" — the reward you earn simply by getting stronger.
 //
@@ -36,7 +37,6 @@ export function useProgressionStatus(): ProgressionStatus | null {
 
 export function ProgressionCard({ data }: { data: ProgressionStatus }) {
   const t = useT();
-  const pct = Math.round(data.progress * 100);
   const toGo = Math.max(0, data.nextLevel - data.level);
 
   // The window between crossing a tier and the upload that pays it. Saying so
@@ -64,15 +64,11 @@ export function ProgressionCard({ data }: { data: ProgressionStatus }) {
           </span>
         </div>
 
-        <div className="progression-bar" aria-hidden>
-          <span className="progression-fill" style={{ width: `${pct}%` }} />
-        </div>
-
-        <p className="progression-target">
-          {t("Level")} <strong>{data.nextLevel.toLocaleString()}</strong>
-          {" — "}
-          <span className="progression-prize">{data.nextSummary}</span>
-        </p>
+        {/* The ladder itself. The single "next tier" line this replaced
+            answered the smaller half of the question — a player at 1,197
+            could see the next stop and had no way to learn a Master Ball was
+            waiting at 1,250. */}
+        <ProgressionTrack data={data} />
 
         {owed > 0 && (
           <p className="promo-note">

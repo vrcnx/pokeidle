@@ -41,6 +41,17 @@ export class ApiError extends Error {
   }
 }
 
+export interface ProgressionStop {
+  tier: number;
+  level: number;
+  prizes: GiveawayPrize[];
+  /** "paid" collected · "queued" reached, award in flight · "next" the one
+   *  being worked toward · "future" beyond that. */
+  state: "paid" | "queued" | "next" | "future";
+  /** Carries a Master Ball — the track marks these. */
+  milestone: boolean;
+}
+
 export interface ProgressionStatus {
   level: number;
   /** Tiers this account has been PAID for. */
@@ -52,6 +63,9 @@ export interface ProgressionStatus {
   /** 0..1 across the current gap. */
   progress: number;
   nextSummary: string;
+  /** A WINDOW of the ladder — a few behind, several ahead. Never the whole
+   *  thing: there are ~4,007 tiers to the level ceiling. */
+  track: ProgressionStop[];
 }
 
 export interface ReferralSummary {

@@ -1,10 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
-import { describePrizes } from "./giveaway.js";
+import { describePrizes, type Prize } from "./giveaway.js";
 import { enqueuePrizeGrant } from "./prizeGrant.js";
 import { recordError } from "./errorReporting.js";
 import {
   tiersReachedAt, levelForTier, nextTierLevel, rewardForTier, rewardsBetween,
+  MASTERBALL_EVERY,
 } from "./progressionTiers.js";
 
 // Paying out the level ladder.
@@ -127,6 +128,18 @@ export async function awardProgression(
   }
 }
 
+/** One stop on the track. */
+export interface ProgressionStop {
+  tier: number;
+  level: number;
+  prizes: Prize[];
+  /** "paid" — collected. "queued" — reached, award on its way. "next" — the
+   *  one being worked toward. "future" — beyond that. */
+  state: "paid" | "queued" | "next" | "future";
+  /** Carries a Master Ball, so the track can mark it as worth reaching. */
+  milestone: boolean;
+}
+
 export interface ProgressionStatus {
   level: number;
   /** Tiers this account has been PAID for — not tiers its level implies. */
@@ -137,6 +150,18 @@ export interface ProgressionStatus {
   /** 0..1 across the current gap, for a progress bar. */
   progress: number;
   nextSummary: string;
+  /**
+   * A WINDOW of the ladder, not the ladder.
+   *
+   * There are ~4,007 tiers up to the level ceiling. Sending them would be a
+   * megabyte of JSON describing rewards a player will not see for years, and
+   * drawing them would be 4,007 DOM nodes on a card. The window is a few
+   * behind for context and several ahead for the thing the card exists to
+   * answer — "what am I working toward" — which the old single "next tier"
+   * line could not: a player at 1,197 had no way to learn a Master Ball was
+   * waiting at 1,250.
+   */
+  track: ProgressionStop[];
 }
 
 /**
@@ -160,12 +185,39 @@ export async function getProgressionStatus(
   const prevLevel = levelForTier(reachedTier);
   const span = Math.max(1, nextLevel - prevLevel);
 
+  const paidTier = row?.paidTier ?? 0;
+
+  // Two behind for context, seven ahead for intent. Clamped at the bottom so
+  // a brand-new account starts at tier 1 rather than showing empty stops it
+  // has already "passed" at level 0.
+  const BEHIND = 2;
+  const AHEAD = 7;
+  const first = Math.max(1, reachedTier - BEHIND + 1);
+  const last = reachedTier + AHEAD;
+
+  const track: ProgressionStop[] = [];
+  for (let tier = first; tier <= last; tier++) {
+    const stopLevel = levelForTier(tier);
+    track.push({
+      tier,
+      level: stopLevel,
+      prizes: rewardForTier(tier),
+      state:
+        tier <= paidTier ? "paid"
+        : tier <= reachedTier ? "queued"
+        : tier === reachedTier + 1 ? "next"
+        : "future",
+      milestone: stopLevel % MASTERBALL_EVERY === 0,
+    });
+  }
+
   return {
     level,
-    paidTier: row?.paidTier ?? 0,
+    paidTier,
     reachedTier,
     nextLevel,
     progress: Math.min(1, Math.max(0, (level - prevLevel) / span)),
     nextSummary: describePrizes(rewardForTier(reachedTier + 1)),
+    track,
   };
 }

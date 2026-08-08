@@ -1014,3 +1014,123 @@
 .progression-target strong { color: var(--text); }
 /* The prize itself is the point of the line, so it is the part that is lit. */
 .progression-prize { color: var(--gold); }
+
+/* ── The level track ────────────────────────────────────────────────
+   A rail with stops along it, scrolling sideways. The stops are a list and
+   the rail is ONE element behind them rather than a segment per stop —
+   assembled segments never quite meet at the joins, and the seams are
+   visible at exactly the moment the fill crosses one. */
+.prog-track-wrap { margin-top: 14px; }
+
+.prog-track {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 2px;
+  scrollbar-width: none;
+  /* The window can run past the card, and the fade is what says so — the
+     alternative is a track that looks like it simply ends. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 28px), transparent);
+}
+.prog-track::-webkit-scrollbar { display: none; }
+
+.prog-rail {
+  position: absolute;
+  /* Aligned to the node row, not the stop's full height: the levels and the
+     prize chips hang below it. */
+  top: 16px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+}
+.prog-rail-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), #fde68a);
+  /* Slow and eased, because this is the one moment the card gets to say "look
+     how far you have come" rather than "here is where you are". */
+  transition: width 900ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .prog-rail-fill { transition: none; }
+}
+
+.prog-stops {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.prog-stop {
+  flex: 0 0 auto;
+  width: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.prog-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  /* Sits ON the rail, so it needs the card's own background behind it rather
+     than letting the line run through the middle of the marker. */
+  background: var(--panel);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+  font-size: 11px;
+  line-height: 1;
+}
+.prog-stop.prog-paid .prog-node {
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold);
+  color: #1a1a1a;
+}
+.prog-stop.prog-queued .prog-node {
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold);
+  /* Reached but not yet delivered — the save that pays it is seconds away, and
+     the pulse is what distinguishes "collected" from "on its way". */
+  animation: prog-pending 1.4s ease-in-out infinite;
+}
+.prog-stop.prog-next .prog-node {
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 12px rgba(251, 191, 36, 0.5);
+}
+.prog-stop.prog-milestone .prog-node { color: var(--gold); font-size: 12px; }
+.prog-stop.prog-milestone.is-paid .prog-node { color: #1a1a1a; }
+
+@keyframes prog-pending {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.prog-stop-level {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.prog-stop.prog-next .prog-stop-level,
+.prog-stop.prog-milestone .prog-stop-level { color: var(--text); }
+
+.prog-stop-prizes { display: flex; justify-content: center; }
+/* Future stops are legible but plainly not yours yet. */
+.prog-stop.prog-future { opacity: 0.55; }
+
+.prog-legend { margin: 10px 0 0; }
+
+@media (max-width: 760px) {
+  /* Narrower stops so three fit rather than two — a track showing two stops
+     is a "before and after", not a ladder. */
+  .prog-stop { width: 92px; }
+}
