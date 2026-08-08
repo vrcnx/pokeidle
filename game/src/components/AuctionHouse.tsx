@@ -154,54 +154,76 @@ export function AuctionHousePane() {
 
   return (
     <div className="tab-pane ah-pane">
-      <HubViews>
-        <div className="g-tabs" role="tablist" aria-label={t("Auction categories")}>
-          {([
-            ["all", t("All"), counts.all],
-            ["pokemon", t("Pokémon"), counts.pokemon],
-            ["machine", t("TMs"), counts.machine],
-            ["mine", t("Yours"), counts.mine],
-          ] as const).map(([key, label, n]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={filter === key}
-              className={`g-tab${filter === key ? " active" : ""}`}
-              onClick={() => setFilter(key as LotFilter)}
-            >
-              {label} <span className="dim">{n}</span>
-            </button>
-          ))}
+      {/* `hub-views--stack` — two rows, which is the whole reason Sell can be
+          up here at all. It was pulled out of this header once because the
+          slot is a fixed 800px and, on one line with four category tabs, a
+          search box, a sort control and the wallet, Sell was laid out past
+          the end and clipped. The stacked variant (the PC and the Pokedex use
+          it for the same reason) gives the toolbar a second row, so the
+          page's primary action fits without crowding anything.
+
+          Selling is the one thing here you cannot discover by browsing —
+          every other control acts on lots that are already in front of you —
+          so it belongs where a player looks first rather than at the bottom
+          of a panel they have to select a lot to see. */}
+      <HubViews className="hub-views--stack">
+        <div className="ah-head-row">
+          <div className="g-tabs" role="tablist" aria-label={t("Auction categories")}>
+            {([
+              ["all", t("All"), counts.all],
+              ["pokemon", t("Pokémon"), counts.pokemon],
+              ["machine", t("TMs"), counts.machine],
+              ["mine", t("Yours"), counts.mine],
+            ] as const).map(([key, label, n]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={filter === key}
+                className={`g-tab${filter === key ? " active" : ""}`}
+                onClick={() => setFilter(key as LotFilter)}
+              >
+                {label} <span className="dim">{n}</span>
+              </button>
+            ))}
+          </div>
+          <span className="ah-head-spacer" />
+          <span className="mart-wallet-chip" title={t("Your money")}>
+            ${state.money.toLocaleString()}
+          </span>
+          <button
+            type="button"
+            className="ah-sell-btn ah-sell-btn--head"
+            onClick={() => setAuctionMode("sell")}
+          >
+            <span aria-hidden="true">+</span>
+            {/* Named, not "Sell something". Beside a wall of other people's
+                lots, a bare "Sell" reads as though it might act on one of
+                them. */}
+            {t("Sell a Pokémon or TM")}
+          </button>
         </div>
-        <input
-          className="ah-search"
-          type="search"
-          placeholder={t("Search lots")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label={t("Search lots")}
-        />
-        <select
-          className="ah-sort"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as LotSort)}
-          aria-label={t("Sort lots")}
-        >
-          <option value="ending">{t("Ending soonest")}</option>
-          <option value="newest">{t("Newest")}</option>
-          <option value="price-low">{t("Cheapest")}</option>
-          <option value="price-high">{t("Priciest")}</option>
-        </select>
-        {/* No Sell button here. The hub's header slot is a fixed 800px, and
-            with four category tabs, a search box, a sort control and the
-            wallet in it, Sell was laid out at x=1250 — off the end of the
-            slot and clipped by the dialog, so the page's primary action was
-            invisible. It lives in the Aside now, which is the column that
-            acts on things anyway. */}
-        <span className="mart-wallet-chip" title={t("Your money")}>
-          ${state.money.toLocaleString()}
-        </span>
+        <div className="ah-head-row ah-head-row--filters">
+          <input
+            className="ah-search"
+            type="search"
+            placeholder={t("Search lots")}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label={t("Search lots")}
+          />
+          <select
+            className="ah-sort"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as LotSort)}
+            aria-label={t("Sort lots")}
+          >
+            <option value="ending">{t("Ending soonest")}</option>
+            <option value="newest">{t("Newest")}</option>
+            <option value="price-low">{t("Cheapest")}</option>
+            <option value="price-high">{t("Priciest")}</option>
+          </select>
+        </div>
       </HubViews>
 
       {store.loading && store.lots.length === 0 ? (

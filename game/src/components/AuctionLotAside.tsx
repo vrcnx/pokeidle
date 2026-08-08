@@ -62,41 +62,24 @@ export function AuctionLotAside() {
             {t("Everything about it — stats, bid history, and the one place you bid — opens here.")}
           </p>
         </div>
-        <SellCta />
       </div>
     );
   }
   return (
     <div className="ah-aside-stack">
       <LotDetail key={lot.id} lot={lot} />
-      <SellCta />
     </div>
   );
 }
 
-/**
- * Selling, from the column that acts.
- *
- * It was a button on the hub's header bar until that bar ran out of room —
- * the slot is a fixed 800px and the four category tabs, the search box, the
- * sort control and the wallet already fill it, so Sell was laid out past the
- * end and clipped. Here it is always visible, next to the other thing you
- * can do with a lot, and it cannot be crowded out by a filter.
- */
-function SellCta() {
-  const t = useT();
-  return (
-    <div className="ah-sell-cta">
-      <button type="button" onClick={() => setAuctionMode("sell")}>
-        <span className="ah-sell-plus" aria-hidden="true">+</span>
-        {/* "Sell something" was ambiguous exactly where it sits: beside a lot
-            somebody else is selling, it read as though it might act on THAT.
-            Naming what you can sell makes it unmistakably about your own. */}
-        {t("Sell a Pokémon or TM")}
-      </button>
-    </div>
-  );
-}
+// SellCta used to live here, and the button is now in the page header —
+// see the note in AuctionHouse.tsx. It moved because "how do I sell?" is the
+// one question this page could not answer by being looked at: you had to
+// select somebody else's lot before the button that lists your own appeared.
+//
+// Deliberately not left here as well. Two Sell buttons on one screen is how a
+// player ends up unsure which one acts on the lot they are staring at, which
+// is the ambiguity the old label was already working around.
 
 /** Exported for the render tests, which drive it directly with a lot rather
  *  than seeding the store — the same way the old suite drove AuctionCard. */
@@ -343,6 +326,14 @@ export function LotDetail({ lot }: { lot: PublicAuction }) {
       )}
 
       {/* ── Who has bid ─────────────────────────────────────────── */}
+      {/* The zero-bid case is the COMMON one on a fresh lot, and it used to
+          render nothing at all — the panel simply stopped, leaving the column
+          ending in mid-air under the bid box. Saying "no bids yet" both
+          closes the panel and is the most encouraging fact available to
+          somebody looking at a bid form. */}
+      {bids && bids.length === 0 && lot.status === "active" && (
+        <p className="ah-history-empty">{t("No bids yet — you would be the first.")}</p>
+      )}
       {bids && bids.length > 0 && (
         <div className="ah-history">
           <h4>{t("Bids")}</h4>

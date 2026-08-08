@@ -601,3 +601,85 @@
 @media (max-width: 760px) {
   .ah-price-label { font-size: 10.5px; }
 }
+
+/* ── The page toolbar, on two rows ─────────────────────────────────
+   Sell is back in the header. It was pulled out once because the hub's head
+   slot is a fixed 800px and, on ONE line with four category tabs, a search
+   box, a sort control and the wallet, the button was laid out past the end
+   and clipped away entirely.
+
+   The fix is the row, not the button: `hub-views--stack` (the PC and the
+   Pokedex already use it) gives the toolbar a second line, so the primary
+   action sits on the first row with room to spare and the filters get the
+   second to themselves. */
+.ah-head-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Takes the slack, so the wallet and Sell sit hard right against the tabs on
+   the left rather than drifting with the tab count. */
+.ah-head-spacer { flex: 1 1 auto; }
+.ah-head-row--filters .ah-search { max-width: 280px; }
+
+/* The primary action on the page, and styled like it — the only filled
+   button in the header. */
+.ah-sell-btn--head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  /* The label is the first thing with room to give: at phone widths the tabs
+     and the wallet have nowhere to go, and "+ Sell" beside a wall of lots is
+     still unambiguous once the page itself is the context. */
+  .ah-sell-btn--head { padding: 0 10px; }
+  .ah-head-row { flex-wrap: wrap; }
+}
+
+/* ── Panel rhythm ──────────────────────────────────────────────────
+   The complaint was that it had no spacing, and it was true in a specific
+   way: one flat 12px gap ran between every block, so the sprite, the stats,
+   the price and the bid form all read as one undifferentiated column. The
+   gap is now bigger BETWEEN groups, and the groups themselves are tighter
+   inside — which is what makes a panel read as sections rather than as a
+   list of rows that happen to be near each other. */
+.ah-aside { gap: 16px; }
+.ah-identity { gap: 6px; }
+.ah-facts { gap: 11px; }
+
+/* Room to breathe around the artwork, which is the thing being sold. */
+.ah-hero { padding: 18px 0 14px; }
+
+/* The IV rails, taller and with a real track. At 5px on a 10%-white
+   background they were closer to hairlines than bars, and the whole reason
+   six of them are drawn is so a buyer can compare their LENGTHS at a glance. */
+.ah-iv-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+.ah-iv-bar > span { border-radius: 4px; }
+.ah-ivs { gap: 7px 14px; }
+.ah-ivs li { grid-template-columns: 28px 1fr 20px; gap: 7px; font-size: 10.5px; }
+
+/* Separated from the facts above it, because price is a different KIND of
+   thing from typing and IVs — one describes the Pokémon, the other describes
+   the deal. */
+.ah-money { padding: 13px 14px; }
+
+/* Closes the panel on a fresh lot. Without it the column ended in mid-air
+   under the bid box, which is most of what "there's no spacing" was pointing
+   at — it was not spacing, it was an unfinished edge. */
+.ah-history-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  text-align: center;
+}
