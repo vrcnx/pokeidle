@@ -93,6 +93,14 @@ export interface MoveCardProps {
    *  the move is the kind that has one. Null hides the chip entirely rather
    *  than showing a neutral "1×", which is noise on three cards out of four. */
   eff: { label: string; cls: string } | null;
+  /** Greyed out because it has no PP left.
+   *
+   *  SEPARATE from `disabled`, which is about whether the card can be
+   *  clicked. They used to be one flag, so the faded look only appeared in
+   *  manual mode — the same empty move looked fine on Auto, where a card is
+   *  still a link to Manage Moves rather than a move you are choosing. Out of
+   *  PP is a fact about the move; disabled is a fact about the moment. */
+  out?: boolean;
   disabled?: boolean;
   pickable?: boolean;
   /** One line on what the move does, from src/data/moveDescriptions.ts.
@@ -107,7 +115,7 @@ export interface MoveCardProps {
 
 export function MoveCard({
   name, type, category, power, accuracy, pp, maxPp,
-  eff, disabled, pickable, struggle, description, title, onClick,
+  eff, out, disabled, pickable, struggle, description, title, onClick,
 }: MoveCardProps) {
   const t = useT();
   const color = (type && TYPE_COLOR[type]) || "#888";
@@ -123,7 +131,8 @@ export function MoveCard({
       className={[
         "mv-card",
         eff?.cls ?? "",
-        disabled ? "mv-card--out" : "",
+        (out ?? disabled) ? "mv-card--out" : "",
+        disabled ? "mv-card--locked" : "",
         pickable ? "mv-card--pickable" : "",
         struggle ? "mv-card--struggle" : "",
       ].filter(Boolean).join(" ")}

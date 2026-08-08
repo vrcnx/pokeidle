@@ -1095,6 +1095,7 @@ function MoveGrid({
             maxPp={m.maxpp}
             eff={def ? effChip(def.type, def.category, foeTypes) : null}
             description={moveDescriptions[m.id]}
+            out={m.pp <= 0}
             disabled={out}
             pickable
             onClick={() => onMove(i)}

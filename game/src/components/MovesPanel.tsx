@@ -212,6 +212,7 @@ export function MovesPanel() {
             maxPp={m.maxPp}
             eff={eff}
             description={moveDescriptions[m.id]}
+            out={!hasPP}
             disabled={disabled}
             pickable={pickable}
             title={moveTooltip(def, m, pickable, hasPP)}

@@ -478,6 +478,95 @@ export function abilitiesFor(speciesKey: string): SpeciesAbilities | undefined {
   return speciesAbilities[speciesKey] ?? speciesAbilities[KEY_ALIASES[speciesKey] ?? ""];
 }
 
+/**
+ * Which SLOT an ability occupies for a species, or null if it is not one of
+ * that species' abilities at all.
+ *
+ * "hidden" is its own slot rather than an index, because the hidden ability is
+ * a different KIND of slot in the real games — it is not simply the last one
+ * in the list, and a species can have two primaries and a hidden.
+ */
+export function abilitySlotOf(
+  speciesKey: string,
+  ability: string | undefined,
+): { kind: "primary"; index: number } | { kind: "hidden" } | null {
+  if (!ability) return null;
+  const entry = abilitiesFor(speciesKey);
+  if (!entry) return null;
+  if (entry.hidden && entry.hidden === ability) return { kind: "hidden" };
+  const i = entry.primary.indexOf(ability);
+  return i >= 0 ? { kind: "primary", index: i } : null;
+}
+
+/** Is this a legal ability for this species? */
+export function isLegalAbility(speciesKey: string, ability: string | undefined): boolean {
+  return abilitySlotOf(speciesKey, ability) !== null;
+}
+
+/**
+ * The ability a Pokémon should have AFTER evolving.
+ *
+ * ══ EVOLUTION PRESERVES THE SLOT, NOT THE ABILITY ═══════════════════
+ *
+ * This is the rule the real games use and the one this game was missing: the
+ * ability itself is a property of the SPECIES, and what carries across an
+ * evolution is which slot you occupy. A Shed Skin Dratini is a slot-1 Dratini,
+ * so it becomes a slot-1 Dragonite — which is Inner Focus. It does not stay
+ * Shed Skin, because Dragonite does not have Shed Skin.
+ *
+ * COMPLETE_EVOLUTION used to spread `...old` and change only the species and
+ * the stats, so the ability string came along verbatim and every fully-evolved
+ * Pokémon in the game was walking around with its baby form's ability. Player
+ * report from Gshow, using this exact line as the example.
+ *
+ * A hidden ability stays hidden — that is the whole point of the slot being
+ * the thing that is preserved, and it is why "hidden" is modelled as its own
+ * slot rather than as an index into `primary`.
+ *
+ * Falls back to the new species' first primary whenever the slot cannot be
+ * carried over: the old ability was not legal for the old species (data drift,
+ * or a mon created before this table existed), the new species has fewer
+ * primaries than the old one, or the new species has no hidden ability to
+ * inherit. Returning something legal always beats returning something that
+ * cannot exist.
+ */
+export function evolvedAbility(
+  fromSpeciesKey: string,
+  toSpeciesKey: string,
+  currentAbility: string | undefined,
+): string | undefined {
+  const to = abilitiesFor(toSpeciesKey);
+  if (!to || to.primary.length === 0) return currentAbility;
+
+  const slot = abilitySlotOf(fromSpeciesKey, currentAbility);
+  if (slot?.kind === "hidden") return to.hidden ?? to.primary[0];
+  if (slot?.kind === "primary") return to.primary[slot.index] ?? to.primary[0];
+  return to.primary[0];
+}
+
+/**
+ * Repair an ability that is not legal for the species holding it.
+ *
+ * Returns the ability unchanged when it is fine, so this is safe to run over
+ * every Pokémon on every load. Only the ones that are actually wrong move.
+ *
+ * There is no slot to preserve here — by definition the current ability is not
+ * in the species' list, so there is nothing to read a slot from. The first
+ * primary is the only defensible answer.
+ */
+export function repairedAbility(
+  speciesKey: string,
+  ability: string | undefined,
+): string | undefined {
+  const entry = abilitiesFor(speciesKey);
+  // Species with no ability data at all are left alone. Blanking an ability
+  // because this table has not been filled in for a species would be a
+  // regression dressed up as a fix.
+  if (!entry || entry.primary.length === 0) return ability;
+  if (isLegalAbility(speciesKey, ability)) return ability;
+  return entry.primary[0];
+}
+
 // Picks a random ability from the species' primary list. Used at
 // Pokémon creation time. If the species has no entry, returns null.
 export function pickAbility(speciesKey: string): string | null {

@@ -1,4 +1,5 @@
 import type { GameState, Pokemon } from "../types";
+import { repairAbilities } from "./abilityRepair";
 
 /**
  * Save-integrity repairs that must run on EVERY way a save enters the app.
@@ -109,5 +110,14 @@ export function repairLoadedSave<T extends GameState>(state: T): T {
     ...state,
     nextPokemonId: Math.max(state.nextPokemonId ?? 1, pokemonIdFloor(state)),
   };
-  return repairDexFromOwned(withIds);
+  // Abilities BEFORE the dex pass, though the two are independent — the dex
+  // repair reads species and shininess, never the ability, so the order is
+  // only about keeping the "fix the mons, then derive from them" reading.
+  //
+  // This one is not additive in the sense the header describes: it CHANGES a
+  // field rather than adding an entry. It earns the exception because the
+  // value it changes is one the species cannot legally have — see
+  // utils/abilityRepair.ts. It is still idempotent, and it still returns the
+  // same object when there is nothing wrong.
+  return repairDexFromOwned(repairAbilities(withIds));
 }

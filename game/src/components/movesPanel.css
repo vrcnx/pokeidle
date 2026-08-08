@@ -60,8 +60,15 @@
 
 /* Out of PP. Dimmed rather than desaturated: the old tile used
    `filter: saturate(0.3)`, which on a card whose only colour is a 3px edge
-   would leave it looking enabled. */
-.mv-card--out { opacity: 0.42; cursor: not-allowed; }
+   would leave it looking enabled.
+
+   The fade is on `--out` and the cursor is on `--locked`, and they are two
+   classes because they answer different questions. An empty move is empty in
+   every mode; whether it can be CLICKED depends on the mode, and on Auto a
+   spent card is still a working link to Manage Moves. Merging them meant the
+   fade only ever showed in Manual. */
+.mv-card--out { opacity: 0.42; }
+.mv-card--locked { cursor: not-allowed; }
 
 @media (prefers-reduced-motion: reduce) {
   .mv-card, .mv-card--pickable:not(:disabled):hover { transition: none; transform: none; }

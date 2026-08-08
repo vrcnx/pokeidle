@@ -20,6 +20,7 @@ import { calcAllStats, capTotalExp, expYield } from "../utils/stats";
 import { createPokemon, toMove, ZERO_EVS, rollShiny } from "../utils/pokemon";
 import { grantShinyCharmIfEarned, hasShinyCharm, SHINY_CHARM_ITEM } from "../utils/shinyCharm";
 import { resolveEvolutionTarget } from "../utils/evolution";
+import { evolvedAbility } from "../data/abilities";
 import {
   evYieldFor, applyEvYield, describeEvGain, evTotal, MAX_EV_TOTAL,
 } from "../data/evYields";
@@ -1306,6 +1307,12 @@ export function reducer(state: GameState, action: Action): GameState {
         ...old,
         speciesKey: toSpeciesKey,
         name: sp.name,
+        // The ability is a property of the SPECIES; what survives an evolution
+        // is which SLOT you occupy. Without this the spread above carried the
+        // pre-evolution's ability string through verbatim, so every fully
+        // evolved Pokémon in the game had its baby form's ability — a Dragonite
+        // with Dratini's Shed Skin rather than Inner Focus. Reported by Gshow.
+        ability: evolvedAbility(old.speciesKey, toSpeciesKey, old.ability),
         maxHp: stats.hp,
         currentHp: Math.min(stats.hp, old.currentHp + Math.max(0, stats.hp - old.maxHp)),
         attack: stats.attack,
