@@ -41,6 +41,15 @@ import path from "node:path";
 import { BattleStreams, Teams } from "@pkmn/sim";
 import { simFormatId, SIM_BASE_FORMAT_ID } from "../src/lib/pvpFormat.js";
 
+/** Just the parts of a narration line that are ABOUT the battle: what kind of
+ *  event it is and what it says. Everything else a line carries is machinery
+ *  for the arena, and asserting on it here would make this test fail whenever
+ *  that machinery changes — which it has, once, for reasons unrelated to
+ *  whether a `|rule|` line reaches the player. */
+function said(lines: Array<{ kind: string; text: string }>) {
+  return lines.map((l) => ({ kind: l.kind, text: l.text }));
+}
+
 const PROD_FORMAT = simFormatId(true);
 /** The string that shipped before this fix, kept verbatim as the control. */
 const OLD_FORMAT = `${SIM_BASE_FORMAT_ID}@@@Sleep Clause Mod,Endless Battle Clause,HP Percentage Mod,!Team Preview`;
@@ -198,8 +207,14 @@ describe("what the player's log actually does with a rule line", () => {
       "a",
       scratch,
     );
-    expect(r.lines).toEqual([{ kind: "turn", text: "Turn 1" }]);
-    expect(JSON.stringify(r.lines)).not.toMatch(/percentage/i);
+    // Compared on WHAT THE LINE SAYS, not on the whole object. Narration
+    // lines now also carry `view` — a snapshot of the board at that instant,
+    // so the arena can advance the sprites in step with the text rather than
+    // jumping a whole turn ahead of it. That is pacing machinery, not part of
+    // the line's meaning, and a deep-equal against the entire object made this
+    // test fail for a reason it was never asking about.
+    expect(said(r.lines)).toEqual([{ kind: "turn", text: "Turn 1" }]);
+    expect(JSON.stringify(r.lines.map((l) => l.text))).not.toMatch(/percentage/i);
 
     // Positive control: an UNKNOWN tag really does reach the log, so the
     // assertion above is about `rule` being handled and not about the decoder
@@ -210,7 +225,7 @@ describe("what the player's log actually does with a rule line", () => {
       "a",
       { pendingMove: null },
     );
-    expect(ctl.lines).toEqual([
+    expect(said(ctl.lines)).toEqual([
       { kind: "info", text: "totallyunknowntag HP is shown in percentages" },
     ]);
   });

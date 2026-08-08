@@ -181,6 +181,8 @@ model User {
   referredBy         Referral?  @relation("ReferralReferred")
   /// Accounts this player brought in.
   referrals          Referral[] @relation("ReferralReferrer")
+  /// How far up the level-reward ladder this account has been paid.
+  progressionClaim   ProgressionClaim?
 }
 
 /// How one account arrived: the referring site, the campaign tags on the
@@ -1630,4 +1632,40 @@ model ReferralConfig {
   updatedAt DateTime @updatedAt
   /// The admin who last saved. Display only — AdminAudit is the real ledger.
   updatedBy String?
+}
+
+/// How far up the level-reward ladder an account has been PAID.
+///
+/// ── WHY A HIGH-WATER MARK AND NOT THE CURRENT LEVEL ────────────────
+/// `accountLevel` is derived from the Pokemon a player currently HOLDS
+/// (lib/level.ts: sum of party + box levels / 10), so it falls when they
+/// release. Paying on "your level is N" would therefore be a loop: level up,
+/// collect, release, re-level, collect the same tiers again, forever.
+///
+/// This row only ever moves up. PvpLadderBaseline learned the same lesson
+/// from the other direction — there a mark that FOLLOWED the player upward
+/// made milestones unpayable; here a mark that followed them DOWNWARD would
+/// make them infinitely payable.
+model ProgressionClaim {
+  userId String @id
+
+  /// The highest tier index ever paid. Compare against `tiersReachedAt()`.
+  /// Never decreases — the update is a compare-and-swap on `paidTier <`.
+  paidTier Int @default(0)
+
+  /// The account level that mark was set from. Display and ops only: the tier
+  /// index is the authority, and this is what makes a row readable without
+  /// re-deriving the ladder by hand.
+  paidAtLevel Int @default(0)
+
+  /// Set on the FIRST award for an account, which for an existing player is
+  /// the back-pay of everything they had already passed. Distinguishes "this
+  /// account earned 53 tiers by playing" from "this account was paid 53 tiers
+  /// the day the feature shipped" — the two look identical in PendingGrant.
+  backfilled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

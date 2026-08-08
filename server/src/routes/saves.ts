@@ -18,6 +18,7 @@ import { noteSaveReject } from "../lib/alerting.js";
 import { milestoneSig, milestoneRegressed, destructiveLosses } from "../lib/saveRegression.js";
 import { evaluateGainForAccount, shouldRefuse, gainSignature } from "../lib/saveGainGuard.js";
 import { shouldLogGain } from "../lib/saveGainBudget.js";
+import { awardProgression } from "../lib/progression.js";
 
 const app = new Hono();
 
@@ -538,6 +539,9 @@ app.post("/", requireUser, async (c) => {
       accountLevel: number; totalCaughtLevels: number; pokedexCaughtCount: number;
     };
     stored: Record<string, unknown>;
+    /** A level-reward tier crossed by THIS upload, if any. Enqueued now and
+     *  delivered on the next upload — see the note at the call site. */
+    progression: Awaited<ReturnType<typeof awardProgression>>;
     appliedPrizes: ReturnType<typeof foldOwedGrants>["appliedPrizes"];
     deferred: ReturnType<typeof foldOwedGrants>["deferred"];
     /** This request bumped saveAdoptSeq, i.e. it stored bytes the client did
@@ -672,7 +676,23 @@ app.post("/", requireUser, async (c) => {
       if (claim.count !== fold.claimIds.length) throw new GrantRace();
     }
 
+    // ── Level rewards ────────────────────────────────────────────────
+    // Here, inside the same transaction, because this is the one place the
+    // server learns the account's new level — and because a save write that
+    // rolls back must take the award with it. A grant that outlived a
+    // rolled-back save would be owed against levels the player no longer has.
+    //
+    // It runs AFTER the delivery CAS above deliberately: a tier crossed by
+    // THIS upload is enqueued now and delivered on the next one, rather than
+    // being folded into the same save that earned it. That keeps the fold
+    // reading a set of grants that was fixed before the transaction opened.
+    //
+    // Never throws — see awardProgression. A reward that fails to compute
+    // must not cost the player their progress.
+    const progression = await awardProgression(user.id, derived.accountLevel, runner);
+
     return {
+      progression,
       updated,
       stored: finalSave,
       appliedPrizes: fold.appliedPrizes,
