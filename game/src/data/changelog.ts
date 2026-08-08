@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.7";
+export const CURRENT_VERSION = "0.9.8";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,76 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "0.9.8",
+      subtitle: "Rewards for levelling and for the Discord, and move cards you can actually read",
+      date: "2026-08-07",
+      sections: [
+        {
+          heading: "⚔️ Move cards, redesigned — thank you Pani",
+          items: [
+            "THIS DESIGN IS PANI'S. She mocked up a better move card and it was better in every way, so it is what shipped — thank you",
+            "A move used to be a solid block of its type colour with white text on top, four at a time. That put the loudest thing on the card on its least useful information, so a moveset was four competing colour fields you had to read word by word",
+            "Now the type is an edge and a chip you can read, and the numbers are the brightest thing on a card whose whole job is comparing numbers. Power, accuracy, category and PP are all on the card instead of split between the card and a tooltip",
+            "White text on some type colours was as low as 1.7:1 contrast — Electric was effectively unreadable. The new type chip uses dark ink and clears the accessibility bar on all eighteen types",
+            "PP warns twice now: amber when it is getting low, red when it is gone. Those are different decisions and they used to look the same",
+            "PvP move tiles were supposed to be identical to the idle ones and had quietly drifted — they were missing the category icon. Both screens now draw from one component, so they cannot drift again",
+          ],
+        },
+        {
+          heading: "🪜 Levels pay out, forever",
+          items: [
+            "Milestone levels now pay money and Poké Balls, and the ladder never ends — it keeps scaling past level 1,000 rather than stopping at a number somebody guessed",
+            "A Master Ball at every 250th level",
+            "EVERYTHING YOU ALREADY PASSED IS PAID. If you were level 1,200 when this shipped, every tier below you is back-paid in one go rather than starting you from today",
+            "The Rewards page draws it as a track you can see up: what you have collected, what is on its way, and what is coming, with the Master Ball milestones marked from a long way below them",
+            "Releasing Pokémon lowers your account level, and the ladder is built for that — a tier you have been paid for is never paid again",
+          ],
+        },
+        {
+          heading: "💬 Discord rank pays out in-game",
+          items: [
+            "Your rank in the Discord now earns Poké Balls in the game. Ranks 5, 10, 15, 20, 25, 30, then every 10 after that, forever",
+            "Ten balls a tier, upgrading from Poké to Great to Ultra as you climb, plus a Master Ball every 25 ranks",
+            "ITEMS ONLY, NEVER MONEY, and that is deliberate. Chat XP paying cash would put a faucet on the game's economy whose tap is typing in a text box. A ball is used up when you throw it; money is not",
+            "Ranks you earned BEFORE linking still count — link your account and they are paid",
+            "Rewards can only be claimed once per pair of accounts. Unlinking and relinking does not pay again, in either direction",
+          ],
+        },
+        {
+          heading: "🎁 Invite a friend",
+          items: [
+            "Share your link and every friend who signs up through it pays you a Master Ball, up to 10",
+            "Reach all 10 and you get $1,000,000 and a random shiny on top",
+            "Your link and your running total live on the Rewards page",
+          ],
+        },
+        {
+          heading: "⚔️ PvP",
+          items: [
+            "THE BOARD NO LONGER RUNS AHEAD OF THE TEXT. HP bars, switches and the turn indicator used to update while the sentence explaining them was still being typed out, so you read about a knockout that had already happened",
+            "Attack animations were being cut off partway — Shadow Ball in particular. They now play for their own length instead of for however long the sentence took to read",
+            "A fainting Pokémon actually plays a faint animation, and it no longer stays standing after the text says it fainted",
+            "The result dialog and the choose-your-next-Pokémon screen were both rebuilt",
+          ],
+        },
+        {
+          heading: "📱 On a phone",
+          items: [
+            "The hub's page picker is a proper menu now instead of a strip you had to scroll sideways. Trainer Card was unreachable on mobile entirely — it is in the list",
+            "Attack effects were drawing BEHIND the enemy Pokémon instead of on top of it",
+          ],
+        },
+        {
+          heading: "⚙️ Smaller things",
+          items: [
+            "Every Pokémon now records which kind of Ball caught it, shown on its detail sheet. Older catches show as a Poké Ball, since that is not something we can go back and know",
+            "Typing /link in chat explains where /link actually belongs",
+            "The Connect Discord buttons all point at the real server invite",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.7",
       subtitle: "Johto is a journey again, a real auction house, and a pile of reported bugs",

@@ -92,6 +92,7 @@ import { PvpResultDialog } from "./PvpResultDialog";
 import { openPublicTrainerCard } from "./TrainerCardModal";
 import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
+import { MoveCard, effChip } from "./MoveCard";
 import "../pvpArena.css";
 
 /**
@@ -1072,44 +1073,35 @@ function MoveGrid({
 }) {
   const t = useT();
   return (
-    /* Reuses the idle game's own `.moves-panel` / `.move-slot` markup,
-       inline type colour and all, so a PvP move tile is visually the
-       same object as an idle one. The old modal emitted
-       `move-type-<type>` classes that do not exist anywhere in the
-       stylesheet, which is why PvP moves rendered as grey boxes. */
-    <div className="moves-panel pickable pvp2-moves">
+    /* The SAME MoveCard the idle game draws, not a copy of its markup. The
+       old version re-emitted `.move-slot` by hand with a comment promising
+       that a PvP tile "is visually the same object as an idle one" — a
+       promise kept by remembering, and it had already been broken: the PvP
+       tile had quietly lost the category icon. */
+    <div className="moves-panel mv-grid pickable pvp2-moves">
       {active.moves.map((m, i) => {
         const def = movesTable[m.id];
         const out = !!m.disabled || m.pp <= 0;
-        const ppLow = m.pp > 0 && m.pp <= Math.max(1, Math.ceil(m.maxpp * 0.25));
-        const eff = def ? effectivenessChip(def.type, def.category, foeTypes) : null;
-        const color = def ? (TYPE_COLOR[def.type] ?? "#888") : "#888";
         return (
-          <button
-            type="button"
+          <MoveCard
             key={`${m.id}-${i}`}
-            className={`move-slot is-pickable ${out ? "no-pp" : ""} ${eff?.cls ?? ""}`}
-            style={{ background: color }}
+            name={def?.name ?? m.move}
+            type={def?.type ?? null}
+            category={def?.category ?? "physical"}
+            power={def?.power ?? null}
+            accuracy={def?.accuracy ?? null}
+            pp={m.pp}
+            maxPp={m.maxpp}
+            eff={def ? effChip(def.type, def.category, foeTypes) : null}
             disabled={out}
+            pickable
             onClick={() => onMove(i)}
             title={
               m.pp <= 0 ? t("No PP left")
                 : m.disabled ? t("This move is disabled")
                 : (def?.name ?? m.move)
             }
-          >
-            <div className="move-slot-name">
-              {def?.name ?? m.move}
-              {eff && <span className="move-eff-chip">{eff.label}</span>}
-            </div>
-            <div className="move-slot-stats">
-              <span>{t("Pow")} {def?.power || "—"}</span>
-              <span>{def?.type ?? "?"}</span>
-              <span className={`move-pp ${ppLow ? "low" : ""} ${m.pp <= 0 ? "out" : ""}`}>
-                {t("PP")} {m.pp}/{m.maxpp}
-              </span>
-            </div>
-          </button>
+          />
         );
       })}
     </div>
@@ -1117,34 +1109,12 @@ function MoveGrid({
 }
 
 /**
- * Effectiveness chip for a move against the defender's actual typing.
- *
  * Deliberately delegates to the game's own `typeEffectiveness` and its
  * `data/typeChart` rather than carrying a chart here. A second copy would
  * be free to drift, and "PvP disagrees with the idle game about whether
  * Electric hits Ground" is a bug report nobody would be able to explain.
  * Status moves get no chip — a 2× badge on Thunder Wave is a lie.
  */
-function effectivenessChip(
-  moveType: PokemonType,
-  category: string | undefined,
-  defTypes: PokemonType[],
-): { label: string; cls: string } | null {
-  if (category === "status" || defTypes.length === 0) return null;
-  const mult = typeEffectiveness(moveType, defTypes);
-  const cls = mult === 0 ? "eff-immune"
-    : mult >= 2 ? "eff-super"
-    : mult <= 0.5 ? "eff-resist"
-    : "eff-neutral";
-  const label = mult === 0 ? "Immune"
-    : mult >= 4 ? "4×"
-    : mult >= 2 ? "2×"
-    : mult === 0.25 ? "¼×"
-    : mult <= 0.5 ? "½×"
-    : "";
-  return label ? { label, cls } : null;
-}
-
 // ─── Switch grid ────────────────────────────────────────────────────
 
 /**

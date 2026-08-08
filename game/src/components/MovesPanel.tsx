@@ -9,6 +9,7 @@ import { typeEffectiveness } from "../utils/typing";
 import { pokemonTable } from "../data/pokemon";
 import type { PokemonType } from "../types";
 import { useT } from "../i18n/useT";
+import { MoveCard, effChip } from "./MoveCard";
 
 // Manual-mode predicate. When the player needs to pick a move to advance the
 // turn, every move slot becomes a clickable button. Anything else (recharge,
@@ -24,33 +25,6 @@ function canPickMove(state: ReturnType<typeof useGame>["state"]): boolean {
   if (state.playerVolatile?.lockedMove) return false;
   return true;
 }
-
-const TYPE_COLOR: Record<PokemonType, string> = {
-  Normal:   "#a8a878",
-  Fire:     "#f08030",
-  Water:    "#6890f0",
-  Electric: "#f8d030",
-  Grass:    "#78c850",
-  Ice:      "#98d8d8",
-  Fighting: "#c03028",
-  Poison:   "#a040a0",
-  Ground:   "#e0c068",
-  Flying:   "#a890f0",
-  Psychic:  "#f85888",
-  Bug:      "#a8b820",
-  Rock:     "#b8a038",
-  Ghost:    "#705898",
-  Dragon:   "#7038f8",
-  Dark:     "#705848",
-  Steel:    "#b8b8d0",
-  Fairy:    "#ee99ac",
-};
-
-const CATEGORY_ICON: Record<string, string> = {
-  physical: "✴",
-  special:  "◎",
-  status:   "☯",
-};
 
 function moveTooltip(
   def: (typeof movesTable)[string],
@@ -214,77 +188,52 @@ export function MovesPanel() {
   };
 
   return (
-    <div className={`moves-panel ${pickable ? "pickable" : ""}`}>
+    <div className={`moves-panel mv-grid ${pickable ? "pickable" : ""}`}>
       {slots.map((m, i) => {
-        if (!m) return <div key={i} className="move-slot empty" />;
+        if (!m) return <div key={i} className="mv-card mv-card--empty" />;
         const def = movesTable[m.id];
-        if (!def) return <div key={i} className="move-slot empty" />;
-        const color = TYPE_COLOR[def.type] ?? "#888";
-        const icon = CATEGORY_ICON[def.category] ?? "✴";
+        if (!def) return <div key={i} className="mv-card mv-card--empty" />;
         const hasPP = m.pp > 0;
-        const ppLow = hasPP && m.pp <= Math.max(1, Math.ceil(m.maxPp * 0.25));
         const disabled = pickable && !hasPP;
-        // Effectiveness badge — only meaningful for damaging moves
-        // when the enemy is on-screen. Status moves and "no enemy"
-        // skip the chip so we don't mislead.
-        const showEff = def.category !== "status" && enemyTypes.length > 0;
-        const effMult = showEff ? typeEffectiveness(def.type, enemyTypes) : 1;
-        const effClass = !showEff ? ""
-          : effMult === 0 ? "eff-immune"
-          : effMult >= 2 ? "eff-super"
-          : effMult <= 0.5 ? "eff-resist"
-          : "eff-neutral";
-        const effLabel =
-          effMult === 0 ? t("Immune")
-          : effMult >= 4 ? "4×"
-          : effMult >= 2 ? "2×"
-          : effMult === 0.25 ? "¼×"
-          : effMult <= 0.5 ? "½×"
-          : "";
+        // Effectiveness is only meaningful for damaging moves with an enemy
+        // on screen. Status moves and "no enemy" skip it rather than claim a
+        // neutral multiplier they do not have.
+        const eff = effChip(def.type, def.category, enemyTypes);
         return (
-          <button
-            type="button"
+          <MoveCard
             key={i}
-            className={`move-slot ${disabled ? "no-pp" : ""} ${pickable ? "is-pickable" : ""} ${effClass}`}
-            style={{ background: color }}
+            name={def.name}
+            type={def.type}
+            category={def.category}
+            power={def.power}
+            accuracy={def.accuracy}
+            pp={m.pp}
+            maxPp={m.maxPp}
+            eff={eff}
             disabled={disabled}
-            onClick={() => onSlotClick(m.id, hasPP)}
+            pickable={pickable}
             title={moveTooltip(def, m, pickable, hasPP)}
-          >
-            <div className="move-slot-name">
-              <span className="move-cat">{icon}</span> {def.name}
-              {showEff && effLabel && (
-                <span className="move-eff-chip" aria-label={`${effMult}× damage vs opponent`}>
-                  {effLabel}
-                </span>
-              )}
-            </div>
-            <div className="move-slot-stats">
-              <span>{t("Pow")} {def.power || "—"}</span>
-              <span>{def.type}</span>
-              <span className={`move-pp ${ppLow ? "low" : ""} ${!hasPP ? "out" : ""}`}>
-                {t("PP")} {m.pp}/{m.maxPp}
-              </span>
-            </div>
-          </button>
+            onClick={() => onSlotClick(m.id, hasPP)}
+          />
         );
       })}
       {pickable && outOfPP && (
-        <button
-          type="button"
-          className="move-slot struggle-slot is-pickable"
+        <MoveCard
+          name={t("Struggle")}
+          type={null}
+          category="physical"
+          power={50}
+          accuracy={100}
+          pp={1}
+          maxPp={1}
+          eff={null}
+          pickable
+          struggle
+          title={t("No moves left — Struggle hits weakly and hurts you too")}
           onClick={() =>
             dispatch({ type: "EXECUTE_TURN", payload: { playerMoveId: STRUGGLE_ID } })
           }
-          title={t("No moves left — Struggle hits weakly and hurts you too")}
-        >
-          <div className="move-slot-name">
-            <span className="move-cat">✴</span> {t("Struggle")}
-          </div>
-          <div className="move-slot-stats">
-            <span>{t("Out of PP — heal to restore it")}</span>
-          </div>
-        </button>
+        />
       )}
     </div>
   );

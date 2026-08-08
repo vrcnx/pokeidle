@@ -60,8 +60,19 @@ describe("the version and the notes move together", () => {
   });
 });
 
-describe("what the current notes claim is what the code does", () => {
-  const items = changelog[0].sections.flatMap((s) => s.items).join("\n");
+describe("what the region notes claim is what the code does", () => {
+  // Pinned to the entry that MAKES these claims, not to whatever is newest.
+  // Written against `changelog[0]` while 0.9.7 was on top, they started failing
+  // the moment anything shipped after it — and a red test here reads as "the
+  // release notes are wrong" when the truth is the assertions were pointed at
+  // the wrong entry. The claims are still worth pinning; they belong to the
+  // release that made them.
+  const entry = changelog.find((e) => e.version === "0.9.7");
+  const items = (entry?.sections ?? []).flatMap((s) => s.items).join("\n");
+
+  it("still has the entry these claims belong to", () => {
+    expect(entry, "0.9.7 must not vanish while these assertions exist").toBeTruthy();
+  });
 
   it("quotes the region-clear bonus the code actually applies", () => {
     // Printed as percentages in the note; asserted against the constants so a

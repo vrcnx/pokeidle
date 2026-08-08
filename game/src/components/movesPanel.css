@@ -1,0 +1,249 @@
+/* =====================================================================
+   Move cards — design by Pani.
+
+   Scoped stylesheet with its OWN class prefix (`mv-`), and that is the
+   important part rather than a stylistic preference: app.css defines
+   `.move-slot` in three separate places (5427, 8735, and again in the two
+   mobile blocks at 7303 and 7450), several of them with `!important`.
+   Restyling that name means winning four arguments at once and keeping on
+   winning them. A new name is matched by none of those rules, so these
+   cards are plain declarations with nothing to override.
+
+   `.moves-panel` — the GRID container — is deliberately kept, because
+   layout rules elsewhere hang off it (`.center-column > .moves-panel`,
+   `.mobile-arena .moves-panel`, `.mobile-shell:not(.tab-world)
+   .moves-panel`). Only the tiles inside it are renamed.
+   ===================================================================== */
+
+.mv-card {
+  --mv-type: #888;
+
+  /* The CARD is the container the queries below measure, not the panel. The
+     first attempt put `container-type` on the grid and wrote thresholds in
+     card widths, so at a 280px panel holding two 135px cards nothing ever
+     fired and the meta row ran straight out of the card. What decides whether
+     "PHYSICAL" fits is the width of the thing it has to fit inside. */
+  container-type: inline-size;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px 8px 11px;
+  border: 1px solid var(--border);
+  /* THE EDGE, and the whole idea of the redesign. The old tile was a
+     full-bleed block of this colour with white text on it, which put the
+     loudest element on the card on its least useful information — and did it
+     four times, so a moveset was four competing colour fields. As a 3px edge
+     the type still reads instantly from across the panel, and the numbers
+     get to be the brightest thing on a card whose job is comparing numbers. */
+  border-left: 3px solid var(--mv-type);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.mv-card--pickable { cursor: pointer; }
+.mv-card--pickable:not(:disabled):hover {
+  background: var(--panel-2);
+  border-color: var(--border-strong, #3a3f4a);
+  border-left-color: var(--mv-type);
+  transform: translateY(-1px);
+}
+.mv-card--pickable:not(:disabled):active { transform: translateY(0); }
+.mv-card:focus-visible { outline: 2px solid var(--mv-type); outline-offset: 1px; }
+
+/* Out of PP. Dimmed rather than desaturated: the old tile used
+   `filter: saturate(0.3)`, which on a card whose only colour is a 3px edge
+   would leave it looking enabled. */
+.mv-card--out { opacity: 0.42; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mv-card, .mv-card--pickable:not(:disabled):hover { transition: none; transform: none; }
+}
+
+/* ── Head row: what it is, and how much is left ────────────────────── */
+
+.mv-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The category, as a tinted disc. Small, and first, so the eye picks up
+   physical/special/status as a shape before reading a word. */
+.mv-cat-dot {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mv-type) 30%, transparent);
+  color: var(--mv-type);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.mv-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* PP is pushed hard right and set in tabular figures, so the four numbers
+   stack into a column you can scan rather than four ragged strings. */
+.mv-pp {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.mv-pp-label { font-size: 9px; letter-spacing: 0.06em; opacity: 0.8; }
+/* Amber, then red. Two steps because "getting low" and "gone" are different
+   decisions — one means plan ahead, the other means this card is dead. */
+.mv-pp.is-low { color: #fbbf24; }
+.mv-pp.is-out { color: #f87171; }
+
+/* ── Effectiveness ─────────────────────────────────────────────────── */
+
+.mv-eff {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+/* Namespaced, because bare `eff-super` / `eff-resist` / `eff-immune` are
+   app.css's names — it styles `.move-slot.eff-super` and friends, and
+   cssCollisions.test.ts refuses a scoped sheet claiming a name the big one
+   already owns. Prefixing also means the old rules cannot half-apply to these
+   cards while the old tiles still exist elsewhere. */
+/* Colour AND a distinct label, never colour alone — this is the one badge on
+   the card that changes a decision, and roughly one player in twelve cannot
+   separate the red from the green. "2×" / "0.5×" / "Immune" each read on
+   their own with the colour switched off. */
+.mv-eff--super  .mv-eff { background: rgba(248, 113, 113, 0.18); color: #fca5a5; }
+.mv-eff--resist .mv-eff { background: rgba(134, 239, 172, 0.16); color: #86efac; }
+.mv-eff--immune .mv-eff { background: rgba(255, 255, 255, 0.10); color: var(--text-muted); }
+.mv-eff--neutral .mv-eff { display: none; }
+
+/* ── Meta row: type chip, then the numbers ─────────────────────────── */
+
+.mv-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  /* Every child is `flex: 0 0 auto` and nowrap, because none of these strings
+     is worth breaking mid-word. That means the row cannot shrink to fit, so
+     the clipping has to happen HERE — without it the overflow simply drew
+     outside the card's own border. */
+  overflow: hidden;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.mv-type {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--mv-type);
+  /* Dark ink on the type colour rather than white. Every one of the eighteen
+     is a mid-to-light tone — white on Electric's #f8d030 is 1.7:1, which is
+     the contrast bug the full-bleed tile shipped with on four types. #14161a
+     on the lightest of them (Steel, #b8b8d0) is 9.9:1, and on the darkest
+     (Fighting, #c03028) it is 4.6:1, so the chip clears AA on all eighteen
+     without a per-type exception list. */
+  color: #14161a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mv-stat {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mv-stat-label {
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+/* The category spelled out, last, and allowed to be the first thing dropped:
+   it is already shown as the disc up in the head row, so at narrow widths the
+   word is the redundant one rather than a number. */
+.mv-stat--cat {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Narrow ────────────────────────────────────────────────────────── */
+/* Container-relative, not viewport-relative: these cards sit in a 2-up grid
+   in the centre column, in the PvP arena, and full-width on a phone, and it
+   is the CARD's own width that decides what fits — a viewport query gets all
+   three wrong at least once.
+
+   Things are dropped in order of how much they add. The spelled-out category
+   goes first, because the tinted disc in the head row already says it. The
+   POW/ACC/PP labels go next, because the numbers keep their meaning from
+   position alone. The numbers themselves never go. */
+@container (max-width: 230px) {
+  .mv-stat--cat { display: none; }
+}
+@container (max-width: 165px) {
+  .mv-pp-label, .mv-stat-label { display: none; }
+  .mv-meta { gap: 6px; }
+}
+
+/* `container-type` on `.mv-card` above is this sheet's own name, so nothing
+   here touches `.moves-panel` — app.css owns that one and hangs its layout
+   rules off it, and cssCollisions.test.ts refuses a scoped sheet declaring
+   anything on a name the big stylesheet already owns.
+
+   Fallback for engines without container queries: the same two steps keyed off
+   the viewport, at the widths where the 2-up grid yields those card sizes. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 900px) {
+    .mv-stat--cat { display: none; }
+  }
+  @media (max-width: 560px) {
+    .mv-pp-label, .mv-stat-label { display: none; }
+  }
+}
+
+/* ── Struggle ──────────────────────────────────────────────────────── */
+/* Not a move — the thing you are left with when there are none. Deliberately
+   colourless so it never reads as a fifth option worth taking. */
+.mv-card--struggle {
+  --mv-type: #6b7280;
+  border-left-style: dashed;
+}
+.mv-card--struggle .mv-name { color: var(--text-muted); }
