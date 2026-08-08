@@ -8,6 +8,7 @@ import { PromoCard } from "./PromoCard";
 import { ReferralCard, useReferralSummary } from "./ReferralCard";
 import { ProgressionCard, useProgressionStatus } from "./ProgressionCard";
 import { DiscordRankCard, useDiscordRankStatus } from "./DiscordRankCard";
+import { RedditRewardCard, useRedditReward } from "./RedditRewardCard";
 import { openHub, HubViews } from "./HubModal";
 import { WelcomeBackModal } from "./WelcomeBackModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
@@ -466,7 +467,12 @@ function FreePane({ promos }: { promos: Promo[] }) {
   // nothing to collect — its unlinked state is an invitation, and that is the
   // version most people on this page will see.
   const discordRank = useDiscordRankStatus();
-  if (promos.length === 0 && !referral && !progression && !discordRank) {
+  // Null while loading AND when the promotion is switched off — the hook
+  // already folds those together, so the pane never advertises a reward
+  // nobody will be paid.
+  const reddit = useRedditReward();
+  const [redditClaimed, setRedditClaimed] = useState(false);
+  if (promos.length === 0 && !referral && !progression && !discordRank && !reddit) {
     return (
       <div className="gw-empty">
         <strong>{t("Nothing free right now")}</strong>
@@ -488,6 +494,15 @@ function FreePane({ promos }: { promos: Promo[] }) {
           what shipped first. */}
       {discordRank && <DiscordRankCard data={discordRank} inviteUrl={discordRank.inviteUrl} />}
       {progression && <ProgressionCard data={progression} />}
+      {reddit && (
+        <RedditRewardCard
+          // Re-render as claimed without a refetch. The server is the
+          // authority and says so on the next load; this is only so the card
+          // stops offering something the player just took.
+          data={redditClaimed ? { ...reddit, claimed: true } : reddit}
+          onClaimed={() => setRedditClaimed(true)}
+        />
+      )}
       {referral && <ReferralCard data={referral} />}
       {promos.length > 0 && (
         <>

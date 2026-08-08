@@ -184,6 +184,7 @@ model User {
   /// How far up the level-reward ladder this account has been paid.
   progressionClaim   ProgressionClaim?
   discordRankClaim   DiscordRankClaim?
+  redditPost         RedditPost?
 }
 
 /// How one account arrived: the referring site, the campaign tags on the
@@ -1575,6 +1576,79 @@ model Referral {
   @@unique([referrerUserId, ordinal])
   @@index([referrerUserId])
   @@index([createdAt])
+}
+
+/// One Reddit post, claimed for a reward.
+///
+/// ══ THIS IS UNVERIFIED, DELIBERATELY ═══════════════════════════════
+///
+/// Nothing here checks that the link is real, that it is about this game, or
+/// that the person claiming it wrote it. That was an explicit product call:
+/// verification would mean the Reddit API, an app registration, OAuth, and a
+/// per-post fetch, to gate a promotion whose whole point is being easy to
+/// take part in.
+///
+/// So the guards are the ones that cost nothing and need no verification:
+///
+///   userId is the PRIMARY KEY — one claim per account, ever. Not "one per
+///   post"; an account gets this reward once and that is the end of it.
+///
+///   urlKey is UNIQUE — one claim per link. This is what stops the laziest
+///   farm, which is a hundred accounts pasting the same URL. It is the
+///   NORMALISED form (see lib/redditReward.ts), so adding `?utm_source=x` or
+///   a trailing slash does not mint a fresh claim.
+///
+/// Both are database constraints rather than checks in application code,
+/// because application code is where a race gets in.
+///
+/// The URL is stored so the defence can be NOTICING rather than preventing —
+/// the same argument the referral programme makes. An operator can read what
+/// was actually submitted, and `status` records that judgement.
+model RedditPost {
+  userId String @id
+
+  /// Exactly what the player submitted, kept verbatim for review. Never used
+  /// for comparison — that is what `urlKey` is for.
+  url String
+
+  /// Normalised: lowercased host, scheme and query and fragment removed,
+  /// trailing slash trimmed. The uniqueness that actually matters.
+  urlKey String @unique
+
+  /// Operator review. "pending" until somebody looks. Nothing automated ever
+  /// sets this to "ok" — an unreviewed claim is honestly labelled as one.
+  status String @default("pending")
+
+  reviewedAt DateTime?
+  reviewedBy String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+/// Configuration for the Reddit post reward. Same shape and same reasoning as
+/// ReferralConfig: promotion content an operator changes as a judgement call.
+///
+/// The switch matters more here than anywhere else in this schema, because the
+/// promotion pays on an UNVERIFIED claim. It is the stop button, and the
+/// dashboard puts the numbers that would reveal a farm directly beside it.
+model RedditRewardConfig {
+  id String @id @default("singleton")
+
+  /// OFF by default, unlike referrals. Referrals are self-limiting — somebody
+  /// has to create an account for a payout to happen. This pays for a text
+  /// box, so it starts switched off and an operator turns it on knowingly.
+  enabled Boolean @default(false)
+
+  /// JSON array of Prize. Null means never configured, which reads as off.
+  prizes String?
+
+  updatedBy String?
+  updatedAt DateTime @updatedAt
 }
 
 /// Programme configuration, in the database for the same reason the Discord

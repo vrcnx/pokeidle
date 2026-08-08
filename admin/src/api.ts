@@ -347,6 +347,45 @@ export interface ReferralAnalytics {
   };
 }
 
+export interface RedditConfig {
+  enabled: boolean;
+  prizes: GiveawayPrizeInput[];
+  totalClaims: number;
+  totalGrants: number;
+  /** Claims nobody has looked at. The number that says whether an unverified
+   *  promotion is being watched at all. */
+  pendingReview: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface RedditClaim {
+  userId: string;
+  username: string;
+  accountLevel: number;
+  banned: boolean;
+  url: string;
+  status: string;
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  /** Hours between the account existing and it claiming. A real player posts
+   *  about a game they have been playing; a farm claims from an account
+   *  minutes old. */
+  hoursOld: number;
+}
+
+export interface RedditAnalytics {
+  days: number;
+  total: number;
+  windowed: number;
+  byStatus: Record<string, number>;
+  perDay: { date: string; n: number }[];
+  perSubreddit: { subreddit: string; n: number }[];
+  freshAccounts: number;
+  claims: RedditClaim[];
+}
+
 export interface ReferralConfig {
   /** The stop button. Off keeps recording where accounts came from and stops
    *  paying for it. */
@@ -600,6 +639,17 @@ export const api = {
     shinyPool?: GiveawayPrizeInput[];
     perReferralCap?: number;
   }) => req<ReferralConfig>("PUT", "/api/admin/referral-config", body),
+  // ── The Reddit post reward ──────────────────────────────────────
+  // It pays on an UNVERIFIED link — nothing fetches the post — so `enabled`
+  // is the stop button, `pendingReview` says whether anybody is watching, and
+  // the analytics call is how you tell a promotion from a farm.
+  getRedditConfig: () => req<RedditConfig>("GET", "/api/admin/reddit-config"),
+  putRedditConfig: (body: { enabled: boolean; prizes?: GiveawayPrizeInput[] }) =>
+    req<RedditConfig>("PUT", "/api/admin/reddit-config", body),
+  redditAnalytics: (days = 30) =>
+    req<RedditAnalytics>("GET", `/api/admin/reddit-analytics?days=${days}`),
+  reviewRedditPost: (userId: string, status: "pending" | "ok" | "rejected") =>
+    req<{ ok: true }>("POST", "/api/admin/reddit-review", { userId, status }),
   getDiscordConfig: () => req<DiscordConfig>("GET", "/api/admin/discord-config"),
   putDiscordConfig: (body: {
     linkRewardEnabled: boolean; linkReward?: GiveawayPrizeInput[];

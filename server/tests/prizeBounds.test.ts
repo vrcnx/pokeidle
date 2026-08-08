@@ -153,9 +153,17 @@ describe("the wiring, at the source level", () => {
   });
 
   it("every inbound prize body is gated by the shared schema", () => {
-    // GiveawayBody + MassGiftBody take the parsed form.
+    // A ratchet, not a fact about the world: the count only has to change when
+    // a new prize-taking body is added, and changing it should mean somebody
+    // looked at that body and confirmed it uses the shared schema rather than
+    // rolling its own bounds.
+    //
+    // The three: GiveawayBody, MassGiftBody, RedditConfigBody. (The referral
+    // config also takes prize lists, but under `perReferral`/`milestone`/
+    // `shinyPool` rather than `prizes`, so it does not match here — it is
+    // covered by the no-private-schema assertion above.)
     const parsedSites = ADMIN_SRC.match(/prizes:\s*PrizeListSchema/g) ?? [];
-    expect(parsedSites.length).toBe(2);
+    expect(parsedSites.length).toBe(3);
     // Tournament create + patch take the string form.
     const stringSites = ADMIN_SRC.match(/parsePrizesStrict\(/g) ?? [];
     expect(stringSites.length).toBe(2);

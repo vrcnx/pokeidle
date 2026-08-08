@@ -90,6 +90,16 @@ export interface DiscordRankStatus {
   track: ProgressionStop[];
 }
 
+export interface RedditRewardStatus {
+  /** False when the promotion is off or unconfigured — the card does not
+   *  render at all in that case. */
+  enabled: boolean;
+  claimed: boolean;
+  /** The link they submitted, shown back to them once claimed. */
+  url: string | null;
+  prizes: GiveawayPrize[];
+}
+
 export interface ReferralSummary {
   code: string;
   /** Friends recorded, whether or not they paid — these differ past the cap. */
@@ -205,6 +215,13 @@ export const api = {
   // It is still a read from the client's point of view: idempotent, and safe
   // to call on every open of the Rewards page.
   discordRankStatus: () => request<DiscordRankStatus>("GET", "/api/discord/rank/me"),
+
+  // The Reddit post reward. The claim is a payout on a link nobody verifies —
+  // see server/src/lib/redditReward.ts — so it is one per account and one per
+  // link, and both refusals come back as readable prose in `reason`.
+  redditReward: () => request<RedditRewardStatus>("GET", "/api/reddit/me"),
+  claimRedditReward: (url: string) =>
+    request<{ ok: true; summary: string }>("POST", "/api/reddit/claim", { url }),
 
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),

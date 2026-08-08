@@ -3711,3 +3711,49 @@
 }
 /* A referrer with several signups and none of them playing. */
 .row-warn td { background: rgba(248, 113, 113, 0.08); }
+
+/* ── Reddit reward panel ───────────────────────────────────────────
+   The one promotion in this dashboard whose payout is UNVERIFIED, so the
+   review table is the control rather than a report. Styled to be READ down
+   the column: the age-at-claim figure is what separates a player from a farm,
+   so it is the only thing here that gets a colour. */
+.rdt-subs { margin-top: 16px; }
+.rdt-subs h3 { margin: 0 0 6px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.rdt-subs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.rdt-subs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+
+.rdt-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.rdt-list-head h3 { margin: 0; font-size: 13px; }
+
+.rdt-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+.rdt-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.rdt-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+/* A URL's meaning is in its middle, so it wraps rather than ellipsising. */
+.rdt-table td a { word-break: break-all; }
+.rdt-table tr.is-fresh { background: color-mix(in srgb, #f87171 6%, transparent); }
+.rdt-warn { color: #fca5a5; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rdt-actions { white-space: nowrap; text-align: right; }
+.rdt-actions .btn { padding: 2px 8px; font-size: 11px; }

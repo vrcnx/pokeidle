@@ -41,6 +41,7 @@ import { LINK_REWARD_SOURCE } from "../lib/discordLinkReward.js";
 import { XP_DEFAULTS, levelFromXp } from "../lib/discordXp.js";
 import { enqueuePrizeGrant, checkPrizesDeliverable } from "../lib/prizeGrant.js";
 import { REFERRAL_SOURCE, REFERRAL_MILESTONE_SOURCE } from "../lib/referrals.js";
+import { REDDIT_SOURCE } from "../lib/redditReward.js";
 import { generateStreamKey, sanitizeStreamConfig, parseStreamConfig } from "../lib/streamSession.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { getBroadcast, setBroadcast, type BroadcastPatch } from "../lib/broadcast.js";
@@ -4166,6 +4167,205 @@ app.post("/tournaments/:id/match", async (c) => {
     });
     return c.json({ error: "engine refused", detail }, 500);
   }
+});
+
+
+// ══ THE REDDIT POST REWARD ══════════════════════════════════════════
+//
+// This promotion pays out on a link that NOTHING VERIFIES — no fetch, no
+// Reddit API, no check that the post is real or that the claimant wrote it.
+// That was a deliberate product call (see lib/redditReward.ts), and it makes
+// this section of the dashboard the actual control surface rather than a
+// reporting one.
+//
+// So everything below is built around one question: does this look like a
+// promotion or does it look like a farm? The numbers that would answer it sit
+// with the switch that stops it and with the links themselves, rather than a
+// page away in analytics — the same arrangement the referral panel uses, for
+// the same reason.
+
+// ── GET /api/admin/reddit-config ────────────────────────────────────
+app.get("/reddit-config", async (c) => {
+  const [row, claims, grants, pending] = await Promise.all([
+    prisma.redditRewardConfig.findUnique({ where: { id: "singleton" } }),
+    prisma.redditPost.count(),
+    prisma.pendingGrant.count({ where: { source: REDDIT_SOURCE } }),
+    prisma.redditPost.count({ where: { status: "pending" } }),
+  ]);
+  return c.json({
+    // OFF unless somebody switched it on, and the panel has to agree with the
+    // payout path about that — an operator reading "on" here while nothing
+    // pays is the same confusion in reverse.
+    enabled: row?.enabled ?? false,
+    prizes: row?.prizes ? parsePrizes(row.prizes) : [],
+    totalClaims: claims,
+    totalGrants: grants,
+    // The review backlog. This is the number that says whether the promo is
+    // being watched at all, so it sits on the config card rather than being
+    // buried in the list.
+    pendingReview: pending,
+    updatedAt: row?.updatedAt?.toISOString() ?? null,
+    updatedBy: row?.updatedBy ?? null,
+  });
+});
+
+const RedditConfigBody = z.object({
+  enabled: z.boolean(),
+  prizes: PrizeListSchema.optional(),
+});
+
+app.put("/reddit-config", async (c) => {
+  const me = c.get("user");
+  const parsed = RedditConfigBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", details: parsed.error.flatten() }, 400);
+  }
+  const d = parsed.data;
+  const existing = await prisma.redditRewardConfig.findUnique({ where: { id: "singleton" } });
+  const row = await prisma.redditRewardConfig.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      enabled: d.enabled,
+      prizes: d.prizes ? JSON.stringify(d.prizes) : null,
+      updatedBy: me.username,
+    },
+    update: {
+      enabled: d.enabled,
+      // OMITTED when absent rather than nulled, so saving the switch cannot
+      // clear a configured prize.
+      ...(d.prizes ? { prizes: JSON.stringify(d.prizes) } : {}),
+      updatedBy: me.username,
+    },
+  });
+  void makeAudit(c)(me.id, "reddit.config", "singleton", {
+    enabled: d.enabled,
+    was: existing?.enabled ?? false,
+  });
+  return c.json({
+    enabled: row.enabled,
+    prizes: row.prizes ? parsePrizes(row.prizes) : [],
+    updatedAt: row.updatedAt.toISOString(),
+    updatedBy: row.updatedBy,
+  });
+});
+
+// ── GET /api/admin/reddit-analytics ─────────────────────────────────
+//
+// The shape of a farm, in the four ways it shows up:
+//
+//   1. A spike in claims per day. One person telling their friends looks like
+//      a bump; a script looks like a wall.
+//   2. Claims concentrated in one subreddit — or in none, because a link with
+//      no readable subreddit is a redd.it short link, which is what gets
+//      pasted when the destination is not meant to be read at a glance.
+//   3. Accounts claiming minutes after signing up. A real player posts about a
+//      game they have been playing.
+//   4. A pending queue nobody has looked at, which is how the other three go
+//      unnoticed.
+app.get("/reddit-analytics", async (c) => {
+  const days = Math.min(90, Math.max(1, parseInt(c.req.query("days") ?? "30", 10) || 30));
+  const since = new Date(Date.now() - days * 86_400_000);
+
+  const [rows, byStatus, total] = await Promise.all([
+    prisma.redditPost.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        userId: true, url: true, urlKey: true, status: true,
+        createdAt: true, reviewedAt: true, reviewedBy: true,
+        user: { select: { username: true, createdAt: true, accountLevel: true, bannedUntil: true } },
+      },
+      // Bounded. An unbounded findMany on a table that grows with every claim
+      // is a page that works right up until the day it matters.
+      take: 500,
+    }),
+    prisma.redditPost.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.redditPost.count(),
+  ]);
+
+  // Per day, so a wall is visible as a wall.
+  const perDay = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.createdAt.toISOString().slice(0, 10);
+    perDay.set(key, (perDay.get(key) ?? 0) + 1);
+  }
+
+  // Where they are being posted. "no subreddit" is its own bucket rather than
+  // dropped — a pile of unreadable short links is a signal, not a gap.
+  const perSubreddit = new Map<string, number>();
+  for (const r of rows) {
+    const m = r.urlKey.match(/^reddit\.com\/r\/([a-z0-9_]+)/);
+    perSubreddit.set(m ? m[1] : "(no subreddit)", (perSubreddit.get(m ? m[1] : "(no subreddit)") ?? 0) + 1);
+  }
+
+  const HOUR = 3_600_000;
+  const now = Date.now();
+  const claims = rows.map((r) => ({
+    userId: r.userId,
+    username: r.user.username,
+    accountLevel: r.user.accountLevel,
+    banned: !!r.user.bannedUntil && r.user.bannedUntil.getTime() > now,
+    url: r.url,
+    status: r.status,
+    createdAt: r.createdAt.toISOString(),
+    reviewedAt: r.reviewedAt?.toISOString() ?? null,
+    reviewedBy: r.reviewedBy,
+    // Hours between the account existing and it claiming. The most useful
+    // column here: a real player posts about a game they have been playing,
+    // and a farm claims from an account minutes old.
+    hoursOld: Math.max(0, Math.round(((r.createdAt.getTime() - r.user.createdAt.getTime()) / HOUR) * 10) / 10),
+  }));
+
+  return c.json({
+    days,
+    total,
+    windowed: rows.length,
+    byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count._all])),
+    perDay: [...perDay.entries()].sort().map(([date, n]) => ({ date, n })),
+    perSubreddit: [...perSubreddit.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([subreddit, n]) => ({ subreddit, n })),
+    // Claims from accounts less than a day old — the population worth reading
+    // one by one.
+    freshAccounts: claims.filter((x) => x.hoursOld < 24).length,
+    claims,
+  });
+});
+
+// ── POST /api/admin/reddit-review { userId, status } ────────────────
+//
+// Records a judgement. It does NOT claw the prize back, deliberately: the
+// grant went through PendingGrant like every other payout and may already be
+// folded into a save, so "undo" here would be a save write from the admin
+// surface — the exact thing schema.prisma's deliveredAt comment says was
+// built once, destroyed real prizes, and was removed.
+//
+// Rejecting marks the claim and leaves the operator with the account, which is
+// where the real tools already are. What this buys is that the next person to
+// open the queue is not re-reading the same links.
+app.post("/reddit-review", async (c) => {
+  const me = c.get("user");
+  const parsed = z
+    .object({ userId: z.string().min(1), status: z.enum(["pending", "ok", "rejected"]) })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid body" }, 400);
+
+  const { userId, status } = parsed.data;
+  const updated = await prisma.redditPost.updateMany({
+    where: { userId },
+    data: {
+      status,
+      // Clearing the stamps on a return to "pending" keeps the queue honest: a
+      // claim put back for a second look is not a reviewed one.
+      reviewedAt: status === "pending" ? null : new Date(),
+      reviewedBy: status === "pending" ? null : me.username,
+    },
+  });
+  if (updated.count === 0) return c.json({ error: "not found" }, 404);
+
+  void makeAudit(c)(me.id, "reddit.review", userId, { status });
+  return c.json({ ok: true });
 });
 
 export default app;

@@ -1258,3 +1258,54 @@
      first node on a phone and past it on a laptop. */
   .prog-rail { left: 46px; right: 46px; }
 }
+
+/* ── The Reddit post reward ─────────────────────────────────────────
+   Orange edge, matching the accent every other card here uses to say which
+   reward it is — teal for promos, blurple for Discord, this for Reddit. */
+.reddit-card {
+  margin-bottom: 14px;
+  border-left: 3px solid #ff4500;
+}
+.reddit-prize { margin-top: 8px; }
+
+.reddit-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  /* The field takes the slack and the button never shrinks: a Claim button
+     that ellipsises is a Claim button nobody presses. */
+  align-items: center;
+}
+.reddit-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ctl-r, 6px);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+.reddit-input:focus { border-color: var(--ctl-focus); outline: none; }
+.reddit-submit { flex: 0 0 auto; }
+
+/* The server's refusal, verbatim. It distinguishes "you already claimed" from
+   "that post was already claimed", and the second has an innocent explanation
+   worth reading. */
+.reddit-err {
+  margin: 8px 0 0;
+  color: #fca5a5;
+  font-size: 11.5px;
+}
+
+/* The claimed state shows the link back. Wrapped rather than ellipsised —
+   a Reddit URL's meaning is in its middle. */
+.reddit-link {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  word-break: break-all;
+}

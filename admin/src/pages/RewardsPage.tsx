@@ -3,6 +3,7 @@ import { PageActions } from "../components/PageChrome";
 import { GiveawaysPage } from "./GiveawaysPage";
 import { MassGiftPage } from "./MassGiftPage";
 import { ReferralPanel } from "../components/ReferralPanel";
+import { RedditPanel } from "../components/RedditPanel";
 
 // Giving players things, on one page.
 //
@@ -26,7 +27,7 @@ import { ReferralPanel } from "../components/ReferralPanel";
 // immediately. Merging the forms would mean one screen where a checkbox
 // changes whether the thing you are about to do is reversible.
 
-export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" | "referrals" }) {
+export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" | "referrals" | "reddit" }) {
   return (
     <div className="page rewards-page">
       <PageActions>
@@ -40,11 +41,18 @@ export function RewardsPage({ tab }: { tab: "giveaways" | "massgift" | "referral
           <button role="tab" aria-selected={tab === "referrals"}
                   className={`seg-tab ${tab === "referrals" ? "active" : ""}`}
                   onClick={() => navigateTo("referrals")}>Referrals</button>
+          {/* Its own tab rather than a section of Referrals: this is the one
+              promotion here whose payout is UNVERIFIED, so the page that
+              reviews it should be somewhere an operator goes deliberately. */}
+          <button role="tab" aria-selected={tab === "reddit"}
+                  className={`seg-tab ${tab === "reddit" ? "active" : ""}`}
+                  onClick={() => navigateTo("reddit")}>Reddit</button>
         </div>
       </PageActions>
       {tab === "giveaways" ? <GiveawaysPage />
         : tab === "massgift" ? <MassGiftPage />
-        : <ReferralPanel />}
+        : tab === "referrals" ? <ReferralPanel />
+        : <RedditPanel />}
     </div>
   );
 }
