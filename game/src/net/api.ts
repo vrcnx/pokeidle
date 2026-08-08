@@ -41,6 +41,19 @@ export class ApiError extends Error {
   }
 }
 
+export interface ProgressionStatus {
+  level: number;
+  /** Tiers this account has been PAID for. */
+  paidTier: number;
+  /** Tiers its level implies — higher than `paidTier` in the window between
+   *  crossing a tier and the save upload that pays it. */
+  reachedTier: number;
+  nextLevel: number;
+  /** 0..1 across the current gap. */
+  progress: number;
+  nextSummary: string;
+}
+
 export interface ReferralSummary {
   code: string;
   /** Friends recorded, whether or not they paid — these differ past the cap. */
@@ -147,6 +160,11 @@ export const api = {
   // NEW account to a code — rides on POST /api/attribution instead, because it
   // is the same fact at the same moment under the same account-age guard.
   referralSummary: () => request<ReferralSummary>("GET", "/api/referrals/me"),
+
+  // Where the player stands on the level ladder. Read-only by design — tiers
+  // are paid by the save upload that observes the level, so a claim endpoint
+  // would be a second way to pay the same tier.
+  progressionStatus: () => request<ProgressionStatus>("GET", "/api/progression/me"),
 
   // Profile
   meProfile: () => request<MeProfile>("GET", "/api/profile/me"),

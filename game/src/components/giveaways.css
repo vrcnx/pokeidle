@@ -972,3 +972,45 @@
   border-color: var(--gold) !important;
   color: var(--gold);
 }
+
+/* ── The level ladder card ──────────────────────────────────────────
+   Full width like the invite card, and for the same reason: it carries a
+   progress bar, and a bar in a half-width column reads as a fragment of one. */
+.progression-card { margin-bottom: 14px; }
+
+.progression-now {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+.progression-level strong { font-size: 20px; font-family: var(--font-display); }
+.progression-next { font-size: 12px; color: var(--text-dim); }
+
+.progression-bar {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.progression-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), #fde68a);
+  transition: width 300ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progression-fill { transition: none; }
+}
+
+.progression-target {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.progression-target strong { color: var(--text); }
+/* The prize itself is the point of the line, so it is the part that is lit. */
+.progression-prize { color: var(--gold); }

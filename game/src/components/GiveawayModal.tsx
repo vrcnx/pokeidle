@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PrizeChips } from "./PrizeChips";
 import { PromoCard } from "./PromoCard";
 import { ReferralCard, useReferralSummary } from "./ReferralCard";
+import { ProgressionCard, useProgressionStatus } from "./ProgressionCard";
 import { openHub, HubViews } from "./HubModal";
 import { WelcomeBackModal } from "./WelcomeBackModal";
 import { countdown, relativeTime, type RelTime } from "../utils/giveawayRail";
@@ -454,7 +455,10 @@ function FreePane({ promos }: { promos: Promo[] }) {
   // for it separately. Null while loading, and null when an operator has the
   // programme paused.
   const referral = useReferralSummary();
-  if (promos.length === 0 && !referral) {
+  // The level ladder, which every account has — so unlike the promos and the
+  // invite card there is no "off" state for it to be absent in.
+  const progression = useProgressionStatus();
+  if (promos.length === 0 && !referral && !progression) {
     return (
       <div className="gw-empty">
         <strong>{t("Nothing free right now")}</strong>
@@ -469,6 +473,7 @@ function FreePane({ promos }: { promos: Promo[] }) {
           the invite card is not one of them — it has no claimed state, it has
           a running total. Putting it inside the grid would have it silently
           excluded from the "3/4 collected" beside it. */}
+      {progression && <ProgressionCard data={progression} />}
       {referral && <ReferralCard data={referral} />}
       {promos.length > 0 && (
         <>
