@@ -1,6 +1,15 @@
 import type { EvolutionTrigger } from "../types";
+import { gen3Evolutions } from "./gen3/evolutions";
 
 export const evolutions: Record<string, EvolutionTrigger[]> = {
+  // Gen 3, generated. Spread FIRST so the hand-written entries below win any
+  // collision — the ten Hoenn legendaries were already here for raids, and the
+  // generator reproduces them identically, but "generated data never silently
+  // replaces something a person wrote" is the rule worth having rather than a
+  // fact about today's diff.
+  //
+  // See scripts/gen-gen3.mjs. Regenerate; do not edit src/data/gen3/*.
+  ...gen3Evolutions,
     bulbasaur: [{ into: "ivysaur", level: 16 }],
     ivysaur: [{ into: "venusaur", level: 32 }],
     charmander: [{ into: "charmeleon", level: 16 }],

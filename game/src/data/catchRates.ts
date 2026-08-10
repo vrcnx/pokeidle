@@ -1,4 +1,13 @@
+import { gen3CatchRates } from "./gen3/catchRates";
 export const catchRates: Record<string, number> = {
+  // Gen 3, generated. Spread FIRST so the hand-written entries below win any
+  // collision — the ten Hoenn legendaries were already here for raids, and the
+  // generator reproduces them identically, but "generated data never silently
+  // replaces something a person wrote" is the rule worth having rather than a
+  // fact about today's diff.
+  //
+  // See scripts/gen-gen3.mjs. Regenerate; do not edit src/data/gen3/*.
+  ...gen3CatchRates,
   bulbasaur: 45,
   ivysaur: 45,
   venusaur: 45,

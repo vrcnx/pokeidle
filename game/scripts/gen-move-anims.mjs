@@ -272,12 +272,20 @@ function check(body, sprites) {
 }
 
 async function main() {
-  const [movesSrc, engineSrc, ourMoves, spriteSrc, levelUp, tms] = await Promise.all([
+  const [movesSrc, engineSrc, ourMoves, spriteSrc, levelUp, gen3LevelUp, tms] = await Promise.all([
     fetch(`${SRC}/battle-animations-moves.ts`).then((r) => r.text()),
     fetch(`${SRC}/battle-animations.ts`).then((r) => r.text()),
     readFile(join(ROOT, "src", "data", "moves.ts"), "utf8"),
     readFile(join(ROOT, "src", "data", "battleFxSprites.ts"), "utf8"),
     readFile(join(ROOT, "src", "data", "levelUpMoves.ts"), "utf8"),
+    // Gen 3's learnsets are MERGED into levelUpMoves.ts as a spread, so the
+    // text scan below cannot see them — it looks for `, "moveId"]` literals
+    // and a spread has none. Read the generated file directly.
+    //
+    // This is the failure mode of parsing source as text rather than importing
+    // it: the porter ran clean, reported nothing wrong, and silently skipped
+    // 238 newly-learnable moves because they were behind one `...`.
+    readFile(join(ROOT, "src", "data", "gen3", "levelUpMoves.ts"), "utf8"),
     readFile(join(ROOT, "src", "data", "tms.ts"), "utf8"),
   ]);
 
@@ -302,8 +310,10 @@ async function main() {
     authoredByFlat.set(m[1].toLowerCase().replace(/[^a-z0-9]/g, ""), m[1]);
   }
   const reachable = new Set(authoredByFlat.keys());
-  for (const m of levelUp.matchAll(/,\s*"([a-zA-Z0-9_]+)"\s*\]/g)) {
-    reachable.add(m[1].toLowerCase().replace(/[^a-z0-9]/g, ""));
+  for (const src of [levelUp, gen3LevelUp]) {
+    for (const m of src.matchAll(/,\s*"([a-zA-Z0-9_]+)"\s*\]/g)) {
+      reachable.add(m[1].toLowerCase().replace(/[^a-z0-9]/g, ""));
+    }
   }
   for (const m of tms.matchAll(/moveId:\s*"([a-zA-Z0-9_]+)"/g)) {
     reachable.add(m[1].toLowerCase().replace(/[^a-z0-9]/g, ""));

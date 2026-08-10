@@ -1,3 +1,5 @@
+import { gen3Abilities } from "./gen3/abilities";
+import { gen3AbilityInfo } from "./gen3/abilityInfo";
 // Ability metadata and per-species ability lists for the 151 Gen 1 dex.
 //
 // Two exports:
@@ -15,6 +17,12 @@ export interface AbilityInfo {
 }
 
 export const abilityInfo: Record<string, AbilityInfo> = {
+  // Gen 3's own abilities, generated. Spread first so anything hand-written
+  // below wins — without these twenty rows a Shiftry's Wind Rider renders as a
+  // blank chip: the Pokemon HAS the ability and the player is shown nothing
+  // where a name and a sentence belong.
+  ...gen3AbilityInfo,
+
   // Phase 1 — fully wired into the battle resolver:
   levitate:    { name: "Levitate",    description: "Immune to Ground-type moves." },
   sturdy:      { name: "Sturdy",      description: "Cannot be one-shot from full HP." },
@@ -160,6 +168,14 @@ export interface SpeciesAbilities {
 // the rollable pool at creation; `hidden` exists for future use but is
 // not currently rolled.
 export const speciesAbilities: Record<string, SpeciesAbilities> = {
+  // Gen 3, generated. Spread FIRST so the hand-written entries below win any
+  // collision — the ten Hoenn legendaries were already here for raids, and the
+  // generator reproduces them identically, but "generated data never silently
+  // replaces something a person wrote" is the rule worth having rather than a
+  // fact about today's diff.
+  //
+  // See scripts/gen-gen3.mjs. Regenerate; do not edit src/data/gen3/*.
+  ...gen3Abilities,
   bulbasaur:   { primary: ["overgrow"], hidden: "chlorophyll" },
   ivysaur:     { primary: ["overgrow"], hidden: "chlorophyll" },
   venusaur:    { primary: ["overgrow"], hidden: "chlorophyll" },

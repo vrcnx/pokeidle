@@ -88,7 +88,25 @@ describe("the gaps are the ones we chose", () => {
   });
 
   it("leaves only a handful of moves on the fallback", () => {
-    expect(Object.keys(UNPORTED).length).toBeLessThan(20);
+    // A ratchet, and it moved for a reason worth writing down: Gen 3 took the
+    // reachable pool from 246 moves to 484, and 25 more of them are ones
+    // Showdown's library cannot be safely ported from. Ported coverage went
+    // UP over the same change, 94.7% to 95.2%, which is the number that says
+    // whether anything was lost.
+    expect(Object.keys(UNPORTED).length).toBeLessThan(45);
+  });
+
+  it("leaves only the Ground family with no animation at all", () => {
+    // The assertion that actually matters to a player. "Unported" is fine —
+    // 35 of the 39 still animate through their type archetype, and look like
+    // an attack. These four render NOTHING, because they are Ground moves
+    // that Showdown animates by shaking its own background node and our
+    // fallback has no sprite for the type.
+    //
+    // Stronger than the count above: a new move that silently animates to an
+    // empty screen fails here even if the total stays under the ratchet.
+    const dead = Object.keys(UNPORTED).filter((id) => !hasFxAnim(id)).sort();
+    expect(dead).toEqual(["bulldoze", "earthquake", "fissure", "magnitude"]);
   });
 });
 

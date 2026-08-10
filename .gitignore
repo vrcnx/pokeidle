@@ -63,3 +63,7 @@ recovered/
 *.tmp
 .cache/
 coverage/
+
+# One-time PokeAPI responses for scripts/gen-gen3.mjs. A cache, not data —
+# the numbers it holds are written into src/data/gen3/* and committed there.
+game/.gen3-pokeapi-cache.json
