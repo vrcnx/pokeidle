@@ -67,3 +67,9 @@ coverage/
 # One-time PokeAPI responses for scripts/gen-gen3.mjs. A cache, not data —
 # the numbers it holds are written into src/data/gen3/* and committed there.
 game/.gen3-pokeapi-cache.json
+
+# One-time PokeAPI pulls for the Hoenn generators. Caches, not data — what
+# they hold is written into src/data/regions/hoenn/* and committed there.
+game/.hoenn-enc-cache.json
+game/.hoenn-real-encounters.json
+game/.hoenn-art-failed.txt

@@ -37,7 +37,8 @@
  * after.
  */
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { pokemonTable } from "../src/data/pokemon.ts";
 
 const OUT = new URL("../src/data/regions/hoenn/", import.meta.url);
 const LINE = String.fromCharCode(10);
@@ -321,6 +322,95 @@ const LINKS = {
   victoryRoadHoenn: ["everGrandeCity"],
 };
 
+// ── The real Emerald encounter tables ────────────────────────────────────
+//
+// The wild lists in SPEC were written from memory and were wrong in sixteen
+// places — Route 104 has no Zigzagoon, Meteor Falls has Solrock and not
+// Lunatone, Route 112 has no Machop. Guessing at a Pokemon game's encounter
+// tables is exactly the kind of thing that looks right to whoever wrote it and
+// wrong to everybody who played the game.
+//
+// So they come from PokeAPI's Emerald data instead, cached by
+// scripts/pull-hoenn-encounters.mjs. SPEC keeps the geography, the
+// connections and the prose; the species and their rarity come from the
+// source.
+//
+// ── LEVELS ARE MAPPED, NOT COPIED ────────────────────────────────────────
+// Emerald's wild levels run roughly 2 to 45. This game's Hoenn is the third
+// region and sits at 78 to 110 for an established player. Copying the real
+// numbers would put Victory Road below Johto's first route.
+//
+// So the real level is mapped LINEARLY onto our band, which preserves the
+// original's shape exactly — Route 101 is still the lowest thing in the
+// region and Victory Road is still the highest, in the same proportions — and
+// the journey offset then subtracts 76 for a first playthrough, landing a new
+// player within a couple of levels of the real game's own curve.
+const REAL_SRC = new URL("../.hoenn-real-encounters.json", import.meta.url);
+const REAL = existsSync(REAL_SRC) ? JSON.parse(readFileSync(REAL_SRC, "utf8")) : null;
+if (!REAL) throw new Error("run scripts/pull-hoenn-encounters.mjs first");
+
+/** PokeAPI location slug for one of our ids. */
+const slugOf = (id) => {
+  const m = /^route(\d+)$/.exec(id);
+  if (m) return `hoenn-route-${m[1]}`;
+  if (id === "victoryRoadHoenn") return "hoenn-victory-road";
+  return id.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "");
+};
+
+/** PokeAPI species name -> our key. Built from our own table so a species we
+ *  do not have shows up as a miss rather than as a broken reference. */
+const keyByName = new Map(
+  Object.entries(pokemonTable).map(([k, p]) => [p.name.toLowerCase().replace(/[^a-z0-9]/g, ""), k]),
+);
+const ourKey = (name) => keyByName.get(name.replace(/-.*$/, "").replace(/[^a-z0-9]/g, ""));
+
+const REAL_LO = 2, REAL_HI = 45;
+const BAND_LO = 78, BAND_HI = 110;
+const toBand = (lv) => Math.round(
+  BAND_LO + ((Math.max(REAL_LO, Math.min(REAL_HI, lv)) - REAL_LO) / (REAL_HI - REAL_LO)) * (BAND_HI - BAND_LO),
+);
+
+const skippedSpecies = new Set();
+const noData = [];
+
+/** The real table for a location, as our encounter rows. */
+function realEncounters(id) {
+  const area = REAL[slugOf(id)];
+  if (!area) { noData.push(id); return null; }
+  // Land first; a pure-water route has no `walk` list and surfing is what you
+  // actually do there. Fishing is deliberately excluded — this game has no rod,
+  // so a table full of Magikarp would be a table of things you cannot meet.
+  const rows = area.walk?.length ? area.walk : area.surf ?? [];
+  if (!rows.length) { noData.push(id); return null; }
+
+  const byKey = new Map();
+  for (const r of rows) {
+    const k = ourKey(r.name);
+    if (!k) { skippedSpecies.add(r.name); continue; }
+    const cur = byKey.get(k);
+    // PokeAPI lists one row per level slot, so the same species appears many
+    // times. Summing the chances is what recovers its real overall rarity.
+    if (cur) {
+      cur.chance += r.chance;
+      cur.min = Math.min(cur.min, r.min);
+      cur.max = Math.max(cur.max, r.max);
+    } else {
+      byKey.set(k, { chance: r.chance, min: r.min, max: r.max });
+    }
+  }
+  if (!byKey.size) { noData.push(id); return null; }
+
+  return [...byKey.entries()]
+    .sort((a, b) => b[1].chance - a[1].chance)
+    .slice(0, 8)
+    .map(([speciesKey, v]) => ({
+      speciesKey,
+      weight: Math.max(1, Math.round(v.chance)),
+      minLevel: toBand(v.min),
+      maxLevel: Math.max(toBand(v.min), toBand(v.max)),
+    }));
+}
+
 // ── Expansion ────────────────────────────────────────────────────────────
 const routes = [];
 const encounters = [];
@@ -346,11 +436,14 @@ for (const [id, name, type, x, y, description, wild] of SPEC) {
     position: { x: ${x.toFixed(2)}, y: ${y.toFixed(2)} },
   },`);
 
-  if (wild.length) {
+  // The real table wins; SPEC's hand-written list is only the fallback for a
+  // location PokeAPI has no Emerald data for.
+  const table = realEncounters(id) ?? wild;
+  if (table.length) {
     encounters.push(`  ${id}: {
     name: ${q(name)},
     encounters: [
-${wild.map((w) => `      { speciesKey: ${q(w.speciesKey)}, weight: ${w.weight}, minLevel: ${w.minLevel}, maxLevel: ${w.maxLevel} },`).join(LINE)}
+${table.map((w) => `      { speciesKey: ${q(w.speciesKey)}, weight: ${w.weight}, minLevel: ${w.minLevel}, maxLevel: ${w.maxLevel} },`).join(LINE)}
     ],
   },`);
   }
@@ -358,15 +451,39 @@ ${wild.map((w) => `      { speciesKey: ${q(w.speciesKey)}, weight: ${w.weight}, 
 }
 
 // ── Gyms, in badge order ─────────────────────────────────────────────────
+// RUBY/SAPPHIRE rosters, not Emerald's.
+//
+// The two versions disagree about Hoenn's back half and the difference is not
+// cosmetic: in Emerald the eighth gym is Juan, Wallace is the Champion and
+// Steven is post-game. We have Wallace at Sootopolis and Steven at the top,
+// which is Ruby/Sapphire — so the teams are Ruby/Sapphire's too, or the region
+// would be quoting two games at once.
+//
+// That means some gyms are SMALL. Brawly fields two Pokemon and so do Tate &
+// Liza, because that is what they field in the original. Emerald padded both
+// out later, and taking Emerald's rosters while keeping Ruby's cast is exactly
+// the kind of half-accuracy that reads as sloppy to anyone who played it.
+//
+// The SPECIES are canon. The LEVELS are ours — Roxanne fields Lv 12 Geodudes
+// in the original, and this is a third region sitting above Johto's Lv 75
+// ceiling.
 const GYMS = [
-  ["roxanne", "Roxanne", "Rustboro City", "rustboroCity", "Stone Badge", "#B0A18C", [["geodude", 78], ["nosepass", 80]]],
-  ["brawly", "Brawly", "Dewford Town", "dewfordTown", "Knuckle Badge", "#C96A3A", [["machop", 82], ["makuhita", 84]]],
-  ["wattson", "Wattson", "Mauville City", "mauvilleCity", "Dynamo Badge", "#E8C63A", [["magnemite", 86], ["voltorb", 86], ["manectric", 88]]],
-  ["flannery", "Flannery", "Lavaridge Town", "lavaridgeTown", "Heat Badge", "#D2452F", [["numel", 90], ["slugma", 90], ["torkoal", 92]]],
-  ["norman", "Norman", "Petalburg City", "petalburgCity", "Balance Badge", "#9AA0A6", [["spinda", 93], ["vigoroth", 94], ["slaking", 96]]],
-  ["winona", "Winona", "Fortree City", "fortreeCity", "Feather Badge", "#8FB8E8", [["swellow", 97], ["pelipper", 97], ["skarmory", 98], ["altaria", 99]]],
-  ["tateAndLiza", "Tate & Liza", "Mossdeep City", "mossdeepCity", "Mind Badge", "#C48BD9", [["claydol", 100], ["xatu", 100], ["lunatone", 101], ["solrock", 101]]],
-  ["wallace", "Wallace", "Sootopolis City", "sootopolisCity", "Rain Badge", "#4FA8C7", [["luvdisc", 102], ["whiscash", 103], ["sealeo", 103], ["milotic", 104]]],
+  ["roxanne", "Roxanne", "Rustboro City", "rustboroCity", "Stone Badge", "#B0A18C",
+    [["geodude", 78], ["geodude", 78], ["nosepass", 80]]],
+  ["brawly", "Brawly", "Dewford Town", "dewfordTown", "Knuckle Badge", "#C96A3A",
+    [["machop", 82], ["makuhita", 84]]],
+  ["wattson", "Wattson", "Mauville City", "mauvilleCity", "Dynamo Badge", "#E8C63A",
+    [["magnemite", 86], ["voltorb", 86], ["magneton", 88]]],
+  ["flannery", "Flannery", "Lavaridge Town", "lavaridgeTown", "Heat Badge", "#D2452F",
+    [["slugma", 89], ["slugma", 89], ["camerupt", 90], ["torkoal", 92]]],
+  ["norman", "Norman", "Petalburg City", "petalburgCity", "Balance Badge", "#9AA0A6",
+    [["slaking", 93], ["vigoroth", 94], ["slaking", 96]]],
+  ["winona", "Winona", "Fortree City", "fortreeCity", "Feather Badge", "#8FB8E8",
+    [["swablu", 96], ["tropius", 96], ["pelipper", 97], ["skarmory", 98], ["altaria", 99]]],
+  ["tateAndLiza", "Tate & Liza", "Mossdeep City", "mossdeepCity", "Mind Badge", "#C48BD9",
+    [["lunatone", 100], ["solrock", 101]]],
+  ["wallace", "Wallace", "Sootopolis City", "sootopolisCity", "Rain Badge", "#4FA8C7",
+    [["luvdisc", 101], ["whiscash", 102], ["sealeo", 102], ["seaking", 103], ["milotic", 104]]],
 ];
 
 const gymLeaders = GYMS.map(([id, name, town, locationKey, badgeName, badgeColor, team]) => `  {
@@ -385,7 +502,7 @@ const E4 = [
   ["sidney", "Sidney", "#4A4A55", [["mightyena", 106], ["shiftry", 106], ["cacturne", 107], ["crawdaunt", 107], ["absol", 108]]],
   ["phoebe", "Phoebe", "#8B6BB1", [["dusclops", 107], ["banette", 108], ["sableye", 108], ["banette", 109], ["dusclops", 109]]],
   ["glacia", "Glacia", "#7FB8D4", [["sealeo", 108], ["glalie", 109], ["sealeo", 109], ["glalie", 110], ["walrein", 111]]],
-  ["drake", "Drake", "#6B4FA8", [["shelgon", 110], ["altaria", 110], ["flygon", 111], ["flygon", 111], ["salamence", 112]]],
+  ["drake", "Drake", "#6B4FA8", [["shelgon", 110], ["altaria", 110], ["kingdra", 111], ["flygon", 111], ["salamence", 112]]],
 ];
 
 const eliteFour = E4.map(([id, name, badgeColor, team]) => `  {
@@ -558,6 +675,8 @@ export const hoenn: Region = {
 };
 `);
 
+if (skippedSpecies.size) console.log(`species in the real tables we do not have: ${[...skippedSpecies].join(", ")}`);
+if (noData.length) console.log(`no Emerald data, kept the hand-written list: ${noData.join(", ")}`);
 console.log(`locations: ${SPEC.length}`);
 console.log(`with wild encounters: ${encounters.length}`);
 console.log(`gyms: ${GYMS.length}  elite four: ${E4.length}`);

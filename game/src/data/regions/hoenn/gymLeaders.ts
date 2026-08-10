@@ -14,7 +14,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Stone Badge",
     badgeColor: "#B0A18C",
     spriteKey: "roxanne-gen3",
-    team: [{ speciesKey: "geodude", level: 78 }, { speciesKey: "nosepass", level: 80 }],
+    team: [{ speciesKey: "geodude", level: 78 }, { speciesKey: "geodude", level: 78 }, { speciesKey: "nosepass", level: 80 }],
   },
   {
     id: "brawly",
@@ -34,7 +34,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Dynamo Badge",
     badgeColor: "#E8C63A",
     spriteKey: "wattson-gen3",
-    team: [{ speciesKey: "magnemite", level: 86 }, { speciesKey: "voltorb", level: 86 }, { speciesKey: "manectric", level: 88 }],
+    team: [{ speciesKey: "magnemite", level: 86 }, { speciesKey: "voltorb", level: 86 }, { speciesKey: "magneton", level: 88 }],
   },
   {
     id: "flannery",
@@ -44,7 +44,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Heat Badge",
     badgeColor: "#D2452F",
     spriteKey: "flannery-gen3",
-    team: [{ speciesKey: "numel", level: 90 }, { speciesKey: "slugma", level: 90 }, { speciesKey: "torkoal", level: 92 }],
+    team: [{ speciesKey: "slugma", level: 89 }, { speciesKey: "slugma", level: 89 }, { speciesKey: "camerupt", level: 90 }, { speciesKey: "torkoal", level: 92 }],
   },
   {
     id: "norman",
@@ -54,7 +54,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Balance Badge",
     badgeColor: "#9AA0A6",
     spriteKey: "norman-gen3",
-    team: [{ speciesKey: "spinda", level: 93 }, { speciesKey: "vigoroth", level: 94 }, { speciesKey: "slaking", level: 96 }],
+    team: [{ speciesKey: "slaking", level: 93 }, { speciesKey: "vigoroth", level: 94 }, { speciesKey: "slaking", level: 96 }],
   },
   {
     id: "winona",
@@ -64,7 +64,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Feather Badge",
     badgeColor: "#8FB8E8",
     spriteKey: "winona-gen3",
-    team: [{ speciesKey: "swellow", level: 97 }, { speciesKey: "pelipper", level: 97 }, { speciesKey: "skarmory", level: 98 }, { speciesKey: "altaria", level: 99 }],
+    team: [{ speciesKey: "swablu", level: 96 }, { speciesKey: "tropius", level: 96 }, { speciesKey: "pelipper", level: 97 }, { speciesKey: "skarmory", level: 98 }, { speciesKey: "altaria", level: 99 }],
   },
   {
     id: "tateAndLiza",
@@ -74,7 +74,7 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Mind Badge",
     badgeColor: "#C48BD9",
     spriteKey: "tateandliza-gen3",
-    team: [{ speciesKey: "claydol", level: 100 }, { speciesKey: "xatu", level: 100 }, { speciesKey: "lunatone", level: 101 }, { speciesKey: "solrock", level: 101 }],
+    team: [{ speciesKey: "lunatone", level: 100 }, { speciesKey: "solrock", level: 101 }],
   },
   {
     id: "wallace",
@@ -84,6 +84,6 @@ export const gymLeaders: GymLeader[] = [
     badgeName: "Rain Badge",
     badgeColor: "#4FA8C7",
     spriteKey: "wallace-gen3",
-    team: [{ speciesKey: "luvdisc", level: 102 }, { speciesKey: "whiscash", level: 103 }, { speciesKey: "sealeo", level: 103 }, { speciesKey: "milotic", level: 104 }],
+    team: [{ speciesKey: "luvdisc", level: 101 }, { speciesKey: "whiscash", level: 102 }, { speciesKey: "sealeo", level: 102 }, { speciesKey: "seaking", level: 103 }, { speciesKey: "milotic", level: 104 }],
   },
 ];

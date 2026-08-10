@@ -44,7 +44,7 @@ export const eliteFour: GymLeader[] = [
     badgeName: "",
     badgeColor: "#6B4FA8",
     spriteKey: "drake-gen3",
-    team: [{ speciesKey: "shelgon", level: 110 }, { speciesKey: "altaria", level: 110 }, { speciesKey: "flygon", level: 111 }, { speciesKey: "flygon", level: 111 }, { speciesKey: "salamence", level: 112 }],
+    team: [{ speciesKey: "shelgon", level: 110 }, { speciesKey: "altaria", level: 110 }, { speciesKey: "kingdra", level: 111 }, { speciesKey: "flygon", level: 111 }, { speciesKey: "salamence", level: 112 }],
   },
 ];
 

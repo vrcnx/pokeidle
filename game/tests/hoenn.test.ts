@@ -174,6 +174,58 @@ describe("what lives there", () => {
   });
 });
 
+describe("it is the real Hoenn", () => {
+  // The encounter tables are generated from PokeAPI's Emerald data rather than
+  // written by hand, because the hand-written first pass was wrong in sixteen
+  // places — Route 104 had a Zigzagoon that is not there, Meteor Falls had
+  // Lunatone instead of Solrock, Route 112 had a Machop.
+  //
+  // These pin a handful of them so a regeneration that silently loses the real
+  // source and falls back to a guess gets caught. They are the tables anyone
+  // who played the game would notice.
+  const speciesAt = (id: string) =>
+    new Set((hoenn.encounters[id]?.encounters ?? []).map((e) => e.speciesKey));
+
+  it("has the real Route 101", () => {
+    expect(speciesAt("route101")).toEqual(new Set(["poochyena", "wurmple", "zigzagoon"]));
+  });
+
+  it("has no Zigzagoon on Route 104, because there is none", () => {
+    expect(speciesAt("route104").has("zigzagoon")).toBe(false);
+    expect(speciesAt("route104").has("marill")).toBe(true);
+  });
+
+  it("puts Solrock in Meteor Falls and Bagon underneath it", () => {
+    const m = speciesAt("meteorFalls");
+    expect(m.has("solrock")).toBe(true);
+    expect(m.has("bagon")).toBe(true);
+  });
+
+  it("keeps the desert a desert", () => {
+    expect(speciesAt("route111")).toEqual(new Set(["sandshrew", "trapinch", "baltoy", "cacnea"]));
+  });
+
+  it("keeps Mt. Pyre haunted", () => {
+    const m = speciesAt("mtPyre");
+    expect(m.has("shuppet")).toBe(true);
+    expect(m.has("duskull")).toBe(true);
+  });
+
+  it("fields the Ruby/Sapphire rosters, not Emerald's", () => {
+    // We have Wallace at the eighth gym and Steven as Champion, which is
+    // Ruby/Sapphire. Taking Emerald's fuller teams while keeping Ruby's cast
+    // would be quoting two games at once.
+    const team = (id: string) =>
+      hoenn.gymLeaders.find((g) => g.id === id)!.team.map((m) => m.speciesKey);
+    expect(team("brawly")).toEqual(["machop", "makuhita"]);          // Emerald adds Meditite
+    expect(team("tateAndLiza")).toEqual(["lunatone", "solrock"]);    // Emerald adds Claydol + Xatu
+    expect(team("wattson")).toEqual(["magnemite", "voltorb", "magneton"]);
+    expect(team("wallace")).toContain("seaking");
+    expect(hoenn.eliteFour.find((g) => g.id === "drake")!.team.map((m) => m.speciesKey))
+      .toContain("kingdra");
+  });
+});
+
 describe("the journey rule still holds", () => {
   it("is NOT a legacy region", () => {
     // The entire mechanism for keeping new regions meaningful is that this
