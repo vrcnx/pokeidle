@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "0.9.8";
+export const CURRENT_VERSION = "1.0.0";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,76 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "1.0.0",
+      subtitle: "Hoenn",
+      date: "2026-08-09",
+      sections: [
+        {
+          heading: "🌋 Hoenn is open",
+          items: [
+            "A THIRD REGION. 62 places, from Littleroot Town to the top of Ever Grande City — every route, both deserts, the ash fields, Meteor Falls, the sea floor, and a tower that goes above the clouds",
+            "It unlocks when you beat Johto's Champion. Littleroot is the door",
+            "Eight gyms — Roxanne, Brawly, Wattson, Flannery, Norman, Winona, Tate & Liza, Wallace — then an Elite Four and Champion Steven at Lv 115, the new ceiling",
+            "YOUR OLD TEAM CANNOT WALK IN. Hoenn is a journey region: on the way through, its Pokémon are the ones you catch there, and Route 101 really is Lv 2. Beat the Champion and it becomes a farm like everywhere else, at Lv 78 to 110",
+            "Every location has its own artwork. All 62, plus a portrait for all thirteen gym leaders, Elite Four and the Champion",
+          ],
+        },
+        {
+          heading: "🌿 All 135 Hoenn Pokémon",
+          items: [
+            "Treecko, Torchic and Mudkip, and everything after them — the full national dex from 252 to 386",
+            "Their real stats, types, abilities, evolutions and learnsets. Nothing is approximated",
+            "The ten Hoenn legendaries that were already here for raids are unchanged — the new data agreed with them exactly, which is how we know the rest is right",
+          ],
+        },
+        {
+          heading: "⚔️ Every move in the game animates",
+          items: [
+            "484 moves now play a real animation, up from 233",
+            "EARTHQUAKE USED TO DO NOTHING. So did Magnitude, Bulldoze and Fissure — they were the only moves in the game that played to a completely blank screen. The arena shakes now",
+            "Surf, Eruption, Heat Wave, Muddy Water, Moonlight, Morning Sun, Meteor Mash, Sheer Cold, Solar Beam and Dragon Ascent all gained their real animations too",
+            "Every move card now tells you what the move actually does, in one line",
+          ],
+        },
+        {
+          heading: "🐛 Evolving fixes your ability",
+          items: [
+            "EVOLVING GAVE YOU THE WRONG ABILITY. A Dragonite kept Dratini's Shed Skin instead of gaining Inner Focus — an ability belongs to a species, and what carries across an evolution is the slot, not the ability itself. Thank you Gshow for reporting it",
+            "It affected 34 evolution lines. The one that cost you something real was GYARADOS, which should have Intimidate and had Magikarp's Swift Swim — a move that does nothing in this game. Every Gyarados in every save has been fighting without an ability",
+            "Already-evolved Pokémon are repaired on load. A hidden ability stays hidden",
+            "Fire Blast burned 30% of the time instead of 10%, and High Jump Kick was still on its old power of 100 — both left over from older generations. The whole move table is now pinned to the latest generation and tested against it",
+          ],
+        },
+        {
+          heading: "🎁 New rewards",
+          items: [
+            "POST ABOUT US ON REDDIT for a Master Ball and $500,000. Paste the link on the Rewards page — one per account",
+            "YOUR DISCORD RANK PAYS OUT IN GAME. Ranks 5, 10, 15, 20, 25, 30 and then every 10 forever, in Poké Balls, with a Master Ball every 25 ranks. Ranks you earned before linking still count",
+            "MILESTONE LEVELS PAY, and never stop — the ladder keeps scaling past level 1,000, with a Master Ball every 250. Everything you already passed is back-paid in one go",
+            "INVITE A FRIEND: a Master Ball per signup up to 10, then $1,000,000 and a random shiny",
+          ],
+        },
+        {
+          heading: "✨ Move cards, redesigned by Pani",
+          items: [
+            "THIS DESIGN IS PANI'S — thank you. A move used to be a solid block of colour with white text on it, four at a time. Now the type is an edge and a readable chip, and the numbers are the brightest thing on the card",
+            "White on some type colours measured 1.7:1 contrast. Electric was effectively unreadable. Every type chip now clears the accessibility bar",
+            "PP warns amber when it is getting low and red when it is gone, and spent moves fade on Auto as well as Manual",
+          ],
+        },
+        {
+          heading: "⚙️ Smaller things",
+          items: [
+            "Selling is a button at the top of the auction page again, instead of at the bottom of a panel you had to select someone else's lot to see",
+            "The auction side panel has room to breathe, and a fresh lot says \"no bids yet\" rather than stopping in mid-air",
+            "Rewards always opens on Free rewards, with Discord at the top",
+            "Every Pokémon records which Ball caught it",
+            "PvP: the board waits for the sentence that explains it, fainting plays a faint animation, and attack animations run to the end",
+          ],
+        },
+      ],
+    },
     {
       version: "0.9.8",
       subtitle: "Rewards for levelling and for the Discord, and move cards you can actually read",

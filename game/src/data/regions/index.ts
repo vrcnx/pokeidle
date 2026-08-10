@@ -2,6 +2,7 @@ import type { Region, RegionId } from "./types";
 import type { Route, GymLeader, TrainerEncounter, ShopDef } from "../../types";
 import { kanto } from "./kanto";
 import { johto } from "./johto";
+import { hoenn } from "./hoenn";
 
 // Region registry. Adding a region here automatically merges its data
 // into every flat dict the rest of the app reads, so callers like
@@ -21,6 +22,10 @@ import { johto } from "./johto";
 export const regions: Record<RegionId, Region> = {
   kanto,
   johto,
+  // Hoenn's gym/E4/champion ids are all new — Roxanne through Wallace, Sidney
+  // through Drake, Steven — so unlike Johto's Koga/Bruno/Lance none of them
+  // needed a region suffix to avoid satisfying another region's defeat flag.
+  hoenn,
 };
 
 export type { Region, RegionId } from "./types";

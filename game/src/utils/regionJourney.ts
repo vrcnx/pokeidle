@@ -171,6 +171,12 @@ export function illegalPartyMembers(state: GameState): { mon: Pokemon; reason: s
 // start at Lv 2.
 const JOURNEY_LEVEL_OFFSET: Record<RegionId, number> = {
   johto: 38,
+  // Hoenn's farm band starts at Lv 78 on Route 101 and ends at Lv 110 in
+  // Victory Road. Taking 76 off puts a first playthrough at Lv 2-4 on Route
+  // 101 and Lv 32-34 at Victory Road — a real journey with the same shape as
+  // the original games, while an established player who has completed the
+  // region still sees the Lv 78-110 farm it was tuned as.
+  hoenn: 76,
 };
 
 /** Nothing is ever rolled below this, whatever the arithmetic says. */
