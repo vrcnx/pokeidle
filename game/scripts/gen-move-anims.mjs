@@ -39,8 +39,12 @@ const OUT = join(ROOT, "src", "data", "moveAnims.ts");
 const SRC = "https://raw.githubusercontent.com/smogon/pokemon-showdown-client/master/play.pokemonshowdown.com/src";
 
 /** Exactly what our FxScene / FxActor implement. */
+// Newline as a constant, so a rewrite string never has to carry a backslash
+// escape through this file's own generation.
+const LINE = String.fromCharCode(10);
+
 const ALLOWED_CALLS = new Set([
-  "scene.showEffect", "scene.backgroundEffect", "scene.wait",
+  "scene.showEffect", "scene.backgroundEffect", "scene.wait", "scene.shakeStage",
   "attacker.anim", "attacker.delay", "attacker.behind", "attacker.leftof", "attacker.above",
   "defender.anim", "defender.delay", "defender.behind", "defender.leftof", "defender.above",
   // Plain arithmetic. `Math.random` is in here deliberately: a few of their
@@ -206,13 +210,95 @@ function stripLiterals(src) {
 const ACTOR_MEMBERS = new Set([
   "x", "y", "z", "anim", "delay", "behind", "leftof", "above", "sp",
 ]);
-const SCENE_MEMBERS = new Set(["showEffect", "backgroundEffect", "wait"]);
+const SCENE_MEMBERS = new Set(["showEffect", "backgroundEffect", "wait", "shakeStage"]);
 
 const JS_KEYWORDS = new Set([
   "const", "let", "var", "for", "if", "else", "return", "function", "of", "in",
   "new", "true", "false", "null", "undefined", "typeof", "void", "while", "do",
   "break", "continue", "switch", "case", "default", "this",
 ]);
+
+/**
+ * Rewrites applied BEFORE the safety check, turning three of their idioms into
+ * ours.
+ *
+ * Each one is a SUBSTITUTION, not a loosening of the allowlist: the check
+ * still runs afterwards, over the rewritten body, and still refuses anything
+ * it does not recognise. What changes is that three patterns which used to be
+ * unrecognisable now say something our engine can do.
+ */
+function normalize(body) {
+  let out = body;
+
+  // ── Their CDN background → our vendored copy ─────────────────────────
+  // `scene.backgroundEffect(`url('https://${Config.routes.client}/fx/bg-space.jpg')`, …)`
+  // The template literal reads as bare identifiers `Config` and `url` to the
+  // checker, which skipped ten moves — Moonlight, Morning Sun, Wish, Cosmic
+  // Power, Moonblast, Sheer Cold, Meteor Mash, Dragon Ascent, Solar Beam and
+  // Seismic Toss — over a filename. bg-space.jpg is the only background any
+  // of them wants, and it is now in public/fx.
+  out = out.replace(
+    // Two paths, because they keep backgrounds in two places: `/fx/` and
+    // `/sprites/gen6bgs/`. Sheer Cold was the only skip left over the second
+    // one. Both files are vendored into public/fx.
+    /`url\('https:\/\/\$\{Config\.routes\.client\}\/(?:fx|sprites\/gen6bgs)\/([\w-]+\.(?:jpg|png))'\)`/g,
+    (_m, file) => `"url('/fx/${file}')"`,
+  );
+
+  // ── Their $bg shake → our stage shake ────────────────────────────────
+  // `scene.$bg.animate({top, bottom}, ms).animate(...)...` — jQuery walking
+  // their background element. Collapsed into one shakeStage call whose
+  // duration is the sum of the steps and whose intensity is the largest
+  // offset they asked for. See FxScene.shakeStage for why this is a
+  // substitute rather than a port.
+  out = out.replace(
+    // Bulldoze writes its lead-in as a SEPARATE statement — `scene.$bg.delay(275);`
+    // then the chain — rather than chaining it, so both shapes are matched.
+    /(?:scene\.\$bg\s*\.delay\(\s*(\d+)\s*\)\s*;\s*)?scene\.\$bg(?:\s*\.delay\(\s*(\d+)\s*\))?((?:\s*\.animate\(\s*\{[^}]*\}\s*,\s*\d+\s*\))+)\s*;/g,
+    (_m, preDelay, inlineDelay, chain) => {
+      const steps = [...chain.matchAll(/\{([^}]*)\}\s*,\s*(\d+)/g)];
+      const total = steps.reduce((n, st) => n + Number(st[2]), 0);
+      const peak = Math.max(
+        4,
+        ...steps.flatMap((st) => [...st[1].matchAll(/-?\d+/g)].map((n) => Math.abs(Number(n[0])))),
+      );
+      // Their `top` sits around -90 at REST, so the shake is the swing around
+      // that baseline rather than the raw number.
+      const amplitude = Math.max(3, Math.min(14, peak - 88));
+      const delay = Number(preDelay || inlineDelay || 0);
+      return `scene.shakeStage(${total}, ${amplitude}, ${delay});`;
+    },
+  );
+
+  // ── Their spread loop → our single defender ──────────────────────────
+  // `anim(scene, [attacker, ...defenders]) { for (const defender of defenders) {…} }`
+  // is how they write a move that hits everything on the far side — Surf,
+  // Eruption, Heat Wave, Muddy Water and four others.
+  //
+  // The SIGNATURE never reaches here: ownBody() returns what is inside the
+  // braces, so the parameter list is already gone and only the loop is left.
+  // In a one-on-one battle that loop runs exactly once, over the defender we
+  // already have, so unwrapping it to a plain block is the entire translation
+  // — no rebinding, nothing undeclared, and the body draws precisely what it
+  // drew before.
+  out = out.replace(
+    /for\s*\(\s*(?:const|let)\s+defender\s+of\s+defenders\s*\)\s*\{/g,
+    "{",
+  );
+
+  // The other half of the same idiom: `const defender = defenders[1] ||
+  // defenders[0];`, which is them reaching for the SECOND target in doubles
+  // and falling back to the first. With one target on the far side, that
+  // expression is the defender we were handed, so the declaration is dropped
+  // rather than rewritten — keeping it would shadow the parameter, which is
+  // exactly what the safety check refuses.
+  out = out.replace(
+    /(?:const|let|var)\s+defender\s*=\s*defenders\s*\[\s*\d+\s*\]\s*(?:\|\|\s*defenders\s*\[\s*\d+\s*\]\s*)*;/g,
+    "",
+  );
+
+  return out;
+}
 
 function check(body, sprites) {
   const problems = [];
@@ -339,6 +425,10 @@ async function main() {
     if (!entry) { skipped.push([ourId, "no animation in the library"]); continue; }
     let body = resolveBody(entry, table, others);
     if (body === null) { skipped.push([ourId, "no plain anim() (charge/residual only)"]); continue; }
+
+    // Their idioms into ours, before anything inspects the body. See
+    // `normalize`: the safety check still runs over the result.
+    body = normalize(body);
 
     // ── SINGLES-ONLY NORMALISATIONS ──────────────────────────────────
     // Their library is written for doubles and triples. Two idioms fall out

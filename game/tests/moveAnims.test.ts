@@ -79,11 +79,18 @@ describe("the gaps are the ones we chose", () => {
     }
   });
 
-  it("skips the moves that reach into the background element", () => {
-    // Earthquake and friends animate Showdown's own background node, which
-    // is not something our scene exposes.
-    for (const id of ["earthquake", "magnitude", "bulldoze"]) {
-      expect(UNPORTED[id], id).toMatch(/bg\./);
+  it("animates the moves that used to reach into the background element", () => {
+    // These four were the reason FxScene.shakeStage exists. Showdown does them
+    // with `scene.$bg.animate({top, bottom}, ms)` chained — jQuery walking its
+    // own background node, which our scene does not expose — so they were
+    // skipped, and skipped meant BLANK: physical, non-contact, Ground, with no
+    // fallback sprite. Pressing Earthquake played nothing at all.
+    //
+    // The porter now collapses that chain into one shakeStage call.
+    for (const id of ["earthquake", "magnitude", "bulldoze", "fissure"]) {
+      expect(MOVE_ANIMS[id], id).toBeTruthy();
+      // Entries are FUNCTIONS, so the source is what carries the evidence.
+      expect(String(MOVE_ANIMS[id]), id).toContain("shakeStage");
     }
   });
 
@@ -96,17 +103,19 @@ describe("the gaps are the ones we chose", () => {
     expect(Object.keys(UNPORTED).length).toBeLessThan(45);
   });
 
-  it("leaves only the Ground family with no animation at all", () => {
-    // The assertion that actually matters to a player. "Unported" is fine —
-    // 35 of the 39 still animate through their type archetype, and look like
-    // an attack. These four render NOTHING, because they are Ground moves
-    // that Showdown animates by shaking its own background node and our
-    // fallback has no sprite for the type.
+  it("leaves NOTHING that animates to a blank screen", () => {
+    // The assertion that actually matters to a player, and it is now zero.
     //
-    // Stronger than the count above: a new move that silently animates to an
-    // empty screen fails here even if the total stays under the ratchet.
-    const dead = Object.keys(UNPORTED).filter((id) => !hasFxAnim(id)).sort();
-    expect(dead).toEqual(["bulldoze", "earthquake", "fissure", "magnitude"]);
+    // It was four — Earthquake, Magnitude, Bulldoze, Fissure — and before Gen 3
+    // it was three. Every move a Pokemon in this game can learn now draws
+    // something when it is used: 484 through a ported animation, the rest
+    // through their type archetype.
+    //
+    // Deliberately an empty-array check rather than a ceiling. There is no
+    // acceptable number of moves that play nothing, so there is no budget to
+    // spend.
+    const dead = [...REACHABLE].filter((id) => !hasFxAnim(id)).sort();
+    expect(dead).toEqual([]);
   });
 });
 
@@ -138,9 +147,15 @@ describe("one animation per move, never two", () => {
     // layer, or it would animate not at all.
     const fallback = [...REACHABLE].filter((id) => !hasFxAnim(id));
     for (const id of fallback) expect(MOVE_ANIMS[id], id).toBeUndefined();
-    // And the CSS layer is still reachable for them — that is why the
-    // archetype markup stays in the component rather than being deleted.
-    expect(fallback.length).toBeGreaterThan(0);
+    // No lower bound any more. This used to assert the CSS layer was still
+    // reachable for at least one move, as a guard against deleting the
+    // archetype markup — but the engine now draws every reachable move, so
+    // that set is legitimately empty and demanding a member would be
+    // demanding a gap.
+    //
+    // The archetypes are still load-bearing: the PvP arena renders them, and
+    // `hasFxAnim` falls back to them for anything unported that a future
+    // generation adds.
   });
 
   it("still claims a move whose fallback would be the generic projectile", () => {

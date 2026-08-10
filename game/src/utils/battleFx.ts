@@ -544,6 +544,41 @@ export class FxScene {
   }[] = [];
 
   /**
+   * Shake the whole arena.
+   *
+   * ── WHY THIS IS A SUBSTITUTE AND NOT A PORT ──────────────────────────
+   * Showdown does Earthquake with `scene.$bg.animate({top, bottom}, ms)`
+   * chained eight or nine times — jQuery, walking its own background element
+   * up and down a few pixels at a time. We have no `$bg`: our background is a
+   * CSS layer of the arena, not an element the effect engine owns.
+   *
+   * Porting it literally would mean exposing the arena's DOM to generated
+   * animation code, which is the one thing the porter's allowlist exists to
+   * prevent. So the four Ground moves that used it — Earthquake, Magnitude,
+   * Bulldoze, Fissure — were skipped, and skipped is worse than it sounds:
+   * they are physical, non-contact, and Ground has no fallback sprite, so
+   * they were the only moves in the game that animated to a COMPLETELY BLANK
+   * screen. You pressed Earthquake and nothing happened.
+   *
+   * A decaying vertical shake of the stage reads as the same event and needs
+   * no DOM handed out. It is on the arena element rather than the effect
+   * layer deliberately: the ground moving should move the Pokemon standing
+   * on it, which is the whole point of the move.
+   */
+  shakeStage(duration: number, intensity = 6, delay = 0): void {
+    this.shakes.push({
+      t0: delay + this.timeOffset,
+      t1: delay + duration + this.timeOffset,
+      intensity,
+    });
+  }
+
+  private readonly shakes: { t0: number; t1: number; intensity: number }[] = [];
+  /** The arena's own transform, so the shake can be unwound without
+   *  clobbering anything the layout put there. */
+  private stageTransform: string | null = null;
+
+  /**
    * When the hit lands, in scene time — or null if this animation has no
    * moment of contact (a self-buff, a weather change).
    *
@@ -604,12 +639,30 @@ export class FxScene {
     for (const a of this.actors) d = Math.max(d, a.duration);
     for (const e of this.effects) d = Math.max(d, e.t1 + (e.after ? FADE_MS : 0));
     for (const b of this.backgrounds) d = Math.max(d, b.t1);
+    for (const sh of this.shakes) d = Math.max(d, sh.t1);
     return d;
   }
 
   /** Paint every effect sprite at time `t`. */
   paintEffects(t: number): void {
     const RAMP = 250; // Showdown's fade in/out, both ends.
+
+    // The stage shake, before anything else, because it moves the frame the
+    // rest of this paints into.
+    if (this.shakes.length) {
+      let offset = 0;
+      for (const sh of this.shakes) {
+        if (t < sh.t0 || t > sh.t1) continue;
+        const p = (t - sh.t0) / Math.max(1, sh.t1 - sh.t0);
+        // Decaying so it settles rather than stopping dead — a shake that
+        // ends at full amplitude reads as a rendering glitch.
+        offset += Math.sin(p * Math.PI * 9) * sh.intensity * (1 - p);
+      }
+      if (this.stageTransform === null) this.stageTransform = this.el.style.transform || "";
+      this.el.style.transform = offset
+        ? `${this.stageTransform} translateY(${offset.toFixed(2)}px)`
+        : this.stageTransform;
+    }
     for (const b of this.backgrounds) {
       let o = 0;
       if (t >= b.t0 && t <= b.t1) {
@@ -660,6 +713,14 @@ export class FxScene {
     this.layer = null;
     this.effects.length = 0;
     this.backgrounds.length = 0;
+    // Put the arena back. A shake cancelled mid-swing — the tab backgrounded,
+    // the battle ended, the player navigated — would otherwise leave the whole
+    // scene sitting a few pixels off its own layout, permanently.
+    if (this.stageTransform !== null) {
+      this.el.style.transform = this.stageTransform;
+      this.stageTransform = null;
+    }
+    this.shakes.length = 0;
   }
 }
 
