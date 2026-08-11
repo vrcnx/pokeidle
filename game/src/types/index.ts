@@ -678,6 +678,7 @@ export type Action =
   | { type: "EVOLUTION_STEP" }
   | { type: "COMPLETE_EVOLUTION" }
   | { type: "SET_CATCH_RULE"; payload: { routeKey: string; speciesKey: string; settings: CatchSettings } }
+  | { type: "CLEAR_CATCH_RULE"; payload: { routeKey: string; speciesKey: string } }
   | { type: "TOGGLE_ROUTE_CATCH_ALL"; payload: { routeKey: string; enabled: boolean } }
   // routeKey is optional and, when given, also refreshes mode/
   // levelThreshold/enabledBalls (never `enabled`) on every existing

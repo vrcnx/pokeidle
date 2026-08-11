@@ -73,6 +73,11 @@ export function CatchSettingsModal() {
 
   const enc = encounters[routeKey]?.encounters ?? [];
 
+  /** Drop a species' override so it follows the route default again. */
+  function clearRule(speciesKey: string) {
+    dispatch({ type: "CLEAR_CATCH_RULE", payload: { routeKey: routeKey!, speciesKey } });
+  }
+
   function setRule(speciesKey: string, settings: CatchSettings) {
     dispatch({
       type: "SET_CATCH_RULE",
@@ -104,6 +109,7 @@ export function CatchSettingsModal() {
         routeKey={routeKey}
         encList={enc}
         setRule={setRule}
+        clearRule={clearRule}
         defaults={defaults}
         updateDefault={updateDefault}
       />
@@ -112,11 +118,12 @@ export function CatchSettingsModal() {
 }
 
 function CatchSettingsDialog({
-  routeKey, encList, setRule, defaults, updateDefault,
+  routeKey, encList, setRule, clearRule, defaults, updateDefault,
 }: {
   routeKey: string;
   encList: { speciesKey: string; weight: number; minLevel: number; maxLevel: number }[];
   setRule: (speciesKey: string, settings: CatchSettings) => void;
+  clearRule: (speciesKey: string) => void;
   defaults: CatchSettings;
   updateDefault: (patch: Partial<CatchSettings>) => void;
 }) {
@@ -375,6 +382,19 @@ function CatchSettingsDialog({
               {encList.map((e) => {
                 const sp = pokemonTable[e.speciesKey];
                 const rule = resolveCatchSettings(state, routeKey, e.speciesKey);
+                // ── WHY THIS BADGE EXISTS ────────────────────────────
+                // resolveCatchSettings is
+                //   catchSettings[route]?.[species] ?? globalCatchDefaults
+                // so a per-species override COMPLETELY shadows the default,
+                // and changing the default only refreshes overrides on the
+                // route you happen to be looking at. A player who set a rule
+                // for Zubat on Mt. Moon months ago, then switched everything
+                // to "only shinies", kept catching Zubat and had no way to
+                // see why — the screen showed the setting they had chosen and
+                // the game obeyed a different one.
+                //
+                // The shadowing is right. Being unable to SEE it was the bug.
+                const overridden = !!state.catchSettings[routeKey]?.[e.speciesKey];
                 const outlook = autoCatchOutlook(state, routeKey, e.speciesKey);
                 const hintKey = outlook.verdict === "inert" ? outlook.reason : outlook.verdict;
                 const seen = state.pokedexSeen.includes(e.speciesKey);
@@ -392,7 +412,19 @@ function CatchSettingsDialog({
                       <span className="catch-mystery">?</span>
                     )}
                     <div className="catch-name-col">
-                      <span className="catch-name">{seen ? sp.name : "???"}</span>
+                      <span className="catch-name">
+                        {seen ? sp.name : "???"}
+                        {overridden && (
+                          <button
+                            type="button"
+                            className="catch-override-badge"
+                            title={t("This species has its own rule and ignores the route default. Click to clear it.")}
+                            onClick={() => clearRule(e.speciesKey)}
+                          >
+                            {t("own rule ✕")}
+                          </button>
+                        )}
+                      </span>
                       {rule.mode === "level_threshold" && (
                         <label className="catch-lvl">
                           {t("≥ Lv")}

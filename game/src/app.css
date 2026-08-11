@@ -21090,3 +21090,23 @@ strong, b { font-variant-numeric: tabular-nums; }
   padding: 0 16px;
   text-decoration: none;
 }
+
+/* The per-species override badge on the catch settings screen.
+   Small and quiet — it is a statement of fact, not a warning — but it is a
+   button, because the only useful response to "this species ignores your
+   default" is to stop it doing that. */
+.catch-override-badge {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 4px;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.catch-override-badge:hover { background: rgba(251, 191, 36, 0.22); }

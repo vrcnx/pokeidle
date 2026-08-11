@@ -1349,6 +1349,25 @@ export function reducer(state: GameState, action: Action): GameState {
       };
     }
 
+    case "CLEAR_CATCH_RULE": {
+      // Delete the override so the species follows globalCatchDefaults again.
+      //
+      // Deleting rather than writing the current default INTO it: writing
+      // would leave an override that merely happens to agree today and would
+      // stop following the default the next time it changed — which is the
+      // exact bug this exists to undo.
+      const { routeKey, speciesKey } = action.payload;
+      const routeRules = state.catchSettings[routeKey];
+      if (!routeRules || !(speciesKey in routeRules)) return state;
+      const { [speciesKey]: _dropped, ...rest } = routeRules;
+      const catchSettings = { ...state.catchSettings };
+      // An empty route bucket is removed outright, so `catchSettings` does not
+      // accumulate a key per route the player ever opened the screen on.
+      if (Object.keys(rest).length === 0) delete catchSettings[routeKey];
+      else catchSettings[routeKey] = rest;
+      return { ...state, catchSettings };
+    }
+
     case "SET_GLOBAL_CATCH_DEFAULTS": {
       const { settings, routeKey } = action.payload;
       let catchSettings = state.catchSettings;
