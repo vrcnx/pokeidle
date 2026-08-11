@@ -568,9 +568,15 @@ function RaidTierList() {
             <div className="raid-tier-foot">
               {!unlocked ? (
                 <span className="raid-tier-why">
-                  {tier.unlockChampionDefeated && !state.championDefeated
-                    ? t("Beat the Champion")
-                    : `${t("Needs")} ${tier.unlockBadges} ${t("badges")}`}
+                  {tier.unlockChampionId
+                      && !state.defeatedChampions.includes(tier.unlockChampionId)
+                    // Checked FIRST and named: a player standing here has
+                    // eight badges from somewhere, so "Needs 8 badges" would
+                    // be both wrong and unactionable.
+                    ? `${t("Beat")} ${tier.unlockChampionId}`
+                    : tier.unlockChampionDefeated && !state.championDefeated
+                      ? t("Beat the Champion")
+                      : `${t("Needs")} ${tier.unlockBadges} ${t("badges")}`}
                 </span>
               ) : busy ? (
                 <span className="raid-tier-why">{t("Finish your raid first")}</span>

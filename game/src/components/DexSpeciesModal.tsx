@@ -301,6 +301,10 @@ export function DexSpeciesModal({ speciesKey, onClose }: Props) {
                   const bits = [`Lv ${tier.startLevel}+`];
                   if (tier.unlockBadges > 0) bits.push(`${tier.unlockBadges} ${t("badges")}`);
                   if (tier.unlockChampionDefeated) bits.push(t("Champion first"));
+                  // Named, not "Champion first" — this tier wants ONE specific
+                  // champion, and "Champion first" on a save that has already
+                  // beaten two of them reads as a bug.
+                  if (tier.unlockChampionId) bits.push(`${t("Beat")} ${tier.unlockChampionId}`);
                   if (!unlocked) bits.push(t("locked"));
                   return (
                     <li key={tier.id} className={unlocked ? "" : "locked"}>

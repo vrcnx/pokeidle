@@ -25,7 +25,8 @@ export type RaidTierId =
   | "titans"
   | "guardians"
   | "coverLegends"
-  | "mythical";
+  | "mythical"
+  | "hoennLegends";
 
 export interface RaidTier {
   id: RaidTierId;
@@ -38,6 +39,20 @@ export interface RaidTier {
   // are available from the start.
   unlockBadges: number;
   unlockChampionDefeated?: boolean;
+  /**
+   * Gate on ONE specific champion, by id.
+   *
+   * `unlockChampionDefeated` reads `state.championDefeated`, which is a single
+   * global boolean set by beating ANY champion — so a tier meant to open after
+   * Hoenn would have opened the moment somebody beat Kanto's Blue, years of
+   * play earlier. `state.defeatedChampions` is the per-champion list and is
+   * what `regionCompleted` already uses.
+   *
+   * Also implies the badges gate is about THAT region: you cannot have beaten
+   * Steven without Hoenn's eight, so the two are not redundant, the second is
+   * just weaker.
+   */
+  unlockChampionId?: string;
   // Per-species weights (higher = more common). Species missing from
   // the table get weight 1.
   pool: Record<string, number>;
@@ -142,6 +157,29 @@ const TIERS_LIST: RaidTier[] = [
     rarityTag: "Box Legend",
   },
   {
+    // The reward for finishing Hoenn, and the only tier gated on a specific
+    // region's Champion rather than on "a" champion.
+    //
+    // Every one of these already appears somewhere — the Regis in Titans, the
+    // Eon duo in Birds & Beasts, the weather trio in Cover Legends, Jirachi
+    // and Deoxys in Mythical — spread across four pools you enter for other
+    // reasons. Gathering them is the point: this is the Hoenn pool, it opens
+    // when you beat Hoenn, and it is the only place all ten sit together.
+    id: "hoennLegends",
+    name: "Hoenn Legends",
+    blurb: "The legends of Hoenn, together — the Regi golems, the Eon duo, the weather trio, and the two that are barely spoken of. Opens when Steven falls.",
+    startLevel: 100,
+    unlockBadges: 8,
+    unlockChampionId: "steven",
+    pool: {
+      regirock: 10, regice: 10, registeel: 10,
+      latias: 9, latios: 9,
+      kyogre: 7, groudon: 7, rayquaza: 5,
+      jirachi: 4, deoxys: 3,
+    },
+    rarityTag: "Box Legend",
+  },
+  {
     id: "mythical",
     name: "Mythical",
     blurb: "Whispered-of Pokémon that only appear to the strongest trainers. Extremely rare.",
@@ -226,10 +264,20 @@ function pickFromPool(pool: Record<string, number>): string {
 // Lock predicate — true if the player has unlocked the tier.
 export function isTierUnlocked(
   tier: RaidTier,
-  state: { defeatedGyms: string[]; championDefeated: boolean }
+  state: {
+    defeatedGyms: string[];
+    championDefeated: boolean;
+    // Optional so every existing caller keeps compiling; absent is treated as
+    // "no champion beaten", which fails CLOSED. A tier that opened because a
+    // caller forgot to pass its state would be the worse default by far.
+    defeatedChampions?: string[];
+  }
 ): boolean {
   if (state.defeatedGyms.length < tier.unlockBadges) return false;
   if (tier.unlockChampionDefeated && !state.championDefeated) return false;
+  if (tier.unlockChampionId && !(state.defeatedChampions ?? []).includes(tier.unlockChampionId)) {
+    return false;
+  }
   return true;
 }
 

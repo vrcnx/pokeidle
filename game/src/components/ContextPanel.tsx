@@ -372,10 +372,21 @@ function gymBadgeRequirement(leaderId: string): number {
   return 0;
 }
 
+/** The display name of a gated champion, for the lock copy. Falls back to
+ *  the id so a tier pointing at a champion that has been renamed still reads
+ *  as something rather than as an empty gap. */
+function championLabel(id: string): string {
+  for (const r of Object.values(regions)) {
+    if (r.champion?.id === id) return r.champion.name;
+  }
+  return id;
+}
+
 function tierUnlockHint(t: RaidTier): string {
   const parts: string[] = [];
   if (t.unlockBadges > 0) parts.push(`Earn ${t.unlockBadges} badge${t.unlockBadges === 1 ? "" : "s"}`);
   if (t.unlockChampionDefeated) parts.push("Defeat the Champion");
+  if (t.unlockChampionId) parts.push(`Defeat ${championLabel(t.unlockChampionId)}`);
   return parts.length === 0 ? "Locked" : `Locked — ${parts.join(" + ")}`;
 }
 
@@ -386,6 +397,7 @@ function tierUnlockHintShort(t: RaidTier): string {
   const parts: string[] = [];
   if (t.unlockBadges > 0) parts.push(`${t.unlockBadges} badge${t.unlockBadges === 1 ? "" : "s"}`);
   if (t.unlockChampionDefeated) parts.push("champion");
+  if (t.unlockChampionId) parts.push(championLabel(t.unlockChampionId));
   return parts.length === 0 ? "" : parts.join(" + ");
 }
 
