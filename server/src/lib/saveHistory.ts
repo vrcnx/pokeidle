@@ -11,12 +11,25 @@ import { prisma } from "../db.js";
 // seconds while playing; snapshotting each would be thousands of near-
 // identical rows. 30 minutes gives checkpoints spread across a play session
 // (and across days for a casual player) without flooding the table.
-const SNAPSHOT_INTERVAL_MS = 30 * 60_000;
+// 15 minutes, halved from 30 while save-loss reports are open.
+//
+// The ring below is what turns "your progress is gone" into "give me five
+// minutes". Three players lost hours in a week and the recovery question was
+// not "can we restore" but "how far back does it go" — so resolution and
+// coverage both matter, and doubling the rate costs a few hundred KB per
+// player against losing somebody's afternoon.
+const SNAPSHOT_INTERVAL_MS = 15 * 60_000;
 
 // Ring size per player. 24 × ~8KB median ≈ 190KB/player; even at the 129KB
 // max real save that is ~3MB for the single largest account. Comfortably
 // bounded across ~1,800 players.
-const MAX_SNAPSHOTS_PER_USER = 24;
+// 64 × 15 min = 16 hours of coverage, up from 24 × 30 min = 12.
+//
+// 12 hours sounds ample until somebody reports a loss the morning after: the
+// oldest checkpoint has already rolled off and the good state is simply gone.
+// At the 8KB median this is ~512KB per player and ~920MB across the whole
+// player base — a rounding error next to the alternative.
+const MAX_SNAPSHOTS_PER_USER = 64;
 
 // Take a periodic checkpoint of a just-accepted save, if the last one is old
 // enough. Best-effort by contract: a failure here must NEVER fail the save

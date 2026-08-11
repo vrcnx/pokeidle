@@ -15,6 +15,26 @@ interface Sig {
   boxParty: number;
   locations: number;
   money: number;
+  /**
+   * ── THE TWO THINGS THAT WENT MISSING ──────────────────────────────
+   *
+   * This signature is how the boot decides whether the cloud copy or the
+   * local one survives, and for a long time it measured seven things —
+   * none of which was a Pokemon's LEVEL or whether it was SHINY.
+   *
+   * Three players reported the same shape within a week, and one of them
+   * described it exactly: "only the Pokemon (Pokedex/shiny) and levels were
+   * reset; everything else (League, auctions, money) seemed the same."
+   *
+   * That is this signature, inverted. Everything it could see survived.
+   * Everything it could not see was thrown away — because a save that is
+   * hours behind on levels and shinies, but level with the other on badges,
+   * dex COUNT and money, looked identical to it. The older copy won, and
+   * then uploaded over the newer one with a version the server accepted.
+   */
+  shinies: number;
+  /** Total levels across party and box. */
+  levels: number;
 }
 
 function sigOf(s: any): Sig {
@@ -28,7 +48,21 @@ function sigOf(s: any): Sig {
       (Array.isArray(s?.box) ? s.box.length : 0),
     locations: Array.isArray(s?.unlockedLocations) ? s.unlockedLocations.length : 0,
     money: typeof s?.money === "number" ? s.money : 0,
+    shinies: Array.isArray(s?.shinyCaught) ? s.shinyCaught.length : 0,
+    levels: sumLevels(s),
   };
+}
+
+/** Total levels held, party and box. Not a milestone — a Pokemon can be
+ *  released, traded or auctioned — so this only ever breaks a TIE, never
+ *  vetoes. See the note in localHasMoreMilestones. */
+function sumLevels(s: any): number {
+  let n = 0;
+  for (const list of [s?.party, s?.box]) {
+    if (!Array.isArray(list)) continue;
+    for (const m of list) if (m && typeof m.level === "number") n += m.level;
+  }
+  return n;
 }
 
 // Heuristic tie-break (the pre-existing behaviour): cloud wins if it is
@@ -43,11 +77,30 @@ export function cloudHasMoreProgress(cloudData: any, local: GameState): boolean 
   if (c.badges > l.badges) return true;
   if (c.caught > l.caught) return true;
   if (c.locations > l.locations) return true;
+  // A shiny is registered append-only, exactly like the dex, so cloud holding
+  // one local has never seen means cloud is genuinely ahead. This is the
+  // check whose absence let a save with two fewer shinies win.
+  if (c.shinies > l.shinies) return true;
   if (
     c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
-    c.locations === l.locations &&
+    c.locations === l.locations && c.shinies === l.shinies &&
     c.boxParty > l.boxParty + 1 && // +1 slack to swallow lock-window race
     c.money >= l.money
+  ) return true;
+  // EVERY MILESTONE LEVEL, AND THE SAME COLLECTION. This is the case the
+  // reports describe: an hour of levelling adds no dex entry, no badge and no
+  // box slot, so the two copies were indistinguishable and the older one could
+  // win on a coin flip. Levels are the only thing left that differs, so they
+  // decide it.
+  //
+  // A margin, not `>`, because levels move for innocent reasons — an
+  // evolution, a released runt — and a one-level difference is not evidence of
+  // a fresher save. Fifteen is about a quarter of an hour of play.
+  if (
+    c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
+    c.locations === l.locations && c.shinies === l.shinies &&
+    c.money >= l.money &&
+    c.levels > l.levels + 15
   ) return true;
   return false;
 }
@@ -92,6 +145,15 @@ export function localHasMoreMilestones(local: any, cloud: any): boolean {
   if (l.badges > c.badges) return true;
   if (l.caught > c.caught) return true;
   if (l.locations > c.locations) return true;
+  // Shinies veto too — append-only, so local holding one cloud lacks is local
+  // being genuinely ahead, and adopting cloud would delete it. This is the
+  // half that protects the player whose device is the fresher one.
+  //
+  // LEVELS DELIBERATELY DO NOT VETO. They fall when a Pokemon is released,
+  // traded or auctioned, and a veto on them would let a stale device refuse
+  // every authoritative server write — including the settlement that took the
+  // Pokemon whose levels are missing. They break ties above; they do not block.
+  if (l.shinies > c.shinies) return true;
   return false;
 }
 
