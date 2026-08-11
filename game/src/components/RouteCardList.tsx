@@ -16,6 +16,8 @@ import { itemSpriteSlug } from "../utils/items";
 import "./raidTiers.css";
 import { rememberRaidReturn } from "../hooks/useRaidReturn";
 import { pokemonTable } from "../data/pokemon";
+import { MASTERY_TIERS, earnedLevel, nextTier, winsOn, isMasterable } from "../data/routeMastery";
+import "./routeMastery.css";
 import { useT } from "../i18n/useT";
 import { IconHome, IconMountain, IconLeaf, IconIsland } from "./Icon";
 import { TabPaneHead } from "./TabPaneHead";
@@ -253,6 +255,34 @@ function RouteCard({ route, onTravel, regionLabel }: {
   const sorted = useMemo(() => [...enc].sort((a, b) => b.weight - a.weight), [enc]);
   const caughtCount = enc.filter((e) => state.pokedexCaught.includes(e.speciesKey)).length;
 
+  // ── MASTERY, ON THE ROW ──────────────────────────────────────────────
+  // The mastery card in the side column only ever shows the route you are
+  // STANDING ON, so the one question the map is for — "which of these have I
+  // actually worked, and which am I close to finishing?" — could not be
+  // answered from the map at all. You had to travel somewhere to find out how
+  // far along it was.
+  //
+  // `isMasterable` excludes towns: their battles are trainer rematches on a
+  // fixed roster, so a mastery bar there would measure patience rather than
+  // the route.
+  const masterable = unlocked && isMasterable(route.id);
+  const wins = masterable ? winsOn(state, route.id) : 0;
+  const level = earnedLevel(wins);
+  const next = nextTier(wins);
+  // The label is what you are working TOWARD, not what you hold — "Familiar"
+  // on a route with nothing earned reads as the goal, which is the useful
+  // thing on a screen you open to decide where to go. The pips carry what is
+  // already banked.
+  const masteryLabel = next ? next.label : "Fully Mastered";
+  // Progress through the CURRENT band, not from zero: at 1,199 wins a bar
+  // measured from zero sits at 99.9% and has looked full for the last eight
+  // hundred battles.
+  const bandFrom = level > 0 ? MASTERY_TIERS[level - 1].wins : 0;
+  const bandTo = next?.wins ?? wins;
+  const bandPct = next
+    ? Math.max(0, Math.min(100, ((wins - bandFrom) / Math.max(1, bandTo - bandFrom)) * 100))
+    : 100;
+
   return (
     <div
       className={`route-card ${current ? "current" : ""} ${!unlocked ? "locked" : ""}`}
@@ -331,6 +361,29 @@ function RouteCard({ route, onTravel, regionLabel }: {
                 >
                   +{sorted.length - ROUTE_CARD_MONS}
                 </span>
+              )}
+            </div>
+          )}
+          {masterable && (
+            <div
+              className="route-card-mastery"
+              title={next
+                ? `${wins.toLocaleString()} / ${next.wins.toLocaleString()} ${t("wins toward")} ${next.label}`
+                : `${t("Fully mastered")} — ${wins.toLocaleString()} ${t("wins")}`}
+            >
+              <span className="route-card-mastery-label">{t(masteryLabel)}</span>
+              <div className="mastery-pips" aria-hidden>
+                {MASTERY_TIERS.map((tier) => (
+                  <span key={tier.level} className={tier.level <= level ? "mastery-on" : ""} />
+                ))}
+              </div>
+              <span className="route-card-mastery-count dim">
+                {next ? `${wins.toLocaleString()} / ${next.wins.toLocaleString()}` : wins.toLocaleString()}
+              </span>
+              {next && (
+                <div className="route-card-mastery-bar" aria-hidden>
+                  <span style={{ width: `${bandPct}%` }} />
+                </div>
               )}
             </div>
           )}

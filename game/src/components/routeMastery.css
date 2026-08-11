@@ -172,3 +172,55 @@
 @media (max-width: 720px) {
   .mastery-claim { height: 36px; }
 }
+
+/* ── Mastery on a map row ──────────────────────────────────────────
+   The side-column card only ever describes the route you are STANDING ON, so
+   "which of these have I worked, and which am I close to finishing?" — the
+   question the map exists to answer — could not be answered from the map.
+
+   Deliberately compact and right-aligned: the map is a list you scan down, and
+   the useful comparison is between rows at the same horizontal position. A
+   block that grew with the numbers inside it would break that column. */
+.route-card-mastery {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  align-items: center;
+  gap: 2px 8px;
+  text-align: right;
+}
+.route-card-mastery-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.route-card-mastery .mastery-pips { justify-content: flex-end; }
+.route-card-mastery-count {
+  grid-column: 1 / -1;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* The band bar, not a from-zero bar. At 1,199 of 1,200 wins a bar measured
+   from zero has looked full for eight hundred battles and tells you nothing
+   about whether tonight is the night. */
+.route-card-mastery-bar {
+  grid-column: 1 / -1;
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+.route-card-mastery-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--gold);
+}
+
+@media (max-width: 760px) {
+  /* The count is the first thing to go: the pips and the label already say
+     which band you are in, and the row is fighting for width against the
+     sprites and the travel button. */
+  .route-card-mastery-count { display: none; }
+}
