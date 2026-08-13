@@ -216,7 +216,12 @@ export function RouteCardList() {
           )}
         </div>
       ) : activeRegion === RAID_TAB ? (
-        <RaidTierList />
+        // The wrapper is not decoration. The other two branches are wrapped in
+        // .route-card-grid, which is what actually SCROLLS this pane; rendering
+        // the raid tab bare meant it inherited none of that and simply overflowed.
+        <div className="raid-tier-scroll">
+          <RaidTierList />
+        </div>
       ) : (
         <div className="route-card-grid">
           {groups.map((g, i) => (

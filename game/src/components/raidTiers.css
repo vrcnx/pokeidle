@@ -289,3 +289,26 @@
   .raid-tier-dot { animation: none; }
   .raid-tier-go:hover:not(:disabled) { transform: none; }
 }
+
+/* ── THE RAID TAB HAS TO DO ITS OWN SCROLLING ──────────────────────────
+   The Map pane's other two branches render inside .route-card-grid, and
+   that class is carrying more than its name suggests: `flex: 1;
+   min-height: 0; overflow-y: auto` is the entire reason the pane scrolls.
+   The raid tab replaced that div rather than filling it, so it inherited
+   none of the three and just overflowed the pane with nothing to drag.
+
+   It survived on luck. Six tiers in a two-column auto-fill grid is three
+   rows, which fit; the seventh made it four and the bottom of the list
+   went under the fold. Players found it the day the Hoenn tier shipped —
+   "are there more than 6 possible raids?" — and the only workaround was
+   zooming the whole browser out until the content shrank back inside.
+
+   min-height: 0 is the load-bearing one. Without it this flex child
+   refuses to shrink below its content, so `overflow-y: auto` has nothing
+   to overflow and the pane silently grows instead of scrolling. */
+.raid-tier-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px;
+}
