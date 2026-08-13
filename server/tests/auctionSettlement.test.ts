@@ -62,6 +62,8 @@ function makeWorld(over: { lot?: "pokemon" | "item" } = {}) {
         pokemonSnapshot: JSON.stringify(mon),
       };
   const updates: { model: string; where: any; data: any }[] = [];
+  /** Every PendingGrant row written. The seller's proceeds land here, not in a save. */
+  const grants: { userId: string; prizes: string; source: string; sourceId: string | null }[] = [];
   /** When set, the named user's CAS misses once (simulating a concurrent autosave). */
   let failCasOnce: string | null = null;
 
@@ -95,21 +97,33 @@ function makeWorld(over: { lot?: "pokemon" | "item" } = {}) {
         return { count: 1 };
       },
     },
+    pendingGrant: {
+      create: async ({ data }: any) => {
+        grants.push({ ...data });
+        return { id: `g${grants.length}` };
+      },
+    },
     $executeRaw: async () => 1,
     $transaction: async (fn: (tx: any) => Promise<unknown>) => {
       const usersSnap = JSON.parse(JSON.stringify(users));
       const auctionSnap = { ...auction };
+      // Grants roll back with everything else. Without this the fake would
+      // report a seller as paid by an attempt that threw, which is precisely
+      // the property the settlement relies on when it enlists the grant in its
+      // own transaction — a test that cannot see the rollback cannot prove it.
+      const grantsSnap = grants.length;
       try {
         return await fn(client);
       } catch (e) {
         Object.assign(users, JSON.parse(JSON.stringify(usersSnap)));
         Object.assign(auction, auctionSnap);
+        grants.length = grantsSnap;
         throw e;
       }
     },
   };
   return {
-    client, users, auction, updates,
+    client, users, auction, updates, grants,
     setFailCasOnce: (id: string) => { failCasOnce = id; },
   };
 }
@@ -119,53 +133,92 @@ beforeEach(() => {
 });
 
 describe("auction settlement", () => {
-  it("bumps saveAdoptSeq on BOTH sides in the same update as the save write", async () => {
+  it("pays the seller by grant and NEVER rewrites their save", async () => {
+    // This is the regression test for the reported save loss. A settlement
+    // used to rewrite the seller's blob and bump saveAdoptSeq, forcing their
+    // client to adopt server bytes wholesale mid-session; everything they had
+    // played since their last autosave was discarded. Sellers reported it as
+    // "my levels and Pokémon reset but my money and League were fine" —
+    // because the money was the one thing the settlement wrote.
     const w = makeWorld();
+    const sellerBytesBefore = w.users.seller.saveData;
+    const sellerVersionBefore = w.users.seller.saveVersion;
+    const sellerAdoptBefore = w.users.seller.saveAdoptSeq;
     h.setPrisma(w.client);
     await settleDueAuctions();
 
     expect(w.auction.status).toBe("sold");
-    // Seller got the money, buyer got the mon and paid.
-    const sellerSave = JSON.parse(w.users.seller.saveData);
+
+    // The seller's stored save is byte-identical, same version, same adopt
+    // counter. Nothing to adopt means nothing can be lost.
+    expect(w.users.seller.saveData).toBe(sellerBytesBefore);
+    expect(w.users.seller.saveVersion).toBe(sellerVersionBefore);
+    expect(w.users.seller.saveAdoptSeq).toBe(sellerAdoptBefore);
+    expect(w.updates.filter((u) => u.model === "user" && u.where.id === "seller")).toHaveLength(0);
+
+    // They are paid, in full, through the inbox instead.
+    expect(w.grants).toHaveLength(1);
+    expect(w.grants[0].userId).toBe("seller");
+    expect(w.grants[0].source).toBe("auction-sale");
+    expect(w.grants[0].sourceId).toBe("a1"); // one payout per auction, ever
+    expect(JSON.parse(w.grants[0].prizes)).toEqual([{ kind: "money", amount: 500 }]);
+
+    // The BUYER still gets the old treatment, and must: a bid is a DEDUCTION,
+    // which no grant can express, so their bytes are rewritten under a CAS and
+    // they are told to adopt. Without that they keep the money and the mon.
     const buyerSave = JSON.parse(w.users.buyer.saveData);
-    expect(sellerSave.money).toBe(550);
     expect(buyerSave.money).toBe(500);
     expect(buyerSave.party.some((m: any) => m.id === "escrow1")).toBe(true);
-
-    // THE invariant: every settlement write carries the adopt bump.
-    const userWrites = w.updates.filter((u) => u.model === "user");
-    expect(userWrites).toHaveLength(2);
-    for (const write of userWrites) {
-      expect(write.data.saveAdoptSeq).toEqual({ increment: 1 });
-      expect(write.data.saveVersion).toEqual({ increment: 1 });
-      expect(write.where.saveVersion).toBeDefined(); // CAS, not blind
-    }
-    expect(w.users.seller.saveAdoptSeq).toBe(4);
+    const buyerWrites = w.updates.filter((u) => u.model === "user" && u.where.id === "buyer");
+    expect(buyerWrites).toHaveLength(1);
+    expect(buyerWrites[0].data.saveAdoptSeq).toEqual({ increment: 1 });
+    expect(buyerWrites[0].data.saveVersion).toEqual({ increment: 1 });
+    expect(buyerWrites[0].where.saveVersion).toBeDefined(); // CAS, not blind
     expect(w.users.buyer.saveAdoptSeq).toBe(8);
 
-    // Both clients are told to adopt the copies that hold the outcome.
-    expect(h.sent).toContainEqual({ userId: "seller", event: "save:adopt", payload: {} });
+    // ONLY the buyer is told to adopt. Telling the seller to would throw away
+    // exactly the play this change exists to protect.
     expect(h.sent).toContainEqual({ userId: "buyer", event: "save:adopt", payload: {} });
+    expect(h.sent.some((s) => s.userId === "seller" && s.event === "save:adopt")).toBe(false);
+
+    // Both are still NOTIFIED — the seller's news is the toast, not the bytes.
     expect(h.sent.some((s) => s.event === "auction:sold" && s.userId === "seller")).toBe(true);
     expect(h.sent.some((s) => s.event === "auction:won" && s.userId === "buyer")).toBe(true);
   });
 
-  it("a lost CAS commits nothing and the sweep retries from a fresh read", async () => {
+  it("does not quote the seller a money total it did not write", async () => {
+    // The old payload carried newMoney/newSaveVersion and the client SET its
+    // balance from them. Those numbers are now unknowable server-side — the
+    // seller's save was not written and the grant has not folded — so sending
+    // them would be the same overwrite-live-state bug at smaller scale.
     const w = makeWorld();
     h.setPrisma(w.client);
-    // First attempt: seller's CAS loses to a concurrent autosave; the
-    // transaction must roll back whole. The retry then succeeds.
-    w.setFailCasOnce("seller");
+    await settleDueAuctions();
+
+    const sold = h.sent.find((s) => s.event === "auction:sold")!;
+    expect(sold.payload).not.toHaveProperty("newMoney");
+    expect(sold.payload).not.toHaveProperty("newSaveVersion");
+    expect(sold.payload).toMatchObject({ auctionId: "a1", amount: 500 });
+  });
+
+  it("a lost CAS commits nothing — grant included — and the sweep retries", async () => {
+    const w = makeWorld();
+    h.setPrisma(w.client);
+    // The buyer is now the only side with a CAS to lose, so this is where a
+    // concurrent autosave collides. The whole transaction must roll back,
+    // INCLUDING the seller's grant: an attempt that failed to take the money
+    // from the buyer must not leave the seller owed it.
+    w.setFailCasOnce("buyer");
     await settleDueAuctions();
 
     // Retry succeeded — final state is fully settled, exactly once.
     expect(w.auction.status).toBe("sold");
-    expect(JSON.parse(w.users.seller.saveData).money).toBe(550);
     expect(JSON.parse(w.users.buyer.saveData).money).toBe(500);
-    // The failed attempt never wrote the buyer or flipped the auction:
-    // after the seller claim missed, the transaction aborted before them.
-    const buyerWrites = w.updates.filter((u) => u.model === "user" && u.where.id === "buyer");
-    expect(buyerWrites).toHaveLength(1); // only the successful attempt
+    // Exactly ONE grant survives, not one per attempt. This is the property
+    // that makes enlisting in the settlement's transaction worth doing: paying
+    // the seller on a rolled-back attempt would mint money out of a retry.
+    expect(w.grants).toHaveLength(1);
+    expect(w.grants[0].userId).toBe("seller");
   });
 
   it("a winner who cannot pay cancels the sale and returns the escrowed mon to the seller", async () => {
@@ -195,23 +248,26 @@ describe("settling an ITEM lot", () => {
     expect(w.auction.status).toBe("sold");
     const sellerSave = JSON.parse(w.users.seller.saveData);
     const buyerSave = JSON.parse(w.users.buyer.saveData);
-    expect(sellerSave.money).toBe(550);
     expect(buyerSave.money).toBe(500);
     expect(buyerSave.inventory.tm26).toBe(1);
+    // Paid by grant, exactly like a Pokemon lot — the lot kind changes where
+    // the goods land, never how the seller is paid.
+    expect(JSON.parse(w.grants[0].prizes)).toEqual([{ kind: "money", amount: 500 }]);
     // The seller does NOT get it back — it left their bag at listing time.
     expect(sellerSave.inventory?.tm26).toBeUndefined();
   });
 
-  it("carries the same adopt bump and CAS on both sides", async () => {
+  it("carries the adopt bump and CAS on the side that is actually written", async () => {
     const w = makeWorld({ lot: "item" });
     h.setPrisma(w.client);
     await settleDueAuctions();
+    // One write, the buyer's, for the same reason as a Pokemon lot: they are
+    // the only side money is taken from.
     const userWrites = w.updates.filter((u) => u.model === "user");
-    expect(userWrites).toHaveLength(2);
-    for (const write of userWrites) {
-      expect(write.data.saveAdoptSeq).toEqual({ increment: 1 });
-      expect(write.where.saveVersion).toBeDefined();
-    }
+    expect(userWrites).toHaveLength(1);
+    expect(userWrites[0].where.id).toBe("buyer");
+    expect(userWrites[0].data.saveAdoptSeq).toEqual({ increment: 1 });
+    expect(userWrites[0].where.saveVersion).toBeDefined();
   });
 
   it("returns the machine to the seller when the winner cannot pay", async () => {

@@ -1609,19 +1609,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const sock = getSocket();
     const onSold = (payload: {
       auctionId: string; pokemon: any; amount: number; buyerUsername: string;
-      newSaveVersion: number; newMoney: number;
     }) => {
-      // Deferred, like every other server-authoritative rewrite: the bytes
-      // reach live state through the AUCTION_SETTLED dispatch below, and until
-      // that commits an upload composed from live state does not contain them.
-      deferredCloudVersionRef.current = payload.newSaveVersion;
+      // NO version defer and NO money here, unlike the buyer below. Selling no
+      // longer rewrites the seller's save at all — the proceeds are a
+      // PendingGrant that folds in on the next save round-trip — so there is no
+      // new cloud version to defer to and no authoritative total to adopt.
+      // Taking one would re-introduce the bug this shape exists to remove.
       const label = payload.pokemon?.nickname ?? payload.pokemon?.name ?? "Pokémon";
       dispatch({
         type: "AUCTION_SETTLED",
         payload: {
           role: "seller",
           removedPokemonId: payload.pokemon?.id,
-          money: payload.newMoney,
           logMessage: `Sold your ${label} to ${payload.buyerUsername} for $${payload.amount}!`,
         },
       });

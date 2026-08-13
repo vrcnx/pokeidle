@@ -724,7 +724,14 @@ export type Action =
   | {
       type: "AUCTION_SETTLED";
       payload:
-        | { role: "seller"; removedPokemonId: string; money: number; logMessage: string }
+        // `money?: never` on the seller is deliberate and load-bearing: a sale
+        // does not write the seller's save (the proceeds are a PendingGrant),
+        // so there is no authoritative total to apply and applying a stale one
+        // would clobber live play. Declaring it absent makes re-adding it a
+        // compile error rather than a regression nobody notices until players
+        // report losing progress again. `?` rather than omission so the
+        // reducer can still read the property off the union.
+        | { role: "seller"; removedPokemonId: string; money?: never; logMessage: string }
         | { role: "buyer"; pokemon: Pokemon; money: number; logMessage: string };
     }
   // `assignedId` is the id POST /api/saves stamped on a prize mon when it

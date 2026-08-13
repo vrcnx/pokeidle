@@ -1965,11 +1965,19 @@ export function reducer(state: GameState, action: Action): GameState {
     case "AUCTION_SETTLED": {
       // Server-pushed reconciliation for an auction that settled while
       // this client may or may not have been open — see
-      // lib/auctionSettlement.ts server-side. `money` is always the
-      // server's authoritative post-settlement value (set, not added),
-      // since the server is the sole writer for this mutation.
+      // lib/auctionSettlement.ts server-side.
+      //
+      // `money` is OPTIONAL, and which side sent it is the whole story. For a
+      // BUYER it is present and authoritative (set, not added): the server
+      // rewrote their save to take the bid, so the server owns the total. For
+      // a SELLER it is absent, because selling no longer writes their save —
+      // the proceeds are a PendingGrant that folds in on the next round-trip.
+      // Setting money from an undefined here would blank the balance of every
+      // seller in the game, so it must stay a guarded assignment and not a
+      // default-to-zero.
       const { payload } = action;
-      let next: GameState = { ...state, money: payload.money };
+      let next: GameState =
+        payload.money === undefined ? state : { ...state, money: payload.money };
       if (payload.role === "seller") {
         // The escrow lock ends with the listing. Dropped here as well as on the
         // auction board's refresh so a mon whose listing was cancelled or

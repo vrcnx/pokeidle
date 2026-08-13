@@ -21,6 +21,8 @@ import { validateSave } from "./saveValidation.js";
 import { computeAccountLevel } from "./level.js";
 import { recordError } from "./errorReporting.js";
 import { emitSaveAdopt } from "./saveAdopt.js";
+import { enqueuePrizeGrant } from "./prizeGrant.js";
+import type { Prize } from "./giveaway.js";
 
 // Return an ESCROWED Pokémon to the seller's box — used when an auction ends
 // without a sale (cancelled, expired with no bids, or a failed settlement).
@@ -201,9 +203,13 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
     return "cancelled";
   }
 
-  const sellerSave = safeParseSave(seller.saveData);
+  // Only the WINNER's save is read here. They are the side something is TAKEN
+  // from — the bid — and a deduction cannot be expressed as a grant, so their
+  // bytes must be rewritten. The seller is only ever paid, so they go through
+  // the PendingGrant inbox and their save is never touched at all. See the
+  // transaction below for why that distinction is the whole point.
   const winnerSave = safeParseSave(winner.saveData);
-  if (!sellerSave || !winnerSave) {
+  if (!winnerSave) {
     await cancelAuction(auction.id, "corrupt_save");
     return "cancelled";
   }
@@ -251,11 +257,8 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
     }
   }
 
-  // Seller: just gains the proceeds (the lot already left at listing time).
-  const sellerMerged: Record<string, unknown> = {
-    ...sellerSave,
-    money: Number(sellerSave.money ?? 0) + auction.currentBid,
-  };
+  // The seller's proceeds are OWED, not written. See the transaction below.
+  const sellerPrizes: Prize[] = [{ kind: "money", amount: auction.currentBid }];
 
   let winnerMerged: Record<string, unknown>;
   if (isItemLot) {
@@ -281,9 +284,8 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
     };
   }
 
-  const sellerValidation = validateSave(sellerMerged);
   const winnerValidation = validateSave(winnerMerged);
-  if (!sellerValidation.ok || !winnerValidation.ok) {
+  if (!winnerValidation.ok) {
     await cancelAuction(auction.id, "settlement_produced_invalid_save");
     void recordError({
       kind: "server",
@@ -291,44 +293,59 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
       source: "auctionSettlement.attemptSettle",
       meta: {
         auctionId: auction.id,
-        sellerReason: sellerValidation.ok ? null : sellerValidation.reason,
-        winnerReason: winnerValidation.ok ? null : winnerValidation.reason,
+        winnerReason: winnerValidation.reason,
       },
     });
     return "cancelled";
   }
 
-  const sellerDerived = computeAccountLevel(sellerMerged);
   const winnerDerived = computeAccountLevel(winnerMerged);
 
-  // Both writes bump saveAdoptSeq, exactly like the escrow paths above and
-  // below. This is a SERVER-AUTHORITATIVE money movement into a save neither
-  // player's client knows about: without the bump, the buyer's client keeps
-  // playing on a blob that still has the money and no mon, and its next upload
-  // — which passes the version CAS as soon as it re-reads the version after a
-  // 409 — puts the money back and drops the Pokémon. That is +500,000 minted
-  // with no tampering at all, and it is the "bought a shiny Nidoran, never
-  // received it" report.
+  // ── Why the two sides are paid in completely different ways ──
   //
-  // It is safe to bump here for the same reason it is safe on the fold: the
-  // stored blob is each player's OWN latest bytes (re-read under a version CAS
-  // in this very attempt) with the settlement applied on top. Adopting it can
-  // cost a session only the play it has not uploaded yet.
+  // The WINNER's write bumps saveAdoptSeq, and has to. This is a
+  // SERVER-AUTHORITATIVE money movement into a save their client knows nothing
+  // about: without the bump, the buyer keeps playing on a blob that still has
+  // the money and no mon, and its next upload — which passes the version CAS
+  // as soon as it re-reads the version after a 409 — puts the money back and
+  // drops the Pokémon. That is +500,000 minted with no tampering at all, and
+  // it is the "bought a shiny Nidoran, never received it" report.
+  //
+  // The SELLER used to be written the same way, and that was a bug that cost
+  // real players real progress. The old comment here argued it was safe
+  // because the stored blob is the player's OWN latest bytes with the
+  // settlement applied, and conceded the cost in its last line: "adopting it
+  // can cost a session only the play it has not uploaded yet."
+  //
+  // That "only" was doing far too much work. Settlements fire on a TIMER, so
+  // they land mid-session by design, and the adopt is WHOLESALE — it does not
+  // compare anything, so none of the save-reconciliation guards apply. A
+  // seller who had been playing since their last autosave lost every level,
+  // every catch and every dex entry earned since, silently, and then it
+  // happened again on their next sale. One player reported it four times and
+  // was ready to quit over it; the money moving correctly is exactly why it
+  // looked like "everything except my Pokémon survived".
+  //
+  // The asymmetry that fixes it: a bid must be DEDUCTED, and a deduction
+  // cannot be expressed as a grant — so the winner needs bytes. Proceeds are
+  // only ever ADDED, and the lot itself left the seller's save back at listing
+  // time, so there is nothing to remove and nothing to reconcile. That makes
+  // the seller's whole side expressible as one PendingGrant, which is the
+  // inbox that exists precisely so a payout survives without rewriting
+  // anybody's save. No write, no adopt, nothing discarded.
+  //
+  // It enlists in THIS transaction, so the payout and the auction's flip to
+  // "sold" commit or roll back together — the auction can never be marked sold
+  // without the seller being owed, and the seller can never be owed twice
+  // because a committed flip means this never runs again.
   try {
     await prisma.$transaction(async (tx) => {
-      const sellerClaim = await tx.user.updateMany({
-        where: { id: auction.sellerId, saveVersion: seller.saveVersion },
-        data: {
-          saveData: JSON.stringify(sellerMerged),
-          saveVersion: { increment: 1 },
-          saveAdoptSeq: { increment: 1 },
-          saveUpdatedAt: new Date(),
-          accountLevel: sellerDerived.accountLevel,
-          totalCaughtLevels: sellerDerived.totalCaughtLevels,
-          pokedexCaughtCount: sellerDerived.pokedexCaughtCount,
-        },
-      });
-      if (sellerClaim.count === 0) throw new SettlementConflict("seller");
+      await enqueuePrizeGrant(
+        auction.sellerId,
+        sellerPrizes,
+        { source: "auction-sale", sourceId: auction.id },
+        tx,
+      );
 
       const winnerClaim = await tx.user.updateMany({
         where: { id: auction.currentBidderId!, saveVersion: winner.saveVersion },
@@ -371,16 +388,22 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
   // socket-less, or simply misses the event would otherwise never learn. The
   // adopt is the guarantee, and it also covers the offline case via the boot
   // saveAdoptSeq check with no socket involved at all.
-  emitSaveAdopt(auction.sellerId);
+  // ONLY the winner adopts. The seller has no server-written bytes to adopt —
+  // telling them to would throw away exactly the play this change exists to
+  // protect. Their proceeds arrive through the grant fold on their next save
+  // round-trip, which `enqueuePrizeGrant` has already nudged via "gift:pending".
   emitSaveAdopt(auction.currentBidderId);
 
+  // No newSaveVersion / newMoney: the seller's save was not written, so there
+  // is no new version, and their money is whatever their own client says plus
+  // a grant that has not folded yet. Quoting a total here would be the server
+  // overwriting live state again on a smaller scale. This event is now purely
+  // the notification.
   sendToUserGlobal(auction.sellerId, "auction:sold", {
     auctionId: auction.id,
     pokemon: mon,
     amount: auction.currentBid,
     buyerUsername: winner.username,
-    newSaveVersion: seller.saveVersion + 1,
-    newMoney: sellerMerged.money,
   });
   sendToUserGlobal(auction.currentBidderId, "auction:won", {
     auctionId: auction.id,
