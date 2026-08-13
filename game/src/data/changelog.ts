@@ -5,7 +5,7 @@ import type { ChangelogEntry } from "../types";
 // players should know about. The What's New modal keys off it.
 //
 // Keep this in sync with package.json's version field.
-export const CURRENT_VERSION = "1.0.0";
+export const CURRENT_VERSION = "1.0.1";
 export const LAST_SEEN_VERSION_KEY = "pokemon-idle-last-seen-version";
 
 // Compare two dotted versions. Returns >0 if a is newer than b.
@@ -31,6 +31,23 @@ export function changesSince(since: string | null): ChangelogEntry[] {
 }
 
 export const changelog: ChangelogEntry[] = [
+    {
+      version: "1.0.1",
+      subtitle: "Selling stopped costing you your progress",
+      date: "2026-08-13",
+      sections: [
+        {
+          heading: "🩹 If your Pokémon and levels kept resetting, this was why",
+          items: [
+            "Selling something on the auction house could wipe out everything you had played since the game last saved. Your levels, your catches, your Pokédex entries — gone, back to where you were the last time you synced",
+            "It looked bizarre from the inside, because your money, badges and auctions were all still correct. That was the tell: the money was the only part the sale actually wrote, so it was the only part that survived",
+            "It fired on a timer, which is why it hit mid-session and why it kept happening to the same people. If you sell a lot, you got hit a lot",
+            "Sales now pay you the way every other reward in the game does — the money is owed to you and lands on your next save, and nothing of yours is overwritten to deliver it. Buyers are unaffected; that side was never the problem",
+            "If you lost progress to this, message us. We are making it right, and we are sorry — it took far too long to find",
+          ],
+        },
+      ],
+    },
     {
       version: "1.0.0",
       subtitle: "Hoenn",
