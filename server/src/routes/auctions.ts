@@ -6,6 +6,8 @@ import { makeRateLimiter } from "../lib/rateLimit.js";
 import { getIo, sendToUserGlobal } from "../socket.js";
 import { computeAccountLevel } from "../lib/level.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
+import { enqueuePrizeGrant } from "../lib/prizeGrant.js";
+import type { Prize } from "../lib/giveaway.js";
 import {
   MAX_BID,
   MIN_STARTING_BID,
@@ -992,52 +994,50 @@ app.post("/:id/cancel", requireUser, blockStream, async (c) => {
       });
       if (cancelClaim.count === 0) throw new Error("auction_gone");
 
-      // ITEM LOT: put the escrowed machine back. Idempotent on the same
-      // reasoning as the mon path below — if the seller somehow already holds
-      // it, adding another would mint one, and a machine is capped at one.
-      if (save && auction.lotKind === "item" && auction.itemId) {
-        const inv = (save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
-          ? { ...(save.inventory as Record<string, number>) }
+      // Pulling a listing gives the lot back, and a return is pure ADDITION —
+      // it left the save at listing time, so there is nothing to remove. That
+      // makes it a PendingGrant rather than a save write, for the same reason
+      // as the expiry path in lib/auctionSettlement.ts: rewriting the save here
+      // meant rebuilding it from the seller's LAST-UPLOADED bytes and bumping
+      // saveAdoptSeq, and the client adopts that wholesale with no comparison.
+      // Everything played since the last sync was discarded.
+      //
+      // This one was worse than it looks. Listing and bidding both call
+      // `syncNow` on the client first, so there is little unsynced play to
+      // lose. Cancelling never did — same file, same component, one calls it
+      // and the other does not — and cancelling is the one that WRITES. So the
+      // flush was on the path that only reads and missing from the path that
+      // rewrites. "Pull this listing? You get it straight back" gave the mon
+      // back and took the session.
+      //
+      // Once-only is `cancelClaim` above: it is conditional on status
+      // "active" and throws when the claim misses, so this runs at most once
+      // per auction. The grant is enlisted in THIS transaction, so the lot can
+      // never be owed without the listing actually being cancelled.
+      const prizes: Prize[] = [];
+      if (auction.lotKind === "item" && auction.itemId) {
+        const inv = (save?.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+          ? (save.inventory as Record<string, number>)
           : {};
+        // Still load-bearing: the fold's item branch has no machine cap, so
+        // without this a seller who re-acquired the machine mid-listing would
+        // end up with two of something capped at one.
         if (!(Number(inv[auction.itemId] ?? 0) > 0)) {
-          inv[auction.itemId] = auction.itemQty ?? 1;
-          const restoredSave = { ...save, inventory: inv };
-          const derived = computeAccountLevel(restoredSave);
-          const saveClaim = await tx.user.updateMany({
-            where: { id: user.id, saveVersion: me!.saveVersion },
-            data: {
-              saveData: JSON.stringify(restoredSave),
-              saveVersion: { increment: 1 },
-              saveAdoptSeq: { increment: 1 },
-              saveUpdatedAt: new Date(),
-              accountLevel: derived.accountLevel,
-              totalCaughtLevels: derived.totalCaughtLevels,
-              pokedexCaughtCount: derived.pokedexCaughtCount,
-            },
-          });
-          if (saveClaim.count === 0) throw new Error("save_conflict");
+          prizes.push({ kind: "item", itemId: auction.itemId, quantity: auction.itemQty ?? 1 });
         }
-      } else if (save && mon && typeof mon.id === "string") {
-        const box = Array.isArray(save.box) ? (save.box as Record<string, unknown>[]) : [];
-        const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
+      } else if (mon && typeof mon.id === "string") {
+        const box = Array.isArray(save?.box) ? (save!.box as Record<string, unknown>[]) : [];
+        const party = Array.isArray(save?.party) ? (save!.party as Record<string, unknown>[]) : [];
         const alreadyHas = box.some((m) => m && m.id === mon!.id) || party.some((m) => m && m.id === mon!.id);
         if (!alreadyHas) {
-          const restoredSave = { ...save, box: [...box, mon] };
-          const derived = computeAccountLevel(restoredSave);
-          const saveClaim = await tx.user.updateMany({
-            where: { id: user.id, saveVersion: me!.saveVersion },
-            data: {
-              saveData: JSON.stringify(restoredSave),
-              saveVersion: { increment: 1 },
-              saveAdoptSeq: { increment: 1 },
-              saveUpdatedAt: new Date(),
-              accountLevel: derived.accountLevel,
-              totalCaughtLevels: derived.totalCaughtLevels,
-              pokedexCaughtCount: derived.pokedexCaughtCount,
-            },
-          });
-          if (saveClaim.count === 0) throw new Error("save_conflict");
+          const label = typeof mon.nickname === "string" && mon.nickname
+            ? mon.nickname
+            : (typeof mon.name === "string" && mon.name ? mon.name : "Pokémon");
+          prizes.push({ kind: "pokemon", label, mon });
         }
+      }
+      if (prizes.length) {
+        await enqueuePrizeGrant(user.id, prizes, { source: "auction-return", sourceId: id }, tx);
       }
     });
   } catch (e) {
@@ -1046,7 +1046,10 @@ app.post("/:id/cancel", requireUser, blockStream, async (c) => {
     if (m === "save_conflict") return c.json({ error: "your save just changed — reload and try again" }, 409);
     throw e;
   }
-  emitSaveAdopt(user.id);
+  // NO emitSaveAdopt. Nothing was written to this player's save, so there is
+  // nothing to adopt — and telling them to adopt would throw away exactly the
+  // play this change exists to protect. `enqueuePrizeGrant` has already nudged
+  // them to sync, which is how the lot comes back.
   return c.json({ ok: true });
 });
 

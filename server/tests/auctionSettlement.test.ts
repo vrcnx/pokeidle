@@ -132,6 +132,14 @@ beforeEach(() => {
   h.sent.length = 0;
 });
 
+/** Every prize owed to a user, flattened out of their PendingGrant rows. */
+const owed = (w: { grants: { userId: string; prizes: string }[] }, userId: string) =>
+  w.grants.filter((g) => g.userId === userId).flatMap((g) => JSON.parse(g.prizes));
+
+/** Did the settlement touch this user's stored bytes at all? */
+const saveUntouched = (w: { updates: { model: string; where: any }[] }, userId: string) =>
+  w.updates.filter((u) => u.model === "user" && u.where.id === userId).length === 0;
+
 describe("auction settlement", () => {
   it("pays the seller by grant and NEVER rewrites their save", async () => {
     // This is the regression test for the reported save loss. A settlement
@@ -230,7 +238,13 @@ describe("auction settlement", () => {
     expect(w.auction.status).toBe("cancelled");
     const sellerSave = JSON.parse(w.users.seller.saveData);
     expect(sellerSave.money).toBe(50); // no proceeds
-    expect(sellerSave.box.some((m: any) => m.id === "escrow1")).toBe(true); // escrow returned
+    // The mon comes back as a GRANT, not a save rewrite. Returning a lot is
+    // pure addition — it left the save at listing time — so there is nothing
+    // to reconcile and no reason to make the seller adopt server bytes.
+    expect(owed(w, "seller")).toContainEqual(
+      expect.objectContaining({ kind: "pokemon", mon: expect.objectContaining({ id: "escrow1" }) }),
+    );
+    expect(saveUntouched(w, "seller")).toBe(true);
     expect(JSON.parse(w.users.buyer.saveData).money).toBe(10); // untouched
   });
 });
@@ -277,7 +291,8 @@ describe("settling an ITEM lot", () => {
     await settleDueAuctions();
 
     expect(w.auction.status).toBe("cancelled");
-    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1);
+    expect(owed(w, "seller")).toContainEqual({ kind: "item", itemId: "tm26", quantity: 1 });
+    expect(saveUntouched(w, "seller")).toBe(true);
     expect(JSON.parse(w.users.buyer.saveData).money).toBe(10);
   });
 
@@ -296,7 +311,7 @@ describe("settling an ITEM lot", () => {
     expect(w.auction.status).toBe("cancelled");
     expect(JSON.parse(w.users.buyer.saveData).money).toBe(1_000); // paid nothing
     expect(JSON.parse(w.users.buyer.saveData).inventory.tm26).toBe(1); // still one
-    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1); // returned
+    expect(owed(w, "seller")).toContainEqual({ kind: "item", itemId: "tm26", quantity: 1 });
   });
 
   it("returns the machine when the listing expires with no bids", async () => {
@@ -307,6 +322,11 @@ describe("settling an ITEM lot", () => {
     await settleDueAuctions();
 
     expect(w.auction.status).toBe("expired");
-    expect(JSON.parse(w.users.seller.saveData).inventory.tm26).toBe(1);
+    // THE case that made this bug look random. An expiry fires on a timer,
+    // 48h after listing, with no client involvement — the seller could be
+    // mid-raid. Rewriting their save here rolled them back to their last
+    // autosave for reasons nothing they had just done could explain.
+    expect(owed(w, "seller")).toContainEqual({ kind: "item", itemId: "tm26", quantity: 1 });
+    expect(saveUntouched(w, "seller")).toBe(true);
   });
 });

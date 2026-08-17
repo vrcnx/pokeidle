@@ -600,6 +600,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const permanentlyRejectedRef = useRef<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  // Ref twin of lastSavedAt. The socket effect mounts with [] deps, so it
+  // closes over the FIRST render's state forever — reading `lastSavedAt`
+  // there would report null on every socket-driven adopt, which is exactly
+  // the case the adopt-loss telemetry below needs it for.
+  const lastSavedAtRef = useRef<number | null>(null);
   const { refresh: refreshProfile, me } = useAuth();
   // The signed-in account. GameProvider only mounts when authenticated, so
   // this is set for every save this provider will ever write.
@@ -711,6 +716,52 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // (`save:reset`, and the cloud-version-went-backwards check at boot).
     if (!fd || !(fd as any).playerPokemon) return false;
     const nextState = stateFromCloud(fd);
+
+    // ── WHAT THIS ADOPT IS ABOUT TO THROW AWAY ────────────────────────────
+    // An adopt is a WHOLESALE replacement: LOAD_SAVE, no comparison, by
+    // design — the server made an authoritative change this client cannot
+    // know about, so its bytes win. The cost is that anything played since
+    // the last upload goes with it, and that cost was completely unmeasured.
+    // Every report of it arrived as "my Pokémon reset" days later, with no
+    // way to tell which of the ten bump sites had done it.
+    //
+    // So measure it at the only place that can see both copies. This is
+    // reported, not prevented: refusing the adopt would leave the client
+    // holding money the server already spent, which is the dupe this whole
+    // mechanism exists to stop. A zero-delta adopt is the normal case and
+    // stays silent, so anything that shows up here is real loss.
+    try {
+      const local = stateRef.current;
+      const levelsOf = (s: any) =>
+        [...(s?.party ?? []), ...(s?.box ?? [])]
+          .reduce((n: number, m: any) => n + (Number(m?.level) || 0), 0);
+      const lost = {
+        dex: (local?.pokedexCaught?.length ?? 0) - (nextState?.pokedexCaught?.length ?? 0),
+        shinies: (local?.shinyCaught?.length ?? 0) - (nextState?.shinyCaught?.length ?? 0),
+        levels: levelsOf(local) - levelsOf(nextState),
+        mons: ((local?.party?.length ?? 0) + (local?.box?.length ?? 0))
+          - ((nextState?.party?.length ?? 0) + (nextState?.box?.length ?? 0)),
+      };
+      if (lost.dex > 0 || lost.shinies > 0 || lost.levels > 0 || lost.mons > 0) {
+        reportClientError({
+          source: "save-adopt-loss",
+          // Fixed string: this is the (kind, message) group key server-side,
+          // so putting the numbers in it would fragment one problem into a
+          // separate dashboard row per player. They go in meta.
+          message: "adopt discarded local progress",
+          meta: {
+            ...lost,
+            // The two fields that identify WHICH writer did it: how long this
+            // client had been playing unsynced, and the seq it jumped to.
+            secondsSinceUpload: lastSavedAtRef.current
+              ? Math.round((Date.now() - lastSavedAtRef.current) / 1000)
+              : null,
+            seq,
+          },
+        });
+      }
+    } catch { /* never let telemetry break an adopt */ }
+
     const snapshot = pickPersistent(nextState);
     dispatch({ type: "LOAD_SAVE", payload: { state: nextState } });
     // Mark it already-uploaded so the autosave diff does not immediately push
@@ -1241,6 +1292,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       commitUploadResult(res, pending.baseVersion);
       setSaveStatus("saved");
       setLastSavedAt(Date.now());
+      lastSavedAtRef.current = Date.now();
       void refreshProfile();
     } catch (err: any) {
       lastUploadedRef.current = "";

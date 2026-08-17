@@ -89,19 +89,31 @@ class FakeDb {
     return true;
   }
 
+  /** PendingGrant rows. A cancelled listing comes back through here now. */
+  grants: { userId: string; prizes: string; source: string; sourceId: string | null }[] = [];
+
   client: any = {
     $transaction: async (fn: any) => {
       const snap = {
         auctions: this.auctions.map((a) => ({ ...a })),
         bids: this.bids.map((b) => ({ ...b })),
         proxies: this.proxies.map((p) => ({ ...p })),
+        grants: this.grants.length,
       };
       try {
         return await fn(this.client);
       } catch (e) {
         this.auctions = snap.auctions; this.bids = snap.bids; this.proxies = snap.proxies;
+        // A rolled-back cancel must not leave the lot owed.
+        this.grants.length = snap.grants;
         throw e;
       }
+    },
+    pendingGrant: {
+      create: async ({ data }: any) => {
+        this.grants.push({ ...data });
+        return { id: `g${this.grants.length}` };
+      },
     },
     user: {
       findUnique: async ({ where, select }: any) => {
@@ -879,7 +891,15 @@ describe("item lots — selling a machine", () => {
     expect(invOf("seller").tm26).toBeUndefined();
     const cancelled = await call("POST", `/${listed.body.auction.id}/cancel`);
     expect(cancelled.status).toBe(200);
-    expect(invOf("seller").tm26).toBe(1);
+    // Back as a GRANT, not a save rewrite. Cancelling used to rebuild the
+    // seller's save from their last-uploaded bytes and bump saveAdoptSeq,
+    // which makes the client adopt server bytes wholesale — so pulling a
+    // listing cost you everything you had played since your last sync.
+    expect(db.grants.flatMap((g) => JSON.parse(g.prizes)))
+      .toContainEqual({ kind: "item", itemId: "tm26", quantity: 1 });
+    expect(db.grants[0].source).toBe("auction-return");
+    // And the save itself is untouched, which is the whole point.
+    expect(invOf("seller").tm26).toBeUndefined();
   });
 
   it("refuses a bid from someone who already owns that machine", async () => {

@@ -24,90 +24,110 @@ import { emitSaveAdopt } from "./saveAdopt.js";
 import { enqueuePrizeGrant } from "./prizeGrant.js";
 import type { Prize } from "./giveaway.js";
 
-// Return an ESCROWED Pokémon to the seller's box — used when an auction ends
-// without a sale (cancelled, expired with no bids, or a failed settlement).
-// The mon was removed from the seller's save at listing time, so it lives only
-// in the auction's pokemonSnapshot until then. Bumps saveAdoptSeq + emits
-// save:adopt so the seller's client picks it back up authoritatively (online
-// and offline). Retries against the seller's live version a few times so a
-// concurrent autosave doesn't silently drop the restore.
+// An escrowed lot, returned to the seller when an auction ends without a sale
+// (cancelled, expired with no bids, or a failed settlement). The lot left the
+// seller's save at listing time, so it lives only on the auction row until one
+// of those happens.
 type EscrowedLot =
   | { kind: "pokemon"; snapshot: string | null }
   | { kind: "item"; itemId: string | null; qty: number | null };
 
-/**
- * Give an ITEM lot back. Same contract as the Pokemon restore below: retried
- * against the seller's live version, and idempotent — if they already hold
- * the machine (a previous attempt landed, or they found another) this does
- * nothing rather than minting a second copy of something capped at one.
- */
-async function restoreEscrowedItem(sellerId: string, itemId: string, qty: number): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true, saveVersion: true } });
-    const save = safeParseSave(u?.saveData ?? null);
-    if (!save) return;
-    const inv = (save.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
-      ? { ...(save.inventory as Record<string, number>) }
-      : {};
-    if (Number(inv[itemId] ?? 0) > 0) return; // already restored
-    inv[itemId] = qty;
-    const restored = { ...save, inventory: inv };
-    const derived = computeAccountLevel(restored);
-    const claim = await prisma.user.updateMany({
-      where: { id: sellerId, saveVersion: u!.saveVersion },
-      data: {
-        saveData: JSON.stringify(restored),
-        saveVersion: { increment: 1 },
-        saveAdoptSeq: { increment: 1 },
-        saveUpdatedAt: new Date(),
-        accountLevel: derived.accountLevel,
-        totalCaughtLevels: derived.totalCaughtLevels,
-        pokedexCaughtCount: derived.pokedexCaughtCount,
-      },
+// ── WHY A RETURN IS A GRANT AND NOT A SAVE WRITE ──────────────────────
+//
+// Both restores used to rebuild the seller's save from their LAST-UPLOADED
+// bytes and bump saveAdoptSeq, which makes the client adopt the server copy
+// wholesale — `adoptIfServerRewrote` dispatches LOAD_SAVE with no comparison
+// of any kind. Everything the player had done since their last sync was
+// discarded.
+//
+// This was the worst of the adopt sites, because of WHEN it fires. Listing
+// and bidding are things a player does, and the client flushes first
+// (`syncNow`) so there is little unsynced play to lose. An EXPIRY fires on a
+// timer, 48 hours after a listing, with no client involvement at all. A
+// player who listed something on Monday and was mid-raid on Wednesday when it
+// expired got rolled back to their last autosave for reasons they could not
+// possibly connect to anything they had just done. That is the intermittent,
+// "I wasn't even doing anything" progression loss.
+//
+// A return is pure ADDITION — the lot left the save at listing time, so there
+// is nothing to remove and nothing to reconcile. That makes it expressible as
+// a PendingGrant, the inbox built precisely so a payout survives without
+// rewriting anyone's save. No write, no adopt, nothing discarded.
+//
+// ONCE-ONLY comes from the caller, and already did: every path here flips the
+// auction out of "active" with a conditional updateMany and returns when the
+// claim misses, so a restore runs exactly once per auction. The save-scanning
+// "already restored" checks below were guarding the RETRY LOOP within a single
+// call, not re-entry, which is why dropping the loop does not drop a guarantee.
+//
+// The pre-checks are kept anyway, for one case each:
+//   * pokemon — belt and braces. foldPrizesIntoSave already refuses to append
+//     a mon whose id the save holds, so a double fold cannot duplicate it.
+//   * item — LOAD-BEARING. The fold's item branch is `before + quantity` with
+//     no machine cap, so without this a seller who re-acquired the machine
+//     during the listing would end up with two of something capped at one.
+//     The window this leaves is the gap between the check and the fold, and
+//     enqueuePrizeGrant nudges an immediate sync while a player cannot acquire
+//     a TM offline — so in practice it is about a second, no worse than the
+//     read-then-write window this replaced.
+
+async function restoreEscrowedItem(sellerId: string, itemId: string, qty: number, auctionId: string): Promise<void> {
+  const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
+  const save = safeParseSave(u?.saveData ?? null);
+  const inv = (save?.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
+    ? (save.inventory as Record<string, number>)
+    : {};
+  if (Number(inv[itemId] ?? 0) > 0) return; // they already hold it — see above
+  try {
+    await enqueuePrizeGrant(
+      sellerId,
+      [{ kind: "item", itemId, quantity: qty }],
+      { source: "auction-return", sourceId: auctionId },
+    );
+  } catch (e) {
+    void recordError({
+      kind: "server", message: "auction_restore_escrow_item_failed",
+      source: "auctionSettlement.restoreEscrowedItem",
+      meta: { sellerId, itemId, auctionId, error: String((e as Error)?.message ?? e) },
     });
-    if (claim.count > 0) { emitSaveAdopt(sellerId); return; }
   }
-  void recordError({ kind: "server", message: "auction_restore_escrow_item_failed", source: "auctionSettlement.restoreEscrowedItem", meta: { sellerId, itemId } });
 }
 
-/** Whichever kind of lot this was, put it back where it came from. */
-async function restoreEscrow(sellerId: string, lot: EscrowedLot): Promise<void> {
-  if (lot.kind === "item") {
-    if (!lot.itemId) return;
-    return restoreEscrowedItem(sellerId, lot.itemId, lot.qty ?? 1);
-  }
-  if (!lot.snapshot) return;
-  return restoreEscrowedMon(sellerId, lot.snapshot);
-}
-
-async function restoreEscrowedMon(sellerId: string, snapshotJson: string): Promise<void> {
+async function restoreEscrowedMon(sellerId: string, snapshotJson: string, auctionId: string): Promise<void> {
   let mon: Record<string, unknown> | null = null;
   try { mon = JSON.parse(snapshotJson); } catch { return; }
   if (!mon || typeof mon.id !== "string") return;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true, saveVersion: true } });
-    const save = safeParseSave(u?.saveData ?? null);
-    if (!save) return;
-    const box = Array.isArray(save.box) ? (save.box as Record<string, unknown>[]) : [];
-    const party = Array.isArray(save.party) ? (save.party as Record<string, unknown>[]) : [];
-    if (box.some((m) => m && m.id === mon!.id) || party.some((m) => m && m.id === mon!.id)) return; // already restored
-    const restored = { ...save, box: [...box, mon] };
-    const derived = computeAccountLevel(restored);
-    const claim = await prisma.user.updateMany({
-      where: { id: sellerId, saveVersion: u!.saveVersion },
-      data: {
-        saveData: JSON.stringify(restored),
-        saveVersion: { increment: 1 },
-        saveAdoptSeq: { increment: 1 },
-        saveUpdatedAt: new Date(),
-        accountLevel: derived.accountLevel,
-        totalCaughtLevels: derived.totalCaughtLevels,
-        pokedexCaughtCount: derived.pokedexCaughtCount,
-      },
+  const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
+  const save = safeParseSave(u?.saveData ?? null);
+  const box = Array.isArray(save?.box) ? (save!.box as Record<string, unknown>[]) : [];
+  const party = Array.isArray(save?.party) ? (save!.party as Record<string, unknown>[]) : [];
+  if (box.some((m) => m && m.id === mon!.id) || party.some((m) => m && m.id === mon!.id)) return;
+  const label = typeof mon.nickname === "string" && mon.nickname
+    ? mon.nickname
+    : (typeof mon.name === "string" && mon.name ? mon.name : "Pokémon");
+  try {
+    await enqueuePrizeGrant(
+      sellerId,
+      [{ kind: "pokemon", label, mon }],
+      { source: "auction-return", sourceId: auctionId },
+    );
+  } catch (e) {
+    void recordError({
+      kind: "server", message: "auction_restore_escrow_failed",
+      source: "auctionSettlement.restoreEscrowedMon",
+      meta: { sellerId, auctionId, error: String((e as Error)?.message ?? e) },
     });
-    if (claim.count > 0) { emitSaveAdopt(sellerId); return; }
   }
-  void recordError({ kind: "server", message: "auction_restore_escrow_failed", source: "auctionSettlement.restoreEscrowedMon", meta: { sellerId } });
+}
+
+/** Whichever kind of lot this was, put it back where it came from. */
+async function restoreEscrow(sellerId: string, lot: EscrowedLot, auctionId: string): Promise<void> {
+  if (lot.kind === "item") {
+    if (!lot.itemId) return;
+    return restoreEscrowedItem(sellerId, lot.itemId, lot.qty ?? 1, auctionId);
+  }
+  if (!lot.snapshot) return;
+  return restoreEscrowedMon(sellerId, lot.snapshot, auctionId);
 }
 
 const SETTLEMENT_INTERVAL_MS = 15_000;
@@ -165,7 +185,7 @@ async function cancelAuction(auctionId: string, reason: string): Promise<void> {
   if (claim.count === 0 || !row) return;
   // The lot was escrowed out of the seller's save — give it back, whichever
   // kind it was.
-  await restoreEscrow(row.sellerId, lotOf(row));
+  await restoreEscrow(row.sellerId, lotOf(row), auctionId);
   sendToUserGlobal(row.sellerId, "auction:cancelled", { auctionId, reason });
   if (row.currentBidderId) sendToUserGlobal(row.currentBidderId, "auction:cancelled", { auctionId, reason });
 }
@@ -182,7 +202,7 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
       data: { status: "expired", settledAt: new Date() },
     });
     if (claim.count > 0) {
-      await restoreEscrow(auction.sellerId, lotOf(auction));
+      await restoreEscrow(auction.sellerId, lotOf(auction), auction.id);
       sendToUserGlobal(auction.sellerId, "auction:expired", { auctionId: auction.id });
     }
     return "settled";
