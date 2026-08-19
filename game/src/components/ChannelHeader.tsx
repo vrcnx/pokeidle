@@ -153,7 +153,7 @@ export function SaveStatusDot({ status }: { status: SaveStatus }) {
   const t = useT();
   if (status === "rejected") {
     return (
-      <span className="channel-header-save save-status-error" role="alert" title={t("This game's servers rejected your save. Your progress is safe on this device, but it is not being backed up. Please report this.")}>
+      <span className="channel-header-save save-status-error" role="alert" title={t("This game's servers rejected your save, so nothing you do now is being backed up. It is still on this device, but anything that syncs — listing an auction, a prize arriving — can replace it with the last copy the server accepted. Report this before you keep playing.")}>
         <span className="channel-header-save-dot" aria-hidden />
         <span>{t("Not backing up")}</span>
       </span>

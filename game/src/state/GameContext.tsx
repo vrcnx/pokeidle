@@ -509,6 +509,12 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
   "battleMode",
 ];
 
+// How long to wait before re-offering a save the rate-of-gain guard refused.
+// The guard's allowance grows at MONEY_RATE_PER_HOUR, so every minute spent
+// here buys back real headroom; ten of them is enough to clear an ordinary
+// burst without hammering a server that has just said no.
+const GAIN_RETRY_BACKOFF_MS = 10 * 60 * 1000;
+
 export function GameProvider({ children }: { children: ReactNode }) {
   // Initial state still seeds from localStorage so the player sees their
   // game instantly. Cloud sync hydrates over it once the network call
@@ -598,6 +604,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // producing is one the server will never accept, so retrying it forever
   // just burns the rate limit and lies to the player with "Offline".
   const permanentlyRejectedRef = useRef<string | null>(null);
+  // ── THE RATE GUARD IS A DELAY, NOT A VERDICT ──────────────────────────
+  // The server's rate-of-gain guard refuses with 400, and 400 used to mean
+  // "this server will never accept this save" — the client stopped uploading
+  // for the entire session. But that guard's allowance is
+  //     MONEY_BURST + MONEY_RATE_PER_HOUR x hoursSinceLastAcceptedSave
+  // which GROWS with time. A refusal is inherently temporary: wait, and the
+  // same bytes become acceptable. Turning the first one into a permanent stop
+  // is what guaranteed it could never heal.
+  //
+  // What that cost, from one report: "my account level is frozen no matter
+  // how much pokemons i level up or catch" AND "it reseted my progress after
+  // i posted pokemon in auction". Both, from this one ref. Uploads stop, so
+  // the server-derived accountLevel never moves again; then any of the
+  // remaining saveAdoptSeq bump sites makes the client adopt the last
+  // ACCEPTED save wholesale, and every hour played since the lockout is gone.
+  // The server comment reasoned "the player loses nothing but the cloud copy",
+  // which is true only in a world with no adopts.
+  //
+  // So this one is a timestamp, not a latch.
+  const gainBackoffUntilRef = useRef<number>(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   // Ref twin of lastSavedAt. The socket effect mounts with [] deps, so it
@@ -1261,6 +1287,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const pending = pendingRef.current;
     if (!pending) return;
     if (permanentlyRejectedRef.current) return;
+    // Backing off after a rate-guard refusal. Deliberately does NOT clear
+    // `pendingRef` — these bytes stay queued and go up on the first tick past
+    // the window, by which point the elapsed-time allowance has grown.
+    if (Date.now() < gainBackoffUntilRef.current) return;
     // Never synced this session, so we have no idea what the cloud holds.
     // Uploading anyway would mean sending no `expectedSaveVersion`, and the
     // server's compare-and-swap then degrades to `where: { id }` — an
@@ -1407,10 +1437,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Permanent vs transient. A 400/413/403 is a contract violation: the
-      // save we are building is one this server will never accept, so
-      // retrying is pure noise and "Offline" is an outright lie that sends
-      // the player to check a router that is working fine.
+      // RATE-GUARD REFUSAL — a 400, but not a contract violation. See
+      // gainBackoffUntilRef above: the server's allowance scales with time
+      // since the last accepted save, so this exact blob becomes acceptable
+      // on its own. Retry on a backoff rather than latching off for good.
+      //
+      // Checked BEFORE the permanent branch because it is a strict subset of
+      // it — status 400 — and the wrong one wins if the order is reversed.
+      if (status === 400 && err?.details?.error === "gain_implausible") {
+        gainBackoffUntilRef.current = Date.now() + GAIN_RETRY_BACKOFF_MS;
+        // "conflict", not "rejected": the player IS still backed up, just not
+        // this second. "rejected" says "not backing up" and latches an alarm
+        // for a condition that clears itself in a few minutes.
+        setSaveStatus("conflict");
+        reportClientError({
+          source: "save-gain-refused",
+          message: "putSave 400 — rate guard refused, backing off",
+          meta: {
+            reason: err?.details?.reason ?? null,
+            violationCount: err?.details?.violationCount ?? null,
+            backoffMs: GAIN_RETRY_BACKOFF_MS,
+          },
+        });
+        return;
+      }
+
+      // Permanent vs transient. A 413/403, or a 400 that is a genuine
+      // contract violation (a save shape this server will never accept),
+      // means retrying is pure noise and "Offline" is an outright lie that
+      // sends the player to check a router that is working fine.
       if (status === 400 || status === 413 || status === 403) {
         permanentlyRejectedRef.current = err?.message ?? `HTTP ${status}`;
         setSaveStatus("rejected");
