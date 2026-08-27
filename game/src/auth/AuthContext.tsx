@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { api, ApiError, type MeProfile } from "../net/api";
 import { setStreamMode } from "../state/streamMode";
 import { sendFirstTouch } from "../net/attribution";
+import { signOutStarted } from "../state/signOutLatch";
 
 interface AuthState {
   status: "loading" | "anonymous" | "authenticated";
@@ -58,6 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // session at the next request anyway, so a stale cookie can't keep
   // a real session alive past someone else's sign-in.
   const signOut = async () => {
+    // Latch FIRST, before anything can be written. GameProvider is not
+    // unmounted by this function (it ends in location.replace, not a state
+    // change), so its pagehide/visibilitychange flush is still live and fires
+    // during the navigation — after the wipe below — recreating the very blob
+    // we are about to delete, complete with this account's owner stamp and
+    // sync bookkeeping. That is why signing out never actually cleared a
+    // shared machine.
+    signOutStarted();
     // Two passes: Better Auth's primary sign-out, then our sledgehammer
     // that nukes every session row this user owns and clears the cookie
     // explicitly on the response. Either path on its own has cross-

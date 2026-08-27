@@ -32,6 +32,9 @@ const _listeners = new Set<(p: AwayProgress | null) => void>();
  *  — but the boot reconcile retries with backoff on network failure, and
  *  re-requesting on every retry is pointless traffic. */
 let _settled = false;
+// Guards against two concurrent boots racing the claim. Separate from
+// _settled because a failed attempt must clear this but NOT latch that.
+let _inFlight = false;
 
 function emit() { for (const fn of _listeners) fn(_report); }
 
@@ -72,9 +75,23 @@ export function clearAwayReport() {
  */
 export async function settleAwayProgress(): Promise<void> {
   if (_settled) return;
-  _settled = true;
+  // NOT latched here. This used to set _settled BEFORE the request, so a
+  // single transient failure — an offline boot, a 502 mid-deploy, a dropped
+  // mobile connection — permanently disabled the claim for the whole session.
+  // The comment below promises "the next boot tries again", and that promise
+  // is broken by the anchor: a successful putSave later in this same session
+  // moves it forward, so the absence is CONSUMED without ever being paid and
+  // the next boot measures a ~0 gap. A whole night's away progress, gone to
+  // one failed request.
+  //
+  // Latching on success only means a failure leaves the claim genuinely
+  // retryable, which is what the transaction on the server side already
+  // assumes.
+  if (_inFlight) return;
+  _inFlight = true;
   try {
     const res = await api.claimAway();
+    _settled = true;
     // `claimed: false` is the ordinary answer — the player was gone two
     // minutes, or another tab collected first. Nothing to report.
     if (res.claimed && res.money > 0) {
@@ -85,11 +102,15 @@ export async function settleAwayProgress(): Promise<void> {
       contributeAway(null);
     }
   } catch {
-    /* Offline, signed out, or a server that predates this route. The stipend
-       is not progress the player can lose: nothing was consumed, so the next
-       boot measures the same away period and pays it then. */
+    /* Offline, signed out, or a server that predates this route. Nothing was
+       consumed server-side, and _settled was NOT latched, so this stays
+       genuinely retryable rather than being silently forfeited. */
     // Reported either way: the welcome dialog WAITS on this source, and a
     // silent failure would hold it open until the timeout for no reason.
     contributeAway(null);
+  } finally {
+    // Always released. _settled is what makes a SUCCESS final; this only
+    // stops two concurrent boots issuing the claim at once.
+    _inFlight = false;
   }
 }

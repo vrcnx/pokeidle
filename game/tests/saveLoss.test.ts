@@ -116,3 +116,55 @@ describe("nothing that used to work stopped working", () => {
     expect(cloudHasMoreProgress(bare, bare)).toBe(false);
   });
 });
+
+describe("a fork routes to the merge instead of picking a side", () => {
+  // The equality gate that used to sit on both tie-breaks was the exact
+  // negation of localHasMoreMilestones, so the moment local led on ANY
+  // milestone the tie-breaks became unreachable and cloudHasMoreProgress
+  // could only return false. Boot then took the wholesale "local extends
+  // cloud" branch and uploaded straight over the cloud.
+  //
+  // This is the reported shape: a laptop that caught ONE species while its
+  // uploads were failing, against a phone that played all evening.
+
+  it("lets a cloud holding an evening of levels win despite local leading by one dex entry", () => {
+    const local = copy({
+      pokedexCaught: ["bulbasaur", "charmander", "squirtle", "caterpie"], // +1
+      party: [mon(50)], box: [mon(50)],
+    });
+    const cloud = copy({
+      pokedexCaught: ["bulbasaur", "charmander", "squirtle"],
+      party: [mon(90)], box: [mon(88)], // ~78 levels of grinding
+    });
+    expect(cloudHasMoreProgress(cloud, local)).toBe(true);
+  });
+
+  it("still lets local veto, so the caller MERGES rather than overwrites", () => {
+    // Both are true at once, and that is the point: cloudShouldWin's version
+    // signal stays vetoed while cloudHasMoreProgress reports the cloud has
+    // play worth keeping. GameContext resolves that pair with
+    // mergeCloudAdvance, which unions the dex from both sides.
+    const local = copy({
+      pokedexCaught: ["bulbasaur", "charmander", "squirtle", "caterpie"],
+      party: [mon(50)], box: [mon(50)],
+    });
+    const cloud = copy({
+      pokedexCaught: ["bulbasaur", "charmander", "squirtle"],
+      party: [mon(90)], box: [mon(88)],
+    });
+    expect(localHasMoreMilestones(local, cloud)).toBe(true);
+  });
+
+  it("does not let a cloud that is behind on money win on levels alone", () => {
+    // The money guard survived the gate removal and is now the main brake.
+    const local = copy({ money: 900_000, party: [mon(50)], box: [mon(50)] });
+    const cloud = copy({ money: 10, party: [mon(99)], box: [mon(99)] });
+    expect(cloudHasMoreProgress(cloud, local)).toBe(false);
+  });
+
+  it("does not fire on a difference inside the margin", () => {
+    const local = copy({ pokedexCaught: ["a", "b", "c", "d"], party: [mon(50)], box: [mon(50)] });
+    const cloud = copy({ pokedexCaught: ["a", "b", "c"], party: [mon(54)], box: [mon(50)] });
+    expect(cloudHasMoreProgress(cloud, local)).toBe(false);
+  });
+});

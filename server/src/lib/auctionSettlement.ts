@@ -21,7 +21,8 @@ import { validateSave } from "./saveValidation.js";
 import { computeAccountLevel } from "./level.js";
 import { recordError } from "./errorReporting.js";
 import { emitSaveAdopt } from "./saveAdopt.js";
-import { enqueuePrizeGrant } from "./prizeGrant.js";
+import { enqueuePrizeGrant, checkPrizesDeliverable } from "./prizeGrant.js";
+import type { Prisma } from "@prisma/client";
 import type { Prize } from "./giveaway.js";
 
 // An escrowed lot, returned to the seller when an auction ends without a sale
@@ -71,33 +72,36 @@ type EscrowedLot =
 //     a TM offline — so in practice it is about a second, no worse than the
 //     read-then-write window this replaced.
 
-async function restoreEscrowedItem(sellerId: string, itemId: string, qty: number, auctionId: string): Promise<void> {
-  const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
+async function restoreEscrowedItem(
+  sellerId: string, itemId: string, qty: number, auctionId: string,
+  runner: Prisma.TransactionClient,
+): Promise<void> {
+  const u = await runner.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
   const save = safeParseSave(u?.saveData ?? null);
   const inv = (save?.inventory && typeof save.inventory === "object" && !Array.isArray(save.inventory))
     ? (save.inventory as Record<string, number>)
     : {};
   if (Number(inv[itemId] ?? 0) > 0) return; // they already hold it — see above
-  try {
-    await enqueuePrizeGrant(
-      sellerId,
-      [{ kind: "item", itemId, quantity: qty }],
-      { source: "auction-return", sourceId: auctionId },
-    );
-  } catch (e) {
-    void recordError({
-      kind: "server", message: "auction_restore_escrow_item_failed",
-      source: "auctionSettlement.restoreEscrowedItem",
-      meta: { sellerId, itemId, auctionId, error: String((e as Error)?.message ?? e) },
-    });
-  }
+  // Deliberately NOT wrapped in try/catch any more. A throw here MUST roll the
+  // caller's transaction back so the listing stays "active" and the next sweep
+  // retries. Swallowing it committed the status flip with no grant, and the
+  // lot exists nowhere else.
+  await enqueuePrizeGrant(
+    sellerId,
+    [{ kind: "item", itemId, quantity: qty }],
+    { source: "auction-return", sourceId: auctionId },
+    runner,
+  );
 }
 
-async function restoreEscrowedMon(sellerId: string, snapshotJson: string, auctionId: string): Promise<void> {
+async function restoreEscrowedMon(
+  sellerId: string, snapshotJson: string, auctionId: string,
+  runner: Prisma.TransactionClient,
+): Promise<void> {
   let mon: Record<string, unknown> | null = null;
   try { mon = JSON.parse(snapshotJson); } catch { return; }
   if (!mon || typeof mon.id !== "string") return;
-  const u = await prisma.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
+  const u = await runner.user.findUnique({ where: { id: sellerId }, select: { saveData: true } });
   const save = safeParseSave(u?.saveData ?? null);
   const box = Array.isArray(save?.box) ? (save!.box as Record<string, unknown>[]) : [];
   const party = Array.isArray(save?.party) ? (save!.party as Record<string, unknown>[]) : [];
@@ -105,29 +109,99 @@ async function restoreEscrowedMon(sellerId: string, snapshotJson: string, auctio
   const label = typeof mon.nickname === "string" && mon.nickname
     ? mon.nickname
     : (typeof mon.name === "string" && mon.name ? mon.name : "Pokémon");
-  try {
-    await enqueuePrizeGrant(
-      sellerId,
-      [{ kind: "pokemon", label, mon }],
-      { source: "auction-return", sourceId: auctionId },
-    );
-  } catch (e) {
-    void recordError({
-      kind: "server", message: "auction_restore_escrow_failed",
-      source: "auctionSettlement.restoreEscrowedMon",
-      meta: { sellerId, auctionId, error: String((e as Error)?.message ?? e) },
-    });
-  }
+  // See restoreEscrowedItem: a throw must reach the caller's transaction.
+  await enqueuePrizeGrant(
+    sellerId,
+    [{ kind: "pokemon", label, mon }],
+    { source: "auction-return", sourceId: auctionId },
+    runner,
+  );
 }
 
 /** Whichever kind of lot this was, put it back where it came from. */
-async function restoreEscrow(sellerId: string, lot: EscrowedLot, auctionId: string): Promise<void> {
+async function restoreEscrow(
+  sellerId: string, lot: EscrowedLot, auctionId: string, runner: Prisma.TransactionClient,
+): Promise<void> {
   if (lot.kind === "item") {
     if (!lot.itemId) return;
-    return restoreEscrowedItem(sellerId, lot.itemId, lot.qty ?? 1, auctionId);
+    return restoreEscrowedItem(sellerId, lot.itemId, lot.qty ?? 1, auctionId, runner);
   }
   if (!lot.snapshot) return;
-  return restoreEscrowedMon(sellerId, lot.snapshot, auctionId);
+  return restoreEscrowedMon(sellerId, lot.snapshot, auctionId, runner);
+}
+
+/** The prize descriptors a lot comes back as. Empty when there is nothing to return. */
+function prizesForLot(lot: EscrowedLot): Prize[] {
+  if (lot.kind === "item") {
+    return lot.itemId ? [{ kind: "item", itemId: lot.itemId, quantity: lot.qty ?? 1 }] : [];
+  }
+  if (!lot.snapshot) return [];
+  try {
+    const mon = JSON.parse(lot.snapshot) as Record<string, unknown>;
+    if (!mon || typeof mon.id !== "string") return [];
+    const label = typeof mon.nickname === "string" && mon.nickname
+      ? mon.nickname
+      : (typeof mon.name === "string" && mon.name ? mon.name : "Pokemon");
+    return [{ kind: "pokemon", label, mon }];
+  } catch { return []; }
+}
+
+/**
+ * Flip a listing out of "active" and hand the lot back, ATOMICALLY.
+ *
+ * These two steps used to be separate statements with the restore's failure
+ * swallowed, and that combination DESTROYS POKEMON. The flip committed on its
+ * own; if the grant then failed for any reason - a transient Postgres error, a
+ * snapshot whose shape no longer passes validation after sitting in the row
+ * for 48h, or simply the process being replaced mid-deploy - the listing was
+ * left non-"active" with no grant. attemptSettle skips any row that is not
+ * active, so nothing ever retried, and the mon had left the seller's save at
+ * listing time and existed ONLY in Auction.pokemonSnapshot. It was gone, with
+ * no toast, no error the player could see, and no way back.
+ *
+ * In one transaction the failure mode is instead: nothing commits, the listing
+ * stays active, and the next 15s sweep tries again.
+ *
+ * Returns true if THIS call is the one that claimed the listing.
+ */
+async function claimAndRestore(
+  auctionId: string, sellerId: string, lot: EscrowedLot, status: "cancelled" | "expired",
+): Promise<boolean> {
+  // Deliverability is checked BEFORE the transaction on purpose. A snapshot the
+  // fold would refuse can never be granted, so retrying it every 15s forever is
+  // a livelock - and while it stays active the listing can never be settled
+  // either. Better to release the listing and shout, so an operator can restore
+  // the mon by hand from the snapshot still sitting in the row.
+  const prizes = prizesForLot(lot);
+  const undeliverable = prizes.length ? checkPrizesDeliverable(prizes) : null;
+  if (undeliverable) {
+    void recordError({
+      kind: "server", level: "error",
+      message: "auction_escrow_undeliverable",
+      source: "auctionSettlement.claimAndRestore",
+      meta: { auctionId, sellerId, reason: undeliverable, needsManualRestore: true },
+    });
+  }
+  try {
+    let claimed = false;
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.auction.updateMany({
+        where: { id: auctionId, status: "active" },
+        data: { status, settledAt: new Date() },
+      });
+      if (claim.count === 0) return; // someone else already handled it
+      claimed = true;
+      if (!undeliverable) await restoreEscrow(sellerId, lot, auctionId, tx);
+    });
+    return claimed;
+  } catch (e) {
+    void recordError({
+      kind: "server", message: "auction_restore_escrow_failed",
+      source: "auctionSettlement.claimAndRestore",
+      meta: { auctionId, sellerId, error: String((e as Error)?.message ?? e), willRetry: true },
+    });
+    return false;
+  }
 }
 
 const SETTLEMENT_INTERVAL_MS = 15_000;
@@ -178,14 +252,9 @@ async function cancelAuction(auctionId: string, reason: string): Promise<void> {
     where: { id: auctionId },
     select: { sellerId: true, currentBidderId: true, lotKind: true, pokemonSnapshot: true, itemId: true, itemQty: true },
   });
-  const claim = await prisma.auction.updateMany({
-    where: { id: auctionId, status: "active" },
-    data: { status: "cancelled", settledAt: new Date() },
-  });
-  if (claim.count === 0 || !row) return;
-  // The lot was escrowed out of the seller's save — give it back, whichever
-  // kind it was.
-  await restoreEscrow(row.sellerId, lotOf(row), auctionId);
+  if (!row) return;
+  const claim = { count: (await claimAndRestore(auctionId, row.sellerId, lotOf(row), "cancelled")) ? 1 : 0 };
+  if (claim.count === 0) return;
   sendToUserGlobal(row.sellerId, "auction:cancelled", { auctionId, reason });
   if (row.currentBidderId) sendToUserGlobal(row.currentBidderId, "auction:cancelled", { auctionId, reason });
 }
@@ -197,15 +266,13 @@ async function attemptSettle(auctionId: string): Promise<Outcome> {
 
   // No bids — nothing sold; expire the listing and RETURN the escrowed mon.
   if (!auction.currentBidderId || auction.currentBid <= 0) {
-    const claim = await prisma.auction.updateMany({
-      where: { id: auction.id, status: "active" },
-      data: { status: "expired", settledAt: new Date() },
-    });
-    if (claim.count > 0) {
-      await restoreEscrow(auction.sellerId, lotOf(auction), auction.id);
+    const claimed = await claimAndRestore(auction.id, auction.sellerId, lotOf(auction), "expired");
+    if (claimed) {
       sendToUserGlobal(auction.sellerId, "auction:expired", { auctionId: auction.id });
     }
-    return "settled";
+    // Not claimed => nothing committed. Leave it active so the next sweep
+    // retries rather than stranding the lot.
+    return claimed ? "settled" : "skipped";
   }
 
   const [seller, winner] = await Promise.all([

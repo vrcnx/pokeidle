@@ -82,8 +82,6 @@ export function cloudHasMoreProgress(cloudData: any, local: GameState): boolean 
   // check whose absence let a save with two fewer shinies win.
   if (c.shinies > l.shinies) return true;
   if (
-    c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
-    c.locations === l.locations && c.shinies === l.shinies &&
     c.boxParty > l.boxParty + 1 && // +1 slack to swallow lock-window race
     c.money >= l.money
   ) return true;
@@ -97,13 +95,39 @@ export function cloudHasMoreProgress(cloudData: any, local: GameState): boolean 
   // evolution, a released runt — and a one-level difference is not evidence of
   // a fresher save. Fifteen is about a quarter of an hour of play.
   if (
-    c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
-    c.locations === l.locations && c.shinies === l.shinies &&
     c.money >= l.money &&
     c.levels > l.levels + 15
   ) return true;
   return false;
 }
+
+// ── WHY THE MILESTONE-EQUALITY GATE IS GONE ───────────────────────────────
+// Both tie-breaks above used to additionally require
+//     c.e4 === l.e4 && c.badges === l.badges && c.caught === l.caught &&
+//     c.locations === l.locations && c.shinies === l.shinies
+// which is the exact logical NEGATION of localHasMoreMilestones below. So
+// whenever the veto could fire, the tie-breaks were structurally unreachable
+// and this function could only return false. A local copy ahead by a SINGLE
+// dex entry beat a cloud copy holding an arbitrary amount of play, and boot
+// took the wholesale "local extends cloud" branch and uploaded over it. That
+// is the "played all evening on my phone, opened the laptop, lost the
+// evening" report — and it is why the levels/shinies signal added earlier
+// never actually fired for the case it was written for.
+//
+// Dropping the gate is safe precisely BECAUSE of what the caller does with a
+// true. When cloud wins and local is usable, GameContext does NOT overwrite —
+// it runs mergeCloudAdvance, which unions the monotonic milestones from both
+// lineages (so local's extra dex entry survives) and takes the spendable set
+// whole from whichever side holds more play. A fork where each side has
+// something the other lacks is exactly what a merge is for; answering it by
+// picking one side wholesale is what lost data in both directions.
+//
+// The two substantive guards are kept and are doing the real work:
+//   * `c.money >= l.money` — a copy with less money is not unambiguously
+//     fresher, it may be the one that has not seen a purchase.
+//   * the +15 level / +1 box margins — levels and box counts move for
+//     innocent reasons (an evolution, a release, a trade), and a one-unit
+//     difference is not evidence of a fresher save.
 
 // The version signal. The server bumps `saveVersion` on every authoritative
 // write it makes to an account: auction settlements, admin gifts/edits,

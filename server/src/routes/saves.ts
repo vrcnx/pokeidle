@@ -320,11 +320,20 @@ app.post("/", requireUser, async (c) => {
     const after  = milestoneSig(save as Record<string, unknown>);
     if (milestoneRegressed(before, after)) {
       noteSaveReject("regression_blocked");
+      // Carries the version AND the adopt seq, like every other 409 body.
+      // Without them the client cannot tell this apart from an ordinary stale
+      // 409, and its generic handler answered by raising its base version and
+      // re-sending the SAME regressed bytes — which passes the CAS above and
+      // lands right back here, every 2.5s, for the rest of the session. That
+      // tab never uploads again. A refusal the sender cannot act on is a
+      // livelock, not a guard.
       return c.json({
         error: "regression_blocked",
         reason: "incoming save erases milestone progress — refusing to clobber the cloud copy",
         before,
         after,
+        serverSaveVersion: existing.saveVersion,
+        serverSaveAdoptSeq: existing.saveAdoptSeq ?? 0,
       }, 409);
     }
     if (blind) {

@@ -5,8 +5,10 @@ import { requireUser, blockStream } from "../lib/middleware.js";
 import { makeRateLimiter } from "../lib/rateLimit.js";
 import { getIo, sendToUserGlobal } from "../socket.js";
 import { computeAccountLevel } from "../lib/level.js";
+import { validateSave } from "../lib/saveValidation.js";
 import { emitSaveAdopt } from "../lib/saveAdopt.js";
 import { enqueuePrizeGrant } from "../lib/prizeGrant.js";
+import { recordError } from "../lib/errorReporting.js";
 import type { Prize } from "../lib/giveaway.js";
 import {
   MAX_BID,
@@ -478,11 +480,66 @@ app.post("/", requireUser, blockStream, async (c) => {
   // settlement (→ winner) or cancel/expiry (→ returned to the seller). The
   // save write + auction create are one transaction (CAS on the version we
   // read); saveAdoptSeq is bumped so the seller's client drops the mon too.
+  const escrowParty = party.filter((m) => !(m && m.id === pokemonId));
+  // ── RE-ANCHOR THE ACTIVE MON, OR STORE A SAVE THE SERVER ITSELF REFUSES ──
+  // The spread carried `activePlayerPokemonIndex` and `playerPokemon` over
+  // untouched while `party` got shorter. Sell the mon sitting at the last
+  // party index - which is an ordinary thing to do, because the index tracks
+  // whoever was last switched in and handleFaint parks it on the last living
+  // member - and the stored blob has an index past the end of the party.
+  //
+  // saveValidation rejects exactly that ("activePlayerPokemonIndex out of
+  // range"), and unlike every other save writer this path never calls
+  // validateSave, so it is the one place that can PERSIST a save the server
+  // would refuse from the player. Two things then break, both of them
+  // invisible from here:
+  //
+  //   * if this account later WINS an item lot, settlement rebuilds their blob
+  //     without touching the party, validateSave fails, and the settlement
+  //     cancels itself - the winner never receives the machine they paid for.
+  //     (Pokemon lots accidentally self-heal, because pushing the won mon
+  //     makes the party long enough again.)
+  //   * every admin save-patch and item grant on the account is refused with
+  //     "patch produced invalid save", so the documented repair path is
+  //     unavailable for precisely the accounts that need repairing.
+  //
+  // Clamping the index and re-pointing playerPokemon costs nothing and keeps
+  // the invariant every other writer maintains.
+  const escrowIdx = Math.max(0, Math.min(
+    Number(save.activePlayerPokemonIndex ?? 0) || 0,
+    escrowParty.length - 1,
+  ));
   const escrowedSave = {
     ...save,
-    party: party.filter((m) => !(m && m.id === pokemonId)),
+    party: escrowParty,
     box: box.filter((m) => !(m && m.id === pokemonId)),
+    activePlayerPokemonIndex: escrowParty.length ? escrowIdx : 0,
+    playerPokemon: escrowParty.length ? escrowParty[escrowIdx] : null,
   };
+  // Belt and braces: refuse to STORE what we would refuse to accept — but ONLY
+  // when escrowing is what broke it.
+  //
+  // A plain `validateSave(escrowedSave)` gate here would be a availability
+  // regression: any player whose stored blob is ALREADY invalid (an old save
+  // predating a validation tightening, say) would suddenly be unable to list
+  // anything, and refusing them helps nobody — their save was equally invalid
+  // a moment ago. So compare the two. If the input was already bad, proceed as
+  // before and record it; if the input was good and our output is not, that is
+  // a bug in the lines above and must never reach the database.
+  const escrowValid = validateSave(escrowedSave);
+  if (!escrowValid.ok) {
+    const inputWasValid = validateSave(save).ok;
+    void recordError({
+      kind: "server", level: inputWasValid ? "error" : "warn",
+      message: inputWasValid ? "auction_escrow_invalid_save" : "auction_escrow_input_already_invalid",
+      source: "POST /api/auctions",
+      userId: user.id,
+      meta: { reason: escrowValid.reason, inputWasValid },
+    });
+    if (inputWasValid) {
+      return c.json({ error: "couldn't list that right now — please try again" }, 500);
+    }
+  }
   const derived = computeAccountLevel(escrowedSave);
 
   let auction;

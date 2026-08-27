@@ -11,6 +11,7 @@ import {
 import type { Action, CatchSettings, Dispatch, GameState, Pokemon } from "../types";
 import { reducer } from "./reducer";
 import { initialState } from "./initialState";
+import { isSigningOut } from "./signOutLatch";
 import { SAVE_KEY } from "../data/raidLegendaries";
 import { pokemonTable } from "../data/pokemon";
 import { genderFor } from "../data/gender";
@@ -99,6 +100,8 @@ export type SaveStatus =
   | "saved"
   | "error"       // transient: offline / 5xx / rate-limited. Retries.
   | "conflict"    // another device wrote. Needs the player to choose.
+  | "signedout"   // the session was evicted. Nothing will save until re-login.
+  | "diverged"    // a true fork: neither copy is a superset. Needs a human.
   | "rejected";   // permanent: the server will never accept this save.
 
 interface GameContextValue {
@@ -121,12 +124,35 @@ interface GameContextValue {
 
 const GameContext = createContext<GameContextValue | null>(null);
 
-function loadSaved(): GameState {
+/**
+ * Seed live state from the on-disk blob — but ONLY if it belongs to us.
+ *
+ * This used to take no argument and check no ownership, and that was the head
+ * of the worst chain in the save system. GameProvider mounts in-page on
+ * sign-in (no reload), so when account B signed in on a browser where account
+ * A had played, B's reducer was seeded with A's party, box, money and dex.
+ * B was then LOOKING AT A's game. Worse, the local-save effect runs before
+ * the boot reconcile's owner check resolves, and re-stamped A's bytes with
+ * B's owner id — so `localIsForeign` read back false, the foreign-blob
+ * discard never fired, and A's save was uploaded to B's cloud row.
+ *
+ * Refusing here kills that at the root: a blob stamped for someone else is
+ * not our save, so we start clean and let the cloud hydrate us.
+ *
+ * A null stamp is a LEGACY blob (written before ownership was stamped) and is
+ * still accepted — the boot reconcile has a separate, careful decision for
+ * those, and rejecting them here would wipe genuine pre-stamp saves.
+ */
+function loadSaved(ownerId?: string | null): GameState {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return initialState;
     const parsed = JSON.parse(raw) as Partial<GameState>;
     if (!parsed.playerPokemon) return initialState;
+    const blobOwner = (parsed as Record<string, unknown>)[OWNER_KEY];
+    if (ownerId && typeof blobOwner === "string" && blobOwner && blobOwner !== ownerId) {
+      return initialState;
+    }
     // Drop the blob's envelope fields (owner, timestamp, sync bookkeeping)
     // before they get spread into GameState. pickPersistent would filter them
     // out of any upload anyway, but they have no business travelling through
@@ -515,11 +541,22 @@ const PERSISTENT_KEYS: (keyof GameState)[] = [
 // burst without hammering a server that has just said no.
 const GAIN_RETRY_BACKOFF_MS = 10 * 60 * 1000;
 
+// How long to park after a milestone-regression refusal. Long, because
+// re-sending the same bytes cannot possibly succeed — the only thing that
+// changes the answer is the player earning the missing milestone or the other
+// session going away. Short enough that it recovers within one sitting.
+const REGRESSION_BACKOFF_MS = 60 * 1000;
+
 export function GameProvider({ children }: { children: ReactNode }) {
+  // Hoisted ABOVE the reducer on purpose: `me.id` decides whether the blob on
+  // disk is even ours to seed from, and that question has to be answered
+  // before the first render paints someone else's trainer. GameProvider only
+  // mounts when authenticated, so `me` is populated here.
+  const { refresh: refreshProfile, me } = useAuth();
   // Initial state still seeds from localStorage so the player sees their
   // game instantly. Cloud sync hydrates over it once the network call
   // returns (cloud wins if it has data; otherwise local migrates up).
-  const [state, dispatch] = useReducer(reducer, undefined, loadSaved);
+  const [state, dispatch] = useReducer(reducer, undefined, () => loadSaved(me?.id ?? null));
   const cloudReadyRef = useRef(false);
   // The bookkeeping that came off disk with the blob we booted from. Read
   // ONCE — `readSyncBookkeeping` parses the whole save blob, and a ref's
@@ -624,6 +661,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   //
   // So this one is a timestamp, not a latch.
   const gainBackoffUntilRef = useRef<number>(0);
+  // Same shape, different cause: a milestone-regression refusal. Parked
+  // rather than latched, because the fork can resolve on its own — the other
+  // session may stop, or this one may earn the milestone it was missing.
+  const regressionBackoffUntilRef = useRef<number>(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   // Ref twin of lastSavedAt. The socket effect mounts with [] deps, so it
@@ -631,7 +672,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // there would report null on every socket-driven adopt, which is exactly
   // the case the adopt-loss telemetry below needs it for.
   const lastSavedAtRef = useRef<number | null>(null);
-  const { refresh: refreshProfile, me } = useAuth();
   // The signed-in account. GameProvider only mounts when authenticated, so
   // this is set for every save this provider will ever write.
   const myIdRef = useRef<string | null>(me?.id ?? null);
@@ -1027,7 +1067,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // sibling tab's.
         const persistedSyncVersion = bootSyncRef.current!.version;
 
-        const local = loadSaved();
+        const local = loadSaved(myIdRef.current);
 
         // Whose save is sitting in this browser?
         const myId = myIdRef.current;
@@ -1046,6 +1086,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // The persisted sync version belonged to that other account too —
           // clear it so it can't be compared against this account's cloud.
           clearSyncVersion();
+          // ── AND THE IN-MEMORY BOOKKEEPING, WHICH IS THE PART THAT BIT ────
+          // clearSyncVersion only removes the legacy localStorage keys. These
+          // three refs were seeded at first render from bootSyncRef, which
+          // parsed the OTHER account's blob before anyone had checked whose it
+          // was — and they are what the running session actually consults.
+          //
+          // Left inherited, they are a live weapon. adoptedSeqRef holds the
+          // previous account's (much higher) seq, so `seq <= adoptedSeqRef`
+          // refuses EVERY adopt for this account: an admin fix, an auction
+          // escrow, a prize all arrive and are silently ignored. Then the 409
+          // handler's advanceUploadBase teaches this client the server's new
+          // version WITHOUT its bytes, so the next upload overwrites the
+          // server's authoritative write — the "the admin restored my save and
+          // it reset again" report.
+          //
+          // The two sibling reset branches below already zero these; this one
+          // was simply missed, and it is the branch that runs for the case
+          // most likely to need it.
+          adoptedSeqRef.current = 0;
+          persistedAdoptSeqRef.current = 0;
+          persistedCloudVersionRef.current = null;
           reportClientError({
             source: "save-foreign-local",
             message: "local save belonged to a different account; discarded before boot reconcile",
@@ -1240,9 +1301,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
                   // unchanged, so this version is safe to claim now.
                   cloudVersionRef.current = freshVersion;
                 }
-              } catch { /* */ }
+              } catch {
+                // The re-read failed too. Fall through to the base claim
+                // below — see the block comment there for why leaving this
+                // unassigned is the worst outcome available.
+                cloudVersionRef.current = cloudVersion;
+              }
+            } else {
+              // ── EVERY OTHER FAILURE MUST STILL CLAIM A BASE ──────────────
+              // This branch used to be the bare comment "else: silent retry
+              // on next autosave cycle", and that retry could never happen.
+              //
+              // cloudVersionRef starts at -1 and flushCloud refuses outright
+              // while `pending.baseVersion < 0` — before it nulls pendingRef,
+              // before it sets any status, without a single report. So any
+              // boot upload that failed for a reason other than 409 (a 500
+              // mid-deploy, a dropped mobile connection, a 429 from the rate
+              // limiter, a 400 from the gain guard flushing a diverged
+              // lineage) left this client uploading NOTHING for the entire
+              // session, with the save indicator looking perfectly normal
+              // because "pending" draws no chip. The pagehide beacon is
+              // blocked by the same test, so even closing the tab saved
+              // nothing. The promised retry does not exist either: this inner
+              // catch swallows the error, so the outer scheduleRetry never
+              // runs, and the effect has [] deps.
+              //
+              // That is the highest-volume progress-loss path in the system,
+              // and it is this one missing assignment. Our upload was
+              // REJECTED, so the server is still at the version we read —
+              // claim it, and let the ordinary throttled uploader retry
+              // against a real base. If the cloud did move, the next attempt
+              // gets a normal 409 and recovers through advanceUploadBase,
+              // which is a working path.
+              cloudVersionRef.current = cloudVersion;
             }
-            // else: silent retry on next autosave cycle.
           }
         }
 
@@ -1291,6 +1383,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // `pendingRef` — these bytes stay queued and go up on the first tick past
     // the window, by which point the elapsed-time allowance has grown.
     if (Date.now() < gainBackoffUntilRef.current) return;
+    if (Date.now() < regressionBackoffUntilRef.current) return;
     // Never synced this session, so we have no idea what the cloud holds.
     // Uploading anyway would mean sending no `expectedSaveVersion`, and the
     // server's compare-and-swap then degrades to `where: { id }` — an
@@ -1327,6 +1420,42 @@ export function GameProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       lastUploadedRef.current = "";
       const status: number | undefined = err?.status;
+
+      if (status === 409 && err?.details?.error === "regression_blocked") {
+        // ── A TRUE FORK, AND THE ONE 409 THE CLIENT CANNOT ANSWER ──────────
+        // The server refuses this upload because it would erase milestones
+        // the cloud has (saves.ts milestoneRegressed). That is correct — but
+        // the GENERIC 409 path below answers a 409 by calling
+        // advanceUploadBase and re-capturing, which re-sends the SAME
+        // regressed bytes with a version that now PASSES the CAS, so it lands
+        // on the identical refusal 2.5s later, forever. That tab never
+        // uploads again for the whole session, and the "Open elsewhere"
+        // tooltip then tells the player to reload — which discards precisely
+        // the session that never reached the cloud.
+        //
+        // We deliberately do NOT auto-merge. mergeCloudAdvance is safe ONCE
+        // at boot, where the two sides forked from a known common ancestor;
+        // running it mid-session picks one lineage's spendable set and would
+        // hand back money this session already spent, every couple of seconds
+        // — the dupe the 409 comment below spends a paragraph refusing.
+        //
+        // Neither copy is a superset here, so there is no safe automatic
+        // answer. Stop hammering, say so honestly, and record both signatures
+        // so we can see how often this really happens.
+        regressionBackoffUntilRef.current = Date.now() + REGRESSION_BACKOFF_MS;
+        setSaveStatus("diverged");
+        reportClientError({
+          source: "save-diverged",
+          message: "putSave 409 — regression_blocked, upload parked",
+          meta: {
+            before: err?.details?.before ?? null,
+            after: err?.details?.after ?? null,
+            secondsSinceUpload: lastSavedAtRef.current
+              ? Math.round((Date.now() - lastSavedAtRef.current) / 1000) : null,
+          },
+        });
+        return;
+      }
 
       if (status === 409) {
         // The cloud moved under us — another device wrote. We do NOT adopt
@@ -1489,6 +1618,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
             status, code: err?.code ?? null, reason: err?.details?.reason ?? null,
             serverMessage: err?.message ?? null,
           },
+        });
+        return;
+      }
+
+      // ── 401 IS NOT TRANSIENT, AND THE GAME CAUSES IT ROUTINELY ─────────
+      // requireUser (server/src/lib/middleware.ts:113-124) enforces a single
+      // active session by DELETING every older session row on any
+      // authenticated request. So signing in on a phone evicts the desktop
+      // within one request — an entirely ordinary thing for a player to do.
+      //
+      // The desktop's next putSave then 401s, and this used to fall into the
+      // "everything else is transient and self-heals" branch below, which set
+      // saveStatus "error" — a state SaveStatusDot does not render. The tab
+      // looked fine and never saved again for the rest of the session, and
+      // every forced-adopt site then had a whole session's play to destroy.
+      // Retrying is also pointless: the cookie names a row that no longer
+      // exists, so it can only ever 401 again.
+      //
+      // The `session:replaced` socket push was the intended escape, but it is
+      // undeliverable if that socket is momentarily down — and it can never
+      // reconnect, because the handshake uses the same dead cookie.
+      //
+      // So: stop, say so, and make it visible. Deliberately NOT
+      // permanentlyRejectedRef — that is for blobs this server will never
+      // accept; this save is fine and will upload the moment the player signs
+      // back in.
+      if (status === 401) {
+        setSaveStatus("signedout");
+        reportClientError({
+          source: "save-signedout",
+          message: "putSave 401 — session evicted, cloud saving stopped",
+          meta: { secondsSinceUpload: lastSavedAtRef.current
+            ? Math.round((Date.now() - lastSavedAtRef.current) / 1000) : null },
         });
         return;
       }
@@ -1988,12 +2150,41 @@ function pickPersistent(state: GameState): Partial<GameState> {
 // version and adopt seq that describe these bytes" inseparable is for them to
 // be the same value. A tab that overwrites the blob necessarily overwrites the
 // bookkeeping with its own, and a tab that dies mid-update leaves neither.
+// ── SIGN-OUT LATCH ────────────────────────────────────────────────────
+// AuthContext.signOut wipes the save blob and then calls
+// location.replace("/"). It does NOT unmount GameProvider, so this module's
+// pagehide/visibilitychange flush is still registered and fires DURING that
+// navigation — after the wipe — recreating the blob with the departing
+// account's bytes, owner stamp and sync bookkeeping. Signing out therefore
+// left the device exactly as contaminated as before, and re-armed the
+// cross-account inheritance for whoever logged in next.
+//
+// The latch itself lives in state/signOutLatch.ts — see that file.
+
 function writeLocalSave(
   snapshot: Partial<GameState>,
   ownerId: string | null,
   cloudVersion: number | null,
   adoptSeq: number,
 ): void {
+  // Never sign someone else's save with our name. The local-save effect runs
+  // on every state change from first render — BEFORE the boot reconcile has
+  // resolved whose blob is on disk — so without this it re-stamped account
+  // A's bytes with account B's owner id, which is precisely what made the
+  // foreign-blob guard read false and let one account's save be uploaded
+  // under another's. The legitimate takeover path (the reconcile deciding to
+  // discard a foreign blob) does a removeItem first, so it lands here with
+  // nothing to protect and passes.
+  try {
+    const existingRaw = localStorage.getItem(SAVE_KEY);
+    if (existingRaw && ownerId) {
+      const existingOwner = (JSON.parse(existingRaw) as Record<string, unknown>)[OWNER_KEY];
+      if (typeof existingOwner === "string" && existingOwner && existingOwner !== ownerId) return;
+    }
+  } catch { /* unparseable blob — nothing to protect, fall through */ }
+  // Sign-out has already wiped the blob on purpose; recreating it here is
+  // what made "Sign out" fail to clear a shared machine. See signOutStarted().
+  if (isSigningOut()) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       ...snapshot,

@@ -159,6 +159,22 @@ export function SaveStatusDot({ status }: { status: SaveStatus }) {
       </span>
     );
   }
+  if (status === "signedout") {
+    return (
+      <span className="channel-header-save save-status-error" role="alert" title={t("You have been signed out — signing in somewhere else ends the session here. Nothing is saving to the cloud until you sign in again on this device, and anything you play now can be lost. Sign in again before you keep playing.")}>
+        <span className="channel-header-save-dot" aria-hidden />
+        <span>{t("Signed out — not saving")}</span>
+      </span>
+    );
+  }
+  if (status === "diverged") {
+    return (
+      <span className="channel-header-save save-status-error" role="alert" title={t("This device and the cloud have both moved on separately, so neither copy contains everything. What you have played here is NOT backed up, and reloading would replace it with the cloud copy. Do not reload — report this so it can be merged for you.")}>
+        <span className="channel-header-save-dot" aria-hidden />
+        <span>{t("Not merged — don't reload")}</span>
+      </span>
+    );
+  }
   if (status === "conflict") {
     return (
       <span className="channel-header-save save-status-error" role="alert" title={t("Your progress is open in another tab or on another device, which is the one saving to the cloud. Close the others and reload to sync this one.")}>
